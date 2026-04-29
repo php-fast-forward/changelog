@@ -1,0 +1,80 @@
+{
+    "name": "fast-forward/changelog",
+    "description": "Standalone changelog domain and CLI runtime for Fast Forward PHP packages.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "changelog",
+        "cli",
+        "fast-forward",
+        "keep-a-changelog",
+        "php-di",
+        "release-notes",
+        "symfony-console"
+    ],
+    "readme": "README.md",
+    "authors": [
+        {
+            "name": "Felipe Sayao Lobato Abreu",
+            "email": "github@mentordosnerds.com",
+            "homepage": "https://github.com/coisa",
+            "role": "Maintainer"
+        }
+    ],
+    "homepage": "https://github.com/php-fast-forward/changelog",
+    "support": {
+        "issues": "https://github.com/php-fast-forward/changelog/issues",
+        "wiki": "https://github.com/php-fast-forward/changelog/wiki",
+        "source": "https://github.com/php-fast-forward/changelog",
+        "docs": "https://php-fast-forward.github.io/changelog/"
+    },
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/php-fast-forward"
+        },
+        {
+            "type": "custom",
+            "url": "https://www.paypal.com/donate/?business=JLDAF45XZ8D84"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "php-di/php-di": "^7.0",
+        "symfony/console": "^7.4 || ^8.0",
+        "symfony/filesystem": "^7.4 || ^8.0",
+        "symfony/process": "^7.4 || ^8.0",
+        "thecodingmachine/safe": "^3.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0 || ^13.0"
+    },
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "FastForward\\Changelog\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "FastForward\\Changelog\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/changelog"
+    ],
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        },
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}

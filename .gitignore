@@ -1,0 +1,10 @@
+.dev-tools/
+.idea/
+.phpunit.cache/
+.vscode/
+backup/
+tmp/
+vendor/
+*.cache
+.DS_Store
+composer.lock
