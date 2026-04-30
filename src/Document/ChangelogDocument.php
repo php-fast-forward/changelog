@@ -104,10 +104,12 @@ final readonly class ChangelogDocument
                         continue;
                     }
 
-                    array_splice($releases, $index, 0, [$target]);
-                    $inserted = true;
+                    if ($this->shouldInsertBeforePublishedRelease($target, $release)) {
+                        array_splice($releases, $index, 0, [$target]);
+                        $inserted = true;
 
-                    break;
+                        break;
+                    }
                 }
 
                 if (! $inserted) {
@@ -183,5 +185,24 @@ final readonly class ChangelogDocument
         }
 
         return [$unreleased ?? new ChangelogRelease(self::UNRELEASED_VERSION), ...$published];
+    }
+
+    private function shouldInsertBeforePublishedRelease(ChangelogRelease $target, ChangelogRelease $release): bool
+    {
+        $targetVersion = ltrim($target->getVersion(), 'vV');
+        $releaseVersion = ltrim($release->getVersion(), 'vV');
+
+        if (
+            1 === preg_match('/^\d+(?:\.\d+)*(?:[-+][A-Za-z0-9\-.]+)?$/', $targetVersion)
+            && 1 === preg_match('/^\d+(?:\.\d+)*(?:[-+][A-Za-z0-9\-.]+)?$/', $releaseVersion)
+        ) {
+            return version_compare($targetVersion, $releaseVersion, '>');
+        }
+
+        if (null !== $target->getDate() && null !== $release->getDate()) {
+            return $target->getDate() > $release->getDate();
+        }
+
+        return false;
     }
 }

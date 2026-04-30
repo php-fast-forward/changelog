@@ -45,7 +45,7 @@ final class ChangelogDocumentTest extends TestCase
             ));
 
         self::assertSame(
-            [ChangelogDocument::UNRELEASED_VERSION, '1.0.0', '1.1.0'],
+            [ChangelogDocument::UNRELEASED_VERSION, '1.1.0', '1.0.0'],
             array_map(
                 static fn(ChangelogRelease $release): string => $release->getVersion(),
                 $document->getReleases(),
@@ -111,5 +111,22 @@ final class ChangelogDocumentTest extends TestCase
             ),
         );
         self::assertSame(['Updated note'], $document->getRelease('1.2.0')?->getEntriesFor(ChangelogEntryType::Added));
+    }
+
+    #[Test]
+    public function withReleaseWillPreservePublishedOrderingWhenBackfillingOlderVersions(): void
+    {
+        $document = ChangelogDocument::create()
+            ->withRelease(new ChangelogRelease('2.0.0', '2026-04-20'))
+            ->withRelease(new ChangelogRelease('1.5.0', '2026-03-10'));
+
+        self::assertSame(
+            [ChangelogDocument::UNRELEASED_VERSION, '2.0.0', '1.5.0'],
+            array_map(
+                static fn(ChangelogRelease $release): string => $release->getVersion(),
+                $document->getReleases(),
+            ),
+        );
+        self::assertSame('2.0.0', $document->getLatestPublishedRelease()?->getVersion());
     }
 }
