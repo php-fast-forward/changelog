@@ -109,6 +109,19 @@ final class ChangelogManagerTest extends TestCase
     }
 
     #[Test]
+    public function inferNextVersionWillNormalizeAPrefixedCurrentVersion(): void
+    {
+        $this->changelogManager->addEntry(
+            $this->changelogFile,
+            ChangelogEntryType::Added,
+            'Add prefixed version support',
+        );
+
+        self::assertSame('1.3.0', $this->changelogManager->inferNextVersion($this->changelogFile, 'v1.2.3'));
+        self::assertSame('1.3.0', $this->changelogManager->inferNextVersion($this->changelogFile, 'V1.2.3'));
+    }
+
+    #[Test]
     public function inferNextVersionWillThrowWhenNoUnreleasedEntriesExist(): void
     {
         $filesystem = new PackageFilesystem(new Filesystem());

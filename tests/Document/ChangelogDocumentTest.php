@@ -78,6 +78,28 @@ final class ChangelogDocumentTest extends TestCase
     }
 
     #[Test]
+    public function promoteUnreleasedWillKeepPublishedReleasesInSemanticOrder(): void
+    {
+        $document = new ChangelogDocument([
+            (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))
+                ->withEntry(ChangelogEntryType::Fixed, 'Backfill an older release'),
+            new ChangelogRelease('2.0.0', '2026-05-01'),
+            new ChangelogRelease('1.3.0', '2026-03-01'),
+        ]);
+
+        $promoted = $document->promoteUnreleased('1.4.0', '2026-04-01');
+
+        self::assertSame(
+            [ChangelogDocument::UNRELEASED_VERSION, '2.0.0', '1.4.0', '1.3.0'],
+            array_map(
+                static fn(ChangelogRelease $release): string => $release->getVersion(),
+                $promoted->getReleases(),
+            ),
+        );
+        self::assertSame('2.0.0', $promoted->getLatestPublishedRelease()?->getVersion());
+    }
+
+    #[Test]
     public function documentAccessorsWillResolveExpectedReleaseVariants(): void
     {
         $document = new ChangelogDocument([new ChangelogRelease('1.2.0', '2026-04-19')]);

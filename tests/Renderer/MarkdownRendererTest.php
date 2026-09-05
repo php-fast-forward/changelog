@@ -105,4 +105,31 @@ final class MarkdownRendererTest extends TestCase
             $output,
         );
     }
+
+    #[Test]
+    public function renderWillPreserveAnExistingVersionPrefixInReferenceTags(): void
+    {
+        $document = new ChangelogDocument([
+            new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION),
+            new ChangelogRelease('v1.2.0', '2026-04-19'),
+            new ChangelogRelease('V1.1.0', '2026-04-01'),
+        ]);
+
+        $output = (new MarkdownRenderer())->render($document, 'https://github.com/php-fast-forward/changelog');
+
+        self::assertStringContainsString(
+            '[unreleased]: https://github.com/php-fast-forward/changelog/compare/v1.2.0...HEAD',
+            $output,
+        );
+        self::assertStringContainsString(
+            '[v1.2.0]: https://github.com/php-fast-forward/changelog/compare/V1.1.0...v1.2.0',
+            $output,
+        );
+        self::assertStringContainsString(
+            '[V1.1.0]: https://github.com/php-fast-forward/changelog/releases/tag/V1.1.0',
+            $output,
+        );
+        self::assertStringNotContainsString('/vv1.2.0', $output);
+        self::assertStringNotContainsString('/vV1.1.0', $output);
+    }
 }

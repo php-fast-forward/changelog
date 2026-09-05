@@ -27,6 +27,7 @@ use function explode;
 use function implode;
 use function rtrim;
 use function str_ends_with;
+use function str_starts_with;
 use function substr;
 use function trim;
 
@@ -152,7 +153,11 @@ final readonly class MarkdownRenderer
 
     private function resolveTag(ChangelogRelease $release): string
     {
-        return 'v' . $release->getVersion();
+        $version = $release->getVersion();
+
+        return str_starts_with($version, 'v') || str_starts_with($version, 'V')
+            ? $version
+            : 'v' . $version;
     }
 
     private function normalizeRepositoryUrl(?string $repositoryUrl): ?string

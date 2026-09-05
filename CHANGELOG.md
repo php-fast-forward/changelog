@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Bootstrap the standalone changelog domain, document model, manager, and reusable CLI commands (#1)
+
+### Fixed
+
+- Fix release ordering and version-prefix handling in changelog promotion, inference, and links (#1)

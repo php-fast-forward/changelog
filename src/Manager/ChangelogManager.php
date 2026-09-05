@@ -73,7 +73,10 @@ final readonly class ChangelogManager
             throw new RuntimeException(\sprintf('%s does not contain unreleased entries to infer a version from.', $file));
         }
 
-        $currentVersion ??= $document->getLatestPublishedRelease()?->getVersion() ?? '0.0.0';
+        $currentVersion = ltrim(
+            $currentVersion ?? $document->getLatestPublishedRelease()?->getVersion() ?? '0.0.0',
+            'vV',
+        );
         [$major, $minor, $patch] = array_map(intval(...), explode('.', $currentVersion));
 
         if ([] !== $unreleased->getEntriesFor(ChangelogEntryType::Removed)

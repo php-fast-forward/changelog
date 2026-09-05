@@ -145,7 +145,6 @@ final readonly class ChangelogDocument
         foreach ($this->releases as $release) {
             if ($release->isUnreleased()) {
                 $releases[] = new ChangelogRelease(self::UNRELEASED_VERSION);
-                $releases[] = $promoted;
 
                 continue;
             }
@@ -158,10 +157,10 @@ final readonly class ChangelogDocument
         }
 
         if ([] === $releases) {
-            $releases = [new ChangelogRelease(self::UNRELEASED_VERSION), $promoted];
+            $releases = [new ChangelogRelease(self::UNRELEASED_VERSION)];
         }
 
-        return new self($this->normalizeUnreleasedPosition($releases));
+        return (new self($this->normalizeUnreleasedPosition($releases)))->withRelease($promoted);
     }
 
     /**
