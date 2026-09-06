@@ -7,8 +7,9 @@ declare(strict_types=1);
  *
  * This file is part of fast-forward/changelog project.
  *
- * @author   Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
- * @license  https://opensource.org/licenses/MIT MIT License
+ * @copyright Copyright (c) 2026 Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @author    Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @license   https://opensource.org/licenses/MIT MIT License
  *
  * @see      https://github.com/php-fast-forward/changelog
  * @see      https://github.com/php-fast-forward/changelog/issues
@@ -18,22 +19,37 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Git;
 
-use FastForward\Changelog\Filesystem\PackageFilesystem;
-use Symfony\Component\Process\Process;
+use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 
-final readonly class GitRepositoryUrlResolver
+/**
+ * Resolves the origin URL for a Git working directory.
+ */
+final readonly class GitRepositoryUrlResolver implements GitRepositoryUrlResolverInterface
 {
+    /**
+     * Initializes working-directory resolution and isolated process creation.
+     *
+     * @param PackageFilesystemInterface $filesystem resolves the working directory
+     * @param ProcessFactoryInterface $processFactory creates isolated Git processes
+     */
     public function __construct(
-        private PackageFilesystem $filesystem,
+        private PackageFilesystemInterface $filesystem,
+        private ProcessFactoryInterface $processFactory,
     ) {}
 
+    /**
+     * Returns the configured origin URL or null when it cannot be resolved.
+     *
+     * The resolver MUST NOT throw for an absent directory, a failed Git command,
+     * or empty command output.
+     */
     public function resolve(?string $workingDirectory): ?string
     {
         if (null === $workingDirectory || '' === trim($workingDirectory)) {
             return null;
         }
 
-        $process = new Process(['git', 'config', '--get', 'remote.origin.url']);
+        $process = $this->processFactory->create(['git', 'config', '--get', 'remote.origin.url']);
         $process->setWorkingDirectory($this->filesystem->getAbsolutePath($workingDirectory));
         $process->run();
 

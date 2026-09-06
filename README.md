@@ -12,7 +12,8 @@ Standalone changelog domain and CLI runtime for Fast Forward PHP packages.
 - 📘 Parse and render Keep a Changelog 1.1.0 documents deterministically
 - 🛠️ Manage changelog entries and promote `Unreleased` into published releases
 - 🚀 Expose reusable Symfony Console commands for release automation
-- 🔌 Stay embeddable so larger CLIs can register the commands directly
+- ✅ Check whether `Unreleased` contains a change relative to a Git baseline
+- 🔌 Compose services through `fast-forward/container` and load commands lazily
 
 ## 📦 Installation
 
@@ -24,6 +25,7 @@ Requirements:
 
 - PHP `8.3+`
 - Symfony Console, Filesystem, and Process components
+- `fast-forward/container` and a PSR-20 clock supplied by `fast-forward/clock`
 
 ## 🛠️ Usage
 
@@ -32,28 +34,31 @@ Run the standalone CLI:
 ```bash
 changelog list
 changelog changelog:entry "Add release automation"
+changelog changelog:check --ref=origin/main
 changelog changelog:resolve-version
+changelog changelog:promote 1.2.0
 changelog changelog:render-release-notes 1.2.0
 ```
 
-Register the commands inside another Symfony Console application:
+The compatibility aliases `changelog:next-version`, `changelog:show`, and
+`changelog:release-notes` resolve to the same lazy commands.
+
+Register the package command loader inside another Symfony Console application:
 
 ```php
-use DI\Container;
-use FastForward\Changelog\Console\Command\ChangelogEntryCommand;
-use FastForward\Changelog\Console\Command\ChangelogPromoteCommand;
-use FastForward\Changelog\Console\Command\ChangelogReleaseNotesRenderCommand;
-use FastForward\Changelog\Console\Command\ChangelogVersionResolveCommand;
+use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
+use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 use Symfony\Component\Console\Application;
+use function FastForward\Container\container;
 
-$container = new Container();
+$container = container(ChangelogServiceProvider::class);
 $application = new Application('My Tooling');
-
-$application->add($container->get(ChangelogEntryCommand::class));
-$application->add($container->get(ChangelogPromoteCommand::class));
-$application->add($container->get(ChangelogVersionResolveCommand::class));
-$application->add($container->get(ChangelogReleaseNotesRenderCommand::class));
+$application->setCommandLoader($container->get(CommandLoaderInterface::class));
 ```
+
+The loader exposes command metadata without constructing command services. A
+misconfigured dependency therefore fails only when its command is executed and
+does not prevent the CLI from listing or running unrelated commands.
 
 ## 🧰 API Summary
 
@@ -63,6 +68,8 @@ $application->add($container->get(ChangelogReleaseNotesRenderCommand::class));
 | `ChangelogParser` | Parse Markdown into the managed changelog document model |
 | `MarkdownRenderer` | Render deterministic changelog Markdown and release-note bodies |
 | `ChangelogDocument` / `ChangelogRelease` | Immutable document model for release sections |
+| `UnreleasedEntryChecker` | Compare current entries with an optional Git baseline |
+| `ChangelogServiceProvider` | Register interfaces, factories, the clock, and lazy commands |
 
 ## 🔌 Integration
 
@@ -79,6 +86,8 @@ bin/
 docs/
 src/
   Console/
+  Container/
+  Checker/
   Document/
   Entry/
   Filesystem/
@@ -86,6 +95,7 @@ src/
   Manager/
   Parser/
   Renderer/
+  Version/
 tests/
 ```
 
@@ -95,7 +105,10 @@ MIT © 2026 Felipe Sayao Lobato Abreu
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. Run `composer validate --strict` and `vendor/bin/phpunit` before opening a PR.
+Issues and pull requests are welcome. Run `composer validate --strict` and
+`composer test:coverage` before opening a PR. The unit suite requires 100%
+source-line coverage and replaces filesystem, process, clock, and container
+collaborators with test doubles.
 
 ## 🔗 Links
 

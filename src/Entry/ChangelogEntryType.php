@@ -7,8 +7,9 @@ declare(strict_types=1);
  *
  * This file is part of fast-forward/changelog project.
  *
- * @author   Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
- * @license  https://opensource.org/licenses/MIT MIT License
+ * @copyright Copyright (c) 2026 Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @author    Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @license   https://opensource.org/licenses/MIT MIT License
  *
  * @see      https://github.com/php-fast-forward/changelog
  * @see      https://github.com/php-fast-forward/changelog/issues
@@ -18,8 +19,11 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Entry;
 
-use InvalidArgumentException;
-
+/**
+ * Enumerates the Keep a Changelog categories supported by the package.
+ *
+ * Values MUST remain compatible with the canonical English section headings.
+ */
 enum ChangelogEntryType: string
 {
     case Added = 'Added';
@@ -29,19 +33,4 @@ enum ChangelogEntryType: string
     case Fixed = 'Fixed';
     case Security = 'Security';
 
-    /**
-     * @return list<self>
-     */
-    public static function ordered(): array
-    {
-        return [self::Added, self::Changed, self::Deprecated, self::Removed, self::Fixed, self::Security];
-    }
-
-    public static function fromInput(string $value): self
-    {
-        $normalized = ucfirst(strtolower(trim($value)));
-
-        return self::tryFrom($normalized)
-            ?? throw new InvalidArgumentException(\sprintf('Unsupported changelog type "%s".', $value));
-    }
 }

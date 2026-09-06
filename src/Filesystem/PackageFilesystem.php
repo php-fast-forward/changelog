@@ -7,8 +7,9 @@ declare(strict_types=1);
  *
  * This file is part of fast-forward/changelog project.
  *
- * @author   Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
- * @license  https://opensource.org/licenses/MIT MIT License
+ * @copyright Copyright (c) 2026 Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @author    Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @license   https://opensource.org/licenses/MIT MIT License
  *
  * @see      https://github.com/php-fast-forward/changelog
  * @see      https://github.com/php-fast-forward/changelog/issues
@@ -19,50 +20,70 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Filesystem;
 
 use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Filesystem\Path;
-
-use function Safe\file_get_contents;
-use function Safe\getcwd;
-
-final readonly class PackageFilesystem
+/**
+ * Adapts Symfony filesystem operations to the package filesystem contract.
+ *
+ * All paths MUST be resolved through the injected path resolver so callers can
+ * replace both I/O and path behavior in unit tests.
+ */
+final readonly class PackageFilesystem implements PackageFilesystemInterface
 {
+    /**
+     * Initializes the I/O adapter and its side-effect-free path resolver.
+     *
+     * @param Filesystem $filesystem performs concrete filesystem operations
+     * @param PackagePathResolverInterface $pathResolver resolves relative paths
+     */
     public function __construct(
         private Filesystem $filesystem,
+        private PackagePathResolverInterface $pathResolver,
     ) {}
 
+    /**
+     * Determines whether a resolved path exists.
+     */
     public function exists(string $file, ?string $basePath = null): bool
     {
         return $this->filesystem->exists($this->getAbsolutePath($file, $basePath));
     }
 
+    /**
+     * Reads a resolved file path.
+     */
     public function readFile(string $file, ?string $basePath = null): string
     {
-        return file_get_contents($this->getAbsolutePath($file, $basePath));
+        return $this->filesystem->readFile($this->getAbsolutePath($file, $basePath));
     }
 
+    /**
+     * Writes contents atomically through Symfony Filesystem.
+     */
     public function dumpFile(string $file, string $contents, ?string $basePath = null): void
     {
         $this->filesystem->dumpFile($this->getAbsolutePath($file, $basePath), $contents);
     }
 
+    /**
+     * Creates a resolved directory with the supplied mode.
+     */
     public function mkdir(string $directory, int $mode = 0o777, ?string $basePath = null): void
     {
         $this->filesystem->mkdir($this->getAbsolutePath($directory, $basePath), $mode);
     }
 
+    /**
+     * Resolves a path against an optional working directory.
+     */
     public function getAbsolutePath(string $file, ?string $basePath = null): string
     {
-        $basePath ??= getcwd();
-
-        if (! Path::isAbsolute($basePath)) {
-            $basePath = Path::makeAbsolute($basePath, getcwd());
-        }
-
-        return Path::makeAbsolute($file, $basePath);
+        return $this->pathResolver->absolutePath($file, $basePath);
     }
 
+    /**
+     * Returns an ancestor directory for a path.
+     */
     public function getDirectory(string $path, int $levels = 1): string
     {
-        return \dirname($path, $levels);
+        return $this->pathResolver->directoryPath($path, $levels);
     }
 }
