@@ -116,13 +116,32 @@ final class UnreleasedEntryCheckerTest extends TestCase
         self::assertFalse($checker->hasPendingChanges('CHANGELOG.md', 'main', '/project'));
     }
 
+    #[Test]
+    public function movingAnEntryToAnotherCategoryIsAPendingChange(): void
+    {
+        $filesystem = $this->prophesize(PackageFilesystemInterface::class);
+        $git = $this->prophesize(GitFileReaderInterface::class);
+        $parser = $this->prophesize(ChangelogParserInterface::class);
+        $filesystem->exists('CHANGELOG.md')->willReturn(true);
+        $filesystem->readFile('CHANGELOG.md')->willReturn('current');
+        $parser->parse('current')->willReturn($this->document(['same'], ChangelogEntryType::Security));
+        $git->show('main', 'CHANGELOG.md', '/project')->willReturn('baseline');
+        $parser->parse('baseline')->willReturn($this->document(['same'], ChangelogEntryType::Added));
+        $checker = new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal());
+
+        self::assertTrue($checker->hasPendingChanges('CHANGELOG.md', 'main', '/project'));
+    }
+
     /**
      * @param list<string> $entries
      */
-    private function document(array $entries): ChangelogDocument
+    private function document(
+        array $entries,
+        ChangelogEntryType $type = ChangelogEntryType::Added,
+    ): ChangelogDocument
     {
         $release = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION, null, [
-            ChangelogEntryType::Added->value => $entries,
+            $type->value => $entries,
         ]);
 
         return new ChangelogDocument([$release]);

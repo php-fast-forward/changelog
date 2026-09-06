@@ -88,7 +88,7 @@ final readonly class UnreleasedEntryChecker implements UnreleasedEntryCheckerInt
     }
 
     /**
-     * Flattens categorized entries while preserving their first occurrence.
+     * Flattens entries with their category identity and first occurrence.
      *
      * @return list<string>
      */
@@ -96,8 +96,10 @@ final readonly class UnreleasedEntryChecker implements UnreleasedEntryCheckerInt
     {
         $entries = [];
 
-        foreach ($release->getEntries() as $categoryEntries) {
-            $entries = [...$entries, ...$categoryEntries];
+        foreach ($release->getEntries() as $category => $categoryEntries) {
+            foreach ($categoryEntries as $entry) {
+                $entries[] = $category . "\0" . $entry;
+            }
         }
 
         return array_values(array_unique($entries));
