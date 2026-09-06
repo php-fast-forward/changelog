@@ -20,13 +20,15 @@ jobs:
             - name: Check out repository
               # v7
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  persist-credentials: false
 
             - name: Set up PHP
               # 2.36.0
               uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
               with:
                   php-version: '8.3'
-                  coverage: none
+                  coverage: pcov
                   tools: composer:v2
 
             - name: Validate Composer metadata
@@ -35,8 +37,8 @@ jobs:
             - name: Install dependencies
               run: composer install --no-interaction --prefer-dist
 
-            - name: Run tests
-              run: composer test
+            - name: Run unit tests with full coverage
+              run: composer test:coverage
 
             - name: Smoke test the CLI
               run: php bin/changelog list --raw

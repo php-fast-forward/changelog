@@ -2,115 +2,155 @@
 
 declare(strict_types=1);
 
-/**
- * Standalone changelog domain and CLI runtime for Fast Forward PHP packages.
- *
- * This file is part of fast-forward/changelog project.
- *
- * @author   Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
- * @license  https://opensource.org/licenses/MIT MIT License
- *
- * @see      https://github.com/php-fast-forward/changelog
- * @see      https://github.com/php-fast-forward/changelog/issues
- * @see      https://php-fast-forward.github.io/changelog/
- * @see      https://datatracker.ietf.org/doc/html/rfc2119
- */
-
 namespace FastForward\Changelog\Tests\Parser;
 
 use FastForward\Changelog\Document\ChangelogDocument;
+use FastForward\Changelog\Document\ChangelogDocumentFactoryInterface;
 use FastForward\Changelog\Document\ChangelogRelease;
+use FastForward\Changelog\Document\ChangelogReleaseFactoryInterface;
 use FastForward\Changelog\Entry\ChangelogEntryType;
+use FastForward\Changelog\Entry\ChangelogEntryTypesInterface;
 use FastForward\Changelog\Parser\ChangelogParser;
+use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 #[CoversClass(ChangelogParser::class)]
 #[UsesClass(ChangelogDocument::class)]
 #[UsesClass(ChangelogRelease::class)]
-#[UsesClass(ChangelogEntryType::class)]
 final class ChangelogParserTest extends TestCase
 {
+    use ProphecyTrait;
+
     #[Test]
-    public function parseWillExtractReleaseSectionsAndEntries(): void
+    #[TestWith([''])]
+    #[TestWith([" \n "])]
+    #[TestWith(['# Changelog without release headings'])]
+    public function parseReturnsTheFactoryDefaultWhenNoReleaseExists(string $contents): void
     {
-        $document = (new ChangelogParser())->parse(<<<'MD'
+        $default = new ChangelogDocument([new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)]);
+        $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
+        $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
+        $documentFactory->create()->willReturn($default)->shouldBeCalledOnce();
+
+        self::assertSame($default, (new ChangelogParser(
+            $documentFactory->reveal(),
+            $releaseFactory->reveal(),
+            $entryTypes->reveal(),
+        ))->parse($contents));
+    }
+
+    #[Test]
+    public function parseBuildsDatedAndUndatedReleaseValues(): void
+    {
+        $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
+        $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
+        $entryTypes->ordered()->willReturn([ChangelogEntryType::Added, ChangelogEntryType::Fixed]);
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION, null, ['Added' => ['new']]);
+        $published = new ChangelogRelease('1.0.0', '2026-09-05', ['Fixed' => ['fix']]);
+        $releaseFactory->create(
+            ChangelogDocument::UNRELEASED_VERSION,
+            null,
+            ['Added' => ['new'], 'Fixed' => []],
+        )->willReturn($unreleased)->shouldBeCalledOnce();
+        $releaseFactory->create(
+            '1.0.0',
+            '2026-09-05',
+            ['Added' => [], 'Fixed' => ['fix']],
+        )->willReturn($published)->shouldBeCalledOnce();
+        $expected = new ChangelogDocument([$unreleased, $published]);
+        $documentFactory->create([$unreleased, $published], [])->willReturn($expected)->shouldBeCalledOnce();
+        $parser = new ChangelogParser($documentFactory->reveal(), $releaseFactory->reveal(), $entryTypes->reveal());
+
+        $actual = $parser->parse(<<<'MARKDOWN'
             # Changelog
 
-            All notable changes to this project will be documented in this file.
-
-            The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-            and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
             ## [Unreleased]
 
             ### Added
 
-            - Add release preparation workflow
+            - new
+
+            ## [1.0.0] - 2026-09-05
 
             ### Fixed
 
-            - Correct changelog checks
+            - fix
+            MARKDOWN);
 
-            ## [1.0.0] - 2026-04-01
-
-            ### Added
-
-            - Initial release
-            MD);
-
-        self::assertSame(ChangelogDocument::UNRELEASED_VERSION, $document->getUnreleased()->getVersion());
-        self::assertSame(['Add release preparation workflow'], $document->getUnreleased()->getEntries()['Added']);
-        self::assertSame('2026-04-01', $document->getRelease('1.0.0')?->getDate());
+        self::assertSame($expected, $actual);
     }
 
     #[Test]
-    public function parseWillReturnDefaultDocumentForEmptyContents(): void
+    public function parseIgnoresNoiseEmptyBulletsAndDuplicateEntries(): void
     {
-        $document = (new ChangelogParser())->parse("   \n\n");
+        $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
+        $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
+        $entryTypes->ordered()->willReturn([ChangelogEntryType::Added]);
+        $release = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION, null, ['Added' => ['entry']]);
+        $releaseFactory->create(
+            ChangelogDocument::UNRELEASED_VERSION,
+            null,
+            ['Added' => ['entry']],
+        )->willReturn($release)->shouldBeCalledOnce();
+        $expected = new ChangelogDocument([$release]);
+        $documentFactory->create([$release], [])->willReturn($expected)->shouldBeCalledOnce();
+        $parser = new ChangelogParser($documentFactory->reveal(), $releaseFactory->reveal(), $entryTypes->reveal());
 
-        self::assertSame([ChangelogDocument::UNRELEASED_VERSION], array_map(
-            static fn(ChangelogRelease $release): string => $release->getVersion(),
-            $document->getReleases(),
-        ));
-    }
-
-    #[Test]
-    public function parseWillIgnoreUnsupportedLinesAndDeduplicateEntriesWithinASection(): void
-    {
-        $document = (new ChangelogParser())->parse(<<<'MD'
+        self::assertSame($expected, $parser->parse(<<<'MARKDOWN'
             ## [Unreleased]
 
             ### Added
 
-            Intro line that should be ignored
-            - Add sync command
-            - Add sync command
-            *
-
-            ### Fixed
-
-            - Repair coverage report
+            prose is ignored
             -
-            MD);
-
-        self::assertSame(['Add sync command'], $document->getUnreleased()->getEntriesFor(ChangelogEntryType::Added));
-        self::assertSame(['Repair coverage report'], $document->getUnreleased()->getEntriesFor(ChangelogEntryType::Fixed));
-        self::assertSame([], $document->getUnreleased()->getEntriesFor(ChangelogEntryType::Security));
+            -
+            - entry
+            - entry
+            MARKDOWN));
     }
 
     #[Test]
-    public function extractEntriesWillReturnEmptyArrayWhenCategoryHeadingIsMissing(): void
+    public function parsePreservesCrLfMultilineEntriesNestedBulletsAndReferences(): void
     {
-        $parser = new ChangelogParser();
-        $reflectionMethod = new ReflectionMethod($parser, 'extractEntries');
-
-        self::assertSame(
-            [],
-            $reflectionMethod->invoke($parser, "### Fixed\n\n- Repair release notes", ChangelogEntryType::Added),
+        $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
+        $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
+        $entryTypes->ordered()->willReturn([ChangelogEntryType::Added]);
+        $firstEntry = "First line\n  continuation\n  - nested bullet\n\n    indented paragraph";
+        $release = new ChangelogRelease(
+            ChangelogDocument::UNRELEASED_VERSION,
+            null,
+            ['Added' => [$firstEntry, 'Second entry']],
         );
+        $releaseFactory->create(
+            ChangelogDocument::UNRELEASED_VERSION,
+            null,
+            ['Added' => [$firstEntry, 'Second entry']],
+        )->willReturn($release)->shouldBeCalledOnce();
+        $references = [
+            '[unreleased]: https://example.com/compare/v1.0.0...HEAD',
+            '[1.0.0]: https://example.com/releases/tag/v1.0.0',
+        ];
+        $expected = new ChangelogDocument([$release], $references);
+        $documentFactory->create([$release], $references)->willReturn($expected)->shouldBeCalledOnce();
+        $parser = new ChangelogParser($documentFactory->reveal(), $releaseFactory->reveal(), $entryTypes->reveal());
+        $contents = "## [Unreleased]\r\n\r\n### Added\r\n\r\n"
+            . "- First line\r\n  continuation\r\n  - nested bullet\r\n\r\n    indented paragraph\r\n"
+            . "- Second entry\r\n\r\n"
+            . "[unreleased]: https://example.com/compare/v1.0.0...HEAD\r\n"
+            . "[1.0.0]: https://example.com/releases/tag/v1.0.0\r\n";
+
+        $document = $parser->parse($contents);
+
+        self::assertSame($expected, $document);
+        self::assertSame($references, $document->getReferences());
+        self::assertSame([$firstEntry, 'Second entry'], $document->getUnreleased()->getEntriesFor(ChangelogEntryType::Added));
     }
 }
