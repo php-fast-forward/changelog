@@ -13,34 +13,18 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: read
       issues: read
-    steps:
-      - name: Check out the exact contribution head
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Confirm the checkout identity
-        shell: bash
-        env:
-          FF_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$FF_EXPECTED_HEAD"
-      - name: Check contribution with this package
-        uses: ./actions/check
-        with:
-          working-directory: ${{ github.workspace }}
-          repository: ${{ github.repository }}
-          token: ${{ github.token }}
-          since: ${{ github.event.pull_request.base.sha }}
-          pull-request: ${{ github.event.pull_request.number }}
-          managed-branch: changelog/version
-          automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@6535cf236c910ea28566a6dffea34ac64c07dba7
+    with:
+      working-directory: '.'
+      repository: ${{ github.repository }}
+      pull-request: ${{ github.event.pull_request.number }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
+      base-sha: ${{ github.event.pull_request.base.sha }}
+      managed-branch: changelog/version
+      automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
