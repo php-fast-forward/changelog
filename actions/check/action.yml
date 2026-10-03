@@ -1,0 +1,99 @@
+name: Fast Forward Changelog check
+description: "Validate PR fragments and verified waiver/history authority."
+inputs:
+  working-directory:
+    description: "Consumer project directory; never the package installation root."
+    required: false
+    default: "."
+  fragment-directory:
+    description: "Project-relative pending fragment directory."
+    required: false
+    default: ".changelog"
+  changelog-file:
+    description: "Project-relative central changelog file."
+    required: false
+    default: "CHANGELOG.md"
+  locale:
+    description: "Structural language; en or pt-BR."
+    required: false
+    default: "en"
+  template:
+    description: "keep-a-changelog or an explicitly trusted project PHP template."
+    required: false
+    default: "keep-a-changelog"
+  base-ref:
+    description: "Git revision used by the shared release planner."
+    required: false
+    default: "HEAD"
+  tag-prefix:
+    description: "Prefix for stable release tags."
+    required: false
+    default: "v"
+  repository:
+    description: "GitHub owner/name of the consumer repository."
+    required: false
+    default: "${{ github.repository }}"
+  source:
+    description: "Historical source: auto, github or tags."
+    required: false
+    default: "auto"
+  token:
+    description: "GitHub token with the minimum permissions required by this operation."
+    required: false
+    default: "${{ github.token }}"
+  since:
+    description: "Immutable contribution baseline."
+    required: true
+  pull-request:
+    description: "PR number for GitHub-backed exception authority."
+    required: false
+    default: ""
+  managed-branch:
+    description: "Managed version branch."
+    required: false
+    default: "changelog/version"
+  automation-actor:
+    description: "Expected authenticated automation Bot."
+    required: false
+    default: "github-actions[bot]"
+  waiver-label:
+    description: "Maintainer-authorized contribution waiver label."
+    required: false
+    default: "changelog-not-required"
+  maintenance-label:
+    description: "Maintainer-authorized central-history maintenance label."
+    required: false
+    default: "changelog-maintenance"
+outputs:
+  result:
+    description: Complete stable JSON result.
+    value: ${{ steps.operation.outputs.result }}
+  status:
+    description: "Operation status; empty when unavailable."
+    value: ${{ steps.operation.outputs.status }}
+  fragments:
+    description: "Operation fragments; empty when unavailable."
+    value: ${{ steps.operation.outputs.fragments }}
+runs:
+  using: composite
+  steps:
+    - name: Set up package runtime
+      # setup-php 2.36.0
+      uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
+      with:
+        php-version: '8.5'
+        coverage: none
+        tools: composer:v2
+    - name: Install only the trusted Action package
+      shell: bash
+      env:
+        FF_RUNTIME_ROOT: ${{ github.action_path }}/../..
+      run: |
+        env -u GITHUB_TOKEN -u GH_TOKEN -u FF_CHANGELOG_INPUTS composer install --working-dir="$FF_RUNTIME_ROOT" --no-dev --no-plugins --no-scripts --prefer-dist --no-interaction --no-progress
+    - name: Run shared Changelog service
+      id: operation
+      shell: bash
+      env:
+        FF_RUNTIME_ROOT: ${{ github.action_path }}/../..
+        FF_CHANGELOG_INPUTS: ${{ toJSON(inputs) }}
+      run: php "$FF_RUNTIME_ROOT/scripts/automation.php" check

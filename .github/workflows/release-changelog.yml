@@ -1,0 +1,38 @@
+name: Release changelog
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: changelog-${{ github.repository }}-main
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - name: Check out the fresh release base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create or update the single version PR
+        uses: ./actions/version
+        with:
+          working-directory: ${{ github.workspace }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
+          base-branch: main
+          managed-branch: changelog/version
+          automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+          title: 'chore: update changelog'

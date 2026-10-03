@@ -1,0 +1,46 @@
+name: Check changelog
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  group: check-changelog-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Check out the exact contribution head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm the checkout identity
+        shell: bash
+        env:
+          FF_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$FF_EXPECTED_HEAD"
+      - name: Check contribution with this package
+        uses: ./actions/check
+        with:
+          working-directory: ${{ github.workspace }}
+          repository: ${{ github.repository }}
+          token: ${{ github.token }}
+          since: ${{ github.event.pull_request.base.sha }}
+          pull-request: ${{ github.event.pull_request.number }}
+          managed-branch: changelog/version
+          automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}

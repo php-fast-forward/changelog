@@ -24,7 +24,9 @@ use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 
 use function FastForward\Container\container;
 
+// The native Composer proxy supplies the correct local/global consumer autoloader.
 $autoloadCandidates = [
+    ...(isset($_composer_autoload_path) && is_string($_composer_autoload_path) ? [$_composer_autoload_path] : []),
     __DIR__ . '/../vendor/autoload.php',
     __DIR__ . '/../../../autoload.php',
 ];
@@ -35,7 +37,9 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
 
         $serviceProvider = new ChangelogServiceProvider(
             workingDirectory: getcwd() ?: '.',
-            installedVersion: InstalledVersions::getPrettyVersion('fast-forward/changelog'),
+            installedVersion: InstalledVersions::isInstalled('fast-forward/changelog') ? InstalledVersions::getPrettyVersion('fast-forward/changelog') : null,
+            token: getenv('GITHUB_TOKEN') ?: '',
+            apiUrl: getenv('GITHUB_API_URL') ?: 'https://api.github.com',
         );
 
         exit(container($serviceProvider)->get(Changelog::class)->run());

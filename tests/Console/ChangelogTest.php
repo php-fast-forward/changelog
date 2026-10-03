@@ -9,26 +9,20 @@ use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Prophecy\PhpUnit\ProphecyTrait;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 
 #[CoversClass(Changelog::class)]
 final class ChangelogTest extends TestCase
 {
-    use ProphecyTrait;
-
     #[Test]
-    public function constructorSetsVersionAndLazyCommandLoaderWithoutLoadingCommands(): void
+    public function applicationMetadataUsesOnlyInjectedPackageVersion(): void
     {
-        $loader = $this->prophesize(CommandLoaderInterface::class);
-        $versionResolver = $this->prophesize(PackageVersionResolverInterface::class);
-        $versionResolver->resolve()->willReturn('1.2.3')->shouldBeCalledOnce();
-        $loader->getNames()->shouldNotBeCalled();
-        $loader->get('changelog:entry')->shouldNotBeCalled();
-
-        $application = new Changelog($loader->reveal(), $versionResolver->reveal());
-
-        self::assertSame('Fast Forward Changelog', $application->getName());
-        self::assertSame('1.2.3', $application->getVersion());
+        $version = $this->createMock(PackageVersionResolverInterface::class);
+        $version->expects(self::once())->method('resolve')->willReturn('9.8.7');
+        $loader = $this->createMock(CommandLoaderInterface::class);
+        $loader->expects(self::never())->method('get');
+        $app = new Changelog($loader, $version);
+        self::assertSame('Fast Forward Changelog', $app->getName());
+        self::assertSame('9.8.7', $app->getVersion());
     }
 }

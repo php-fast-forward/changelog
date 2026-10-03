@@ -1,0 +1,52 @@
+name: Dependabot changelog
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-changelog-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  fragment:
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out the trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Collect verified dependency metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
+          alert-lookup: 'false'
+          compat-lookup: 'false'
+          skip-verification: 'false'
+          skip-commit-verification: 'false'
+      - name: Add one deterministic Dependabot fragment
+        uses: ./actions/dependabot
+        with:
+          working-directory: ${{ github.workspace }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
+          pull-request: ${{ github.event.pull_request.number }}
+          expected-head-sha: ${{ github.event.pull_request.head.sha }}
+          dependency-names: ${{ steps.metadata.outputs.dependency-names }}
+          dependency-type: ${{ steps.metadata.outputs.dependency-type }}
+          ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
+          security-alert-numbers: '[]'
