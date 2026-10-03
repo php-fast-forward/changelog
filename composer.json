@@ -53,6 +53,7 @@
         "thecodingmachine/safe": "^3.4"
     },
     "require-dev": {
+        "ext-simplexml": "*",
         "nikic/php-parser": "^5.9",
         "phpspec/prophecy": "^1.26",
         "phpspec/prophecy-phpunit": "^2.5",

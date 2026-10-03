@@ -66,3 +66,9 @@ from Changelog runtime choices.
 Submit a focused PR with the concrete problem, resulting behavior and exact
 validation. CI success applies to its observed commit. A code change, an
 approved review, merge, a tag and a published release are distinct actions.
+
+## Community and reporting
+
+Participation follows the [Code of Conduct](CODE_OF_CONDUCT.md). Use
+[SUPPORT.md](SUPPORT.md) for questions, bugs and feature proposals. Report
+suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md).

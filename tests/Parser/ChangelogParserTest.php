@@ -45,6 +45,27 @@ final class ChangelogParserTest extends TestCase
     }
 
     #[Test]
+    public function parsePreservesSuffixedAndWhitespaceHeadingsBetweenReleases(): void
+    {
+        $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
+        $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
+        $entryTypes->ordered()->willReturn([ChangelogEntryType::Fixed]);
+        $first = new ChangelogRelease('2.0.0', null, ['Fixed' => ['first']]);
+        $yanked = new ChangelogRelease('1.0.0', '2026-01-01', ['Fixed' => ['retained']], '[YANKED]');
+        $last = new ChangelogRelease('0.1.0', null, ['Fixed' => ['last']]);
+        $releaseFactory->create('2.0.0', null, ['Fixed' => ['first']])->willReturn($first)->shouldBeCalledOnce();
+        $releaseFactory->create('1.0.0', '2026-01-01', ['Fixed' => ['retained']], '[YANKED]')->willReturn($yanked)->shouldBeCalledOnce();
+        $releaseFactory->create('0.1.0', null, ['Fixed' => ['last']])->willReturn($last)->shouldBeCalledOnce();
+        $expected = new ChangelogDocument([$first, $yanked, $last]);
+        $documentFactory->create([$first, $yanked, $last], [])->willReturn($expected)->shouldBeCalledOnce();
+        $parser = new ChangelogParser($documentFactory->reveal(), $releaseFactory->reveal(), $entryTypes->reveal());
+        self::assertSame($expected, $parser->parse("## [2.0.0] \t\n### Fixed\n- first\n## [1.0.0] - 2026-01-01 [YANKED] \t\n### Fixed\n- retained\n## [0.1.0]  \r\n### Fixed\n- last\n"));
+        self::assertSame('[YANKED]', $expected->getRelease('1.0.0')->getSuffix());
+        self::assertSame(['retained'], $expected->getRelease('1.0.0')->getEntriesFor(ChangelogEntryType::Fixed));
+    }
+
+    #[Test]
     public function parseBuildsDatedAndUndatedReleaseValues(): void
     {
         $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);

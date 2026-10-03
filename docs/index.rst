@@ -16,11 +16,11 @@ Standalone CLI
 
 .. code-block:: bash
 
-   changelog changelog:entry "Add release automation"
-   changelog changelog:check --against=origin/main
-   changelog changelog:resolve-version
-   changelog changelog:promote 1.2.0
-   changelog changelog:render-release-notes 1.2.0
+   vendor/bin/changelog changelog:entry "Add release automation"
+   vendor/bin/changelog changelog:check --against=origin/main
+   vendor/bin/changelog changelog:resolve-version
+   vendor/bin/changelog changelog:promote 1.2.0
+   vendor/bin/changelog changelog:render-release-notes 1.2.0
 
 Embedded Commands
 -----------------

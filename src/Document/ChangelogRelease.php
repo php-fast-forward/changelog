@@ -50,6 +50,7 @@ final class ChangelogRelease
         private string $version,
         private ?string $date = null,
         array $entries = [],
+        private string $suffix = '',
     ) {
         foreach ($this->entries as $category => $categoryEntries) {
             $this->entries[$category] = array_values(array_unique($entries[$category] ?? $categoryEntries));
@@ -70,6 +71,14 @@ final class ChangelogRelease
     public function getDate(): ?string
     {
         return $this->date;
+    }
+
+    /**
+     * Returns a parsed heading annotation such as [YANKED] without changing release identity.
+     */
+    public function getSuffix(): string
+    {
+        return $this->suffix;
     }
 
     /**

@@ -66,7 +66,7 @@ final readonly class ChangelogParser implements ChangelogParserInterface
         }
 
         preg_match_all(
-            '/^## \[(?<version>[^\]]+)\](?: - (?<date>\d{4}-\d{2}-\d{2}))?\r?$/m',
+            '/^## \[(?<version>[^\]\r\n]+)\](?: - (?<date>\d{4}-\d{2}-\d{2}))?(?<suffix>[ \t]*(?:\[[^\]\r\n]+\])?)[ \t]*\r?$/m',
             $contents,
             $matches,
             \PREG_OFFSET_CAPTURE,
@@ -92,11 +92,18 @@ final readonly class ChangelogParser implements ChangelogParserInterface
                 $entries[$type->value] = $this->extractEntries($body, $type);
             }
 
-            $releases[] = $this->releaseFactory->create(
+            $arguments = [
                 $matches['version'][$index][0],
                 '' === ($matches['date'][$index][0] ?? '') ? null : $matches['date'][$index][0],
                 $entries,
-            );
+            ];
+            $suffix = trim($matches['suffix'][$index][0]);
+
+            if ('' !== $suffix) {
+                $arguments[] = $suffix;
+            }
+
+            $releases[] = $this->releaseFactory->create(...$arguments);
         }
 
         return $this->documentFactory->create($releases, $this->extractReferences($contents));

@@ -48,12 +48,26 @@ $run = static function (array $arguments): array {
 $checks = 0;
 
 try {
-    file_put_contents($source, '<?php class Fixture { /** Returns the fixture value without observable side effects. */ public function value(): int { return 1; } }');
+    $plainSource = "<?php\nclass Fixture {\n    /** Returns the fixture value without observable side effects. */\n    public function value(): int\n    {\n        return 1;\n    }\n}\n";
+    $promotedSource = "<?php\nclass Fixture {\n    /** Captures the fixture root without reading external state. */\n    public function __construct(private string \$root) {}\n    /** Returns the fixture value without observable side effects. */\n    public function value(): int\n    {\n        return 1;\n    }\n}\n";
+    $inlineSource = "<?php\nclass Fixture {\n    /** Returns the fixture value without observable side effects. */ public function value(): int { return 1; }\n}\n";
+    file_put_contents($source, $plainSource);
     $name = htmlspecialchars($source, ENT_QUOTES | ENT_XML1);
-    $valid = '<coverage><project><file name="' . $name . '"><class name="Fixture"><metrics statements="1" coveredstatements="1"/></class><line type="stmt" num="1" count="1"/><metrics statements="1" coveredstatements="1"/></file><metrics statements="1" coveredstatements="1"/></project></coverage>';
+    $valid = '<coverage><project><file name="' . $name . '"><class name="Fixture"><metrics statements="1" coveredstatements="1"/></class><line type="method" num="4" count="1" name="value"/><line type="stmt" num="6" count="1"/><metrics statements="1" coveredstatements="1"/></file><metrics statements="1" coveredstatements="1"/></project></coverage>';
     $partial = str_replace(['coveredstatements="1"', 'count="1"'], ['coveredstatements="0"', 'count="0"'], $valid);
+    $methodEvidence = '<coverage><project><file name="' . $name . '"><class name="Fixture"><metrics statements="2" coveredstatements="2"/></class><line type="method" num="4" count="1" name="__construct"/><line type="method" num="6" count="1" name="value"/><line type="stmt" num="8" count="1"/><metrics statements="2" coveredstatements="2"/></file><metrics statements="2" coveredstatements="2"/></project></coverage>';
+    $uncoveredDeclaration = str_replace([' coveredstatements="2"', 'num="4" count="1"'], [' coveredstatements="1"', 'num="4" count="0"'], $methodEvidence);
+    $inlineEvidence = str_replace(['<line type="method" num="4" count="1" name="value"/>', '<line type="stmt" num="6" count="1"/>'], ['<line type="method" num="3" count="1" name="value"/>', ''], $valid);
     $cases = [
         'complete coverage' => [$valid, '100', 0],
+        'constructor statement represented as method' => [$methodEvidence, '100', 0, $promotedSource],
+        'inline method body represented as method' => [$inlineEvidence, '100', 0, $inlineSource],
+        'statement omitted with unchanged metrics' => [str_replace('<line type="stmt" num="8" count="1"/>', '', $methodEvidence), '100', 1, $promotedSource],
+        'method metadata cannot replace a statement' => [str_replace('<line type="stmt" num="6" count="1"/>', '', $valid), '100', 1],
+        'method declaration name mismatches source' => [str_replace('name="value"', 'name="other"', $valid), '100', 1],
+        'uncovered declaration statement' => [$uncoveredDeclaration, '100', 1, $promotedSource],
+        'partial declaration statement threshold' => [$uncoveredDeclaration, '50', 0, $promotedSource],
+        'invalid declaration hit count' => [str_replace('num="4" count="1"', 'num="4" count="invalid"', $methodEvidence), '100', 1, $promotedSource],
         'partial coverage' => [$partial, '100', 1],
         'lower explicit threshold' => [$partial, '0', 0],
         'malformed XML' => ['<coverage>', '100', 1],
@@ -73,7 +87,9 @@ try {
         'duplicate file' => [str_replace('</project>', '<file name="' . $name . '"><metrics statements="0" coveredstatements="0"/></file></project>', $valid), '100', 1],
     ];
 
-    foreach ($cases as $label => [$xml, $threshold, $expected]) {
+    foreach ($cases as $label => $case) {
+        [$xml, $threshold, $expected] = $case;
+        file_put_contents($source, $case[3] ?? $plainSource);
         file_put_contents($report, $xml);
         [$exit, $output] = $run([$coverageScript, $report, $threshold, $root . '/src']);
 
@@ -81,9 +97,15 @@ try {
             throw new RuntimeException(sprintf('Coverage case "%s" returned %d, expected %d: %s', $label, $exit, $expected, $output));
         }
 
+        if ('partial coverage' === $label
+            && (! str_contains($output, "below the required 100.00%.\n") || str_contains($output, '\\n'))) {
+            throw new RuntimeException('Coverage diagnostics must separate the summary and failing lines with an actual newline.');
+        }
+
         ++$checks;
     }
 
+    file_put_contents($source, $plainSource);
     file_put_contents($root . '/src/Omitted.php', '<?php class Omitted {}');
     file_put_contents($report, $valid);
     [$exit, $output] = $run([$coverageScript, $report, '100', $root . '/src']);

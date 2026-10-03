@@ -29,7 +29,7 @@ final class VersionResolveCommandTest extends TestCase
         $tester = new CommandTester(new VersionResolveCommand($manager->reveal(), $filesystem->reveal()));
 
         self::assertSame(Command::SUCCESS, $tester->execute(['version' => ' 1.2.3 ']));
-        self::assertSame("1.2.3\n", $tester->getDisplay());
+        self::assertSame("1.2.3\n", $tester->getDisplay(true));
     }
 
     #[Test]
@@ -42,7 +42,7 @@ final class VersionResolveCommandTest extends TestCase
         $tester = new CommandTester(new VersionResolveCommand($manager->reveal(), $filesystem->reveal()));
 
         self::assertSame(Command::SUCCESS, $tester->execute(['--current-version' => 'v1.2.3']));
-        self::assertSame("1.3.0\n", $tester->getDisplay());
+        self::assertSame("1.3.0\n", $tester->getDisplay(true));
     }
 
     #[Test]
@@ -55,6 +55,6 @@ final class VersionResolveCommandTest extends TestCase
         $tester = new CommandTester(new VersionResolveCommand($manager->reveal(), $filesystem->reveal()));
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
-        self::assertSame("0.1.0\n", $tester->getDisplay());
+        self::assertSame("0.1.0\n", $tester->getDisplay(true));
     }
 }

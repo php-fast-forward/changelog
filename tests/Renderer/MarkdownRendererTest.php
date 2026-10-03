@@ -35,6 +35,29 @@ final class MarkdownRendererTest extends TestCase
     }
 
     #[Test]
+    public function renderRetainsYankedAnnotationsAndOneReferenceSeparator(): void
+    {
+        $release = new ChangelogRelease('1.0.0', '2026-01-01', ['Fixed' => ['retained']], '[YANKED]');
+        $output = $this->renderer()->render(new ChangelogDocument([$release]), 'https://github.com/org/repo');
+        self::assertStringContainsString('## [1.0.0] - 2026-01-01 [YANKED]', $output);
+        self::assertStringContainsString("- retained\n\n[unreleased]:", $output);
+        self::assertStringNotContainsString("\n\n\n[unreleased]:", $output);
+    }
+
+    #[Test]
+    #[TestWith(['/local/repository'])]
+    #[TestWith(['file:///local/repository'])]
+    #[TestWith(['git://example.com/org/repo'])]
+    public function renderPreservesManagedReferencesForNonWebRemotes(string $remote): void
+    {
+        $references = ['[1.0.0]: https://existing.example.com/releases/tag/v1.0.0'];
+        $output = $this->renderer()->render(new ChangelogDocument([new ChangelogRelease('1.0.0')], $references), $remote);
+        self::assertStringContainsString($references[0], $output);
+        self::assertStringNotContainsString($remote . '/compare/', $output);
+        self::assertStringNotContainsString("\n\n\n[1.0.0]:", $output);
+    }
+
+    #[Test]
     public function renderHandlesPublishedHeadingsAndMultipleEntrySections(): void
     {
         $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION);
@@ -64,6 +87,18 @@ final class MarkdownRendererTest extends TestCase
         self::assertStringContainsString('[V3.0.0]: https://github.com/org/repo/compare/v2.0.0...V3.0.0', $output);
         self::assertStringContainsString('[v2.0.0]: https://github.com/org/repo/compare/v1.0.0...v2.0.0', $output);
         self::assertStringContainsString('[1.0.0]: https://github.com/org/repo/releases/tag/v1.0.0', $output);
+    }
+
+    #[Test]
+    public function renderEncodesTagCharactersWithoutTurningThemIntoUrlFragments(): void
+    {
+        $document = new ChangelogDocument([
+            new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION),
+            new ChangelogRelease('release#1'),
+        ]);
+        $output = $this->renderer()->render($document, 'https://github.com/org/repo');
+        self::assertStringContainsString('[unreleased]: https://github.com/org/repo/compare/vrelease%231...HEAD', $output);
+        self::assertStringContainsString('[release#1]: https://github.com/org/repo/releases/tag/vrelease%231', $output);
     }
 
     #[Test]

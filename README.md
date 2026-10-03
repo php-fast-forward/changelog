@@ -32,12 +32,12 @@ Requirements:
 Run the standalone CLI:
 
 ```bash
-changelog list
-changelog changelog:entry "Add release automation"
-changelog changelog:check --against=origin/main
-changelog changelog:resolve-version
-changelog changelog:promote 1.2.0
-changelog changelog:render-release-notes 1.2.0
+vendor/bin/changelog list
+vendor/bin/changelog changelog:entry "Add release automation"
+vendor/bin/changelog changelog:check --against=origin/main
+vendor/bin/changelog changelog:resolve-version
+vendor/bin/changelog changelog:promote 1.2.0
+vendor/bin/changelog changelog:render-release-notes 1.2.0
 ```
 
 The compatibility aliases `changelog:next-version`, `changelog:show`, and
@@ -113,11 +113,18 @@ collaborators with test doubles.
 The [foundation extraction map](docs/foundation.md) explains what to copy and
 adapt for a new PHP library and which dependencies belong to this package.
 
+## Community
+
+- [Support guide](SUPPORT.md)
+- [Security policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Sponsor Fast Forward](https://github.com/sponsors/php-fast-forward)
+
 ## 🔗 Links
 
 - [Repository](https://github.com/php-fast-forward/changelog)
 - [Issues](https://github.com/php-fast-forward/changelog/issues)
 - [Packagist](https://packagist.org/packages/fast-forward/changelog)
-- [Documentation](https://php-fast-forward.github.io/changelog/)
+- [Documentation](docs/)
 - [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - [Semantic Versioning](https://semver.org/spec/v2.0.0.html)

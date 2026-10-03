@@ -28,8 +28,8 @@ final readonly class ChangelogReleaseFactory implements ChangelogReleaseFactoryI
      *
      * @param array<string, list<string>> $entries
      */
-    public function create(string $version, ?string $date = null, array $entries = []): ChangelogRelease
+    public function create(string $version, ?string $date = null, array $entries = [], string $suffix = ''): ChangelogRelease
     {
-        return new ChangelogRelease($version, $date, $entries);
+        return new ChangelogRelease($version, $date, $entries, $suffix);
     }
 }

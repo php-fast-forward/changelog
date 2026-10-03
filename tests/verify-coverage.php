@@ -19,6 +19,11 @@ declare(strict_types=1);
  *
  * An optional source root exists solely for disposable checks of this verifier.
  */
+use SebastianBergmann\CodeCoverage\StaticAnalysis\FileAnalyser;
+use SebastianBergmann\CodeCoverage\StaticAnalysis\ParsingSourceAnalyser;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
 $reportPath = $argv[1] ?? '';
 $minimumArgument = $argv[2] ?? '100';
 $sourceRoot = realpath($argv[3] ?? dirname(__DIR__) . '/src');
@@ -91,6 +96,7 @@ try {
     $fileStatements = 0;
     $fileCovered = 0;
     $failures = [];
+    $analyser = new FileAnalyser(new ParsingSourceAnalyser(), false, false);
 
     foreach ($files as $file) {
         $path = realpath((string) $file['name']);
@@ -104,12 +110,22 @@ try {
         [$statements, $covered] = $readMetrics($file->metrics);
         $fileStatements += $statements;
         $fileCovered += $covered;
-        $statementLines = $file->xpath('line[@type="stmt"]') ?: [];
+        $lineEvidence = $file->line;
+        $statementLines = 0;
         $coveredLines = 0;
+        $analysis = $analyser->analyse($path);
+        $executableSourceLines = $analysis->executableLines();
+        $methodDeclarations = [];
+
+        foreach ([...$analysis->classes(), ...$analysis->traits()] as $codeUnit) {
+            foreach ($codeUnit->methods() as $method) {
+                $methodDeclarations[$method->startLine()] = $method->name();
+            }
+        }
         $uncovered = [];
         $lineNumbers = [];
 
-        foreach ($statementLines as $line) {
+        foreach ($lineEvidence as $line) {
             $count = (string) $line['count'];
             $number = (string) $line['num'];
 
@@ -120,6 +136,26 @@ try {
 
             $lineNumbers[$number] = true;
 
+            $type = (string) $line['type'];
+
+            if ('method' === $type) {
+                if (($methodDeclarations[(int) $number] ?? null) !== (string) $line['name']) {
+                    throw new RuntimeException('Clover method records MUST match a source method name and declaration line.');
+                }
+
+                // Clover can replace a statement on the declaration line with
+                // a method record. Only a declaration the source analyser marks
+                // executable can supply that statement; metadata-only method
+                // declarations MUST NOT compensate for absent statement nodes.
+                if (! isset($executableSourceLines[(int) $number])) {
+                    continue;
+                }
+            } elseif ('stmt' !== $type || ! isset($executableSourceLines[(int) $number])) {
+                throw new RuntimeException('Clover statement records MUST identify executable source lines.');
+            }
+
+            ++$statementLines;
+
             if ((int) $count > 0) {
                 ++$coveredLines;
             } else {
@@ -127,8 +163,8 @@ try {
             }
         }
 
-        if ($statements !== count($statementLines) || $covered !== $coveredLines) {
-            throw new RuntimeException('Clover file metrics do not match executable line evidence.');
+        if ($statements !== $statementLines || $covered !== $coveredLines) {
+            throw new RuntimeException('Clover file metrics do not match executable line evidence: ' . $path);
         }
 
         if ($statements > 0 && ($covered / $statements) * 100 < (float) $minimumArgument) {
@@ -167,7 +203,7 @@ try {
     $coverage = ($coveredStatements / $totalStatements) * 100;
 
     if ($coverage < (float) $minimumArgument || [] !== $failures) {
-        throw new RuntimeException(sprintf('Line coverage %.2f%% is below the required %.2f%%.\n%s', $coverage, (float) $minimumArgument, implode("\n", $failures)));
+        throw new RuntimeException(sprintf("Line coverage %.2f%% is below the required %.2f%%.\n%s", $coverage, (float) $minimumArgument, implode("\n", $failures)));
     }
 
     fwrite(STDOUT, sprintf("Line coverage %.2f%% meets the required %.2f%% for every production file and class (%d statements).\n", $coverage, (float) $minimumArgument, $totalStatements));

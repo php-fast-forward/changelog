@@ -18,10 +18,11 @@ final class ChangelogReleaseFactoryTest extends TestCase
     #[Test]
     public function createBuildsAReleaseFromEveryArgument(): void
     {
-        $release = new ChangelogReleaseFactory()->create('1.2.3', '2026-09-05', ['Added' => ['entry']]);
+        $release = new ChangelogReleaseFactory()->create('1.2.3', '2026-09-05', ['Added' => ['entry']], '[YANKED]');
 
         self::assertSame('1.2.3', $release->getVersion());
         self::assertSame('2026-09-05', $release->getDate());
+        self::assertSame('[YANKED]', $release->getSuffix());
         self::assertSame(['entry'], $release->getEntriesFor(ChangelogEntryType::Added));
     }
 }

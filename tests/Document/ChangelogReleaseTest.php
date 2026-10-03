@@ -20,10 +20,11 @@ final class ChangelogReleaseTest extends TestCase
         $release = new ChangelogRelease('1.2.3', '2026-09-05', [
             'Added' => ['first', 'first', 'second'],
             'Unknown' => ['ignored'],
-        ]);
+        ], '[YANKED]');
 
         self::assertSame('1.2.3', $release->getVersion());
         self::assertSame('2026-09-05', $release->getDate());
+        self::assertSame('[YANKED]', $release->getSuffix());
         self::assertFalse($release->isUnreleased());
         self::assertTrue($release->hasEntries());
         self::assertSame(['first', 'second'], $release->getEntriesFor(ChangelogEntryType::Added));

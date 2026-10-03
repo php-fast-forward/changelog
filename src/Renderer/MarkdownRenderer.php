@@ -101,6 +101,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
                 ? \sprintf('## [%s]', $release->getVersion())
                 : \sprintf('## [%s] - %s', $release->getVersion(), $release->getDate()));
 
+        $heading .= '' === $release->getSuffix() ? '' : ' ' . $release->getSuffix();
         $lines = [$heading, ''];
         $renderedSections = 0;
 
@@ -140,7 +141,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
         if (null === $normalizedRepositoryUrl) {
             $references = $document->getReferences();
 
-            return [] === $references ? [] : ['', ...$references];
+            return $references;
         }
 
         $published = array_values(array_filter(
@@ -161,7 +162,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
         ));
 
         if ([] === $published) {
-            return [] === $customReferences ? [] : ['', ...$customReferences];
+            return $customReferences;
         }
 
         $references = [
@@ -189,7 +190,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
                 );
         }
 
-        return ['', ...$references, ...$customReferences];
+        return [...$references, ...$customReferences];
     }
 
     /**
@@ -199,9 +200,11 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
     {
         $version = $release->getVersion();
 
-        return str_starts_with($version, 'v') || str_starts_with($version, 'V')
+        $tag = str_starts_with($version, 'v') || str_starts_with($version, 'V')
             ? $version
             : 'v' . $version;
+
+        return rawurlencode($tag);
     }
 
     /**
@@ -231,6 +234,10 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
         }
 
         $repositoryUrl = preg_replace('~^(https?://)[^/@]+@~i', '$1', $repositoryUrl);
+
+        if (1 !== preg_match('~^https?://[^/\s?#]+/[^\s?#]+$~iD', $repositoryUrl)) {
+            return null;
+        }
 
         if (str_ends_with($repositoryUrl, '.git')) {
             $repositoryUrl = substr($repositoryUrl, 0, -4);

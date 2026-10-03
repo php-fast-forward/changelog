@@ -47,6 +47,8 @@ final readonly class ComposerPackageVersionResolver implements PackageVersionRes
      */
     public function resolve(): string
     {
-        return $this->installedVersion ?? self::DEVELOPMENT_VERSION;
+        return null === $this->installedVersion || '' === trim($this->installedVersion)
+            ? self::DEVELOPMENT_VERSION
+            : $this->installedVersion;
     }
 }

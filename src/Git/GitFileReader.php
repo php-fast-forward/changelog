@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Git;
 
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -45,11 +46,18 @@ final readonly class GitFileReader implements GitFileReaderInterface
      */
     public function show(string $reference, string $path, ?string $workingDirectory = null): string
     {
+        if ('' === trim($reference) || str_starts_with($reference, '-') || preg_match('/[\x00\r\n]/', $reference)) {
+            throw new InvalidArgumentException('The Git baseline must be a nonempty revision, not an option.');
+        }
         if (null !== $workingDirectory && $this->pathResolver->isAbsolute($path)) {
             $path = $this->pathResolver->relativePath($path, $workingDirectory);
         }
 
-        $process = $this->processFactory->create(['git', 'show', $reference . ':' . $path]);
+        if (null !== $workingDirectory) {
+            $path = './' . $path;
+        }
+
+        $process = $this->processFactory->create(['git', 'show', '--end-of-options', $reference . ':' . $path]);
 
         if (null !== $workingDirectory) {
             $process->setWorkingDirectory($workingDirectory);

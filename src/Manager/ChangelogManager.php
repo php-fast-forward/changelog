@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Manager;
 
+use FastForward\Changelog\Date\ReleaseDateValidatorInterface;
 use FastForward\Changelog\Document\ChangelogDocument;
 use FastForward\Changelog\Document\ChangelogDocumentFactoryInterface;
 use FastForward\Changelog\Document\ChangelogRelease;
@@ -48,6 +49,7 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
      * @param GitRepositoryUrlResolverInterface $gitRepositoryUrlResolver resolves reference-link origins
      * @param ChangelogDocumentFactoryInterface $documentFactory          creates empty documents
      * @param ChangelogReleaseFactoryInterface  $releaseFactory           creates new release values
+     * @param ReleaseDateValidatorInterface     $dateValidator            rejects invalid supplied dates before I/O
      */
     public function __construct(
         private PackageFilesystemInterface $filesystem,
@@ -56,10 +58,16 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
         private GitRepositoryUrlResolverInterface $gitRepositoryUrlResolver,
         private ChangelogDocumentFactoryInterface $documentFactory,
         private ChangelogReleaseFactoryInterface $releaseFactory,
+        private ReleaseDateValidatorInterface $dateValidator,
     ) {}
 
     /**
      * Adds an entry to Unreleased or to a named published release.
+     *
+     * Messages MUST be meaningful UTF-8 text on one Markdown line. A supplied
+     * date MUST pass calendar validation before any filesystem access.
+     *
+     * @throws InvalidArgumentException when a label, message or date is invalid
      */
     public function addEntry(
         string $file,
@@ -72,6 +80,14 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
 
         if ('' === trim($message)) {
             throw new InvalidArgumentException('A changelog entry must contain meaningful text.');
+        }
+
+        if (0 !== preg_match('/\\R/u', $message)) {
+            throw new InvalidArgumentException('A changelog entry must be UTF-8 text on one Markdown line.');
+        }
+
+        if (null !== $date) {
+            $this->dateValidator->validate($date);
         }
 
         $document = $this->load($file);
@@ -87,11 +103,21 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
     /**
      * Promotes Unreleased entries into the requested version and date.
      *
-     * @throws RuntimeException when Unreleased contains no entries
+     * The target MUST identify a published release rather than Unreleased.
+     * Date and label validation MUST complete before the existing file is read.
+     *
+     * @throws InvalidArgumentException when the target or supplied date is invalid
+     * @throws RuntimeException         when Unreleased contains no entries
      */
     public function promote(string $file, string $version, string $date): void
     {
         $this->validateReleaseLabel($version);
+
+        if (0 === strcasecmp(trim($version), ChangelogDocument::UNRELEASED_VERSION)) {
+            throw new InvalidArgumentException('A promotion target must identify a published release, not Unreleased.');
+        }
+
+        $this->dateValidator->validate($date);
         $document = $this->load($file);
 
         if (! $document->getUnreleased()->hasEntries()) {
@@ -107,7 +133,7 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
     /**
      * Infers the next semantic version from the categories in Unreleased.
      *
-     * Removed or Deprecated entries require a major bump; Added or Changed
+     * Removed entries require a major bump; Added, Changed or Deprecated
      * entries require a minor bump; remaining supported entries require a patch.
      *
      * @throws RuntimeException when Unreleased is empty or the base version is invalid
@@ -135,23 +161,44 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
             throw new RuntimeException(\sprintf('Cannot infer a version from invalid semantic version "%s".', $currentVersion));
         }
 
-        $major = (int) $matches['major'];
-        $minor = (int) $matches['minor'];
-        $patch = (int) $matches['patch'];
+        $major = $matches['major'];
+        $minor = $matches['minor'];
+        $patch = $matches['patch'];
 
-        if ([] !== $unreleased->getEntriesFor(ChangelogEntryType::Removed)
-            || [] !== $unreleased->getEntriesFor(ChangelogEntryType::Deprecated)
-        ) {
-            return \sprintf('%d.0.0', $major + 1);
+        if ([] !== $unreleased->getEntriesFor(ChangelogEntryType::Removed)) {
+            return $this->incrementDecimal($major) . '.0.0';
         }
 
         if ([] !== $unreleased->getEntriesFor(ChangelogEntryType::Added)
             || [] !== $unreleased->getEntriesFor(ChangelogEntryType::Changed)
+            || [] !== $unreleased->getEntriesFor(ChangelogEntryType::Deprecated)
         ) {
-            return \sprintf('%d.%d.0', $major, $minor + 1);
+            return $major . '.' . $this->incrementDecimal($minor) . '.0';
         }
 
-        return \sprintf('%d.%d.%d', $major, $minor, $patch + 1);
+        return $major . '.' . $minor . '.' . $this->incrementDecimal($patch);
+    }
+
+    /**
+     * Increments a validated decimal component without platform integer overflow.
+     *
+     * Semantic version components MUST preserve arbitrary decimal precision.
+     */
+    private function incrementDecimal(string $component): string
+    {
+        $digits = str_split($component);
+
+        for ($index = count($digits) - 1; $index >= 0; --$index) {
+            if ('9' !== $digits[$index]) {
+                $digits[$index] = (string) ((int) $digits[$index] + 1);
+
+                return implode('', $digits);
+            }
+
+            $digits[$index] = '0';
+        }
+
+        return '1' . implode('', $digits);
     }
 
     /**

@@ -9,6 +9,7 @@ use FastForward\Changelog\Console\CommandLoader\LazyCommandFactoryInterface;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\Date\ReleaseDateValidatorInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
+use FastForward\Changelog\Git\ProcessFactory;
 use FastForward\Changelog\Version\ComposerPackageVersionResolver;
 use FastForward\Clock\SystemClock;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -23,6 +24,7 @@ use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 #[UsesClass(ChangelogCommandLoader::class)]
 #[UsesClass(ComposerPackageVersionResolver::class)]
 #[UsesClass(PackagePathResolver::class)]
+#[UsesClass(ProcessFactory::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     use ProphecyTrait;
@@ -30,14 +32,15 @@ final class ChangelogServiceProviderTest extends TestCase
     #[Test]
     public function factoriesExposeLazyAliasesAndCompositionFactories(): void
     {
-        $provider = new ChangelogServiceProvider('1.2.3', '/fixture/project');
+        $provider = new ChangelogServiceProvider('/fixture/project', '1.2.3');
         $factories = $provider->getFactories();
 
         self::assertArrayHasKey(ComposerPackageVersionResolver::class, $factories);
         self::assertArrayHasKey(PackagePathResolver::class, $factories);
         self::assertArrayHasKey(CommandLoaderInterface::class, $factories);
         self::assertArrayHasKey(ReleaseDateValidatorInterface::class, $factories);
-        self::assertCount(20, $factories);
+        self::assertCount(21, $factories);
+        self::assertInstanceOf(ProcessFactory::class, $factories[ProcessFactory::class]());
         self::assertInstanceOf(SystemClock::class, $factories[SystemClock::class]());
         $versionResolver = $factories[ComposerPackageVersionResolver::class]();
         self::assertInstanceOf(ComposerPackageVersionResolver::class, $versionResolver);
@@ -56,6 +59,6 @@ final class ChangelogServiceProviderTest extends TestCase
     #[Test]
     public function extensionsAreEmpty(): void
     {
-        self::assertSame([], new ChangelogServiceProvider()->getExtensions());
+        self::assertSame([], new ChangelogServiceProvider('/fixture/project')->getExtensions());
     }
 }

@@ -16,13 +16,11 @@ final class ProcessFactoryTest extends TestCase
     #[Test]
     public function createBuildsAnUnstartedSymfonyProcess(): void
     {
-        $process = new ProcessFactory()->create(['git', 'status']);
+        $process = new ProcessFactory('/fixture/project')->create(['git', 'status']);
 
         self::assertInstanceOf(Process::class, $process);
-        self::assertSame(
-            '\\' === DIRECTORY_SEPARATOR ? 'git status' : "'git' 'status'",
-            $process->getCommandLine(),
-        );
+        self::assertSame('/fixture/project', $process->getWorkingDirectory());
+        self::assertSame(60.0, $process->getTimeout());
         self::assertFalse($process->isRunning());
     }
 }

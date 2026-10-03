@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Manager;
 
+use FastForward\Changelog\Date\ReleaseDateValidatorInterface;
 use FastForward\Changelog\Document\ChangelogDocument;
 use FastForward\Changelog\Document\ChangelogDocumentFactoryInterface;
 use FastForward\Changelog\Document\ChangelogRelease;
@@ -83,6 +84,64 @@ final class ChangelogManagerTest extends TestCase
     }
 
     #[Test]
+    #[TestWith(["first\nsecond"])]
+    #[TestWith(["first\rsecond"])]
+    #[TestWith(["first\r\nsecond"])]
+    #[TestWith(["first\u{2028}second"])]
+    #[TestWith(["invalid\xFF"])]
+    public function addEntryRejectsMultilineOrInvalidUtf8BeforeIo(string $message): void
+    {
+        [$manager, $filesystem] = $this->manager();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('one Markdown line');
+
+        $manager->addEntry('CHANGELOG.md', ChangelogEntryType::Fixed, $message);
+    }
+
+    #[Test]
+    #[TestWith(['2026-02-30'])]
+    #[TestWith(['invalid'])]
+    #[TestWith([''])]
+    public function addEntryValidatesSuppliedDatesBeforeIo(string $date): void
+    {
+        [$manager, $filesystem, , , , , , $validator] = $this->manager();
+        $validator->validate($date)->willThrow(new InvalidArgumentException('invalid fixture date'))->shouldBeCalledOnce();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+
+        $manager->addEntry('CHANGELOG.md', ChangelogEntryType::Fixed, 'entry', '1.2.3', $date);
+    }
+
+    #[Test]
+    #[TestWith(['2026-02-30'])]
+    #[TestWith(['invalid'])]
+    public function promoteValidatesSuppliedDatesBeforeIo(string $date): void
+    {
+        [$manager, $filesystem, , , , , , $validator] = $this->manager();
+        $validator->validate($date)->willThrow(new InvalidArgumentException('invalid fixture date'))->shouldBeCalledOnce();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+
+        $manager->promote('CHANGELOG.md', '1.2.3', $date);
+    }
+
+    #[Test]
+    #[TestWith(['Unreleased'])]
+    #[TestWith(['unreleased'])]
+    #[TestWith([' Unreleased '])]
+    public function promoteRejectsTheReservedUnreleasedTargetBeforeIo(string $version): void
+    {
+        [$manager, $filesystem, , , , , , $validator] = $this->manager();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $validator->validate(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('published release');
+
+        $manager->promote('CHANGELOG.md', $version, '2026-09-05');
+    }
+
+    #[Test]
     public function promoteRejectsMalformedReleaseLabelsBeforeIo(): void
     {
         [$manager, $filesystem] = $this->manager();
@@ -121,7 +180,8 @@ final class ChangelogManagerTest extends TestCase
     #[Test]
     public function addEntryCreatesAMissingParentBeforeResolvingGit(): void
     {
-        [$manager, $filesystem, , $renderer, $git, $documentFactory, $releaseFactory] = $this->manager();
+        [$manager, $filesystem, , $renderer, $git, $documentFactory, $releaseFactory, $validator] = $this->manager();
+        $validator->validate(Argument::any())->shouldNotBeCalled();
         $document = $this->document();
         $filesystem->exists('/project/missing/CHANGELOG.md')->willReturn(false)->shouldBeCalledOnce();
         $documentFactory->create()->willReturn($document)->shouldBeCalledOnce();
@@ -202,7 +262,7 @@ final class ChangelogManagerTest extends TestCase
 
     #[Test]
     #[TestWith([ChangelogEntryType::Removed, 'v1.2.3', '2.0.0'])]
-    #[TestWith([ChangelogEntryType::Deprecated, '1.2.3', '2.0.0'])]
+    #[TestWith([ChangelogEntryType::Deprecated, '1.2.3', '1.3.0'])]
     #[TestWith([ChangelogEntryType::Added, 'V1.2.3', '1.3.0'])]
     #[TestWith([ChangelogEntryType::Changed, '1.2.3', '1.3.0'])]
     #[TestWith([ChangelogEntryType::Fixed, '1.2.3', '1.2.4'])]
@@ -210,6 +270,11 @@ final class ChangelogManagerTest extends TestCase
     #[TestWith([ChangelogEntryType::Fixed, '1.2.3+ci.4', '1.2.4'])]
     #[TestWith([ChangelogEntryType::Fixed, 'v1.2.3-rc.1+ci.4', '1.2.4'])]
     #[TestWith([ChangelogEntryType::Fixed, '1.2.3-alpha-beta.0', '1.2.4'])]
+    #[TestWith([ChangelogEntryType::Removed, '999999999999999999999999999999.2.3', '1000000000000000000000000000000.0.0'])]
+    #[TestWith([ChangelogEntryType::Changed, '2.999999999999999999999999999999.3', '2.1000000000000000000000000000000.0'])]
+    #[TestWith([ChangelogEntryType::Fixed, '1.2.999999999999999999999999999999', '1.2.1000000000000000000000000000000'])]
+    #[TestWith([ChangelogEntryType::Fixed, '1.2.19', '1.2.20'])]
+    #[TestWith([ChangelogEntryType::Fixed, '999999999999999999999999999999.999999999999999999999999999999.3', '999999999999999999999999999999.999999999999999999999999999999.4'])]
     public function inferNextVersionAppliesCategoryPrecedence(
         ChangelogEntryType $type,
         string $currentVersion,
@@ -257,7 +322,7 @@ final class ChangelogManagerTest extends TestCase
     }
 
     /**
-     * @return array{ChangelogManager, ObjectProphecy<PackageFilesystemInterface>, ObjectProphecy<ChangelogParserInterface>, ObjectProphecy<MarkdownRendererInterface>, ObjectProphecy<GitRepositoryUrlResolverInterface>, ObjectProphecy<ChangelogDocumentFactoryInterface>, ObjectProphecy<ChangelogReleaseFactoryInterface>}
+     * @return array{ChangelogManager, ObjectProphecy<PackageFilesystemInterface>, ObjectProphecy<ChangelogParserInterface>, ObjectProphecy<MarkdownRendererInterface>, ObjectProphecy<GitRepositoryUrlResolverInterface>, ObjectProphecy<ChangelogDocumentFactoryInterface>, ObjectProphecy<ChangelogReleaseFactoryInterface>, ObjectProphecy<ReleaseDateValidatorInterface>}
      */
     private function manager(): array
     {
@@ -267,6 +332,7 @@ final class ChangelogManagerTest extends TestCase
         $git = $this->prophesize(GitRepositoryUrlResolverInterface::class);
         $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
         $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $dateValidator = $this->prophesize(ReleaseDateValidatorInterface::class);
 
         return [
             new ChangelogManager(
@@ -276,6 +342,7 @@ final class ChangelogManagerTest extends TestCase
                 $git->reveal(),
                 $documentFactory->reveal(),
                 $releaseFactory->reveal(),
+                $dateValidator->reveal(),
             ),
             $filesystem,
             $parser,
@@ -283,6 +350,7 @@ final class ChangelogManagerTest extends TestCase
             $git,
             $documentFactory,
             $releaseFactory,
+            $dateValidator,
         ];
     }
 

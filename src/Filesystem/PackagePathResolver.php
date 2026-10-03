@@ -18,6 +18,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Filesystem;
 
+use InvalidArgumentException;
+
 /**
  * Resolves package paths against an injected process working directory.
  */
@@ -30,7 +32,11 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
      */
     public function __construct(
         private string $currentWorkingDirectory,
-    ) {}
+    ) {
+        if (! $this->isAbsolute($this->currentWorkingDirectory)) {
+            throw new InvalidArgumentException('The composition working directory must be absolute.');
+        }
+    }
 
     /**
      * Resolves a path without reading or writing the filesystem.

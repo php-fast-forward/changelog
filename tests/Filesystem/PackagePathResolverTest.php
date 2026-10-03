@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Filesystem;
 
 use FastForward\Changelog\Filesystem\PackagePathResolver;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -13,6 +14,16 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(PackagePathResolver::class)]
 final class PackagePathResolverTest extends TestCase
 {
+    #[Test]
+    #[TestWith([''])]
+    #[TestWith(['.'])]
+    #[TestWith(['relative/project'])]
+    public function constructorRejectsAnAmbiguousCompositionRoot(string $root): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new PackagePathResolver($root);
+    }
+
     #[Test]
     #[TestWith(['CHANGELOG.md', null, '/project/CHANGELOG.md'])]
     #[TestWith(['../CHANGELOG.md', 'packages/library', '/project/packages/CHANGELOG.md'])]

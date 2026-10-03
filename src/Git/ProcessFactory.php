@@ -25,6 +25,9 @@ use Symfony\Component\Process\Process;
  */
 final readonly class ProcessFactory implements ProcessFactoryInterface
 {
+    /** Captures an explicit execution root so Process construction never reads cwd. */
+    public function __construct(private string $workingDirectory) {}
+
     /**
      * Creates a process without running it.
      *
@@ -32,6 +35,6 @@ final readonly class ProcessFactory implements ProcessFactoryInterface
      */
     public function create(array $command): Process
     {
-        return new Process($command);
+        return new Process($command, $this->workingDirectory);
     }
 }

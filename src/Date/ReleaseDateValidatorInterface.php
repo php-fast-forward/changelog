@@ -29,7 +29,7 @@ interface ReleaseDateValidatorInterface
      * Accepts a real calendar date written exactly as YYYY-MM-DD.
      *
      * Implementations MUST reject malformed values and impossible calendar
-     * dates before a changelog mutation reaches the manager.
+     * dates before a changelog mutation performs any I/O.
      *
      * @throws InvalidArgumentException when the value is not a valid release date
      */

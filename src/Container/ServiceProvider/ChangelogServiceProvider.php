@@ -65,22 +65,22 @@ use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 final readonly class ChangelogServiceProvider implements ServiceProviderInterface
 {
     /**
-     * Captures process-wide package metadata before any service is resolved.
+     * Captures the caller's project root and optional Composer metadata without I/O.
      *
+     * @param string      $workingDirectory caller-owned absolute project root, captured by the CLI composition boundary
      * @param string|null $installedVersion Composer's pretty version, when available
-     * @param string      $workingDirectory caller-owned project root, captured by the CLI composition boundary
      */
     public function __construct(
+        private string $workingDirectory,
         private ?string $installedVersion = null,
-        private string $workingDirectory = '.',
     ) {}
 
     /**
      * Returns service factories keyed by their public contract.
      *
      * Interface aliases MUST delegate to autowireable concrete services. The
-     * explicit factories MAY access process-wide state only at this composition
-     * boundary; resolving the command loader MUST NOT instantiate any command.
+     * explicit factories MUST derive configurable values from constructor inputs;
+     * resolving the command loader MUST NOT instantiate any command.
      *
      * @return array<string, callable> factories consumed by a service-provider container
      */
@@ -95,6 +95,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             GitFileReaderInterface::class => new AliasFactory(GitFileReader::class),
             GitRepositoryUrlResolverInterface::class => new AliasFactory(GitRepositoryUrlResolver::class),
             ProcessFactoryInterface::class => new AliasFactory(ProcessFactory::class),
+            ProcessFactory::class => fn(): ProcessFactory => new ProcessFactory($this->workingDirectory),
             ChangelogParserInterface::class => new AliasFactory(ChangelogParser::class),
             MarkdownRendererInterface::class => new AliasFactory(MarkdownRenderer::class),
             UnreleasedEntryCheckerInterface::class => new AliasFactory(UnreleasedEntryChecker::class),

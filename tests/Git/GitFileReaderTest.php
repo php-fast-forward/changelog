@@ -8,8 +8,10 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitFileNotFoundException;
 use FastForward\Changelog\Git\GitFileReader;
 use FastForward\Changelog\Git\ProcessFactoryInterface;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Prophecy\PhpUnit\ProphecyTrait;
 use RuntimeException;
@@ -28,7 +30,7 @@ final class GitFileReaderTest extends TestCase
         $process = $this->prophesize(Process::class);
         $paths->isAbsolute('/project/CHANGELOG.md')->willReturn(true)->shouldBeCalledOnce();
         $paths->relativePath('/project/CHANGELOG.md', '/project')->willReturn('CHANGELOG.md')->shouldBeCalledOnce();
-        $factory->create(['git', 'show', 'main:CHANGELOG.md'])->willReturn($process->reveal())->shouldBeCalledOnce();
+        $factory->create(['git', 'show', '--end-of-options', 'main:./CHANGELOG.md'])->willReturn($process->reveal())->shouldBeCalledOnce();
         $process->setWorkingDirectory('/project')->willReturn($process->reveal())->shouldBeCalledOnce();
         $process->run()->shouldBeCalledOnce();
         $process->isSuccessful()->willReturn(true)->shouldBeCalledOnce();
@@ -45,7 +47,7 @@ final class GitFileReaderTest extends TestCase
         $paths = $this->prophesize(PackagePathResolverInterface::class);
         $process = $this->prophesize(Process::class);
         $paths->isAbsolute('CHANGELOG.md')->shouldNotBeCalled();
-        $factory->create(['git', 'show', 'main:CHANGELOG.md'])->willReturn($process->reveal());
+        $factory->create(['git', 'show', '--end-of-options', 'main:CHANGELOG.md'])->willReturn($process->reveal());
         $process->setWorkingDirectory('/project')->shouldNotBeCalled();
         $process->run()->shouldBeCalledOnce();
         $process->isSuccessful()->willReturn(true);
@@ -53,6 +55,35 @@ final class GitFileReaderTest extends TestCase
 
         self::assertSame('baseline', new GitFileReader($factory->reveal(), $paths->reveal())
             ->show('main', 'CHANGELOG.md'));
+    }
+
+    #[Test]
+    public function showResolvesRelativePathsAgainstAnExplicitSubdirectory(): void
+    {
+        $factory = $this->prophesize(ProcessFactoryInterface::class);
+        $paths = $this->prophesize(PackagePathResolverInterface::class);
+        $process = $this->prophesize(Process::class);
+        $paths->isAbsolute('CHANGELOG.md')->willReturn(false)->shouldBeCalledOnce();
+        $factory->create(['git', 'show', '--end-of-options', 'main:./CHANGELOG.md'])->willReturn($process->reveal())->shouldBeCalledOnce();
+        $process->setWorkingDirectory('/project/docs')->willReturn($process->reveal())->shouldBeCalledOnce();
+        $process->run()->shouldBeCalledOnce();
+        $process->isSuccessful()->willReturn(true);
+        $process->getOutput()->willReturn('baseline');
+        self::assertSame('baseline', new GitFileReader($factory->reveal(), $paths->reveal())->show('main', 'CHANGELOG.md', '/project/docs'));
+    }
+
+    #[Test]
+    #[TestWith([''])]
+    #[TestWith(['--format=%h'])]
+    #[TestWith(['--output=unexpected-file'])]
+    #[TestWith(["HEAD\nnext"])]
+    #[TestWith(["HEAD\0next"])]
+    public function showRejectsEmptyAndOptionShapedReferencesBeforeCreatingAProcess(string $reference): void
+    {
+        $factory = $this->prophesize(ProcessFactoryInterface::class);
+        $paths = $this->prophesize(PackagePathResolverInterface::class);
+        $this->expectException(InvalidArgumentException::class);
+        new GitFileReader($factory->reveal(), $paths->reveal())->show($reference, 'CHANGELOG.md');
     }
 
     #[Test]
@@ -98,7 +129,7 @@ final class GitFileReaderTest extends TestCase
         $factory = $this->prophesize(ProcessFactoryInterface::class);
         $paths = $this->prophesize(PackagePathResolverInterface::class);
         $process = $this->prophesize(Process::class);
-        $factory->create(['git', 'show', 'main:CHANGELOG.md'])->willReturn($process->reveal());
+        $factory->create(['git', 'show', '--end-of-options', 'main:CHANGELOG.md'])->willReturn($process->reveal());
         $process->run()->shouldBeCalledOnce();
         $process->isSuccessful()->willReturn(false);
 
