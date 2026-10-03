@@ -1,0 +1,18 @@
+### PHP line coverage
+
+Current coverage: **{{new_coverage}}**. No base-branch report is available yet.
+
+Required minimum: `{{minimum_allowed_coverage}}`.
+
+{{#if coverage}}
+<details>
+<summary>Coverage by source file</summary>
+
+| File | Coverage |
+| :--- | :---: |
+{{#each coverage}}
+| `{{package}}` | {{base_coverage}} |
+{{/each}}
+
+</details>
+{{/if}}

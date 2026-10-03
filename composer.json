@@ -1,0 +1,120 @@
+{
+    "name": "fast-forward/changelog",
+    "description": "Standalone changelog domain and CLI runtime for Fast Forward PHP packages.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "changelog",
+        "cli",
+        "fast-forward",
+        "keep-a-changelog",
+        "psr-11",
+        "psr-20",
+        "release-notes",
+        "symfony-console"
+    ],
+    "readme": "README.md",
+    "authors": [
+        {
+            "name": "Felipe Sayao Lobato Abreu",
+            "email": "github@mentordosnerds.com",
+            "homepage": "https://github.com/coisa",
+            "role": "Maintainer"
+        }
+    ],
+    "homepage": "https://github.com/php-fast-forward/changelog",
+    "support": {
+        "issues": "https://github.com/php-fast-forward/changelog/issues",
+        "wiki": "https://github.com/php-fast-forward/changelog/wiki",
+        "source": "https://github.com/php-fast-forward/changelog",
+        "docs": "https://php-fast-forward.github.io/changelog/"
+    },
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/php-fast-forward"
+        },
+        {
+            "type": "custom",
+            "url": "https://www.paypal.com/donate/?business=JLDAF45XZ8D84"
+        }
+    ],
+    "require": {
+        "composer-runtime-api": "^2.0",
+        "php": "^8.5",
+        "container-interop/service-provider": "^0.4.1",
+        "fast-forward/clock": "^1.0",
+        "fast-forward/container": "^1.6",
+        "psr/clock": "^1.0",
+        "psr/container": "^1.0 || ^2.0",
+        "symfony/console": "^8.1",
+        "symfony/filesystem": "^8.1",
+        "symfony/process": "^8.1",
+        "thecodingmachine/safe": "^3.4"
+    },
+    "require-dev": {
+        "ext-simplexml": "*",
+        "nikic/php-parser": "^5.9",
+        "phpspec/prophecy": "^1.26",
+        "phpspec/prophecy-phpunit": "^2.5",
+        "phpunit/php-code-coverage": "^13.0",
+        "phpunit/phpunit": "^13.0",
+        "rector/rector": "^2.6",
+        "symplify/easy-coding-standard": "^13.3"
+    },
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "FastForward\\Changelog\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "FastForward\\Changelog\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/changelog"
+    ],
+    "config": {
+        "platform": {
+            "php": "8.5.0"
+        },
+        "sort-packages": true,
+        "allow-plugins": false
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "scripts": {
+        "test": "@test:unit",
+        "test:unit": "phpunit --testsuite unit",
+        "test:coverage": [
+            "@php -d pcov.enabled=1 -d pcov.directory=src -d xdebug.mode=coverage vendor/bin/phpunit --testsuite unit --coverage-cobertura=.build/coverage.xml --coverage-clover=.build/clover.xml --coverage-text --coverage-html=.build/coverage",
+            "@php tests/verify-coverage.php .build/coverage.xml 100"
+        ],
+        "lint": "@php scripts/lint.php",
+        "phpdoc": "@php scripts/phpdoc.php",
+        "coverage:check": "@test:coverage",
+        "quality:verify": "@php scripts/verify-quality.php",
+        "rector": "rector process --dry-run",
+        "rector:fix": "rector process",
+        "ecs": "ecs check",
+        "ecs:fix": "ecs check --fix",
+        "quality": [
+            "@lint",
+            "@phpdoc",
+            "@quality:verify",
+            "@rector",
+            "@ecs"
+        ],
+        "check": [
+            "@composer validate --strict",
+            "@composer check-platform-reqs",
+            "@quality",
+            "@test:coverage"
+        ]
+    }
+}

@@ -1,0 +1,83 @@
+---
+name: Tests
+
+"on":
+    pull_request:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    actions: read
+
+concurrency:
+    group: tests-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    tests:
+        name: PHP 8.5 (${{ matrix.os }})
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest]
+
+        steps:
+            - name: Check out repository
+              # v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  persist-credentials: false
+
+            - name: Set up PHP
+              # 2.36.0
+              uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
+              with:
+                  php-version: '8.5'
+                  coverage: xdebug
+                  tools: composer:v2
+
+            - name: Validate Composer metadata
+              run: composer validate --strict
+
+            - name: Install development dependencies
+              run: composer install --no-interaction --prefer-dist --no-plugins --no-scripts
+
+            - name: Run the package quality and unit coverage gates
+              run: composer check
+              env:
+                  XDEBUG_MODE: coverage
+
+            - name: Smoke test the CLI
+              run: php bin/changelog list --raw
+
+            - name: Compare and summarize line coverage
+              id: coverage
+              if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' && hashFiles('.build/coverage.xml') != '' }}
+              # v7; follows the coverage-report pattern from mentordosnerds/cli.
+              uses: clearlyip/code-coverage-report-action@110af9d4ec87b6706f182fd90e3102af9e5203bf
+              with:
+                  filename: .build/coverage.xml
+                  artifact_download_workflow_names: Tests
+                  artifact_name: changelog-coverage-%name%
+                  overall_coverage_fail_threshold: '100'
+                  file_coverage_error_min: '100'
+                  file_coverage_warning_max: '100'
+                  only_list_changed_files: 'false'
+                  without_base_coverage_template: .github/coverage-templates/without-base-coverage.hbs
+                  with_base_coverage_template: .github/coverage-templates/with-base-coverage.hbs
+
+            - name: Upload PR coverage summary
+              if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request' && steps.coverage.outputs.file != '' }}
+              # v7
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+              with:
+                  name: coverage-pr-comment
+                  path: ${{ steps.coverage.outputs.file }}
+                  if-no-files-found: error
+                  overwrite: true
+                  retention-days: 30

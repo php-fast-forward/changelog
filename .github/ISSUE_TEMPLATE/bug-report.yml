@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible problem in Fast Forward Changelog
+title: "[bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for ordinary bugs. For suspected vulnerabilities, follow
+        the [security policy](https://github.com/php-fast-forward/changelog/security/policy)
+        and report privately. Remove secrets and private data from examples.
+  - type: input
+    id: version
+    attributes:
+      label: Package version or commit
+      description: Identify the exact fast-forward/changelog revision you used.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include PHP and Composer versions, operating system, and relevant locale or template settings.
+      placeholder: |
+        PHP:
+        Composer:
+        Operating system:
+        Locale or custom template:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the exact command or API call, steps, and a small input example when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe the result you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Observed behavior
+      description: Include the result or error output, with sensitive information removed.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Link related issues or explain any workaround you have tried.

@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose an improvement to Fast Forward Changelog
+title: "[feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain the task or limitation that motivates the request.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the outcome and a concrete input/output or workflow example.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: Describe existing approaches and why they do not meet your needs.
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and additional context
+      description: Note effects on existing Markdown, fragments, templates or consumers, and link related issues.
