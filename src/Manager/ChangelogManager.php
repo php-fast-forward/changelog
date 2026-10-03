@@ -78,6 +78,10 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
     ): void {
         $this->validateReleaseLabel($version);
 
+        if (0 === strcasecmp(trim($version), ChangelogDocument::UNRELEASED_VERSION)) {
+            $version = ChangelogDocument::UNRELEASED_VERSION;
+        }
+
         if ('' === trim($message)) {
             throw new InvalidArgumentException('A changelog entry must contain meaningful text.');
         }

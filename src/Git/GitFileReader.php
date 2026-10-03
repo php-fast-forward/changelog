@@ -46,14 +46,16 @@ final readonly class GitFileReader implements GitFileReaderInterface
      */
     public function show(string $reference, string $path, ?string $workingDirectory = null): string
     {
-        if ('' === trim($reference) || str_starts_with($reference, '-') || preg_match('/[\x00\r\n]/', $reference)) {
+        if ('' === trim($reference) || str_starts_with($reference, '-') || preg_match('/[\x00\r\n:]/', $reference)) {
             throw new InvalidArgumentException('The Git baseline must be a nonempty revision, not an option.');
         }
-        if (null !== $workingDirectory && $this->pathResolver->isAbsolute($path)) {
+        $absolute = $this->pathResolver->isAbsolute($path);
+        if (null !== $workingDirectory && $absolute) {
             $path = $this->pathResolver->relativePath($path, $workingDirectory);
+            $absolute = false;
         }
 
-        if (null !== $workingDirectory) {
+        if (! $absolute && ! str_starts_with($path, './') && ! str_starts_with($path, '../')) {
             $path = './' . $path;
         }
 

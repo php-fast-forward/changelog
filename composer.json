@@ -92,12 +92,12 @@
         "test": "@test:unit",
         "test:unit": "phpunit --testsuite unit",
         "test:coverage": [
-            "@php -d pcov.enabled=1 -d pcov.directory=src -d xdebug.mode=coverage vendor/bin/phpunit --testsuite unit --coverage-clover=.build/coverage.xml --coverage-text --coverage-html=.build/coverage",
+            "@php -d pcov.enabled=1 -d pcov.directory=src -d xdebug.mode=coverage vendor/bin/phpunit --testsuite unit --coverage-cobertura=.build/coverage.xml --coverage-clover=.build/clover.xml --coverage-text --coverage-html=.build/coverage",
             "@php tests/verify-coverage.php .build/coverage.xml 100"
         ],
         "lint": "@php scripts/lint.php",
         "phpdoc": "@php scripts/phpdoc.php",
-        "coverage:check": "@php tests/verify-coverage.php .build/coverage.xml 100",
+        "coverage:check": "@test:coverage",
         "quality:verify": "@php scripts/verify-quality.php",
         "rector": "rector process --dry-run",
         "rector:fix": "rector process",

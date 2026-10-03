@@ -113,6 +113,11 @@ collaborators with test doubles.
 The [foundation extraction map](docs/foundation.md) explains what to copy and
 adapt for a new PHP library and which dependencies belong to this package.
 
+Coverage uses PHPUnit's native Cobertura report in `.build/coverage.xml`, with
+Clover in `.build/clover.xml`, per-class text and HTML in `.build/coverage`.
+`composer coverage:check` regenerates the unit report and enforces 100% line
+coverage for the production source and every executable class.
+
 ## Community
 
 - [Support guide](SUPPORT.md)

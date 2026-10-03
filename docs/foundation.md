@@ -38,9 +38,12 @@ alignment/indentation/trim without deleting semantic descriptions.
 
 The full local gate is `composer check`. Composer plugins are disabled and
 installation runs with `--no-plugins --no-scripts`. Production coverage includes
-all `src/`; reports show each class, and the verifier checks that every source
-file appears, metrics agree with executable lines, and each class/file meets
-the threshold. The verifier refuses a zero denominator or malformed Clover.
+all `src/`; PHPUnit generates native Cobertura, Clover, HTML and per-class text
+reports. The small verifier enforces 100% native line totals and every executable
+class, without rounding uncovered lines into success. `composer coverage:check`
+regenerates the unit report through `test:coverage`, so the public gate cannot
+reuse a stale report. `composer check` runs that suite once. The verifier rejects
+malformed Cobertura and invalid counts, including a zero denominator.
 `composer quality:verify` separately tests the gates' success and rejection
 paths in temporary fixtures, then removes only the fixtures it created.
 

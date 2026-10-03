@@ -1,0 +1,20 @@
+### PHP line coverage
+
+{{#with overall_coverage}}
+Current coverage: **{{new_coverage}}**; base: **{{base_coverage}}**; difference: **{{difference}}**.
+{{/with}}
+
+Required minimum: `{{minimum_allowed_coverage}}`.
+
+{{#if coverage}}
+<details>
+<summary>Coverage by source file</summary>
+
+| File | Base | Current | Difference |
+| :--- | :---: | :---: | :---: |
+{{#each coverage}}
+| `{{package}}` | {{base_coverage}} | {{new_coverage}} | {{difference}} |
+{{/each}}
+
+</details>
+{{/if}}

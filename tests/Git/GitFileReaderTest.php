@@ -41,13 +41,13 @@ final class GitFileReaderTest extends TestCase
     }
 
     #[Test]
-    public function showLeavesRelativePathsAndWorkingDirectoryUntouched(): void
+    public function showPrefixesRelativePathsWithTheInjectedFactoryWorkingDirectory(): void
     {
         $factory = $this->prophesize(ProcessFactoryInterface::class);
         $paths = $this->prophesize(PackagePathResolverInterface::class);
         $process = $this->prophesize(Process::class);
-        $paths->isAbsolute('CHANGELOG.md')->shouldNotBeCalled();
-        $factory->create(['git', 'show', '--end-of-options', 'main:CHANGELOG.md'])->willReturn($process->reveal());
+        $paths->isAbsolute('CHANGELOG.md')->willReturn(false)->shouldBeCalledOnce();
+        $factory->create(['git', 'show', '--end-of-options', 'main:./CHANGELOG.md'])->willReturn($process->reveal());
         $process->setWorkingDirectory('/project')->shouldNotBeCalled();
         $process->run()->shouldBeCalledOnce();
         $process->isSuccessful()->willReturn(true);
@@ -72,9 +72,28 @@ final class GitFileReaderTest extends TestCase
         self::assertSame('baseline', new GitFileReader($factory->reveal(), $paths->reveal())->show('main', 'CHANGELOG.md', '/project/docs'));
     }
 
+    /** Absolute paths and already cwd-relative path syntax are not double-prefixed. */
+    #[Test]
+    #[TestWith(['/project/CHANGELOG.md', true])]
+    #[TestWith(['./CHANGELOG.md', false])]
+    #[TestWith(['../CHANGELOG.md', false])]
+    public function showRetainsAnAlreadyExplicitPath(string $path, bool $absolute): void
+    {
+        $factory = $this->prophesize(ProcessFactoryInterface::class);
+        $paths = $this->prophesize(PackagePathResolverInterface::class);
+        $process = $this->prophesize(Process::class);
+        $paths->isAbsolute($path)->willReturn($absolute)->shouldBeCalledOnce();
+        $factory->create(['git', 'show', '--end-of-options', 'main:' . $path])->willReturn($process->reveal())->shouldBeCalledOnce();
+        $process->run()->shouldBeCalledOnce();
+        $process->isSuccessful()->willReturn(true);
+        $process->getOutput()->willReturn('baseline');
+        self::assertSame('baseline', new GitFileReader($factory->reveal(), $paths->reveal())->show('main', $path));
+    }
+
     #[Test]
     #[TestWith([''])]
     #[TestWith(['--format=%h'])]
+    #[TestWith(['HEAD:missing'])]
     #[TestWith(['--output=unexpected-file'])]
     #[TestWith(["HEAD\nnext"])]
     #[TestWith(["HEAD\0next"])]
@@ -129,7 +148,8 @@ final class GitFileReaderTest extends TestCase
         $factory = $this->prophesize(ProcessFactoryInterface::class);
         $paths = $this->prophesize(PackagePathResolverInterface::class);
         $process = $this->prophesize(Process::class);
-        $factory->create(['git', 'show', '--end-of-options', 'main:CHANGELOG.md'])->willReturn($process->reveal());
+        $paths->isAbsolute('CHANGELOG.md')->willReturn(false);
+        $factory->create(['git', 'show', '--end-of-options', 'main:./CHANGELOG.md'])->willReturn($process->reveal());
         $process->run()->shouldBeCalledOnce();
         $process->isSuccessful()->willReturn(false);
 

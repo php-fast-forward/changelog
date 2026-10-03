@@ -81,7 +81,7 @@ final class VersionResolveCommand extends Command
             );
         }
 
-        $output->writeln($version);
+        $output->writeln($version, OutputInterface::OUTPUT_RAW);
 
         return self::SUCCESS;
     }

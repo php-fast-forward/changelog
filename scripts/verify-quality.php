@@ -49,78 +49,36 @@ $checks = 0;
 
 try {
     $plainSource = "<?php\nclass Fixture {\n    /** Returns the fixture value without observable side effects. */\n    public function value(): int\n    {\n        return 1;\n    }\n}\n";
-    $promotedSource = "<?php\nclass Fixture {\n    /** Captures the fixture root without reading external state. */\n    public function __construct(private string \$root) {}\n    /** Returns the fixture value without observable side effects. */\n    public function value(): int\n    {\n        return 1;\n    }\n}\n";
-    $inlineSource = "<?php\nclass Fixture {\n    /** Returns the fixture value without observable side effects. */ public function value(): int { return 1; }\n}\n";
     file_put_contents($source, $plainSource);
-    $name = htmlspecialchars($source, ENT_QUOTES | ENT_XML1);
-    $valid = '<coverage><project><file name="' . $name . '"><class name="Fixture"><metrics statements="1" coveredstatements="1"/></class><line type="method" num="4" count="1" name="value"/><line type="stmt" num="6" count="1"/><metrics statements="1" coveredstatements="1"/></file><metrics statements="1" coveredstatements="1"/></project></coverage>';
-    $partial = str_replace(['coveredstatements="1"', 'count="1"'], ['coveredstatements="0"', 'count="0"'], $valid);
-    $methodEvidence = '<coverage><project><file name="' . $name . '"><class name="Fixture"><metrics statements="2" coveredstatements="2"/></class><line type="method" num="4" count="1" name="__construct"/><line type="method" num="6" count="1" name="value"/><line type="stmt" num="8" count="1"/><metrics statements="2" coveredstatements="2"/></file><metrics statements="2" coveredstatements="2"/></project></coverage>';
-    $uncoveredDeclaration = str_replace([' coveredstatements="2"', 'num="4" count="1"'], [' coveredstatements="1"', 'num="4" count="0"'], $methodEvidence);
-    $inlineEvidence = str_replace(['<line type="method" num="4" count="1" name="value"/>', '<line type="stmt" num="6" count="1"/>'], ['<line type="method" num="3" count="1" name="value"/>', ''], $valid);
+    $valid = '<coverage lines-valid="1" lines-covered="1"><packages><package><classes><class name="Fixture" line-rate="1"><lines><line number="6" hits="1"/></lines></class></classes></package></packages></coverage>';
     $cases = [
         'complete coverage' => [$valid, '100', 0],
-        'constructor statement represented as method' => [$methodEvidence, '100', 0, $promotedSource],
-        'inline method body represented as method' => [$inlineEvidence, '100', 0, $inlineSource],
-        'statement omitted with unchanged metrics' => [str_replace('<line type="stmt" num="8" count="1"/>', '', $methodEvidence), '100', 1, $promotedSource],
-        'method metadata cannot replace a statement' => [str_replace('<line type="stmt" num="6" count="1"/>', '', $valid), '100', 1],
-        'method declaration name mismatches source' => [str_replace('name="value"', 'name="other"', $valid), '100', 1],
-        'uncovered declaration statement' => [$uncoveredDeclaration, '100', 1, $promotedSource],
-        'partial declaration statement threshold' => [$uncoveredDeclaration, '50', 0, $promotedSource],
-        'invalid declaration hit count' => [str_replace('num="4" count="1"', 'num="4" count="invalid"', $methodEvidence), '100', 1, $promotedSource],
-        'partial coverage' => [$partial, '100', 1],
-        'lower explicit threshold' => [$partial, '0', 0],
-        'malformed XML' => ['<coverage>', '100', 1],
-        'wrong document shape' => ['<not-coverage/>', '100', 1],
-        'missing metrics' => [str_replace('<metrics statements="1" coveredstatements="1"/>', '', $valid), '100', 1],
-        'missing statements' => [str_replace(' statements="1"', '', $valid), '100', 1],
-        'invalid metric value' => [str_replace('statements="1"', 'statements="invalid"', $valid), '100', 1],
-        'zero denominator' => [str_replace(['statements="1"', 'count="1"'], ['statements="0"', 'count="0"'], $valid), '100', 1],
-        'impossible numerator' => [str_replace('coveredstatements="1"', 'coveredstatements="2"', $valid), '100', 1],
-        'inconsistent line hits' => [str_replace('count="1"', 'count="0"', $valid), '100', 1],
-        'inconsistent project metrics' => [str_replace('</file><metrics statements="1"', '</file><metrics statements="2"', $valid), '100', 1],
+        'uncovered line below threshold' => [str_replace(['lines-covered="1"', 'line-rate="1"', 'hits="1"'], ['lines-covered="0"', 'line-rate="0"', 'hits="0"'], $valid), '100', 1],
+        'empty report' => ['', '100', 1],
+        'malformed report' => ['<coverage>', '100', 1],
         'invalid threshold' => [$valid, 'NaN', 1],
         'threshold above 100' => [$valid, '101', 1],
-        'document type' => ['<!DOCTYPE coverage [<!ENTITY data "x">]>' . $valid, '100', 1],
-        'unknown production file' => [str_replace($name, $name . '.unknown', $valid), '100', 1],
-        'missing class metrics' => [str_replace('<class name="Fixture"><metrics statements="1" coveredstatements="1"/></class>', '<class name="Fixture"/>', $valid), '100', 1],
-        'duplicate file' => [str_replace('</project>', '<file name="' . $name . '"><metrics statements="0" coveredstatements="0"/></file></project>', $valid), '100', 1],
+        'invalid report count' => [str_replace('lines-valid="1"', 'lines-valid="invalid"', $valid), '100', 1],
+        'zero denominator' => [str_replace(['lines-valid="1"', 'lines-covered="1"'], ['lines-valid="0"', 'lines-covered="0"'], $valid), '100', 1],
+        'impossible numerator' => [str_replace('lines-covered="1"', 'lines-covered="2"', $valid), '100', 1],
+        'uncovered class with full root totals' => [str_replace('line-rate="1"', 'line-rate="0"', $valid), '100', 1],
+        'uncovered own line with full rates' => [str_replace('hits="1"', 'hits="0"', $valid), '100', 1],
+        'invalid own line hits' => [str_replace('hits="1"', 'hits="invalid"', $valid), '100', 1],
     ];
 
-    foreach ($cases as $label => $case) {
-        [$xml, $threshold, $expected] = $case;
-        file_put_contents($source, $case[3] ?? $plainSource);
+    foreach ($cases as $label => [$xml, $threshold, $expected]) {
         file_put_contents($report, $xml);
-        [$exit, $output] = $run([$coverageScript, $report, $threshold, $root . '/src']);
-
+        [$exit, $output] = $run([$coverageScript, $report, $threshold]);
         if ($exit !== $expected) {
             throw new RuntimeException(sprintf('Coverage case "%s" returned %d, expected %d: %s', $label, $exit, $expected, $output));
         }
-
-        if ('partial coverage' === $label
-            && (! str_contains($output, "below the required 100.00%.\n") || str_contains($output, '\\n'))) {
-            throw new RuntimeException('Coverage diagnostics must separate the summary and failing lines with an actual newline.');
-        }
-
         ++$checks;
     }
 
-    file_put_contents($source, $plainSource);
-    file_put_contents($root . '/src/Omitted.php', '<?php class Omitted {}');
-    file_put_contents($report, $valid);
-    [$exit, $output] = $run([$coverageScript, $report, '100', $root . '/src']);
-
-    if (1 !== $exit || ! str_contains($output, 'Production file missing from coverage')) {
-        throw new RuntimeException('Coverage must reject source files omitted from the report.');
-    }
-
-    ++$checks;
-    [$exit, $output] = $run([$coverageScript, $root . '/missing.xml', '100', $root . '/src']);
-
-    if (1 !== $exit || ! str_contains($output, 'readable Clover report')) {
+    [$exit, $output] = $run([$coverageScript, $root . '/missing.xml', '100']);
+    if (1 !== $exit || ! str_contains($output, 'readable Cobertura report')) {
         throw new RuntimeException('Coverage must reject a missing report.');
     }
-
     ++$checks;
     [$exit, $output] = $run([$phpdocScript, $source]);
 
@@ -149,7 +107,7 @@ try {
 
     fwrite(STDOUT, sprintf("Development gates passed %d isolated success and rejection cases.\n", $checks));
 } finally {
-    foreach ([$report, $source, $root . '/src/Omitted.php'] as $file) {
+    foreach ([$report, $source] as $file) {
         if (is_file($file)) {
             unlink($file);
         }

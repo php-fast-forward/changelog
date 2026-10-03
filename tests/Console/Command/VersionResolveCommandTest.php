@@ -32,6 +32,15 @@ final class VersionResolveCommandTest extends TestCase
         self::assertSame("1.2.3\n", $tester->getDisplay(true));
     }
 
+    /** Explicit labels must survive formatter syntax unchanged for machine consumers. */
+    #[Test]
+    public function executeDoesNotInterpretMarkupInAnExplicitVersion(): void
+    {
+        $tester = new CommandTester(new VersionResolveCommand($this->prophesize(ChangelogManagerInterface::class)->reveal(), $this->prophesize(PackageFilesystemInterface::class)->reveal()));
+        self::assertSame(Command::SUCCESS, $tester->execute(['version' => '<info>stable</info>'], ['decorated' => true]));
+        self::assertSame("<info>stable</info>\n", $tester->getDisplay(true));
+    }
+
     #[Test]
     public function executeInfersTheVersionWithAnExplicitBase(): void
     {

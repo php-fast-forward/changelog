@@ -164,6 +164,21 @@ final class ChangelogManagerTest extends TestCase
         $manager->addEntry('CHANGELOG.md', ChangelogEntryType::Added, 'entry', '1.0.0', '2026-09-05');
     }
 
+    /** Reserved spelling variants always mutate the one canonical pending section. */
+    #[Test]
+    #[TestWith(['unreleased'])]
+    #[TestWith([' UnReLeAsEd '])]
+    public function addEntryCanonicalizesTheReservedUnreleasedLabel(string $version): void
+    {
+        [$manager, $filesystem, $parser, $renderer, $git, , $releaseFactory] = $this->manager();
+        $document = $this->document();
+        $this->willLoad($filesystem, $parser, $document);
+        $releaseFactory->create($version, null)->shouldNotBeCalled();
+        $this->willPersist($filesystem, $renderer, $git);
+        $renderer->render(Argument::that(static fn(ChangelogDocument $actual): bool => null === $actual->getRelease($version) && ['entry'] === $actual->getUnreleased()->getEntriesFor(ChangelogEntryType::Fixed)), 'https://example.com/repo')->willReturn('rendered')->shouldBeCalledOnce();
+        $manager->addEntry('CHANGELOG.md', ChangelogEntryType::Fixed, 'entry', $version);
+    }
+
     #[Test]
     public function addEntryUpdatesADifferentExistingDate(): void
     {
