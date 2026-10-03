@@ -17,7 +17,7 @@ final class ReleaseDateValidatorTest extends TestCase
     #[Test]
     public function validateAcceptsARealZeroPaddedCalendarDate(): void
     {
-        (new ReleaseDateValidator())->validate('2024-02-29');
+        new ReleaseDateValidator()->validate('2024-02-29');
 
         self::addToAssertionCount(1);
     }
@@ -36,6 +36,6 @@ final class ReleaseDateValidatorTest extends TestCase
             $date,
         ));
 
-        (new ReleaseDateValidator())->validate($date);
+        new ReleaseDateValidator()->validate($date);
     }
 }

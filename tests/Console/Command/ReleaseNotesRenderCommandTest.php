@@ -7,10 +7,10 @@ namespace FastForward\Changelog\Tests\Console\Command;
 use FastForward\Changelog\Console\Command\ReleaseNotesRenderCommand;
 use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 use FastForward\Changelog\Manager\ChangelogManagerInterface;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 

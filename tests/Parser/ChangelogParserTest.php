@@ -11,12 +11,12 @@ use FastForward\Changelog\Document\ChangelogReleaseFactoryInterface;
 use FastForward\Changelog\Entry\ChangelogEntryType;
 use FastForward\Changelog\Entry\ChangelogEntryTypesInterface;
 use FastForward\Changelog\Parser\ChangelogParser;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 
 #[CoversClass(ChangelogParser::class)]
 #[UsesClass(ChangelogDocument::class)]
@@ -37,11 +37,11 @@ final class ChangelogParserTest extends TestCase
         $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
         $documentFactory->create()->willReturn($default)->shouldBeCalledOnce();
 
-        self::assertSame($default, (new ChangelogParser(
+        self::assertSame($default, new ChangelogParser(
             $documentFactory->reveal(),
             $releaseFactory->reveal(),
             $entryTypes->reveal(),
-        ))->parse($contents));
+        )->parse($contents));
     }
 
     #[Test]
@@ -114,6 +114,23 @@ final class ChangelogParserTest extends TestCase
             - entry
             - entry
             MARKDOWN));
+    }
+
+    #[Test]
+    public function parseIgnoresWhitespaceOnlyBulletsAndTheirContinuation(): void
+    {
+        $documentFactory = $this->prophesize(ChangelogDocumentFactoryInterface::class);
+        $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
+        $entryTypes = $this->prophesize(ChangelogEntryTypesInterface::class);
+        $entryTypes->ordered()->willReturn([ChangelogEntryType::Added]);
+        $release = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION, null, ['Added' => ['first', 'last']]);
+        $releaseFactory->create(ChangelogDocument::UNRELEASED_VERSION, null, ['Added' => ['first', 'last']])
+            ->willReturn($release)->shouldBeCalledOnce();
+        $expected = new ChangelogDocument([$release]);
+        $documentFactory->create([$release], [])->willReturn($expected)->shouldBeCalledOnce();
+        $parser = new ChangelogParser($documentFactory->reveal(), $releaseFactory->reveal(), $entryTypes->reveal());
+
+        self::assertSame($expected, $parser->parse("## [Unreleased]\n\n### Added\n\n- first\n- \t \nprose\n  continuation without an entry\n- last\n"));
     }
 
     #[Test]

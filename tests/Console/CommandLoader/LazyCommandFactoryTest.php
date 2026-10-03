@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Console\CommandLoader;
 
 use FastForward\Changelog\Console\CommandLoader\LazyCommandFactory;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Command\LazyCommand;
@@ -42,7 +42,7 @@ final class LazyCommandFactoryTest extends TestCase
             ->willReturn(Command::SUCCESS)
             ->shouldBeCalledOnce();
 
-        $lazy = (new LazyCommandFactory())->create(
+        $lazy = new LazyCommandFactory()->create(
             'example',
             ['alias'],
             'Description',

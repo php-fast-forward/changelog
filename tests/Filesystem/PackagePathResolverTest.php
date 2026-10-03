@@ -20,12 +20,16 @@ final class PackagePathResolverTest extends TestCase
     #[TestWith(['C:\\project\\.\\CHANGELOG.md', null, 'C:/project/CHANGELOG.md'])]
     #[TestWith(['\\\\server\\share\\CHANGELOG.md', null, '//server/share/CHANGELOG.md'])]
     #[TestWith(['../../outside', '/project', '/outside'])]
+    #[TestWith(['//server', null, '//server'])]
+    #[TestWith(['//', null, '//'])]
+    #[TestWith(['//server/share/dir/../..', null, '//server/share'])]
+    #[TestWith(['//server/share/../../other', null, '//server/share/other'])]
     public function absolutePathNormalizesWithoutFilesystemAccess(
         string $path,
         ?string $workingDirectory,
         string $expected,
     ): void {
-        self::assertSame($expected, (new PackagePathResolver('/project'))->absolutePath($path, $workingDirectory));
+        self::assertSame($expected, new PackagePathResolver('/project')->absolutePath($path, $workingDirectory));
     }
 
     #[Test]
@@ -35,7 +39,7 @@ final class PackagePathResolverTest extends TestCase
     #[TestWith(['relative/file', false])]
     public function isAbsoluteRecognizesSupportedRoots(string $path, bool $expected): void
     {
-        self::assertSame($expected, (new PackagePathResolver('/project'))->isAbsolute($path));
+        self::assertSame($expected, new PackagePathResolver('/project')->isAbsolute($path));
     }
 
     #[Test]
@@ -44,15 +48,19 @@ final class PackagePathResolverTest extends TestCase
     #[TestWith(['/project', '/project', ''])]
     #[TestWith(['D:/project/file', 'C:/project', 'D:/project/file'])]
     #[TestWith(['C:/Project/file', 'c:/Project', 'file'])]
+    #[TestWith(['C:/Repo/CHANGELOG.md', 'c:/repo', 'CHANGELOG.md'])]
+    #[TestWith(['//SERVER/Share/Repo/file', '//server/share/repo', 'file'])]
+    #[TestWith(['//server/other/file', '//server/share', '//server/other/file'])]
+    #[TestWith(['/Repo/file', '/repo', '../Repo/file'])]
     public function relativePathHandlesCommonAndDifferentRoots(string $path, string $base, string $expected): void
     {
-        self::assertSame($expected, (new PackagePathResolver('/project'))->relativePath($path, $base));
+        self::assertSame($expected, new PackagePathResolver('/project')->relativePath($path, $base));
     }
 
     #[Test]
     public function directoryPathReturnsTheRequestedAncestor(): void
     {
-        self::assertSame('/project', (new PackagePathResolver('/'))->directoryPath('/project/src/File.php', 2));
-        self::assertSame('C:/project', (new PackagePathResolver('/'))->directoryPath('C:\\project\\src\\File.php', 2));
+        self::assertSame('/project', new PackagePathResolver('/')->directoryPath('/project/src/File.php', 2));
+        self::assertSame('C:/project', new PackagePathResolver('/')->directoryPath('C:\\project\\src\\File.php', 2));
     }
 }

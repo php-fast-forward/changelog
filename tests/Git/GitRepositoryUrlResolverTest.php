@@ -7,11 +7,11 @@ namespace FastForward\Changelog\Tests\Git;
 use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 use FastForward\Changelog\Git\GitRepositoryUrlResolver;
 use FastForward\Changelog\Git\ProcessFactoryInterface;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Symfony\Component\Process\Process;
 
 #[CoversClass(GitRepositoryUrlResolver::class)]
@@ -28,7 +28,29 @@ final class GitRepositoryUrlResolverTest extends TestCase
         $filesystem = $this->prophesize(PackageFilesystemInterface::class);
         $factory->create(['git', 'config', '--get', 'remote.origin.url'])->shouldNotBeCalled();
 
-        self::assertNull((new GitRepositoryUrlResolver($filesystem->reveal(), $factory->reveal()))->resolve($workingDirectory));
+        self::assertNull(new GitRepositoryUrlResolver($filesystem->reveal(), $factory->reveal())->resolve($workingDirectory));
+    }
+
+    #[Test]
+    public function nonexistentWorkingDirectoryReturnsNullWithoutStartingGit(): void
+    {
+        $factory = $this->prophesize(ProcessFactoryInterface::class);
+        $filesystem = $this->prophesize(PackageFilesystemInterface::class);
+        $filesystem->getAbsolutePath('/missing')->willReturn('/missing')->shouldBeCalledOnce();
+        $filesystem->exists('/missing')->willReturn(false)->shouldBeCalledOnce();
+        $factory->create(['git', 'config', '--get', 'remote.origin.url'])->shouldNotBeCalled();
+
+        self::assertNull(new GitRepositoryUrlResolver($filesystem->reveal(), $factory->reveal())->resolve('/missing'));
+    }
+
+    #[Test]
+    public function aProcessStartFailureReturnsNull(): void
+    {
+        [$resolver, $process] = $this->resolverWithProcess();
+        $process->run()->willThrow(new \Symfony\Component\Process\Exception\RuntimeException('Directory disappeared'));
+        $process->isSuccessful()->shouldNotBeCalled();
+
+        self::assertNull($resolver->resolve('/project'));
     }
 
     #[Test]
@@ -64,6 +86,7 @@ final class GitRepositoryUrlResolverTest extends TestCase
         $process = $this->prophesize(Process::class);
         $factory->create(['git', 'config', '--get', 'remote.origin.url'])->willReturn($process->reveal())->shouldBeCalledOnce();
         $filesystem->getAbsolutePath('/project')->willReturn('/project')->shouldBeCalledOnce();
+        $filesystem->exists('/project')->willReturn(true)->shouldBeCalledOnce();
         $process->setWorkingDirectory('/project')->willReturn($process->reveal())->shouldBeCalledOnce();
         $process->run()->shouldBeCalledOnce();
 

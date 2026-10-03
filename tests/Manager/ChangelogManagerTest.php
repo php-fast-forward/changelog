@@ -14,14 +14,15 @@ use FastForward\Changelog\Git\GitRepositoryUrlResolverInterface;
 use FastForward\Changelog\Manager\ChangelogManager;
 use FastForward\Changelog\Parser\ChangelogParserInterface;
 use FastForward\Changelog\Renderer\MarkdownRendererInterface;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
-use Prophecy\Prophecy\ObjectProphecy;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
+use Prophecy\Prophecy\ObjectProphecy;
 use RuntimeException;
 
 #[CoversClass(ChangelogManager::class)]
@@ -52,6 +53,43 @@ final class ChangelogManagerTest extends TestCase
         $parser->parse('markdown')->willReturn($document)->shouldBeCalledOnce();
 
         self::assertSame($document, $manager->load('CHANGELOG.md'));
+    }
+
+    #[Test]
+    #[TestWith([''])]
+    #[TestWith([" \t\n "])]
+    public function addEntryRejectsEmptyMessagesBeforeIo(string $message): void
+    {
+        [$manager, $filesystem] = $this->manager();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must contain meaningful text');
+
+        $manager->addEntry('CHANGELOG.md', ChangelogEntryType::Fixed, $message);
+    }
+
+    #[Test]
+    #[TestWith(['1.2.3]'])]
+    #[TestWith(['[1.2.3'])]
+    #[TestWith(["1.2.3\nother"])]
+    #[TestWith(['   '])]
+    public function addEntryRejectsMalformedReleaseLabelsBeforeIo(string $version): void
+    {
+        [$manager, $filesystem] = $this->manager();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+
+        $manager->addEntry('CHANGELOG.md', ChangelogEntryType::Fixed, 'entry', $version);
+    }
+
+    #[Test]
+    public function promoteRejectsMalformedReleaseLabelsBeforeIo(): void
+    {
+        [$manager, $filesystem] = $this->manager();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+
+        $manager->promote('CHANGELOG.md', '1.2.3]', '2026-09-05');
     }
 
     #[Test]
@@ -123,7 +161,7 @@ final class ChangelogManagerTest extends TestCase
     public function promoteCreatesReleaseValuesAndPersistsThePromotion(): void
     {
         [$manager, $filesystem, $parser, $renderer, $git, , $releaseFactory] = $this->manager();
-        $unreleased = (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)
             ->withEntry(ChangelogEntryType::Added, 'entry');
         $document = new ChangelogDocument([$unreleased]);
         $promoted = new ChangelogRelease('1.0.0', '2026-09-05', $unreleased->getEntries());
@@ -148,14 +186,18 @@ final class ChangelogManagerTest extends TestCase
     }
 
     #[Test]
-    public function inferNextVersionRejectsInvalidSemanticVersions(): void
+    #[TestWith(['latest'])]
+    #[TestWith(['vv1.2.3'])]
+    #[TestWith(['1.2.3-01'])]
+    #[TestWith(['1.2.3+'])]
+    public function inferNextVersionRejectsInvalidSemanticVersions(string $version): void
     {
         [$manager, $filesystem, $parser] = $this->manager();
         $this->willLoad($filesystem, $parser, $this->documentWithEntry(ChangelogEntryType::Fixed));
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cannot infer a version from invalid semantic version "latest".');
+        $this->expectExceptionMessage('Cannot infer a version from invalid semantic version');
 
-        $manager->inferNextVersion('CHANGELOG.md', 'latest');
+        $manager->inferNextVersion('CHANGELOG.md', $version);
     }
 
     #[Test]
@@ -165,6 +207,9 @@ final class ChangelogManagerTest extends TestCase
     #[TestWith([ChangelogEntryType::Changed, '1.2.3', '1.3.0'])]
     #[TestWith([ChangelogEntryType::Fixed, '1.2.3', '1.2.4'])]
     #[TestWith([ChangelogEntryType::Security, '0.0.0', '0.0.1'])]
+    #[TestWith([ChangelogEntryType::Fixed, '1.2.3+ci.4', '1.2.4'])]
+    #[TestWith([ChangelogEntryType::Fixed, 'v1.2.3-rc.1+ci.4', '1.2.4'])]
+    #[TestWith([ChangelogEntryType::Fixed, '1.2.3-alpha-beta.0', '1.2.4'])]
     public function inferNextVersionAppliesCategoryPrecedence(
         ChangelogEntryType $type,
         string $currentVersion,
@@ -243,7 +288,7 @@ final class ChangelogManagerTest extends TestCase
 
     /**
      * @param ObjectProphecy<PackageFilesystemInterface> $filesystem
-     * @param ObjectProphecy<ChangelogParserInterface> $parser
+     * @param ObjectProphecy<ChangelogParserInterface>   $parser
      */
     private function willLoad(ObjectProphecy $filesystem, ObjectProphecy $parser, ChangelogDocument $document): void
     {
@@ -253,8 +298,8 @@ final class ChangelogManagerTest extends TestCase
     }
 
     /**
-     * @param ObjectProphecy<PackageFilesystemInterface> $filesystem
-     * @param ObjectProphecy<MarkdownRendererInterface> $renderer
+     * @param ObjectProphecy<PackageFilesystemInterface>        $filesystem
+     * @param ObjectProphecy<MarkdownRendererInterface>         $renderer
      * @param ObjectProphecy<GitRepositoryUrlResolverInterface> $git
      */
     private function willPersist(ObjectProphecy $filesystem, ObjectProphecy $renderer, ObjectProphecy $git): void
@@ -280,7 +325,7 @@ final class ChangelogManagerTest extends TestCase
      */
     private function documentWithEntry(ChangelogEntryType $type, array $published = []): ChangelogDocument
     {
-        $unreleased = (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))->withEntry($type, 'entry');
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)->withEntry($type, 'entry');
 
         return new ChangelogDocument([$unreleased, ...$published]);
     }

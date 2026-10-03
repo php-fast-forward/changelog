@@ -12,11 +12,14 @@ use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 use FastForward\Changelog\Git\GitFileNotFoundException;
 use FastForward\Changelog\Git\GitFileReaderInterface;
 use FastForward\Changelog\Parser\ChangelogParserInterface;
-use Prophecy\PhpUnit\ProphecyTrait;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
 
 #[CoversClass(UnreleasedEntryChecker::class)]
 #[UsesClass(ChangelogDocument::class)]
@@ -24,6 +27,39 @@ use PHPUnit\Framework\TestCase;
 final class UnreleasedEntryCheckerTest extends TestCase
 {
     use ProphecyTrait;
+
+    #[Test]
+    #[TestWith([''])]
+    #[TestWith([" \t "])]
+    public function emptyBaselineReferencesAreRejectedBeforeIo(string $reference): void
+    {
+        $filesystem = $this->prophesize(PackageFilesystemInterface::class);
+        $git = $this->prophesize(GitFileReaderInterface::class);
+        $parser = $this->prophesize(ChangelogParserInterface::class);
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $git->show(Argument::cetera())->shouldNotBeCalled();
+        $this->expectException(InvalidArgumentException::class);
+
+        new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal())
+            ->hasPendingChanges('CHANGELOG.md', $reference);
+    }
+
+    #[Test]
+    public function unexpectedGitFailuresPropagate(): void
+    {
+        $filesystem = $this->prophesize(PackageFilesystemInterface::class);
+        $git = $this->prophesize(GitFileReaderInterface::class);
+        $parser = $this->prophesize(ChangelogParserInterface::class);
+        $filesystem->exists('CHANGELOG.md')->willReturn(true);
+        $filesystem->readFile('CHANGELOG.md')->willReturn('current');
+        $parser->parse('current')->willReturn($this->document(['entry']));
+        $git->show('main', 'CHANGELOG.md', '/project')->willThrow(new \RuntimeException('git failed'));
+        $checker = new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal());
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('git failed');
+
+        $checker->hasPendingChanges('CHANGELOG.md', ' main ', '/project');
+    }
 
     #[Test]
     public function missingCurrentFileHasNoPendingChanges(): void
@@ -34,7 +70,7 @@ final class UnreleasedEntryCheckerTest extends TestCase
         $filesystem->exists('/project/CHANGELOG.md')->willReturn(false)->shouldBeCalledOnce();
         $filesystem->readFile('/project/CHANGELOG.md')->shouldNotBeCalled();
 
-        self::assertFalse((new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal()))
+        self::assertFalse(new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal())
             ->hasPendingChanges('/project/CHANGELOG.md'));
     }
 
@@ -49,7 +85,7 @@ final class UnreleasedEntryCheckerTest extends TestCase
         $filesystem->readFile('CHANGELOG.md')->willReturn('current')->shouldBeCalledOnce();
         $parser->parse('current')->willReturn($document)->shouldBeCalledOnce();
 
-        self::assertFalse((new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal()))
+        self::assertFalse(new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal())
             ->hasPendingChanges('CHANGELOG.md'));
     }
 
@@ -64,7 +100,7 @@ final class UnreleasedEntryCheckerTest extends TestCase
         $parser->parse('current')->willReturn($this->document(['entry', 'entry']));
         $git->show('main', 'CHANGELOG.md', '/project')->shouldNotBeCalled();
 
-        self::assertTrue((new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal()))
+        self::assertTrue(new UnreleasedEntryChecker($filesystem->reveal(), $git->reveal(), $parser->reveal())
             ->hasPendingChanges('CHANGELOG.md'));
     }
 
@@ -138,8 +174,7 @@ final class UnreleasedEntryCheckerTest extends TestCase
     private function document(
         array $entries,
         ChangelogEntryType $type = ChangelogEntryType::Added,
-    ): ChangelogDocument
-    {
+    ): ChangelogDocument {
         $release = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION, null, [
             $type->value => $entries,
         ]);

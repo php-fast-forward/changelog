@@ -9,11 +9,12 @@ use FastForward\Changelog\Document\ChangelogRelease;
 use FastForward\Changelog\Entry\ChangelogEntryType;
 use FastForward\Changelog\Entry\ChangelogEntryTypesInterface;
 use FastForward\Changelog\Renderer\MarkdownRenderer;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 
 #[CoversClass(MarkdownRenderer::class)]
 #[UsesClass(ChangelogDocument::class)]
@@ -37,7 +38,7 @@ final class MarkdownRendererTest extends TestCase
     public function renderHandlesPublishedHeadingsAndMultipleEntrySections(): void
     {
         $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION);
-        $release = (new ChangelogRelease('1.0.0'))
+        $release = new ChangelogRelease('1.0.0')
             ->withEntry(ChangelogEntryType::Added, 'feature')
             ->withEntry(ChangelogEntryType::Fixed, 'fix');
         $output = $this->renderer()->render(new ChangelogDocument([$unreleased, $release]), '   ');
@@ -54,7 +55,7 @@ final class MarkdownRendererTest extends TestCase
             new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION),
             new ChangelogRelease('V3.0.0', '2026-09-05'),
             new ChangelogRelease('v2.0.0', '2026-08-01'),
-            (new ChangelogRelease('1.0.0', '2026-01-01'))
+            new ChangelogRelease('1.0.0', '2026-01-01')
                 ->withEntry(ChangelogEntryType::Added, 'initial'),
         ]);
         $output = $this->renderer()->render($document, 'https://github.com/org/repo.git');
@@ -81,6 +82,53 @@ final class MarkdownRendererTest extends TestCase
             'https://github.com/org/repo/releases/tag/v1.0.0',
             $this->renderer()->render($document, 'ssh://git@github.com/org/repo.git'),
         );
+    }
+
+    #[Test]
+    #[TestWith(['deploy@git.example.com:org/repo.git'])]
+    #[TestWith(['ssh://deploy@git.example.com/org/repo.git'])]
+    public function renderNormalizesOtherValidSshUsernames(string $remote): void
+    {
+        $document = new ChangelogDocument([
+            new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION),
+            new ChangelogRelease('1.0.0'),
+        ]);
+
+        self::assertStringContainsString(
+            'https://git.example.com/org/repo/releases/tag/v1.0.0',
+            $this->renderer()->render($document, $remote),
+        );
+    }
+
+    #[Test]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function renderPreservesCustomReferencesWithAnOrigin(bool $published): void
+    {
+        $releases = [new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)];
+
+        if ($published) {
+            $releases[] = new ChangelogRelease('1.0.0');
+        }
+
+        $references = [
+            '[issue]: https://example.com/issues/123',
+            '[UNRELEASED]: https://old.example.com/compare/old...HEAD',
+            '[1.0.0]: https://old.example.com/releases/tag/v1.0.0',
+            'custom reference content',
+        ];
+        $output = $this->renderer()->render(new ChangelogDocument($releases, $references), 'https://git.example.com/org/repo');
+
+        self::assertStringContainsString('[issue]: https://example.com/issues/123', $output);
+        self::assertStringContainsString('custom reference content', $output);
+        self::assertStringNotContainsString('[UNRELEASED]: https://old.example.com', $output);
+
+        if ($published) {
+            self::assertStringNotContainsString('[1.0.0]: https://old.example.com', $output);
+            self::assertStringContainsString('[1.0.0]: https://git.example.com/org/repo/releases/tag/v1.0.0', $output);
+        } else {
+            self::assertStringContainsString('[1.0.0]: https://old.example.com', $output);
+        }
     }
 
     #[Test]
@@ -132,7 +180,7 @@ final class MarkdownRendererTest extends TestCase
     #[Test]
     public function renderReleaseBodyOmitsTheReleaseHeading(): void
     {
-        $release = (new ChangelogRelease('1.0.0', '2026-09-05'))
+        $release = new ChangelogRelease('1.0.0', '2026-09-05')
             ->withEntry(ChangelogEntryType::Security, 'harden');
         $output = $this->renderer()->renderReleaseBody($release);
 

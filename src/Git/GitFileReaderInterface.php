@@ -27,7 +27,7 @@ interface GitFileReaderInterface
      * Returns file contents from the requested reference.
      *
      * @throws GitFileNotFoundException when the reference exists without the file
-     * @throws \RuntimeException when Git cannot resolve the request
+     * @throws \RuntimeException        when Git cannot resolve the request
      */
     public function show(string $reference, string $path, ?string $workingDirectory = null): string;
 }

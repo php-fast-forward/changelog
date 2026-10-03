@@ -85,7 +85,11 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
         $pathParts = $this->parts($path, $pathRoot);
         $baseParts = $this->parts($basePath, $baseRoot);
 
-        while ([] !== $pathParts && [] !== $baseParts && $pathParts[0] === $baseParts[0]) {
+        $caseInsensitive = '/' !== $pathRoot && '' !== $pathRoot;
+
+        while ([] !== $pathParts && [] !== $baseParts
+            && ($caseInsensitive ? 0 === strcasecmp($pathParts[0], $baseParts[0]) : $pathParts[0] === $baseParts[0])
+        ) {
             array_shift($pathParts);
             array_shift($baseParts);
         }
@@ -107,7 +111,7 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
                 continue;
             }
 
-            if ('..' === $part && [] !== $parts && '..' !== $parts[array_key_last($parts)]) {
+            if ('..' === $part && [] !== $parts && '..' !== array_last($parts)) {
                 array_pop($parts);
 
                 continue;
@@ -120,6 +124,10 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
         $normalized = $root . implode('/', $parts);
 
+        if (str_starts_with($root, '//') && '//' !== $root && [] === $parts) {
+            return rtrim($root, '/');
+        }
+
         return '' === $normalized && '' !== $root ? $root : $normalized;
     }
 
@@ -128,6 +136,10 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
      */
     private function root(string $path): string
     {
+        if (1 === preg_match('~^//[^/]+/[^/]+(?:/|$)~', $path, $matches)) {
+            return rtrim($matches[0], '/') . '/';
+        }
+
         if (str_starts_with($path, '//')) {
             return '//';
         }

@@ -6,10 +6,10 @@ namespace FastForward\Changelog\Tests\Console;
 
 use FastForward\Changelog\Console\Changelog;
 use FastForward\Changelog\Version\PackageVersionResolverInterface;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 
 #[CoversClass(Changelog::class)]

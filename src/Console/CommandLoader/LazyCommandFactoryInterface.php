@@ -33,11 +33,11 @@ interface LazyCommandFactoryInterface
      * Creates a wrapper that MUST defer container resolution until Symfony
      * requests the selected command's definition or execution.
      *
-     * @param string $name canonical command name exposed by Symfony Console
-     * @param list<string> $aliases supported alternative command names
-     * @param string $description short description available during discovery
-     * @param class-string<Command> $serviceId PSR-11 identifier of the concrete command
-     * @param ContainerInterface $container container used for deferred resolution
+     * @param string                $name        canonical command name exposed by Symfony Console
+     * @param list<string>          $aliases     supported alternative command names
+     * @param string                $description short description available during discovery
+     * @param class-string<Command> $serviceId   PSR-11 identifier of the concrete command
+     * @param ContainerInterface    $container   container used for deferred resolution
      *
      * @return Command metadata-complete wrapper that SHALL load the service lazily
      */

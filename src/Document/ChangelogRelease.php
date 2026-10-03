@@ -105,13 +105,7 @@ final class ChangelogRelease
      */
     public function hasEntries(): bool
     {
-        foreach ($this->entries as $entries) {
-            if ([] !== $entries) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($this->entries, fn($entries) => [] !== $entries);
     }
 
     /**

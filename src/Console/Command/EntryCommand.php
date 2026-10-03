@@ -42,10 +42,10 @@ final class EntryCommand extends Command
     /**
      * Initializes the collaborators used to normalize and persist an entry.
      *
-     * @param ChangelogManagerInterface $changelogManager performs the mutation
-     * @param PackageFilesystemInterface $filesystem resolves the target path
-     * @param ChangelogEntryTypesInterface $entryTypes normalizes category input
-     * @param ReleaseDateValidatorInterface $dateValidator rejects invalid release dates
+     * @param ChangelogManagerInterface     $changelogManager performs the mutation
+     * @param PackageFilesystemInterface    $filesystem       resolves the target path
+     * @param ChangelogEntryTypesInterface  $entryTypes       normalizes category input
+     * @param ReleaseDateValidatorInterface $dateValidator    rejects invalid release dates
      */
     public function __construct(
         private readonly ChangelogManagerInterface $changelogManager,

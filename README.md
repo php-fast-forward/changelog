@@ -2,7 +2,7 @@
 
 Standalone changelog domain and CLI runtime for Fast Forward PHP packages.
 
-[![PHP Version](https://img.shields.io/badge/php-%5E8.3-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
+[![PHP Version](https://img.shields.io/badge/php-%5E8.5-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
 [![Composer Package](https://img.shields.io/badge/composer-fast--forward%2Fchangelog-F28D1A.svg?logo=composer&logoColor=white)](https://packagist.org/packages/fast-forward/changelog)
 [![License](https://img.shields.io/github/license/php-fast-forward/changelog?color=64748B)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/php-fast-forward?logo=githubsponsors&logoColor=white&color=EC4899)](https://github.com/sponsors/php-fast-forward)
@@ -23,8 +23,8 @@ composer require fast-forward/changelog
 
 Requirements:
 
-- PHP `8.3+`
-- Symfony Console, Filesystem, and Process components
+- PHP `^8.5`
+- Symfony Console, Filesystem, and Process `^8.1`
 - `fast-forward/container` and a PSR-20 clock supplied by `fast-forward/clock`
 
 ## 🛠️ Usage
@@ -34,7 +34,7 @@ Run the standalone CLI:
 ```bash
 changelog list
 changelog changelog:entry "Add release automation"
-changelog changelog:check --ref=origin/main
+changelog changelog:check --against=origin/main
 changelog changelog:resolve-version
 changelog changelog:promote 1.2.0
 changelog changelog:render-release-notes 1.2.0
@@ -51,7 +51,7 @@ use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 use Symfony\Component\Console\Application;
 use function FastForward\Container\container;
 
-$container = container(ChangelogServiceProvider::class);
+$container = container(new ChangelogServiceProvider(workingDirectory: '/path/to/project'));
 $application = new Application('My Tooling');
 $application->setCommandLoader($container->get(CommandLoaderInterface::class));
 ```
@@ -105,10 +105,13 @@ MIT © 2026 Felipe Sayao Lobato Abreu
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. Run `composer validate --strict` and
-`composer test:coverage` before opening a PR. The unit suite requires 100%
+See [contribution instructions](CONTRIBUTING.md) for the independent local and
+CI quality checks. Run `composer check` before opening a PR. The unit suite requires 100%
 source-line coverage and replaces filesystem, process, clock, and container
 collaborators with test doubles.
+
+The [foundation extraction map](docs/foundation.md) explains what to copy and
+adapt for a new PHP library and which dependencies belong to this package.
 
 ## 🔗 Links
 

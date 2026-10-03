@@ -32,7 +32,7 @@ final class ChangelogDocumentTest extends TestCase
         self::assertSame($published, $document->getRelease('1.2.0'));
         self::assertNull($document->getRelease('9.9.9'));
         self::assertSame($published, $document->getLatestPublishedRelease());
-        self::assertNull((new ChangelogDocument([$unreleased]))->getLatestPublishedRelease());
+        self::assertNull(new ChangelogDocument([$unreleased])->getLatestPublishedRelease());
     }
 
     #[Test]
@@ -41,7 +41,7 @@ final class ChangelogDocumentTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A changelog document MUST contain an Unreleased section.');
 
-        (new ChangelogDocument([new ChangelogRelease('1.0.0')]))->getUnreleased();
+        new ChangelogDocument([new ChangelogRelease('1.0.0')])->getUnreleased();
     }
 
     #[Test]
@@ -63,7 +63,7 @@ final class ChangelogDocumentTest extends TestCase
     public function mutationsPreserveReferenceDefinitions(): void
     {
         $references = ['[unreleased]: https://example.com/compare/v1.0.0...HEAD'];
-        $unreleased = (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)
             ->withEntry(ChangelogEntryType::Added, 'entry');
         $document = new ChangelogDocument([$unreleased], $references);
 
@@ -81,9 +81,9 @@ final class ChangelogDocumentTest extends TestCase
     public function prefixedAndUnprefixedLabelsShareIdentityWhilePreservingThePublishedLabel(): void
     {
         $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION);
-        $existing = (new ChangelogRelease('v1.2.0', '2026-01-01'))
+        $existing = new ChangelogRelease('v1.2.0', '2026-01-01')
             ->withEntry(ChangelogEntryType::Added, 'old');
-        $target = (new ChangelogRelease('1.2.0', '2026-09-05'))
+        $target = new ChangelogRelease('1.2.0', '2026-09-05')
             ->withEntry(ChangelogEntryType::Fixed, 'new');
         $document = new ChangelogDocument([$unreleased, $existing]);
 
@@ -105,8 +105,8 @@ final class ChangelogDocumentTest extends TestCase
         $second = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION);
         $published = new ChangelogRelease('1.0.0');
 
-        $added = (new ChangelogDocument([$published]))->withRelease($first);
-        $normalized = (new ChangelogDocument([$published, $first, $second]))
+        $added = new ChangelogDocument([$published])->withRelease($first);
+        $normalized = new ChangelogDocument([$published, $first, $second])
             ->withRelease(new ChangelogRelease('0.9.0'));
 
         self::assertSame($first, $added->getReleases()[0]);
@@ -225,14 +225,14 @@ final class ChangelogDocumentTest extends TestCase
     {
         $this->expectException(LogicException::class);
 
-        (new ChangelogDocument([new ChangelogRelease('1.0.0')]))
+        new ChangelogDocument([new ChangelogRelease('1.0.0')])
             ->withRelease(new ChangelogRelease('2.0.0'));
     }
 
     #[Test]
     public function promoteUnreleasedCreatesAnOrderedPublishedRelease(): void
     {
-        $unreleased = (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)
             ->withEntry(ChangelogEntryType::Fixed, 'fix');
         $empty = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION);
         $promoted = new ChangelogRelease('1.5.0', '2026-02-01', $unreleased->getEntries());
@@ -254,15 +254,15 @@ final class ChangelogDocumentTest extends TestCase
     #[Test]
     public function promoteUnreleasedMergesAnExistingVersionWithoutDuplicates(): void
     {
-        $unreleased = (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)
             ->withEntry(ChangelogEntryType::Added, 'shared')
             ->withEntry(ChangelogEntryType::Fixed, 'new fix');
-        $existing = (new ChangelogRelease('1.0.0'))
+        $existing = new ChangelogRelease('1.0.0')
             ->withEntry(ChangelogEntryType::Added, 'existing')
             ->withEntry(ChangelogEntryType::Added, 'shared');
         $promoted = new ChangelogRelease('1.0.0', '2026-09-05', $unreleased->getEntries());
 
-        $changed = (new ChangelogDocument([$unreleased, $existing]))->promoteUnreleased(
+        $changed = new ChangelogDocument([$unreleased, $existing])->promoteUnreleased(
             $promoted,
             new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION),
         );
@@ -275,9 +275,9 @@ final class ChangelogDocumentTest extends TestCase
     #[Test]
     public function promoteUnreleasedPreservesTheExistingPrefixedLabel(): void
     {
-        $unreleased = (new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION))
+        $unreleased = new ChangelogRelease(ChangelogDocument::UNRELEASED_VERSION)
             ->withEntry(ChangelogEntryType::Fixed, 'new');
-        $existing = (new ChangelogRelease('V1.2.0', '2026-01-01'))
+        $existing = new ChangelogRelease('V1.2.0', '2026-01-01')
             ->withEntry(ChangelogEntryType::Added, 'old');
         $document = new ChangelogDocument([$unreleased, $existing]);
 

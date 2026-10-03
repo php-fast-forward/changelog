@@ -36,7 +36,7 @@ final class ChangelogDocument
      * Initializes a document from releases already ordered by the caller.
      *
      * @param list<ChangelogRelease> $releases
-     * @param list<string> $references Markdown reference definitions retained from input
+     * @param list<string>           $references Markdown reference definitions retained from input
      */
     public function __construct(
         private array $releases,
@@ -173,8 +173,7 @@ final class ChangelogDocument
     public function promoteUnreleased(
         ChangelogRelease $promoted,
         ChangelogRelease $emptyUnreleased,
-    ): self
-    {
+    ): self {
         $unreleased = $this->getUnreleased();
         $version = $promoted->getVersion();
         $currentVersion = $this->getRelease($version);

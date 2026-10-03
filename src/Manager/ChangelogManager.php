@@ -28,6 +28,7 @@ use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 use FastForward\Changelog\Git\GitRepositoryUrlResolverInterface;
 use FastForward\Changelog\Parser\ChangelogParserInterface;
 use FastForward\Changelog\Renderer\MarkdownRendererInterface;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -41,12 +42,12 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
     /**
      * Composes services used to load, transform, and persist changelogs.
      *
-     * @param PackageFilesystemInterface $filesystem reads, writes, and resolves paths
-     * @param ChangelogParserInterface $parser parses stored Markdown
-     * @param MarkdownRendererInterface $renderer renders persisted Markdown
+     * @param PackageFilesystemInterface        $filesystem               reads, writes, and resolves paths
+     * @param ChangelogParserInterface          $parser                   parses stored Markdown
+     * @param MarkdownRendererInterface         $renderer                 renders persisted Markdown
      * @param GitRepositoryUrlResolverInterface $gitRepositoryUrlResolver resolves reference-link origins
-     * @param ChangelogDocumentFactoryInterface $documentFactory creates empty documents
-     * @param ChangelogReleaseFactoryInterface $releaseFactory creates new release values
+     * @param ChangelogDocumentFactoryInterface $documentFactory          creates empty documents
+     * @param ChangelogReleaseFactoryInterface  $releaseFactory           creates new release values
      */
     public function __construct(
         private PackageFilesystemInterface $filesystem,
@@ -67,6 +68,12 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
         string $version = ChangelogDocument::UNRELEASED_VERSION,
         ?string $date = null,
     ): void {
+        $this->validateReleaseLabel($version);
+
+        if ('' === trim($message)) {
+            throw new InvalidArgumentException('A changelog entry must contain meaningful text.');
+        }
+
         $document = $this->load($file);
         $release = $document->getRelease($version) ?? $this->releaseFactory->create($version, $date);
 
@@ -84,6 +91,7 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
      */
     public function promote(string $file, string $version, string $date): void
     {
+        $this->validateReleaseLabel($version);
         $document = $this->load($file);
 
         if (! $document->getUnreleased()->hasEntries()) {
@@ -113,11 +121,17 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
             throw new RuntimeException(\sprintf('%s does not contain unreleased entries to infer a version from.', $file));
         }
 
-        $currentVersion = ltrim(
-            $currentVersion ?? $document->getLatestPublishedRelease()?->getVersion() ?? '0.0.0',
-            'vV',
-        );
-        if (1 !== preg_match('/^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)$/', $currentVersion, $matches)) {
+        $currentVersion ??= $document->getLatestPublishedRelease()?->getVersion() ?? '0.0.0';
+        $currentVersion = preg_replace('/^[vV](?=\d)/', '', $currentVersion);
+        $identifier = '(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)';
+
+        if (1 !== preg_match(
+            '/\A(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)'
+            . '(?:-' . $identifier . '(?:\.' . $identifier . ')*)?'
+            . '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
+            $currentVersion,
+            $matches,
+        )) {
             throw new RuntimeException(\sprintf('Cannot infer a version from invalid semantic version "%s".', $currentVersion));
         }
 
@@ -166,6 +180,20 @@ final readonly class ChangelogManager implements ChangelogManagerInterface
         }
 
         return $this->parser->parse($this->filesystem->readFile($file));
+    }
+
+    /**
+     * Rejects release labels that cannot round-trip through Markdown headings.
+     *
+     * Labels MUST contain text and MUST NOT contain brackets or line endings.
+     *
+     * @throws InvalidArgumentException when the heading would be malformed
+     */
+    private function validateReleaseLabel(string $version): void
+    {
+        if ('' === trim($version) || 1 !== preg_match('/\A[^\[\]\r\n]+\z/', $version)) {
+            throw new InvalidArgumentException('A release label must contain text without brackets or line endings.');
+        }
     }
 
     /**

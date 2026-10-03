@@ -36,7 +36,7 @@ final readonly class ChangelogDocumentFactory implements ChangelogDocumentFactor
      * Creates a document and normalizes its Unreleased section.
      *
      * @param list<ChangelogRelease> $releases
-     * @param list<string> $references Markdown reference definitions retained from input
+     * @param list<string>           $references Markdown reference definitions retained from input
      */
     public function create(array $releases = [], array $references = []): ChangelogDocument
     {

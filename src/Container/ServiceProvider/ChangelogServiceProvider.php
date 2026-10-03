@@ -56,8 +56,6 @@ use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 
-use function Safe\getcwd;
-
 /**
  * Declares Changelog interface aliases and explicit composition factories.
  *
@@ -70,9 +68,11 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
      * Captures process-wide package metadata before any service is resolved.
      *
      * @param string|null $installedVersion Composer's pretty version, when available
+     * @param string      $workingDirectory caller-owned project root, captured by the CLI composition boundary
      */
     public function __construct(
         private ?string $installedVersion = null,
+        private string $workingDirectory = '.',
     ) {}
 
     /**
@@ -103,14 +103,15 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             ReleaseDateValidatorInterface::class => new AliasFactory(ReleaseDateValidator::class),
             PackageVersionResolverInterface::class => new AliasFactory(ComposerPackageVersionResolver::class),
             ClockInterface::class => new AliasFactory(SystemClock::class),
-            ComposerPackageVersionResolver::class => fn(): ComposerPackageVersionResolver =>
-                new ComposerPackageVersionResolver(
+            SystemClock::class => static fn(): SystemClock => new SystemClock('UTC'),
+            ComposerPackageVersionResolver::class => fn(): ComposerPackageVersionResolver
+                => new ComposerPackageVersionResolver(
                     $this->installedVersion,
                 ),
-            PackagePathResolver::class => static fn(ContainerInterface $container): PackagePathResolver =>
-                new PackagePathResolver(getcwd()),
-            CommandLoaderInterface::class => static fn(ContainerInterface $container): ChangelogCommandLoader =>
-                new ChangelogCommandLoader(
+            PackagePathResolver::class => fn(ContainerInterface $container): PackagePathResolver
+                => new PackagePathResolver($this->workingDirectory),
+            CommandLoaderInterface::class => static fn(ContainerInterface $container): ChangelogCommandLoader
+                => new ChangelogCommandLoader(
                     $container,
                     $container->get(LazyCommandFactoryInterface::class),
                 ),

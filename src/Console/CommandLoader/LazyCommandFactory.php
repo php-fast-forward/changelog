@@ -38,11 +38,11 @@ final readonly class LazyCommandFactory implements LazyCommandFactoryInterface
      * discovery. It SHALL request the concrete command only when Symfony needs
      * the selected command's executable behavior or full definition.
      *
-     * @param string $name canonical command name exposed by Symfony Console
-     * @param list<string> $aliases supported alternative command names
-     * @param string $description short description available without service resolution
-     * @param class-string<Command> $serviceId PSR-11 identifier of the concrete command
-     * @param ContainerInterface $container container used only by the deferred closure
+     * @param string                $name        canonical command name exposed by Symfony Console
+     * @param list<string>          $aliases     supported alternative command names
+     * @param string                $description short description available without service resolution
+     * @param class-string<Command> $serviceId   PSR-11 identifier of the concrete command
+     * @param ContainerInterface    $container   container used only by the deferred closure
      *
      * @return Command lazy wrapper around the container-backed command
      */

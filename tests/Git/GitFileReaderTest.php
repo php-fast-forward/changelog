@@ -8,10 +8,10 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitFileNotFoundException;
 use FastForward\Changelog\Git\GitFileReader;
 use FastForward\Changelog\Git\ProcessFactoryInterface;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -34,7 +34,7 @@ final class GitFileReaderTest extends TestCase
         $process->isSuccessful()->willReturn(true)->shouldBeCalledOnce();
         $process->getOutput()->willReturn(" baseline\n")->shouldBeCalledOnce();
 
-        self::assertSame('baseline', (new GitFileReader($factory->reveal(), $paths->reveal()))
+        self::assertSame('baseline', new GitFileReader($factory->reveal(), $paths->reveal())
             ->show('main', '/project/CHANGELOG.md', '/project'));
     }
 
@@ -51,7 +51,7 @@ final class GitFileReaderTest extends TestCase
         $process->isSuccessful()->willReturn(true);
         $process->getOutput()->willReturn('baseline');
 
-        self::assertSame('baseline', (new GitFileReader($factory->reveal(), $paths->reveal()))
+        self::assertSame('baseline', new GitFileReader($factory->reveal(), $paths->reveal())
             ->show('main', 'CHANGELOG.md'));
     }
 

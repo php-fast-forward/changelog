@@ -41,10 +41,10 @@ final class PromoteCommand extends Command
     /**
      * Initializes promotion collaborators and the deterministic date source.
      *
-     * @param ChangelogManagerInterface $changelogManager performs promotion
-     * @param PackageFilesystemInterface $filesystem resolves the target path
-     * @param ClockInterface $clock supplies a deterministic default release date
-     * @param ReleaseDateValidatorInterface $dateValidator rejects invalid release dates
+     * @param ChangelogManagerInterface     $changelogManager performs promotion
+     * @param PackageFilesystemInterface    $filesystem       resolves the target path
+     * @param ClockInterface                $clock            supplies a deterministic default release date
+     * @param ReleaseDateValidatorInterface $dateValidator    rejects invalid release dates
      */
     public function __construct(
         private readonly ChangelogManagerInterface $changelogManager,

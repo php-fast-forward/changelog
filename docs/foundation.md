@@ -1,0 +1,57 @@
+# Reusable PHP library foundation
+
+This package is an extraction reference for a future PHP library template. It
+keeps the existing Changelog source and tests and owns its Composer, test and
+quality entrypoints. Copy the relevant files and adapt them to the new package;
+there is no generator, synchronization service or dependency on DevTools.
+
+| Reusable base | What to adapt |
+| --- | --- |
+| `composer.json` structure, PSR-4 autoload, dev tools and scripts | Name, description, runtime PHP constraint, source/test namespaces, paths and package dependencies |
+| `phpunit.xml.dist` unit isolation and strict coverage metadata | Test namespace, suite paths and bootstrap; add explicit integration configurations only when needed |
+| `rector.php`, `ecs.php`, `scripts/` and `tests/verify-coverage.php` | Minimum PHP target, package-owned paths, style decisions and any deliberate legacy fixture directory |
+| `.github/workflows/tests.yml` | PHP versions, supported operating systems, pinned Actions and branch triggers |
+| `CONTRIBUTING.md` and scoped `AGENTS.md` | Actual development workflow, responsibilities and instruction hierarchy |
+| `README.md`, `docs/`, PR template and badges | Real installation, public API, commands, URLs, default branch and workflow names |
+| License, authors, copyright, support and funding metadata | Preserve real provenance; set actual maintainers and license instead of inventing identities |
+
+The base dev tools are PHPUnit, its coverage component, Prophecy and its PHPUnit
+integration when mocks need it, Rector, ECS and PHP Parser for the PHPDoc gate.
+They stay under `require-dev`; executing the consumer CLI loads none of them.
+For an ordinary library, remove `bin`, CLI smoke tests and CLI-specific runtime
+dependencies. Do not invent empty classes or artificial tests for coverage.
+
+The Changelog-specific choices are Symfony Console, Filesystem and Process
+`^8.1`, Fast Forward Container and Clock, their service-provider/PSR contracts,
+Composer runtime metadata and Safe. Container and Clock are focused packages;
+`fast-forward/config` currently arrives transitively through Container. They do
+not depend on DevTools. A different library chooses its own runtime boundaries.
+None of these packages is mandatory for every future library.
+
+PHP is `^8.5`, with Composer's development platform fixed at `8.5.0`. Rector
+uses its verified installed API `withPhpVersion(PHP_85)` and
+`withPhpSets(php85: true)` so an upgrade cannot silently opt into PHP 8.6 syntax.
+The initial quality, dead code and type declaration levels are deliberately
+incremental. Raise a level in a reviewed change and retest public API, doubles
+and coverage. ECS enforces PER Coding Style, alphabetic imports and PHPDoc
+alignment/indentation/trim without deleting semantic descriptions.
+
+The full local gate is `composer check`. Composer plugins are disabled and
+installation runs with `--no-plugins --no-scripts`. Production coverage includes
+all `src/`; reports show each class, and the verifier checks that every source
+file appears, metrics agree with executable lines, and each class/file meets
+the threshold. The verifier refuses a zero denominator or malformed Clover.
+`composer quality:verify` separately tests the gates' success and rejection
+paths in temporary fixtures, then removes only the fixtures it created.
+
+This library intentionally omits a version field and does not track its local
+`composer.lock`. CI resolves the published constraints on each run; dependency
+versions therefore vary and are recorded by the installation output. A future
+template may track a lock for reproducible development if its policy requires
+it. Consumer releases obtain identity from VCS tags.
+
+Before extracting the reference, replace repository links, docs URLs, badges,
+sponsor links and author/license data with verified values. Never copy
+credentials, absolute host paths, installed tool state or the DevTools bootstrap.
+Keep installation/global use and Changelog release automation in the product
+contracts, not in a universal library baseline.

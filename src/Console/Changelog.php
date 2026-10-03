@@ -34,7 +34,7 @@ final class Changelog extends Application
     /**
      * Initializes application metadata and installs the lazy command loader.
      *
-     * @param CommandLoaderInterface $commandLoader exposes command metadata lazily
+     * @param CommandLoaderInterface          $commandLoader   exposes command metadata lazily
      * @param PackageVersionResolverInterface $versionResolver resolves package metadata
      */
     public function __construct(

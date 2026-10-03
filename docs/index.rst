@@ -17,7 +17,7 @@ Standalone CLI
 .. code-block:: bash
 
    changelog changelog:entry "Add release automation"
-   changelog changelog:check --ref=origin/main
+   changelog changelog:check --against=origin/main
    changelog changelog:resolve-version
    changelog changelog:promote 1.2.0
    changelog changelog:render-release-notes 1.2.0

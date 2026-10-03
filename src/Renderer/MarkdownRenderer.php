@@ -23,11 +23,11 @@ use FastForward\Changelog\Document\ChangelogDocument;
 use FastForward\Changelog\Document\ChangelogRelease;
 use FastForward\Changelog\Entry\ChangelogEntryTypesInterface;
 
-use function Safe\preg_match;
-use function Safe\preg_replace;
 use function explode;
 use function implode;
 use function rtrim;
+use function Safe\preg_match;
+use function Safe\preg_replace;
 use function str_ends_with;
 use function str_starts_with;
 use function substr;
@@ -60,7 +60,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
         $lines = explode("\n", self::INTRODUCTION);
 
         foreach ($document->getReleases() as $release) {
-            if ('' !== $lines[array_key_last($lines)]) {
+            if ('' !== array_last($lines)) {
                 $lines[] = '';
             }
 
@@ -70,7 +70,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
         $references = $this->renderReferences($document, $repositoryUrl);
 
         if ([] !== $references) {
-            if ('' !== $lines[array_key_last($lines)]) {
+            if ('' !== array_last($lines)) {
                 $lines[] = '';
             }
 
@@ -148,8 +148,20 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
             static fn(ChangelogRelease $release): bool => ! $release->isUnreleased(),
         ));
 
+        $managedLabels = ['unreleased'];
+
+        foreach ($published as $release) {
+            $managedLabels[] = strtolower($release->getVersion());
+        }
+
+        $customReferences = array_values(array_filter(
+            $document->getReferences(),
+            static fn(string $reference): bool => 1 !== preg_match('/^\[([^\]]+)\]:/', $reference, $matches)
+                || ! \in_array(strtolower($matches[1]), $managedLabels, true),
+        ));
+
         if ([] === $published) {
-            return [];
+            return [] === $customReferences ? [] : ['', ...$customReferences];
         }
 
         $references = [
@@ -177,7 +189,7 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
                 );
         }
 
-        return ['', ...$references];
+        return ['', ...$references, ...$customReferences];
     }
 
     /**
@@ -210,11 +222,11 @@ final readonly class MarkdownRenderer implements MarkdownRendererInterface
             return null;
         }
 
-        if (1 === preg_match('~^git@(?<host>[^:]+):(?<path>.+)$~', $repositoryUrl, $matches)) {
+        if (1 === preg_match('~^[^@/:]+@(?<host>[^:]+):(?<path>.+)$~', $repositoryUrl, $matches)) {
             $repositoryUrl = 'https://' . $matches['host'] . '/' . $matches['path'];
         }
 
-        if (1 === preg_match('~^ssh://git@(?<host>[^/]+)/(?<path>.+)$~', $repositoryUrl, $matches)) {
+        if (1 === preg_match('~^ssh://[^@/]+@(?<host>[^/]+)/(?<path>.+)$~', $repositoryUrl, $matches)) {
             $repositoryUrl = 'https://' . $matches['host'] . '/' . $matches['path'];
         }
 

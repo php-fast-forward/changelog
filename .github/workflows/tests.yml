@@ -11,10 +11,19 @@ name: Tests
 permissions:
     contents: read
 
+concurrency:
+    group: tests-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     tests:
-        name: PHP 8.3
-        runs-on: ubuntu-latest
+        name: PHP 8.5 (${{ matrix.os }})
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest]
 
         steps:
             - name: Check out repository
@@ -27,18 +36,20 @@ jobs:
               # 2.36.0
               uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
               with:
-                  php-version: '8.3'
-                  coverage: pcov
+                  php-version: '8.5'
+                  coverage: xdebug
                   tools: composer:v2
 
             - name: Validate Composer metadata
               run: composer validate --strict
 
-            - name: Install dependencies
-              run: composer install --no-interaction --prefer-dist
+            - name: Install development dependencies
+              run: composer install --no-interaction --prefer-dist --no-plugins --no-scripts
 
-            - name: Run unit tests with full coverage
-              run: composer test:coverage
+            - name: Run the package quality and unit coverage gates
+              run: composer check
+              env:
+                  XDEBUG_MODE: coverage
 
             - name: Smoke test the CLI
               run: php bin/changelog list --raw

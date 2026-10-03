@@ -83,7 +83,7 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
      * Construction MUST NOT query the container or create a command. The
      * loader SHALL retain both collaborators for deferred command resolution.
      *
-     * @param ContainerInterface $container resolves commands only inside lazy wrappers
+     * @param ContainerInterface          $container      resolves commands only inside lazy wrappers
      * @param LazyCommandFactoryInterface $commandFactory creates lazy wrappers
      */
     public function __construct(

@@ -27,7 +27,7 @@ interface ChangelogDocumentFactoryInterface
      * Creates a normalized document from the supplied releases.
      *
      * @param list<ChangelogRelease> $releases
-     * @param list<string> $references Markdown reference definitions retained from input
+     * @param list<string>           $references Markdown reference definitions retained from input
      */
     public function create(array $releases = [], array $references = []): ChangelogDocument;
 }

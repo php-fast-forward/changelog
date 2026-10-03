@@ -8,11 +8,11 @@ use FastForward\Changelog\Document\ChangelogDocument;
 use FastForward\Changelog\Document\ChangelogDocumentFactory;
 use FastForward\Changelog\Document\ChangelogRelease;
 use FastForward\Changelog\Document\ChangelogReleaseFactoryInterface;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
+use Prophecy\PhpUnit\ProphecyTrait;
 
 #[CoversClass(ChangelogDocumentFactory::class)]
 #[UsesClass(ChangelogDocument::class)]
@@ -30,7 +30,7 @@ final class ChangelogDocumentFactoryTest extends TestCase
         $releaseFactory->create(ChangelogDocument::UNRELEASED_VERSION)->willReturn($unreleased)->shouldBeCalledOnce();
 
         $references = ['[1.0.0]: https://example.com/releases/tag/v1.0.0'];
-        $document = (new ChangelogDocumentFactory($releaseFactory->reveal()))->create([$published], $references);
+        $document = new ChangelogDocumentFactory($releaseFactory->reveal())->create([$published], $references);
 
         self::assertSame([$unreleased, $published], $document->getReleases());
         self::assertSame($references, $document->getReferences());
@@ -45,7 +45,7 @@ final class ChangelogDocumentFactoryTest extends TestCase
         $releaseFactory = $this->prophesize(ChangelogReleaseFactoryInterface::class);
         $releaseFactory->create(ChangelogDocument::UNRELEASED_VERSION)->shouldNotBeCalled();
 
-        $document = (new ChangelogDocumentFactory($releaseFactory->reveal()))->create([$published, $first, $duplicate]);
+        $document = new ChangelogDocumentFactory($releaseFactory->reveal())->create([$published, $first, $duplicate]);
 
         self::assertSame([$first, $published], $document->getReleases());
     }

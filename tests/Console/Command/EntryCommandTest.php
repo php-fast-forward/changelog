@@ -12,11 +12,11 @@ use FastForward\Changelog\Entry\ChangelogEntryTypesInterface;
 use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 use FastForward\Changelog\Manager\ChangelogManagerInterface;
 use InvalidArgumentException;
-use Prophecy\Argument;
-use Prophecy\PhpUnit\ProphecyTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 

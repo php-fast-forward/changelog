@@ -29,8 +29,8 @@ final readonly class GitFileReader implements GitFileReaderInterface
     /**
      * Initializes injectable process creation and path normalization boundaries.
      *
-     * @param ProcessFactoryInterface $processFactory creates the Git process
-     * @param PackagePathResolverInterface $pathResolver normalizes repository-relative paths
+     * @param ProcessFactoryInterface      $processFactory creates the Git process
+     * @param PackagePathResolverInterface $pathResolver   normalizes repository-relative paths
      */
     public function __construct(
         private ProcessFactoryInterface $processFactory,

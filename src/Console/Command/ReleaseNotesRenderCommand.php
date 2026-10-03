@@ -40,8 +40,8 @@ final class ReleaseNotesRenderCommand extends Command
     /**
      * Initializes the release renderer and output path collaborator.
      *
-     * @param ChangelogManagerInterface $changelogManager renders release contents
-     * @param PackageFilesystemInterface $filesystem resolves and writes paths
+     * @param ChangelogManagerInterface  $changelogManager renders release contents
+     * @param PackageFilesystemInterface $filesystem       resolves and writes paths
      */
     public function __construct(
         private readonly ChangelogManagerInterface $changelogManager,

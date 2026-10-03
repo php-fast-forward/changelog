@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Filesystem;
 
 use Symfony\Component\Filesystem\Filesystem;
+
 /**
  * Adapts Symfony filesystem operations to the package filesystem contract.
  *
@@ -31,7 +32,7 @@ final readonly class PackageFilesystem implements PackageFilesystemInterface
     /**
      * Initializes the I/O adapter and its side-effect-free path resolver.
      *
-     * @param Filesystem $filesystem performs concrete filesystem operations
+     * @param Filesystem                   $filesystem   performs concrete filesystem operations
      * @param PackagePathResolverInterface $pathResolver resolves relative paths
      */
     public function __construct(

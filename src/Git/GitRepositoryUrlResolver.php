@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Git;
 
 use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
+use Symfony\Component\Process\Exception\RuntimeException;
 
 /**
  * Resolves the origin URL for a Git working directory.
@@ -29,8 +30,8 @@ final readonly class GitRepositoryUrlResolver implements GitRepositoryUrlResolve
     /**
      * Initializes working-directory resolution and isolated process creation.
      *
-     * @param PackageFilesystemInterface $filesystem resolves the working directory
-     * @param ProcessFactoryInterface $processFactory creates isolated Git processes
+     * @param PackageFilesystemInterface $filesystem     resolves the working directory
+     * @param ProcessFactoryInterface    $processFactory creates isolated Git processes
      */
     public function __construct(
         private PackageFilesystemInterface $filesystem,
@@ -49,9 +50,20 @@ final readonly class GitRepositoryUrlResolver implements GitRepositoryUrlResolve
             return null;
         }
 
+        $absoluteDirectory = $this->filesystem->getAbsolutePath($workingDirectory);
+
+        if (! $this->filesystem->exists($absoluteDirectory)) {
+            return null;
+        }
+
         $process = $this->processFactory->create(['git', 'config', '--get', 'remote.origin.url']);
-        $process->setWorkingDirectory($this->filesystem->getAbsolutePath($workingDirectory));
-        $process->run();
+
+        try {
+            $process->setWorkingDirectory($absoluteDirectory);
+            $process->run();
+        } catch (RuntimeException) {
+            return null;
+        }
 
         if (! $process->isSuccessful()) {
             return null;

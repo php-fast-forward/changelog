@@ -25,11 +25,11 @@ use FastForward\Changelog\Document\ChangelogReleaseFactoryInterface;
 use FastForward\Changelog\Entry\ChangelogEntryType;
 use FastForward\Changelog\Entry\ChangelogEntryTypesInterface;
 
+use function array_values;
+use function preg_quote;
 use function Safe\preg_match;
 use function Safe\preg_match_all;
 use function Safe\preg_split;
-use function array_values;
-use function preg_quote;
 use function trim;
 
 /**
@@ -44,8 +44,8 @@ final readonly class ChangelogParser implements ChangelogParserInterface
      * Composes factories and canonical entry types used during parsing.
      *
      * @param ChangelogDocumentFactoryInterface $documentFactory creates normalized documents
-     * @param ChangelogReleaseFactoryInterface $releaseFactory creates parsed releases
-     * @param ChangelogEntryTypesInterface $entryTypes supplies canonical categories
+     * @param ChangelogReleaseFactoryInterface  $releaseFactory  creates parsed releases
+     * @param ChangelogEntryTypesInterface      $entryTypes      supplies canonical categories
      */
     public function __construct(
         private ChangelogDocumentFactoryInterface $documentFactory,
@@ -130,7 +130,8 @@ final readonly class ChangelogParser implements ChangelogParserInterface
                     $entries[] = \rtrim($entry);
                 }
 
-                $entry = trim(substr($line, 2));
+                $nextEntry = trim(substr($line, 2));
+                $entry = '' === $nextEntry ? null : $nextEntry;
 
                 continue;
             }

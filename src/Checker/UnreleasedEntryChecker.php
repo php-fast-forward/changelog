@@ -23,6 +23,7 @@ use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
 use FastForward\Changelog\Git\GitFileNotFoundException;
 use FastForward\Changelog\Git\GitFileReaderInterface;
 use FastForward\Changelog\Parser\ChangelogParserInterface;
+use InvalidArgumentException;
 
 /**
  * Compares Unreleased entries against an optional immutable Git baseline.
@@ -32,9 +33,9 @@ final readonly class UnreleasedEntryChecker implements UnreleasedEntryCheckerInt
     /**
      * Initializes comparison collaborators without performing I/O.
      *
-     * @param PackageFilesystemInterface $filesystem reads the current changelog
-     * @param GitFileReaderInterface $gitFileReader reads the baseline changelog
-     * @param ChangelogParserInterface $parser parses both documents
+     * @param PackageFilesystemInterface $filesystem    reads the current changelog
+     * @param GitFileReaderInterface     $gitFileReader reads the baseline changelog
+     * @param ChangelogParserInterface   $parser        parses both documents
      */
     public function __construct(
         private PackageFilesystemInterface $filesystem,
@@ -54,6 +55,14 @@ final readonly class UnreleasedEntryChecker implements UnreleasedEntryCheckerInt
         ?string $againstReference = null,
         ?string $workingDirectory = null,
     ): bool {
+        if (null !== $againstReference) {
+            $againstReference = trim($againstReference);
+
+            if ('' === $againstReference) {
+                throw new InvalidArgumentException('The Git baseline reference must not be empty.');
+            }
+        }
+
         if (! $this->filesystem->exists($file)) {
             return false;
         }

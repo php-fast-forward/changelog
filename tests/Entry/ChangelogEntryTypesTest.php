@@ -27,7 +27,7 @@ final class ChangelogEntryTypesTest extends TestCase
                 ChangelogEntryType::Fixed,
                 ChangelogEntryType::Security,
             ],
-            (new ChangelogEntryTypes())->ordered(),
+            new ChangelogEntryTypes()->ordered(),
         );
     }
 
@@ -40,7 +40,7 @@ final class ChangelogEntryTypesTest extends TestCase
     #[TestWith(['security', ChangelogEntryType::Security])]
     public function fromInputNormalizesEverySupportedValue(string $input, ChangelogEntryType $expected): void
     {
-        self::assertSame($expected, (new ChangelogEntryTypes())->fromInput($input));
+        self::assertSame($expected, new ChangelogEntryTypes()->fromInput($input));
     }
 
     #[Test]
@@ -49,6 +49,6 @@ final class ChangelogEntryTypesTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported changelog type "unknown".');
 
-        (new ChangelogEntryTypes())->fromInput('unknown');
+        new ChangelogEntryTypes()->fromInput('unknown');
     }
 }

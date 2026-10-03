@@ -38,8 +38,8 @@ final class CheckCommand extends Command
     /**
      * Initializes path resolution and baseline comparison collaborators.
      *
-     * @param PackageFilesystemInterface $filesystem resolves the changelog path
-     * @param UnreleasedEntryCheckerInterface $checker performs baseline comparison
+     * @param PackageFilesystemInterface      $filesystem resolves the changelog path
+     * @param UnreleasedEntryCheckerInterface $checker    performs baseline comparison
      */
     public function __construct(
         private readonly PackageFilesystemInterface $filesystem,

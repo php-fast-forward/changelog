@@ -30,6 +30,8 @@ final readonly class ComposerPackageVersionResolver implements PackageVersionRes
     private const string DEVELOPMENT_VERSION = '0.1.x-dev';
 
     /**
+     * Captures package version metadata without consulting Composer global state.
+     *
      * @param string|null $installedVersion Composer's pretty version, when available
      */
     public function __construct(

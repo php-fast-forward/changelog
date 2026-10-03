@@ -40,8 +40,8 @@ final class VersionResolveCommand extends Command
     /**
      * Initializes explicit-path resolution and version inference collaborators.
      *
-     * @param ChangelogManagerInterface $changelogManager performs inference
-     * @param PackageFilesystemInterface $filesystem resolves the changelog path
+     * @param ChangelogManagerInterface  $changelogManager performs inference
+     * @param PackageFilesystemInterface $filesystem       resolves the changelog path
      */
     public function __construct(
         private readonly ChangelogManagerInterface $changelogManager,

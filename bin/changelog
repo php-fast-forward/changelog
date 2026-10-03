@@ -35,6 +35,7 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
 
         $serviceProvider = new ChangelogServiceProvider(
             InstalledVersions::getPrettyVersion('fast-forward/changelog'),
+            getcwd() ?: '.',
         );
 
         exit(container($serviceProvider)->get(Changelog::class)->run());
