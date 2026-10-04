@@ -41,6 +41,8 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * Legacy boundaries require an Unreleased alias or a numeric version token;
      * recognized malformed headings MUST fail, with semantic validation owned
      * by the release factory rather than silently treating releases as prose.
+     * Unrecognized level-two headings with numeric-dot-triple version shapes
+     * MUST fail so changing templates cannot hide history from later imports.
      * Legacy reference footers require only definitions and blank lines through
      * EOF; following prose is ambiguous and MUST remain inside release notes.
      */
@@ -314,6 +316,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
                 return ['version' => $unreleased ? 'unreleased' : $matches['version'], 'date' => $matches['date'] ?? null];
             }
+        }
+
+        if (1 === preg_match('/^##[ \t]+/', $line)
+            && 1 === preg_match('/(?<![0-9])[0-9]++\.[0-9]++\.[0-9]++/u', $line)) {
+            throw $this->exceptionFactory->invalid('An unrecognized level-two heading resembles a release; keep the matching release template or migrate historical release headings before changing templates. For Markdown prose or examples, fence or nest this heading.');
         }
 
         return null;
