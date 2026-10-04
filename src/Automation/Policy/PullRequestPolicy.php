@@ -132,9 +132,9 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             $commit = $this->github->request('GET', '/repos/' . $repository . '/commits/' . $headSha);
             if (null === $commit || ($commit['sha'] ?? null) !== $headSha
                 || ! GitHubEvidence::identity($commit['author'] ?? null, $automationActor, 'Bot', $account['id'])
-                || ! GitHubEvidence::identity($commit['committer'] ?? null, $automationActor, 'Bot', $account['id'])
                 || true !== ($commit['commit']['verification']['verified'] ?? null)
                 || 'valid' !== ($commit['commit']['verification']['reason'] ?? null)
+                || ! $this->trustedCommitter($repository, $headSha, $commit['committer'] ?? null, $automationActor, $account['id'])
             ) {
                 return false;
             }
@@ -180,6 +180,37 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
         } catch (Throwable) {
             return false;
         }
+    }
+
+    /**
+     * Accepts the authenticated Bot or GitHub's exact web committer backed by its verified signing key.
+     * A valid signature by an arbitrary user cannot establish ownership; the platform alternative
+     * requires an immutable GraphQL commit proof and independently corroborated web-flow identity.
+     * @see https://docs.github.com/en/graphql/reference/git#gitsignature
+     */
+    private function trustedCommitter(string $repository, string $headSha, mixed $committer, string $automationActor, int $actorId): bool
+    {
+        if (GitHubEvidence::identity($committer, $automationActor, 'Bot', $actorId)) {
+            return true;
+        }
+        if (! GitHubEvidence::identity($committer, 'web-flow', 'User', 19864447)
+            || ! GitHubEvidence::identity($this->github->request('GET', '/users/web-flow'), 'web-flow', 'User', 19864447)
+        ) {
+            return false;
+        }
+        [$owner, $name] = explode('/', $repository, 2);
+        $proof = $this->github->request('POST', '/graphql', [
+            'query' => 'query ChangelogPlatformSignature($owner: String!, $name: String!, $oid: GitObjectID!) { repository(owner: $owner, name: $name) { object(oid: $oid) { ... on Commit { oid signature { isValid state wasSignedByGitHub } } } } }',
+            'variables' => ['owner' => $owner, 'name' => $name, 'oid' => $headSha],
+        ]);
+        if (null === $proof || array_key_exists('errors', $proof)) {
+            return false;
+        }
+        $object = $proof['data']['repository']['object'] ?? null;
+        return is_array($object) && ($object['oid'] ?? null) === $headSha
+            && true === ($object['signature']['isValid'] ?? null)
+            && 'VALID' === ($object['signature']['state'] ?? null)
+            && true === ($object['signature']['wasSignedByGitHub'] ?? null);
     }
 
     /** Checks complete comparison scope and each removed fragment's exact bytes at the receipt base. */

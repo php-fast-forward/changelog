@@ -41,8 +41,12 @@ requires all of the following:
   repository, on the exact managed branch.
 - The PR creator is the configured Bot account. An account lookup confirms its
   immutable numeric ID, login and Bot type.
-- The head commit's actual GitHub author and committer account objects match
-  that Bot. Commit verification is `verified: true` with `reason: valid`.
+- The head commit's actual GitHub author account matches that Bot. Its committer
+  is either the same Bot or GitHub's verified `web-flow` account. Both routes
+  require REST commit verification `verified: true` with `reason: valid`.
+  The platform-committer route additionally confirms the immutable `web-flow`
+  account and a GraphQL signature bound to the exact commit, with `isValid: true`,
+  `state: VALID` and `wasSignedByGitHub: true`. Other human committers fail closed.
   Free-form Git author names/emails do not prove identity.
 - The validated `release-plan.json` receipt is read at the head SHA. Its
   repository, paths, locale, template and tag prefix match configured options.

@@ -156,6 +156,91 @@ final class PullRequestPolicyTest extends TestCase
         self::assertFalse($result->waiverAuthorized);
         self::assertSame('managed-version', $result->kind);
         self::assertSame([], $result->diagnostics);
+        self::assertSame([], array_filter($this->calls, static fn(array $call): bool => '/graphql' === $call[1] || '/users/web-flow' === $call[1]));
+    }
+
+    /** GitHub's platform committer requires its exact account and a read-only signature proof at the same SHA. */
+    #[Test]
+    public function signedBotAuthorWithGitHubPlatformCommitterRetainsManagedOwnership(): void
+    {
+        [$responses, $data] = $this->platformManaged();
+        $result = $this->policy($responses, [], $data)->inspect($this->options(), 7);
+        self::assertTrue($result->centralChangeAuthorized);
+        self::assertSame('managed-version', $result->kind);
+        $queries = array_values(array_filter($this->calls, static fn(array $call): bool => '/graphql' === $call[1]));
+        self::assertCount(1, $queries);
+        self::assertSame('POST', $queries[0][0]);
+        self::assertStringStartsWith('query ChangelogPlatformSignature(', $queries[0][2]['query']);
+        self::assertStringNotContainsString('mutation', $queries[0][2]['query']);
+        self::assertSame(['owner' => 'owner', 'name' => 'project', 'oid' => str_repeat('a', 40)], $queries[0][2]['variables']);
+    }
+
+    /** Platform signing cannot replace the configured Bot identity, canonical account or transaction scope. */
+    #[Test]
+    #[TestWith(['arbitrary-user'])]
+    #[TestWith(['committer-id'])]
+    #[TestWith(['committer-type'])]
+    #[TestWith(['platform-null'])]
+    #[TestWith(['platform-id'])]
+    #[TestWith(['platform-login'])]
+    #[TestWith(['platform-type'])]
+    #[TestWith(['graphql-null'])]
+    #[TestWith(['graphql-error'])]
+    #[TestWith(['graphql-error-null'])]
+    #[TestWith(['graphql-exception'])]
+    #[TestWith(['wrong-oid'])]
+    #[TestWith(['invalid-signature'])]
+    #[TestWith(['invalid-state'])]
+    #[TestWith(['other-signing-key'])]
+    #[TestWith(['missing-object'])]
+    #[TestWith(['missing-signature'])]
+    #[TestWith(['string-valid'])]
+    #[TestWith(['string-platform-key'])]
+    #[TestWith(['author-id'])]
+    #[TestWith(['rest-unsigned'])]
+    #[TestWith(['rest-reason'])]
+    #[TestWith(['receipt-settings'])]
+    #[TestWith(['unknown-scope'])]
+    #[TestWith(['diverged'])]
+    public function platformCommitterProofFailsClosedForIncompleteOrUntrustedEvidence(string $case): void
+    {
+        [$responses, $data] = $this->platformManaged();
+        $commit = '/repos/owner/project/commits/' . str_repeat('a', 40);
+        $comparison = '/repos/owner/project/compare/' . str_repeat('b', 40) . '...' . str_repeat('a', 40);
+        match ($case) {
+            'arbitrary-user' => $responses[$commit]['committer']['login'] = 'maintainer',
+            'committer-id' => $responses[$commit]['committer']['id'] = 666,
+            'committer-type' => $responses[$commit]['committer']['type'] = 'Bot',
+            'platform-null' => $responses['/users/web-flow'] = null,
+            'platform-id' => $responses['/users/web-flow']['id'] = 666,
+            'platform-login' => $responses['/users/web-flow']['login'] = 'maintainer',
+            'platform-type' => $responses['/users/web-flow']['type'] = 'Bot',
+            'graphql-null' => $responses['/graphql'] = null,
+            'graphql-error' => $responses['/graphql']['errors'] = [['message' => 'synthetic-super-secret']],
+            'graphql-error-null' => $responses['/graphql']['errors'] = null,
+            'graphql-exception' => $responses['/graphql'] = new RuntimeException('synthetic-super-secret'),
+            'wrong-oid' => $responses['/graphql']['data']['repository']['object']['oid'] = str_repeat('f', 40),
+            'invalid-signature' => $responses['/graphql']['data']['repository']['object']['signature']['isValid'] = false,
+            'invalid-state' => $responses['/graphql']['data']['repository']['object']['signature']['state'] = 'UNKNOWN_KEY',
+            'other-signing-key' => $responses['/graphql']['data']['repository']['object']['signature']['wasSignedByGitHub'] = false,
+            'missing-object' => $responses['/graphql']['data']['repository']['object'] = null,
+            'missing-signature' => $responses['/graphql']['data']['repository']['object']['signature'] = null,
+            'string-valid' => $responses['/graphql']['data']['repository']['object']['signature']['isValid'] = 'true',
+            'string-platform-key' => $responses['/graphql']['data']['repository']['object']['signature']['wasSignedByGitHub'] = 'true',
+            'author-id' => $responses[$commit]['author']['id'] = 666,
+            'rest-unsigned' => $responses[$commit]['commit']['verification']['verified'] = false,
+            'rest-reason' => $responses[$commit]['commit']['verification']['reason'] = 'unsigned',
+            'receipt-settings' => $data['repository'] = 'other/project',
+            'unknown-scope' => $responses[$comparison]['files'][] = ['filename' => 'src/Attack.php', 'status' => 'added'],
+            'diverged' => $responses[$comparison]['status'] = 'diverged',
+        };
+        $result = $this->policy($responses, [], $data)->inspect($this->options(), 7);
+        self::assertFalse($result->centralChangeAuthorized);
+        self::assertNotEmpty($result->diagnostics);
+        self::assertStringNotContainsString('synthetic-super-secret', implode(' ', $result->diagnostics));
+        foreach ($this->calls as $call) {
+            self::assertTrue('GET' === $call[0] || ('/graphql' === $call[1] && str_starts_with($call[2]['query'], 'query ')));
+        }
     }
 
     #[Test]
@@ -272,8 +357,8 @@ final class PullRequestPolicyTest extends TestCase
     private function policy(array $responses, array|RuntimeException $timeline = [], array|RuntimeException $data = []): PullRequestPolicy
     {
         $github = $this->createStub(GitHubClientInterface::class);
-        $github->method('request')->willReturnCallback(function (string $method, string $path) use ($responses): ?array {
-            $this->calls[] = [$method, $path];
+        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use ($responses): ?array {
+            $this->calls[] = [$method, $path, $body];
             $value = $responses[$path] ?? null;
             if ($value instanceof RuntimeException) {
                 throw $value;
@@ -294,6 +379,17 @@ final class PullRequestPolicyTest extends TestCase
         $results = $this->createStub(PullRequestAuthorizationFactoryInterface::class);
         $results->method('create')->willReturnCallback(static fn(bool $waiver, bool $central, string $kind, array $diagnostics, ?string $head = null): PullRequestAuthorization => new PullRequestAuthorization($waiver, $central, $kind, $diagnostics, $head));
         return new PullRequestPolicy($github, $receipts, $results);
+    }
+
+    /** Models GitHub's signed App/Bot commits with its canonical web-flow committer. */
+    private function platformManaged(): array
+    {
+        [$responses, $data] = $this->managed();
+        $platform = $this->account('web-flow', 'User', 19864447);
+        $responses['/users/web-flow'] = $platform;
+        $responses['/repos/owner/project/commits/' . str_repeat('a', 40)]['committer'] = $platform;
+        $responses['/graphql'] = ['data' => ['repository' => ['object' => ['oid' => str_repeat('a', 40), 'signature' => ['isValid' => true, 'state' => 'VALID', 'wasSignedByGitHub' => true]]]]];
+        return [$responses, $data];
     }
 
     private function managed(): array

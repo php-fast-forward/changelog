@@ -43,7 +43,8 @@ vendor/bin/changelog check --no-interaction
 vendor/bin/changelog check --since=origin/main --no-interaction
 ```
 
-Fetch/select the intended baseline before the last command. Review the exact
+The `--since` check evaluates committed Git differences; run it after committing
+the contribution and fetching/selecting the intended baseline. Review the exact
 created fragment. PR, issue and author metadata are optional, so author before a
 PR exists without placeholders. A generated fragment always persists its category
 and effective type. For a dependency change preserving the public API, use
