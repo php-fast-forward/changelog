@@ -17,6 +17,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Release\Factory;
 
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use InvalidArgumentException;
 
@@ -30,8 +31,8 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         'tagPrefix' => 'v', 'repository' => null, 'source' => 'auto',
     ];
 
-    /** Injects the caller's deterministic path resolver, never the installation root. */
-    public function __construct(private PackagePathResolverInterface $paths) {}
+    /** Injects consumer paths and a read-only Git boundary without consulting configuration or host state. */
+    public function __construct(private PackagePathResolverInterface $paths, private GitRepositoryInterface $git) {}
 
     /** Applies explicit values to defaults; paths to managed files MUST stay in the project. */
     public function create(array $values = []): ReleaseOptions
@@ -87,6 +88,15 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
             throw new InvalidArgumentException('Repository must use owner/name.');
         }
         $settings['workingDirectory'] = $this->paths->absolutePath($settings['workingDirectory']);
+        if (null === $settings['repository'] && $this->git->isRepository($settings['workingDirectory'])) {
+            $origin = $this->git->originUrl($settings['workingDirectory']);
+            if (null !== $origin && 1 === preg_match('~\A(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?\z~iD', $origin, $matches)) {
+                $settings['repository'] = $matches[1] . '/' . $matches[2];
+                if ('auto' === $settings['source']) {
+                    $settings['source'] = 'tags';
+                }
+            }
+        }
         return new ReleaseOptions(...$settings);
     }
 

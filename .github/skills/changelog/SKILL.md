@@ -27,6 +27,11 @@ changing files. Use the consumer repository as the working directory. The packag
 defaults to `.changelog/`, `CHANGELOG.md`, English Keep a Changelog presentation,
 stable tags prefixed `v`, and Git baseline `HEAD`.
 
+When no repository setting is explicit, a canonical GitHub `origin` supplies
+`owner/name`. That inferred identity keeps default `auto` history on local tags
+without GitHub requests. Explicit `--repository` retains `auto` source behavior;
+explicit `--source=tags` or `--source=github` selects that source directly.
+
 Use `vendor/bin/changelog` after a project Composer installation; use `changelog`
 when a global Composer installation is already available. Verify the installed
 CLI with `vendor/bin/changelog list --raw` and the relevant command's `--help`.
@@ -163,6 +168,13 @@ without `--dry-run`/`--check`:
 vendor/bin/changelog version --source=tags --no-interaction
 ```
 
+For a Git-backed release, the central document, complete pending fragment set and
+accepted byte hashes must match the selected base before any journal write.
+Keep intended release inputs committed at that base. Unrelated dirty files and
+staged work remain allowed; use read-only status and fragment previews while
+preparing an uncommitted contribution. A selected custom PHP template must also
+match its regular base blob before execution and application.
+
 This writes the generated receipt journal and central snapshot, then removes
 exactly the validated consumed fragments. Review `CHANGELOG.md`, the generated
 `.changelog/release-plan.json` and those deletions together. The receipt records
@@ -180,8 +192,9 @@ performed by the history workflow in its own reviewable PR. An ordinary change
 request does not authorize those operations. Choose history evidence explicitly
 when needed. `--source=tags` uses actual stable
 Git tags without fetching GitHub notes. `--source=github --repository=owner/repo`
-uses GitHub published notes for versions established by Git tags; `auto` uses
-available configured sources. Missing historical notes get an explicit localized
+uses GitHub published notes for versions established by Git tags. With an explicit
+repository, `auto` uses available configured sources; an inferred repository keeps
+`auto` on local tags. Missing historical notes get an explicit localized
 message. Unknown dates remain unknown; neither commit time nor today's date is
 invented as a historical publication date. Existing sections retain their notes.
 
@@ -193,7 +206,10 @@ vendor/bin/changelog format --locale=pt-BR --source=tags --no-interaction
 vendor/bin/changelog notes 1.2.3 --no-interaction
 ```
 
-Backfill and format preserve all pending fragments. Formatting changes recognized
+Backfill and format preserve all pending fragments. Human maintenance PRs commit
+only the central changelog; retain the generated journal locally for recovery. Verified
+bot-managed maintenance can include its generated transaction evidence.
+Formatting changes recognized
 structural headings and keeps prose, fenced code, notes, dates and references;
 it does not translate descriptions. `notes` reads the exact maintained body,
 without the outer version heading. `--output=release-notes.md` writes that body
@@ -212,7 +228,10 @@ return [
 ];
 ```
 
-Then preview `vendor/bin/changelog format --template=changelog-template.php
+In Git, the selected template must already be a reviewed regular file in the
+selected base and match its exact working bytes before execution. Outside Git,
+an explicitly trusted local PHP template remains supported. Then preview
+`vendor/bin/changelog format --template=changelog-template.php
 --dry-run --no-interaction`. Category keys remain the six canonical identifiers;
 release headings require level two and `{version}`, dated headings also `{date}`,
 and category headings require level three. Unknown settings fail. Custom PHP

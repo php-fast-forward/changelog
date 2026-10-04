@@ -20,6 +20,7 @@ use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use Symfony\Component\Lock\LockFactory;
 use Throwable;
 
@@ -34,6 +35,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         private ManagedFileStoreInterface $files,
         private ReceiptCodecInterface $codec,
         private ReleaseExceptionFactoryInterface $exceptions,
+        private ReleaseInputEvidenceValidatorInterface $inputs,
     ) {}
 
     /** Writes changelog and receipt before consuming only the revalidated approved fragment selection. */
@@ -52,6 +54,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
             if ($state['complete']) {
                 return false;
             }
+            $this->inputs->validate($plan);
             if ($state['receipt'] !== $plan->receiptContents) {
                 $this->files->write($plan->receiptPath, $plan->receiptContents);
             }

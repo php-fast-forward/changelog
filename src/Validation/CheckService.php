@@ -36,14 +36,16 @@ final readonly class CheckService implements CheckServiceInterface
      * Preserves all inventory diagnostics and accumulates independent diff failures.
      *
      * New A/C paths and R paths from outside the fragment scope are contributions.
-     * Renaming/mutating inherited fragments is rejected. Verified central/history
-     * operations may remove consumed fragments and need no fabricated addition.
+     * Renaming/mutating inherited fragments is rejected. Only verified managed
+     * version transactions may change their receipt or consume pending fragments;
+     * central-history maintenance MUST preserve both generated evidence and inputs.
      */
     public function check(
         ReleaseOptions $options,
         ?string $since = null,
         bool $centralChangeAuthorized = false,
         bool $waiverAuthorized = false,
+        string $authorizationKind = 'ordinary',
     ): ValidationReport {
         $fragmentRoot = trim(str_replace('\\', '/', $options->fragmentDirectory), '/');
         $directory = rtrim(str_replace('\\', '/', $options->workingDirectory), '/') . '/' . $fragmentRoot;
@@ -64,6 +66,8 @@ final readonly class CheckService implements CheckServiceInterface
 
         $added = [];
         $central = str_replace('\\', '/', $options->changelogFile);
+        $receipt = $fragmentRoot . '/release-plan.json';
+        $managedVersion = $centralChangeAuthorized && 'managed-version' === $authorizationKind;
 
         foreach ($changes as $change) {
             $path = $this->normalizeGitPath($change['path']);
@@ -72,6 +76,10 @@ final readonly class CheckService implements CheckServiceInterface
 
             if (($central === $path || $central === $previous) && ! $centralChangeAuthorized) {
                 $errors['@changelog'][] = 'Ordinary pull requests must not modify the consolidated changelog.';
+            }
+
+            if (($receipt === $path || $receipt === $previous) && ! $managedVersion) {
+                $errors['@receipt'][] = 'Release receipts may change only in a verified managed version transaction.';
             }
 
             if ($fragmentRoot === $path || $fragmentRoot === $previous) {
@@ -95,7 +103,7 @@ final readonly class CheckService implements CheckServiceInterface
                 continue;
             }
 
-            if (('D' === $status && $centralChangeAuthorized)
+            if (('D' === $status && $managedVersion)
                 || ('C' === $status && ! $currentFragment)
             ) {
                 continue;

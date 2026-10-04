@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Release\Factory;
 
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactory;
 use FastForward\Changelog\Release\ReleaseOptions;
 use InvalidArgumentException;
@@ -92,7 +93,10 @@ final class ReleaseOptionsFactoryTest extends TestCase
         $paths->expects(self::never())->method('absolutePath');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Tag prefix must use supported characters and form a valid Git tag reference.');
-        new ReleaseOptionsFactory($paths)->create(['tagPrefix' => $prefix]);
+        $git = $this->createMock(GitRepositoryInterface::class);
+        $git->expects(self::never())->method('isRepository');
+        $git->expects(self::never())->method('originUrl');
+        new ReleaseOptionsFactory($paths, $git)->create(['tagPrefix' => $prefix]);
     }
 
     /** Covers empty/dot/lock components, revision expressions and every Git-prohibited character family. */
@@ -134,11 +138,69 @@ final class ReleaseOptionsFactoryTest extends TestCase
         ];
     }
 
-    private function factory(): ReleaseOptionsFactory
+    /** Canonical GitHub origins capture the publication target while default history stays offline. */
+    #[DataProvider('githubOrigins')]
+    public function testGitHubOriginBindsTheReceiptTargetWithoutSelectingNetworkHistory(string $origin): void
+    {
+        $options = $this->factory($origin)->create();
+        self::assertSame('Owner/Project', $options->repository);
+        self::assertSame('tags', $options->source);
+        self::assertSame('tags', $this->factory($origin)->create(['source' => 'tags'])->source);
+        self::assertSame('github', $this->factory($origin)->create(['source' => 'github'])->source);
+    }
+
+    /** HTTPS, explicit SSH and scp-like GitHub URLs carry the same case-preserved owner/name. */
+    public static function githubOrigins(): array
+    {
+        return [
+            ['https://github.com/Owner/Project.git'], ['https://github.com/Owner/Project'],
+            ['ssh://git@github.com/Owner/Project.git'], ['ssh://git@github.com/Owner/Project'],
+            ['git@github.com:Owner/Project.git'], ['git@github.com:Owner/Project'],
+            ['https://GITHUB.COM/Owner/Project.git'],
+        ];
+    }
+
+    /** Unsupported hosts, aliases, credentials and ambiguous URLs remain local-only until explicitly configured. */
+    #[DataProvider('nonCanonicalOrigins')]
+    public function testLocalAndNonCanonicalOriginsDoNotGuessAPublicationTarget(?string $origin): void
+    {
+        $options = $this->factory($origin, true)->create();
+        self::assertNull($options->repository);
+        self::assertSame('auto', $options->source);
+    }
+
+    /** Absence and every unsupported URL shape preserve offline defaults. */
+    public static function nonCanonicalOrigins(): array
+    {
+        return [[null], ['/local/repository'], ['https://example.com/Owner/Project.git'],
+            ['git@github-personal:Owner/Project.git'], ['https://github.com/Owner/Project.git?token=synthetic'],
+            ['https://github.com/Owner/Project#fragment'], ['https://user:synthetic@github.com/Owner/Project.git'],
+            ['https://github.com/Owner/Project/extra'], ['https://github.com/Owner/Project.git\n']];
+    }
+
+    /** Explicit owner/name is authoritative and MUST NOT inspect an unrelated local remote. */
+    public function testExplicitRepositoryNeverConsultsGitOrigin(): void
+    {
+        $paths = $this->createStub(PackagePathResolverInterface::class);
+        $paths->method('isAbsolute')->willReturn(false);
+        $paths->method('absolutePath')->willReturn('/consumer');
+        $git = $this->createMock(GitRepositoryInterface::class);
+        $git->expects(self::never())->method('isRepository');
+        $git->expects(self::never())->method('originUrl');
+        $options = new ReleaseOptionsFactory($paths, $git)->create(['repository' => 'Selected/Target']);
+        self::assertSame('Selected/Target', $options->repository);
+        self::assertSame('auto', $options->source);
+    }
+
+    /** Injects repository-local evidence; this unit fixture performs no Git or filesystem I/O. */
+    private function factory(?string $origin = null, bool $repository = false): ReleaseOptionsFactory
     {
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturn('/consumer');
         $paths->method('isAbsolute')->willReturnCallback(static fn(string $path): bool => str_starts_with($path, '/'));
-        return new ReleaseOptionsFactory($paths);
+        $git = $this->createStub(GitRepositoryInterface::class);
+        $git->method('isRepository')->willReturn($repository || null !== $origin);
+        $git->method('originUrl')->willReturn($origin);
+        return new ReleaseOptionsFactory($paths, $git);
     }
 }

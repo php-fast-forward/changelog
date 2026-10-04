@@ -41,6 +41,8 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * Legacy boundaries require an Unreleased alias or a numeric version token;
      * recognized malformed headings MUST fail, with semantic validation owned
      * by the release factory rather than silently treating releases as prose.
+     * Legacy reference footers require only definitions and blank lines through
+     * EOF; following prose is ambiguous and MUST remain inside release notes.
      */
     public function parse(string $markdown): HistoryDocument
     {
@@ -129,7 +131,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             if (1 === preg_match('/^\[[^\]\r\n]+\]:[ \t]+\S/', $line)) {
-                $referenceOffsets[] = $lineOffset;
+                $referenceOffsets[$lineOffset] = true;
             }
 
             if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\]~u', $line, $matches)) {
@@ -160,12 +162,17 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         $lastContent = [] === $sections ? 0 : array_last($sections)['content'];
         $footerOffset = strlen($markdown);
+        $tailOffset = $footerOffset;
 
-        foreach ($referenceOffsets as $referenceOffset) {
-            if ($referenceOffset >= $lastContent) {
-                $footerOffset = $referenceOffset;
-
+        foreach (array_reverse($this->lines($markdown)) as $line) {
+            $tailOffset -= strlen($line);
+            if ($tailOffset < $lastContent
+                || ('' !== trim($line, " \t\r\n") && ! isset($referenceOffsets[$tailOffset]))) {
                 break;
+            }
+
+            if (isset($referenceOffsets[$tailOffset])) {
+                $footerOffset = $tailOffset;
             }
         }
 

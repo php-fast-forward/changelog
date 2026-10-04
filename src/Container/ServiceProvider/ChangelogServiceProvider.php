@@ -90,6 +90,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             \FastForward\Changelog\History\Import\HistoryImporterInterface::class => new AliasFactory(\FastForward\Changelog\History\Import\HistoryImporter::class),
             \FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface::class => new AliasFactory(\FastForward\Changelog\Publication\Factory\PublicationEvidenceFactory::class),
             \FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface::class => new AliasFactory(\FastForward\Changelog\Publication\Factory\PublicationResultFactory::class),
+            \FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface::class => new AliasFactory(\FastForward\Changelog\Validator\ReleaseInputEvidenceValidator::class),
             \FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class => new AliasFactory(\FastForward\Changelog\Validator\PublicationEvidenceValidator::class),
             \FastForward\Changelog\Publication\PublicationServiceInterface::class => new AliasFactory(\FastForward\Changelog\Publication\PublicationService::class),
             \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class => new AliasFactory(\FastForward\Changelog\Release\Factory\ReleaseExceptionFactory::class),

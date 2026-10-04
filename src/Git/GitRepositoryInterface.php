@@ -22,6 +22,9 @@ interface GitRepositoryInterface
     /** Resolves the normalized absolute Git worktree root for repository-relative GitHub file APIs. */
     public function repositoryRoot(string $directory): string;
 
+    /** Resolves the first origin fetch URL and rewrites without network access; returns null only when origin is absent. */
+    public function originUrl(string $directory): ?string;
+
     /** Determines whether Git can discover a worktree at the explicit consumer path. */
     public function isRepository(string $directory): bool;
 

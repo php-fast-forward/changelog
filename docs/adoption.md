@@ -28,6 +28,11 @@ There is no `init` step or mandatory local configuration. Defaults are
 only when needed. Public flags provide settings; an optional explicitly selected
 trusted PHP template changes presentation.
 
+Without an explicit repository setting, a canonical GitHub `origin` URL supplies
+`owner/name`. Inferred identity keeps default `auto` history on local Git tags,
+without a GitHub request. Explicit `--repository` retains the existing `auto`
+source behavior, and explicit `--source=tags` or `--source=github` takes precedence.
+
 ## First ordinary contribution
 
 Run a complete unattended authoring/check route:
@@ -86,11 +91,11 @@ every setting affects every operation.
 | `--fragment-directory` | Project-relative `.changelog` |
 | `--changelog-file` | Project-relative `CHANGELOG.md` |
 | `--locale` | `en` or `pt-BR`, default `en` |
-| `--template` | `keep-a-changelog` or an explicitly trusted project PHP file |
+| `--template` | `keep-a-changelog` or an explicitly trusted project PHP file; Git-bound files must match the selected base before execution |
 | `--base-ref` | Git planning baseline, default `HEAD` |
 | `--tag-prefix` | Stable tag prefix, default `v` |
-| `--repository` | Optional GitHub `owner/name`; required for GitHub-specific operations |
-| `--source` | `auto`, `github`, or `tags` |
+| `--repository` | Explicit GitHub `owner/name`, otherwise inferred from a canonical GitHub `origin` when available; GitHub operations require an effective identity |
+| `--source` | `auto`, `github`, or `tags`; inferred repository identity keeps `auto` local |
 
 `add` also accepts `--type`, `--name`, `--issue`, `--pull-request`, `--author`,
 `--commit` and `--commit-message`. `check` accepts `--since` and an optional
@@ -115,6 +120,15 @@ machine plan's current/next version, effective impact, consumed paths, historica
 additions, notes and affected files. Its receipt ID proves consistency and does
 not provide approval.
 
+Fresh Git-backed release application compares the original central bytes, the
+complete pending fragment inventory and every accepted hash with the selected
+base before writing its journal. The selected custom PHP template must also be
+a regular tracked file with those exact base bytes before it executes. Commit
+the intended release inputs to the selected base before applying. Unrelated
+dirty files and staged work remain independent; read-only status and fragment
+previews can still inspect uncommitted contributions. Outside Git, explicitly
+trusted local templates remain supported.
+
 An authorized version operation writes its generated receipt journal, writes the
 planned central snapshot, then removes only the validated consumed fragments.
 Review the central file, receipt and those deletions together in the version PR.
@@ -122,7 +136,10 @@ Retry the same settings after an interruption; preserve the journal and remainin
 fragments. New or modified inputs fail closed. See [transaction and recovery
 contracts](release-receipts.md).
 
-Backfill and format preserve pending fragments. History uses actual stable Git
+Backfill and format preserve pending fragments. Human maintenance PRs commit only
+the central history and keep the generated journal local for recovery. Verified
+bot-managed maintenance can include its generated transaction evidence.
+History uses actual stable Git
 tags as version authority; GitHub can supply published notes/dates for those tags.
 Annotated tag dates have explicit provenance, lightweight tags with unavailable
 publication dates remain undated, and missing notes receive a localized message.

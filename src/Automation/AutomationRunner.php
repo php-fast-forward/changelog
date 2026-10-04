@@ -125,7 +125,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
             $diagnostics = $authorization->diagnostics;
             $kind = $authorization->kind;
         }
-        $report = $this->checks->check($options, $since, $central, $waiver);
+        $report = $this->checks->check($options, $since, $central, $waiver, $kind);
         if (! $report->isValid()) {
             throw $this->exceptions->failure('Changelog check failed: ' . json_encode($report->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         }

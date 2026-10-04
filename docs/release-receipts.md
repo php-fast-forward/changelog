@@ -58,6 +58,15 @@ base to equal `HEAD`. Receipt resumptions require the saved base to remain an
 ancestor of `HEAD`, allowing a scoped release commit without inventing a new
 release.
 
+Before the first journal write, a fresh Git-backed release also requires the
+original central bytes and presence, complete committed pending Markdown set,
+regular Git file modes and every consumed byte hash to match the approved base.
+The selected custom PHP template must match a regular base blob before execution
+and application. Unrelated working-tree files and index entries are preserved;
+there is no whole-checkout cleanliness requirement. Read-only status and fragment
+previews remain available before release inputs are committed. Explicitly trusted
+local templates remain supported outside Git.
+
 The transaction first writes the approved receipt as a recovery journal, then the approved central bytes,
 then re-reads the full fragment inventory and all remaining hashes before
 removing only the selected direct fragments. It never selects a wildcard. For a release, a new,
@@ -92,6 +101,11 @@ approved central and receipt already match and every consumed fragment is gone.
 `isApplied()` performs the evidence reads without creating a lock or changing
 files, Git state, tags or releases. It returns `false` for a valid pending plan;
 changed or unsafe evidence raises a diagnostic. An empty plan performs no I/O.
+
+Human backfill/format PRs commit only the central changelog. Their generated
+maintenance journals stay local for recovery. Verified bot-managed maintenance
+may include generated journal evidence in its managed commit; that provenance
+must be independently verified.
 
 ## Composition contracts
 

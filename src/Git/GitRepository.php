@@ -41,6 +41,25 @@ final readonly class GitRepository implements GitRepositoryInterface
         return str_replace('\\', '/', $root);
     }
 
+    /**
+     * Resolves the first fetch URL and Git URL rewrites without contacting the server.
+     * Missing origin is distinct from a failed Git/configuration probe.
+     * @see https://git-scm.com/docs/git-remote#Documentation/git-remote.txt-get-url
+     */
+    public function originUrl(string $directory): ?string
+    {
+        $process = $this->processes->create(['git', '-C', $directory, 'remote', 'get-url', 'origin']);
+        $process->run();
+        if (! $process->isSuccessful()) {
+            if (2 === $process->getExitCode()) {
+                return null;
+            }
+            throw $this->exceptions->failure('Cannot read the repository-local Git origin: ' . trim($process->getErrorOutput()));
+        }
+        $url = rtrim($process->getOutput(), "\r\n");
+        return '' === $url ? null : $url;
+    }
+
     /** Verifies a commit identity using Git's option separator. */
     public function resolveRef(string $directory, string $reference = 'HEAD'): string
     {

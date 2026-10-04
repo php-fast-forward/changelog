@@ -23,6 +23,7 @@ use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
 use FastForward\Changelog\Release\ReleaseReceipt;
 use FastForward\Changelog\Tests\Automation\Policy\PolicyFixtureTrait;
+use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -176,6 +177,26 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([], $this->writes());
     }
 
+    /** A prepared recovery plan must retain the earlier consumed-blob proof even when the fresh validator skips recovery. */
+    #[Test]
+    #[TestWith(['missing_fragment'])]
+    #[TestWith(['changed_recovery_fragment'])]
+    public function preparedRecoveryCannotDeleteAFragmentDifferentFromItsCommittedBase(string $case): void
+    {
+        $result = $this->synchronizeFixture(['prepared_resume' => true, $case => true]);
+        self::assertSame('refused', $result->status);
+        self::assertStringContainsString('recovery fragment differs', implode(' ', $result->diagnostics));
+        self::assertSame([], $this->writes());
+    }
+
+    /** A matching prepared journal can keep its exact plan while using the same guarded mutation path. */
+    #[Test]
+    public function preparedRecoveryWithUnchangedBaseFragmentsRemainsApplicable(): void
+    {
+        self::assertSame('created', $this->synchronizeFixture(['prepared_resume' => true])->status);
+        self::assertCount(1, $this->writes('trees'));
+    }
+
     #[Test]
     #[TestWith(['input_failure'])]
     #[TestWith(['missing_repo'])]
@@ -196,6 +217,7 @@ final class VersionPullRequestServiceTest extends TestCase
     #[TestWith(['wrong_receipt_id'])]
     #[TestWith(['read_failure'])]
     #[TestWith(['nested_project'])]
+    #[TestWith(['input_evidence_failure'])]
     public function invalidOrUntrustedInputsFailBeforeMutation(string $case): void
     {
         $settings = [$case => true];
@@ -266,9 +288,9 @@ final class VersionPullRequestServiceTest extends TestCase
         $base = str_repeat('b', 40);
         $head = isset($settings['base_existing']) ? $base : (isset($settings['existing']) || isset($settings['orphan']) ? str_repeat('a', 40) : (isset($settings['base_orphan']) ? $base : null));
         $original = isset($settings['pending']) ? 'new' : 'old';
-        $originalReceipt = isset($settings['pending']) ? 'receipt' : null;
+        $originalReceipt = isset($settings['pending']) || isset($settings['prepared_resume']) ? 'receipt' : null;
         $next = isset($settings['none']) || isset($settings['maintenance']) ? null : '1.0.1';
-        $plan = new ReleasePlan($options, str_repeat('c', 64), isset($settings['stale_plan']) || isset($settings['pending']) ? str_repeat('f', 40) : $base, '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash('sha256', 'fragment')], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']));
+        $plan = new ReleasePlan($options, str_repeat('c', 64), isset($settings['stale_plan']) || isset($settings['pending']) ? str_repeat('f', 40) : $base, '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash('sha256', 'fragment')], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']) || isset($settings['prepared_resume']));
         $data = ['id' => isset($settings['wrong_receipt_id']) ? 'wrong' : $plan->id, 'base_sha' => $base, 'consumed' => isset($settings['scope_mismatch']) || [] === $plan->consumed ? [] : ['.changelog/feature.md' => hash('sha256', 'fragment')]];
         $oldData = ['id' => isset($settings['same_plan']) ? $plan->id : str_repeat('d', 64)];
         $pr = isset($settings['existing']) || isset($settings['base_existing']) ? $this->pr('github-actions[bot]', 'Bot', 'changelog/version') : null;
@@ -352,7 +374,7 @@ final class VersionPullRequestServiceTest extends TestCase
         $git->method('readFileAt')->willReturnCallback(static fn(string $directory, string $sha, string $path): ?string => match ($path) {
             'CHANGELOG.md' => isset($settings['dirty_document']) ? 'dirty' : $original,
             '.changelog/release-plan.json' => isset($settings['dirty_receipt']) ? 'dirty' : $originalReceipt,
-            default => isset($settings['missing_fragment']) || isset($settings['pending_absent']) ? null : 'fragment',
+            default => isset($settings['missing_fragment']) || isset($settings['pending_absent']) ? null : (isset($settings['changed_recovery_fragment']) ? 'changed' : 'fragment'),
         });
         $planner = $this->createStub(ReleasePlannerInterface::class);
         $planner->method('plan')->willReturnCallback(function (ReleaseOptions $received, string $operation) use ($plan): ReleasePlan {
@@ -382,6 +404,14 @@ final class VersionPullRequestServiceTest extends TestCase
         $results->method('create')->willReturnCallback(static fn(string $status, ?int $number = null, ?string $url = null, ?string $sha = null, ?string $id = null, ?string $version = null, bool $maintenance = false, array $diagnostics = []): VersionPullRequestResult => new VersionPullRequestResult($status, $number, $url, $sha, $id, $version, $maintenance, $diagnostics));
         $exceptions = $this->createStub(VersionPullRequestExceptionFactoryInterface::class);
         $exceptions->method('create')->willReturnCallback(static fn(string $message): VersionPullRequestException => new VersionPullRequestException($message));
-        return new VersionPullRequestService($github, $git, $planner, $receipts, $paths, $policy, $inputs, $results, $exceptions)->synchronize($options, $input);
+        $inputEvidence = $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
+        $inputEvidence->method('validate')->willReturnCallback(function (ReleasePlan $received) use ($plan, $settings): void {
+            self::assertSame($plan, $received);
+            self::assertSame([], $this->writes(), 'Source proof must run before any GitHub mutation.');
+            if (isset($settings['missing_fragment']) || isset($settings['input_evidence_failure'])) {
+                throw new RuntimeException('Uncommitted source evidence; synthetic-super-secret');
+            }
+        });
+        return new VersionPullRequestService($github, $git, $planner, $receipts, $paths, $policy, $inputs, $results, $exceptions, $inputEvidence)->synchronize($options, $input);
     }
 }

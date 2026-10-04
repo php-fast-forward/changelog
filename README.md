@@ -32,7 +32,12 @@ another project explicitly.
 
 No initialization or local configuration file is required. Defaults use
 `.changelog/`, `CHANGELOG.md`, English Keep a Changelog presentation and tag
-prefix `v`. The fragment directory is created only when authoring requires it.
+prefix `v`, with baseline `HEAD` and history source `auto`. The fragment directory
+is created only when authoring requires it. When `--repository` is omitted, a
+canonical GitHub `origin` supplies `owner/name`; this inference keeps `auto` on
+local tags without GitHub history requests. An explicit repository with `auto`
+may use GitHub history; explicit `--source=tags` or `--source=github` selects that
+source directly.
 
 ## Author a contribution
 
@@ -72,8 +77,16 @@ operation; the usual contribution route ends after adding and checking a fragmen
 
 Shared settings include `--cwd`, `--fragment-directory`, `--changelog-file`,
 `--locale`, `--template`, `--base-ref`, `--tag-prefix`, `--repository` and `--source`.
-An explicitly selected trusted PHP template can customize presentation. The
+An explicitly selected trusted PHP template can customize presentation. In Git,
+it must match a regular committed file at the selected base before execution;
+trusted local templates remain supported outside Git. The
 [adoption guide](docs/adoption.md) documents flags, exit codes and PHP contracts.
+
+Before applying a Git-backed release, the CLI and version workflow compare the
+central document, complete pending fragment set and byte hashes, and selected
+template with the approved base. Keep those inputs committed at that base.
+Unrelated staged or unstaged work remains allowed; `status` and fragment previews
+remain useful before committing the release inputs.
 
 ## GitHub automation
 
@@ -93,6 +106,10 @@ base code and independently verify PR provenance and the approved target SHA.
 See [GitHub action contracts](docs/github-actions.md),
 [version PRs](docs/version-pull-request.md), [policy](docs/policies.md) and
 [publication](docs/publication.md).
+
+Human backfill/format PRs commit only the central history; their generated journal
+stays local for recovery. Verified bot-managed maintenance may include its
+generated transaction evidence.
 
 This repository uses the same runtime and local actions for its own changelog.
 The [self-hosting examples](docs/self-changelog.md) explain events, defaults,

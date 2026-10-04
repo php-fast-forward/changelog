@@ -27,13 +27,14 @@ use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use Throwable;
 
 /** Rebuilds managed output on the newest approved base while retaining fast-forward ancestry. */
 final readonly class VersionPullRequestService implements VersionPullRequestServiceInterface
 {
     /** Injects all Git, API, planning, ownership and construction boundaries for isolated unit tests. */
-    public function __construct(private GitHubClientInterface $github, private GitRepositoryInterface $git, private ReleasePlannerInterface $planner, private ReceiptCodecInterface $receipts, private PackagePathResolverInterface $paths, private PullRequestPolicyInterface $policy, private VersionPullRequestInputFactoryInterface $inputs, private VersionPullRequestResultFactoryInterface $results, private VersionPullRequestExceptionFactoryInterface $exceptions) {}
+    public function __construct(private GitHubClientInterface $github, private GitRepositoryInterface $git, private ReleasePlannerInterface $planner, private ReceiptCodecInterface $receipts, private PackagePathResolverInterface $paths, private PullRequestPolicyInterface $policy, private VersionPullRequestInputFactoryInterface $inputs, private VersionPullRequestResultFactoryInterface $results, private VersionPullRequestExceptionFactoryInterface $exceptions, private ReleaseInputEvidenceValidatorInterface $inputEvidence) {}
 
     /** Plans at the fresh base, verifies existing ownership, and mutates only the transaction's exact file scope. */
     public function synchronize(ReleaseOptions $options, VersionPullRequestInput $input): VersionPullRequestResult
@@ -88,6 +89,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 if ($input->dryRun) {
                     return $this->result('dry-run', $plan, $pr, $head);
                 }
+                $this->inputEvidence->validate($plan);
                 $this->preflight($options, $input, $base, $head);
                 $writing = true;
                 $pr = $this->writePullRequest($repo, $input, null, $head, $this->body($options, $plan, $data));
@@ -96,6 +98,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             if ($input->dryRun) {
                 return $this->result('dry-run', $plan, $pr, $head);
             }
+            $this->inputEvidence->validate($plan);
             $this->preflight($options, $input, $base, $head);
             $baseCommit = $this->github->request('GET', '/repos/' . $repo . '/git/commits/' . $base);
             $treeSha = $baseCommit['tree']['sha'] ?? null;
@@ -166,7 +169,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         return $pr;
     }
 
-    /** Verifies every planned original/delete byte against committed base data, rejecting dirty local snapshots. */
+    /** Verifies original managed bytes and receipt scope; the shared input validator proves every fresh consumed base blob. */
     private function snapshot(ReleaseOptions $options, ReleasePlan $plan, string $base): void
     {
         $this->require(
@@ -181,8 +184,10 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         $consumed = [];
         foreach ($plan->consumed as $absolute => $hash) {
             $relative = $this->paths->relativePath($absolute, $options->workingDirectory);
-            $contents = $this->git->readFileAt($options->workingDirectory, $base, $relative);
-            $this->require(null !== $contents && hash('sha256', $contents) === $hash, 'A consumed fragment differs from its fresh committed base snapshot.');
+            if ($plan->resuming) {
+                $contents = $this->git->readFileAt($options->workingDirectory, $base, $relative);
+                $this->require(null !== $contents && hash('sha256', $contents) === $hash, 'A consumed recovery fragment differs from its committed base snapshot.');
+            }
             $consumed[$relative] = $hash;
         }
         $this->require($consumed === ($data['consumed'] ?? null), 'Planned fragment scope differs from the validated receipt.');

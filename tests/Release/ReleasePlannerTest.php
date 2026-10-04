@@ -30,6 +30,7 @@ use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
+use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
 use FastForward\Changelog\Version\VersionResolution;
 use InvalidArgumentException;
@@ -184,6 +185,47 @@ final class ReleasePlannerTest extends TestCase
         $planner->plan(new ReleaseOptions('/consumer'));
     }
 
+    /** Executable custom selection must be approved before template resolution can load PHP. */
+    public function testTemplateProofRunsBeforeAnyTemplateExecution(): void
+    {
+        [$planner, $parts] = $this->planner(['inputsMock' => true, 'templatesMock' => true]);
+        $options = new ReleaseOptions('/consumer', template: 'presentation.php');
+        $parts['inputs']->expects(self::once())->method('validateTemplate')->with($options, self::SHA)->willThrowException(new RuntimeException('Template differs from the approved base.'));
+        $parts['templates']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Template differs from the approved base');
+        $planner->plan($options);
+    }
+
+    /** Recovery verifies the original template blob without executing its PHP again. */
+    public function testReceiptRecoveryDoesNotExecuteCustomTemplateAgain(): void
+    {
+        $data = $this->receipt()->data;
+        $data['template'] = 'presentation.php';
+        $receipt = new ReleaseReceipt($data);
+        [$planner, $parts] = $this->planner(['receipt' => $receipt, 'inputsMock' => true, 'templatesMock' => true]);
+        $options = new ReleaseOptions('/consumer', template: 'presentation.php');
+        $parts['inputs']->expects(self::once())->method('validateTemplate')->with($options, self::SHA);
+        $parts['templates']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::once())->method('resume')->willReturn($parts['plan']);
+        self::assertSame($parts['plan'], $planner->plan($options));
+    }
+
+    /** A descendant checkout cannot silently replace the template used by an interrupted release. */
+    public function testRecoveryPinsCustomTemplateToReceiptBaseRatherThanCurrentHead(): void
+    {
+        $data = $this->receipt()->data;
+        $data['template'] = 'presentation.php';
+        $data['base_sha'] = str_repeat('f', 40);
+        [$planner, $parts] = $this->planner(['receipt' => new ReleaseReceipt($data), 'inputsMock' => true, 'templatesMock' => true]);
+        $options = new ReleaseOptions('/consumer', template: 'presentation.php');
+        $parts['inputs']->expects(self::once())->method('validateTemplate')->with($options, str_repeat('f', 40))->willThrowException(new RuntimeException('Custom template differs from the approved base.'));
+        $parts['templates']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::never())->method('resume');
+        $this->expectExceptionMessage('Custom template differs from the approved base');
+        $planner->plan($options);
+    }
+
     /** Malformed or incompletely evidenced inventory is rejected before applying anything. */
     #[TestWith(['invalid'])]
     #[TestWith(['hashless'])]
@@ -289,7 +331,7 @@ final class ReleasePlannerTest extends TestCase
     /** Builds explicit saved evidence for recovery-policy unit tests. */
     private function receipt(): ReleaseReceipt
     {
-        return new ReleaseReceipt(['next_version' => '1.0.1', 'changelog_file' => 'CHANGELOG.md',
+        return new ReleaseReceipt(['base_sha' => self::SHA, 'next_version' => '1.0.1', 'changelog_file' => 'CHANGELOG.md',
             'fragment_directory' => '.changelog', 'locale' => 'en', 'template' => 'keep-a-changelog',
             'tag_prefix' => 'v', 'repository' => null, 'consumed' => [],
             'before_changelog_sha256' => hash('sha256', 'original'), 'changelog_contents' => 'before', 'after_changelog_sha256' => hash('sha256', 'before'), 'notes_sha256' => hash('sha256', "Exact notes\n")]);
@@ -320,7 +362,7 @@ final class ReleasePlannerTest extends TestCase
         $importer = ($settings['importerMock'] ?? false) ? $this->createMock(HistoryImporterInterface::class) : $this->createStub(HistoryImporterInterface::class);
         $importer->method('currentVersion')->willReturn('1.0.0');
         $importer->method('import')->willReturn(new HistoryImportResult($document, $settings['missing'] ?? [], '1.0.0'));
-        $templates = $this->createStub(TemplateResolverInterface::class);
+        $templates = ($settings['templatesMock'] ?? false) ? $this->createMock(TemplateResolverInterface::class) : $this->createStub(TemplateResolverInterface::class);
         $templates->method('resolve')->willReturn($template);
         $change = new Changeset('new.md', Category::Fixed, null, null, null, 'Description');
         $fragments = ($settings['fragments'] ?? false) ? [$change] : [];
@@ -340,6 +382,7 @@ final class ReleasePlannerTest extends TestCase
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
         $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
         $exceptions->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
+        $inputs = ($settings['inputsMock'] ?? false) ? $this->createMock(ReleaseInputEvidenceValidatorInterface::class) : $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
         return [new ReleasePlanner(
             $paths,
             $files,
@@ -356,7 +399,8 @@ final class ReleasePlannerTest extends TestCase
             $receipts,
             $plans,
             $exceptions,
+            $inputs,
         ),
-            compact('document', 'template', 'plan', 'files', 'git', 'history', 'importer', 'validator', 'versions', 'releases', 'clock', 'plans')];
+            compact('document', 'template', 'plan', 'files', 'git', 'history', 'importer', 'validator', 'versions', 'releases', 'clock', 'plans', 'inputs', 'templates')];
     }
 }

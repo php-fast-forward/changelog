@@ -264,6 +264,15 @@ function exercise(string $installation, string $consumer, array $environment): v
     cli($binary, $consumer, $environment, ['version', '--dry-run', '--check', '--source=tags'], 2);
     verify($before === snapshot($consumer), 'Preview, check or status mutated consumer bytes.');
 
+    $uncommitted = snapshot($consumer);
+    cli($binary, $consumer, $environment, ['version', '--source=tags'], 1);
+    verify($uncommitted === snapshot($consumer), 'A fragment outside the approved Git base changed managed files before rejection.');
+    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'Rejected consolidation changed unrelated staged work.');
+    $git(['add', '--', '.changelog/named.md']);
+    $git(['commit', '--only', '--message', 'test: approve pending fragment', '--', '.changelog/named.md']);
+    verify(".changelog/named.md\n" === $git(['show', '--pretty=format:', '--name-only', 'HEAD'])['stdout'], 'Approval committed unrelated paths.');
+    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'Fragment approval changed unrelated staged work.');
+    $preview = summary(cli($binary, $consumer, $environment, ['version', '--dry-run', '--source=tags']));
     $applied = summary(cli($binary, $consumer, $environment, ['version', '--source=tags']));
     verify('1.1.0' === $applied['next_version'], 'The explicit fixture-only maintenance operation changed the approved version.');
     verify(!is_file($consumer . '/.changelog/named.md') && !is_file($consumer . '/.changelog/committed.md'), 'The local transaction did not consume its exact fragment set.');

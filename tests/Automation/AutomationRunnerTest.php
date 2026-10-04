@@ -26,8 +26,11 @@ use FastForward\Changelog\Release\ReleaseApplierInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use FastForward\Changelog\Validation\CheckService;
 use FastForward\Changelog\Validation\CheckServiceInterface;
+use FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface;
 use FastForward\Changelog\Validation\ValidationReport;
+use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -44,6 +47,7 @@ use RuntimeException;
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(ReleasePlan::class)]
 #[UsesClass(ValidationReport::class)]
+#[UsesClass(CheckService::class)]
 #[UsesClass(PullRequestAuthorization::class)]
 #[UsesClass(DependabotInput::class)]
 #[UsesClass(DependabotFragmentResult::class)]
@@ -56,6 +60,7 @@ final class AutomationRunnerTest extends TestCase
     #[TestWith(['unknown', []])]
     #[TestWith(['version', ['waiver-label' => 'forged']])]
     #[TestWith(['check', ['central-change-authorized' => 'true']])]
+    #[TestWith(['check', ['authorization-kind' => 'managed-version']])]
     public function unknownOperationsAndInputsStopBeforeOptionsOrIo(string $operation, array $inputs): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -70,7 +75,7 @@ final class AutomationRunnerTest extends TestCase
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->with(['workingDirectory' => '/consumer', 'fragmentDirectory' => '.changes', 'changelogFile' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'baseRef' => 'main', 'tagPrefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags'])->willReturn($this->options());
         $checks = $this->createMock(CheckServiceInterface::class);
-        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', false, false)->willReturn(new ValidationReport([], [], false));
+        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', false, false, 'ordinary')->willReturn(new ValidationReport([], [], false));
         self::assertSame(['status' => 'valid', 'fragments' => 0, 'waived' => false, 'kind' => 'ordinary', 'diagnostics' => []], $this->runner(['options' => $factory, 'checks' => $checks])->run('check', [...$inputs, 'since' => 'BASE']));
     }
 
@@ -133,8 +138,48 @@ final class AutomationRunnerTest extends TestCase
         $git->expects(self::once())->method('repositoryRoot')->with('/consumer')->willReturn('/consumer');
         $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($this->sha());
         $checks = $this->createMock(CheckServiceInterface::class);
-        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', true, true)->willReturn(new ValidationReport(['fixture'], [], true));
+        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', true, true, 'maintenance')->willReturn(new ValidationReport(['fixture'], [], true));
         self::assertSame(['status' => 'valid', 'fragments' => 1, 'waived' => true, 'kind' => 'maintenance', 'diagnostics' => ['trusted grant']], $this->runner(compact('policy', 'git', 'checks'))->run('check', ['since' => 'BASE', 'pull-request' => '7', 'managed-branch' => 'managed', 'automation-actor' => 'app[bot]', 'waiver-label' => 'waiver', 'maintenance-label' => 'maintenance']));
+    }
+
+    #[Test]
+    #[TestWith(['ordinary', false, false, 'M', '.changelog/release-plan.json', '@receipt'])]
+    #[TestWith(['waiver', false, true, 'A', '.changelog/release-plan.json', '@receipt'])]
+    #[TestWith(['maintenance', true, true, 'D', '.changelog/release-plan.json', '@receipt'])]
+    #[TestWith(['maintenance', true, false, 'D', '.changelog/pending.md', '.changelog/pending.md'])]
+    #[TestWith(['managed-version', false, true, 'M', '.changelog/release-plan.json', '@receipt'])]
+    #[TestWith(['managed-version', true, false, 'M', '.changelog/release-plan.json', null])]
+    #[TestWith(['managed-version', true, false, 'D', '.changelog/pending.md', null])]
+    #[TestWith(['maintenance', true, false, 'M', 'CHANGELOG.md', null])]
+    public function realCheckerEnforcesTheExactVerifiedPolicyKind(
+        string $kind,
+        bool $central,
+        bool $waiver,
+        string $status,
+        string $path,
+        ?string $error,
+    ): void {
+        $policy = $this->createMock(PullRequestPolicyInterface::class);
+        $policy->expects(self::once())->method('inspect')->with($this->options(), 7, 'changelog/version', 'github-actions[bot]', 'changelog-not-required', 'changelog-maintenance')->willReturn(new PullRequestAuthorization($waiver, $central, $kind, [], $this->sha()));
+        $git = $this->createMock(GitRepositoryInterface::class);
+        $git->expects(self::once())->method('repositoryRoot')->with('/consumer')->willReturn('/consumer');
+        $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($this->sha());
+        $git->expects(self::once())->method('changesSince')->with('/consumer', 'BASE')->willReturn([['status' => $status, 'path' => $path, 'previous' => null]]);
+        $validator = $this->createMock(ChangesetValidatorInterface::class);
+        $validator->expects(self::once())->method('validate')->with('/consumer/.changelog', false, false)->willReturn(new ValidationReport([], [], false));
+        $validator->expects(self::once())->method('validatePaths')->with('/consumer/.changelog', [], false, false)->willReturn(new ValidationReport([], [], false));
+        $reports = $this->createMock(ValidationReportFactoryInterface::class);
+        $reports->expects(self::once())->method('create')->willReturnCallback(static fn(array $changesets, array $errors, bool $waived, array $hashes): ValidationReport => new ValidationReport($changesets, $errors, $waived, $hashes));
+        $checks = new CheckService($validator, $git, $reports);
+
+        if (null !== $error) {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('"' . $error . '"');
+        }
+
+        $result = $this->runner(compact('policy', 'git', 'checks'))->run('check', ['since' => 'BASE', 'pull-request' => '7']);
+
+        self::assertSame(['status' => 'valid', 'fragments' => 0, 'waived' => $waiver, 'kind' => $kind, 'diagnostics' => []], $result);
     }
 
     #[Test]
@@ -156,7 +201,7 @@ final class AutomationRunnerTest extends TestCase
     public function invalidReportReturnsAllKeyedDiagnosticsAsWorkflowFailure(): void
     {
         $checks = $this->createMock(CheckServiceInterface::class);
-        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', false, false)->willReturn(new ValidationReport([], ['one.md' => ['unknown type'], 'two.md' => ['empty message']], false));
+        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', false, false, 'ordinary')->willReturn(new ValidationReport([], ['one.md' => ['unknown type'], 'two.md' => ['empty message']], false));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Changelog check failed: {"one.md":["unknown type"],"two.md":["empty message"]}');
         $this->runner(compact('checks'))->run('check', ['since' => 'BASE']);

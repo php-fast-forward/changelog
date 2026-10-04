@@ -19,6 +19,23 @@ final class GitRepositoryTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+    /** Origin inference reads only local Git configuration and never contacts a remote. */
+    public function testOriginUrlRetainsItsValueWithoutTransportNewlines(): void
+    {
+        self::assertSame('git@github.com:owner/project.git', $this->repository([
+            [['remote', 'get-url', 'origin'], "git@github.com:owner/project.git\r\n"],
+        ])->originUrl('/consumer'));
+        self::assertNull($this->repository([[['remote', 'get-url', 'origin'], '']])->originUrl('/consumer'));
+        self::assertNull($this->repository([[['remote', 'get-url', 'origin'], '', false, '', 2]])->originUrl('/consumer'));
+    }
+
+    /** A broken local configuration cannot silently masquerade as an origin-less project. */
+    public function testOriginConfigurationFailureIsDiagnostic(): void
+    {
+        $this->expectExceptionMessage('Cannot read the repository-local Git origin: configuration unavailable');
+        $this->repository([[['remote', 'get-url', 'origin'], '', false, 'configuration unavailable', 128]])->originUrl('/consumer');
+    }
+
     /** Root evidence is normalized and cannot silently become an empty GitHub file scope. */
     public function testRepositoryRootUsesExplicitGitRootEvidence(): void
     {

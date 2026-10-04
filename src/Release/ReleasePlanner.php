@@ -28,6 +28,7 @@ use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
+use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
 use Psr\Clock\ClockInterface;
 
@@ -51,6 +52,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private ReceiptCodecInterface $receipts,
         private ReleasePlanFactoryInterface $plans,
         private ReleaseExceptionFactoryInterface $exceptions,
+        private ReleaseInputEvidenceValidatorInterface $inputs,
     ) {}
 
     /**
@@ -68,7 +70,6 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $original = $this->files->read($changelogPath);
         $receiptBytes = $this->files->read($receiptPath);
         $document = $this->history->parse($original ?? '');
-        $template = $this->templates->resolve($options);
         $baseSha = null;
         $tags = [];
         if ($this->git->isRepository($options->workingDirectory)) {
@@ -94,9 +95,12 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                 }
                 $inventory = null === $version ? null : $this->inventory($fragmentPath);
                 $this->assertResumable($options, $receipt, $original, $inventory);
+                $this->inputs->validateTemplate($options, $receipt->data['base_sha']);
                 return $this->plans->resume($options, $receipt, $changelogPath, $original, $receiptPath, $receiptBytes);
             }
         }
+        $this->inputs->validateTemplate($options, $baseSha);
+        $template = $this->templates->resolve($options);
         $inventory = 'version' === $operation ? $this->inventory($fragmentPath) : null;
         $currentVersion = $this->importer->currentVersion($tags, $options->tagPrefix);
         $missing = [];

@@ -24,15 +24,18 @@ interface CheckServiceInterface
     /**
      * Validates every pending fragment, then the changes selected by a PR baseline.
      *
-     * Existing fragments cannot satisfy the addition gate. Authorization booleans
-     * MUST come from verified automation context, not user-supplied skip flags or
-     * an editable label/body. Waivers never hide malformed fragments or forbidden
-     * central/history changes. Local checking without since allows an empty store.
+     * Existing fragments cannot satisfy the addition gate. Authorization flags and
+     * kind MUST come from verified automation context, not user-supplied skip flags
+     * or an editable label/body. Receipt changes and fragment consumption require
+     * both central authorization and the exact managed-version kind. Maintenance
+     * and waivers never authorize those changes or hide malformed fragments.
+     * Local checking without since allows an empty store.
      */
     public function check(
         ReleaseOptions $options,
         ?string $since = null,
         bool $centralChangeAuthorized = false,
         bool $waiverAuthorized = false,
+        string $authorizationKind = 'ordinary',
     ): ValidationReport;
 }

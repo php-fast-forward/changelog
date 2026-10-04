@@ -24,7 +24,7 @@ use PHPUnit\Framework\TestCase;
 final class HistoryCodecTest extends TestCase
 {
     #[Test]
-    public function preservesCrLfDescriptionsFencesReferencesAndFooterBoilerplate(): void
+    public function preservesCrLfDescriptionsFencesAndAmbiguousReferenceFooterProse(): void
     {
         $body = "\r\n### Added\r\n\r\n- [Feature][issue]\r\n  nested prose\r\n\r\n```markdown\r\n## [99.0.0] - 2026-01-01\r\n[example]: https://example.test\r\n```\r\n\r\n";
         $previous = "\r\n### Unknown presentation\r\n\r\nArbitrary old release prose.\r\n\r\n~~~text\r\n## [88.0.0]\r\n~~~\r\n\r\n";
@@ -36,15 +36,94 @@ final class HistoryCodecTest extends TestCase
 
         self::assertCount(2, $document->getReleases());
         self::assertSame($prefix, $document->getPrefix());
-        self::assertSame($footer, $document->getReferences());
-        self::assertSame($previous, $codec->notes($document, '1.0.0'));
+        self::assertSame('', $document->getReferences());
+        self::assertSame($previous . $footer, $codec->notes($document, '1.0.0'));
         self::assertSame($body, $codec->notes($document, 'unreleased'));
         self::assertSame('2026-01-01', $document->getRelease('1.0.0')->getDate());
         self::assertSame($markdown, $codec->render($document, $this->template(), true));
     }
 
     #[Test]
+    #[TestWith(["\n", 'guide'])]
+    #[TestWith(["\r\n", 'guide'])]
+    #[TestWith(["\n", '1.0.0'])]
+    #[TestWith(["\r\n", '1.0.0'])]
+    public function keepsInBodyReferenceDefinitionsAndFollowingProseWithinTheFinalLegacyRelease(string $ending, string $label): void
+    {
+        $body = $ending . '## [Migration guide](migration.md)' . $ending . $ending
+            . 'Read the [migration][' . $label . '] before upgrading.' . $ending
+            . '[' . $label . ']: https://example.test/migration "Migration title"' . $ending . $ending
+            . 'The release description continues here.  ' . $ending . $ending
+            . '1. Keep the ordered list.' . $ending . '   Preserve its **nested description**.' . $ending . $ending
+            . '```markdown' . $ending . '[example]: https://example.test/code' . $ending
+            . '## [99.0.0] - invalid-date' . $ending . '```' . $ending . $ending
+            . 'The last paragraph is still release prose.' . $ending;
+        $markdown = '# Custom history' . $ending . $ending . '## [v1.0.0] - 2026-10-03' . $ending . $body;
+        $codec = $this->codec();
+        $document = $codec->parse($markdown);
+
+        self::assertCount(1, $document->getReleases());
+        self::assertSame('', $document->getReferences());
+        self::assertSame($body, $codec->notes($document, '1.0.0'));
+        self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
+
+        $formatted = $codec->parse($codec->render($document, $this->template('en')));
+        self::assertSame('', $formatted->getReferences());
+        self::assertSame($body, $codec->notes($formatted, '1.0.0'));
+    }
+
+    #[Test]
+    #[TestWith(["\n", ''])]
+    #[TestWith(["\n", "\n"])]
+    #[TestWith(["\r\n", ''])]
+    #[TestWith(["\r\n", "\r\n"])]
+    public function separatesOnlyTheTrueTrailingReferenceBlockFromEarlierBodyDefinitions(string $ending, string $finalEnding): void
+    {
+        $body = $ending . 'See the [guide][migration].' . $ending
+            . '[migration]: https://example.test/migration' . $ending . $ending
+            . 'More release prose follows the in-body definition.' . $ending . $ending
+            . '```markdown' . $ending . '[example]: https://example.test/code' . $ending . '```' . $ending . $ending;
+        $footer = '[1.0.0]: https://example.test/tag/v1.0.0' . $ending . " \t" . $ending
+            . '[issue]: https://example.test/issues/123' . $finalEnding;
+        $markdown = '## [1.0.0]' . $ending . $body . $footer;
+        $codec = $this->codec();
+        $document = $codec->parse($markdown);
+
+        self::assertSame($body, $codec->notes($document, '1.0.0'));
+        self::assertSame($footer, $document->getReferences());
+        self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
+
+        $formatted = $codec->parse($codec->render($document, $this->template('en')));
+        self::assertSame($body, $codec->notes($formatted, '1.0.0'));
+        self::assertSame($footer, $formatted->getReferences());
+    }
+
+    #[Test]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function markedBodiesKeepTheirOwnReferencesAndExcludeExplicitFooterBoilerplate(bool $byteFramed): void
+    {
+        $body = "Notes use the [migration][guide].\r\n\r\n[guide]: https://example.test/migration\r\n";
+        $metadata = ['version' => '1.0.0'];
+        if ($byteFramed) {
+            $metadata['body_length'] = strlen($body);
+        }
+        $footer = "[1.0.0]: https://example.test/tag/v1.0.0\r\n\r\nFooter license prose.\r\n";
+        $markdown = '<!-- fast-forward-changelog:release ' . json_encode($metadata, JSON_THROW_ON_ERROR)
+            . " -->\r\n## [1.0.0]\r\n" . $body . "<!-- fast-forward-changelog:end-release -->\r\n" . $footer;
+        $codec = $this->codec();
+        $document = $codec->parse($markdown);
+
+        self::assertSame($body, $codec->notes($document, '1.0.0'));
+        self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
+        $output = $codec->render($document, $this->template('en'));
+        self::assertStringEndsWith($footer, $output);
+        self::assertSame($body, $codec->notes($codec->parse($output), '1.0.0'));
+    }
+
+    #[Test]
     #[TestWith([''])]
+    #[TestWith(["\r\n \t\r\n"])]
     #[TestWith(['Unstructured raw history without supported release headings.'])]
     #[TestWith(["# Custom\n\n[link]: https://example.test\n\nfooter\n"])]
     #[TestWith(["# Custom\n\n## [Migration guide](migration.md)\n\nPreserve this prose.\n"])]

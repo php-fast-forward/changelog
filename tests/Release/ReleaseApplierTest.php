@@ -13,6 +13,7 @@ use FastForward\Changelog\Release\ReleaseApplier;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleaseReceipt;
+use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -74,6 +75,26 @@ final class ReleaseApplierTest extends TestCase
         self::assertFalse($this->applier($plan, $state)->isApplied($plan));
         self::assertSame(0, $state['lock_constructions']);
         self::assertSame([], $state['operations']);
+        self::assertSame(0, $state['input_evidence_checks']);
+    }
+
+    /** A source-proof failure aborts before the recovery journal, central output or fragment removals. */
+    public function testUncommittedReleaseInputsCannotReachTheFirstWrite(): void
+    {
+        $plan = $this->plan();
+        $state = $this->state($plan, ['input_evidence_failure' => true]);
+        try {
+            $this->applier($plan, $state)->apply($plan);
+            self::fail('Uncommitted release inputs must fail.');
+        } catch (RuntimeException $error) {
+            self::assertStringContainsString('differs from the approved base', $error->getMessage());
+        }
+        self::assertSame([], $state['operations']);
+        self::assertSame('before', $state['central']);
+        self::assertNull($state['receipt']);
+        self::assertSame(['/consumer/.changelog/a.md' => 'alpha', '/consumer/.changelog/b.md' => 'beta'], $state['fragments']);
+        self::assertSame(1, $state['input_evidence_checks']);
+        self::assertSame(1, $state['releases']);
     }
 
     /** An empty plan MUST be a no-op and MUST not touch I/O, a lock or Git. */
@@ -363,6 +384,7 @@ final class ReleaseApplierTest extends TestCase
             'operations' => [], 'releases' => 0, 'lock_constructions' => 0, 'inventory_reads' => 0,
             'fragment_reads' => 0, 'managed_reads' => 0, 'codec_reads' => 0, 'head_reads' => 0, 'ancestor_reads' => 0,
             'fail_write' => null, 'fail_remove' => false, 'unsafe_directory' => false, 'after_receipt' => [],
+            'input_evidence_failure' => false, 'input_evidence_checks' => 0,
         ], $changes);
     }
 
@@ -456,6 +478,14 @@ final class ReleaseApplierTest extends TestCase
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
         $exceptions->method('invalid')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException($message, previous: $previous));
         $exceptions->method('failure')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException($message, previous: $previous));
-        return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $exceptions);
+        $inputs = $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
+        $inputs->method('validate')->willReturnCallback(static function (ReleasePlan $received) use ($approved, &$state): void {
+            self::assertSame($approved, $received);
+            ++$state['input_evidence_checks'];
+            if ($state['input_evidence_failure']) {
+                throw new RuntimeException('A release input differs from the approved base.');
+            }
+        });
+        return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $exceptions, $inputs);
     }
 }
