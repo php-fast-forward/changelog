@@ -56,7 +56,16 @@ require level three. Consecutive version/date placeholders need a literal
 delimiter outside the SemVer alphabet, such as a space, bracket or colon.
 Adjacent placeholders and separators consisting only of letters, digits, dots,
 hyphens or plus signs fail early because the rendered heading would be ambiguous.
-Unknown settings and incompatible shapes also fail early.
+Unknown settings and incompatible shapes also fail early. An Unreleased heading
+cannot collide with a concrete selected-template release or built-in release
+heading.
+
+Keep a custom template matching the headings already present until a reviewed
+migration changes those headings. Switching to a different custom syntax does
+not reinterpret old release-shaped level-two headings as introductory prose:
+unsupported headings fail explicitly before collection or publication can
+backfill duplicate history. Fence or nest version-bearing Markdown examples that
+are prose, rather than top-level release structure.
 
 An explicitly selected trusted PHP template may return:
 

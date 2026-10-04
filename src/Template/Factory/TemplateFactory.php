@@ -93,7 +93,49 @@ final class TemplateFactory implements TemplateFactoryInterface
             throw new InvalidArgumentException('Dated release headings must contain {date}.');
         }
 
+        $this->validateUnreleasedHeading($settings);
+
         return new KeepAChangelogTemplate($locale, $settings['introduction'], $settings['release_heading'], $settings['release_heading_dated'], $settings['category_headings'], $settings['unreleased_heading'], $settings['no_notes']);
+    }
+
+    /** Rejects pending headings that would also identify a valid custom or legacy release, including calendar-valid dates. */
+    private function validateUnreleasedHeading(array $settings): void
+    {
+        $identifier = '(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)';
+        $version = '[vV]?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)'
+            . '(?:-' . $identifier . '(?:\.' . $identifier . ')*)?'
+            . '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?';
+        $captures = ['version' => '(?<version>' . $version . ')', 'date' => '(?<date>\d{4}-\d{2}-\d{2})'];
+        $patterns = [
+            $this->headingPattern(str_replace('{date}', '', $settings['release_heading']), $captures),
+            $this->headingPattern($settings['release_heading_dated'], $captures),
+            '##[ \t]+\[' . $captures['version'] . '\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+' . $captures['date'] . ')?',
+        ];
+        foreach ($patterns as $pattern) {
+            if (1 !== preg_match('~\A' . $pattern . '(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*\z~u', $settings['unreleased_heading'], $matches)) {
+                continue;
+            }
+            if (isset($matches['date']) && ! checkdate((int) substr($matches['date'], 5, 2), (int) substr($matches['date'], 8, 2), (int) substr($matches['date'], 0, 4))) {
+                continue;
+            }
+            throw new InvalidArgumentException('The unreleased heading must not also identify a valid release heading.');
+        }
+    }
+
+    /** Mirrors selected-template placeholder captures, requiring repeated version/date tokens to retain the same identity. */
+    private function headingPattern(string $heading, array $captures): string
+    {
+        $pattern = preg_quote($heading, '~');
+        foreach ($captures as $name => $capture) {
+            $placeholder = preg_quote('{' . $name . '}', '~');
+            $position = strpos($pattern, $placeholder);
+            if (false === $position) {
+                continue;
+            }
+            $pattern = substr_replace($pattern, $capture, $position, strlen($placeholder));
+            $pattern = str_replace($placeholder, '\k<' . $name . '>', $pattern);
+        }
+        return $pattern;
     }
 
     /** Rejects mixed placeholders without a literal delimiter that makes plain Markdown capture boundaries unambiguous. */
