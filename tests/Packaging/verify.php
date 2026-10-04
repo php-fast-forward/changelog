@@ -212,6 +212,7 @@ function exercise(string $installation, string $consumer, array $environment): v
 
     $git = static fn(array $arguments): array => execute(['git', ...$arguments], $consumer, $environment);
     $git(['init', '--initial-branch=main']);
+    $git(['remote', 'add', 'origin', 'https://github.com/fixture/changelog.git']);
     $git(['config', 'user.name', 'Packaging Fixture']);
     $git(['config', 'user.email', 'fixture@example.invalid']);
     $git(['config', 'commit.gpgsign', 'false']);
@@ -260,7 +261,7 @@ function exercise(string $installation, string $consumer, array $environment): v
     cli($binary, $consumer, $environment, ['backfill', '--check', '--source=tags'], 1);
     $format = summary(cli($binary, $consumer, $environment, ['format', '--dry-run', '--source=tags']));
     verify(null === $format['next_version'] && [] === $format['consumed'] && [] === $format['historical_versions'], 'Format preview must preserve the release inventory.');
-    cli($binary, $consumer, $environment, ['format', '--check', '--source=tags'], 1);
+    cli($binary, $consumer, $environment, ['format', '--check', '--source=tags']);
     cli($binary, $consumer, $environment, ['version', '--dry-run', '--check', '--source=tags'], 2);
     verify($before === snapshot($consumer), 'Preview, check or status mutated consumer bytes.');
 
@@ -276,10 +277,14 @@ function exercise(string $installation, string $consumer, array $environment): v
     $applied = summary(cli($binary, $consumer, $environment, ['version', '--source=tags']));
     verify('1.1.0' === $applied['next_version'], 'The explicit fixture-only maintenance operation changed the approved version.');
     verify(!is_file($consumer . '/.changelog/named.md') && !is_file($consumer . '/.changelog/committed.md'), 'The local transaction did not consume its exact fragment set.');
-    verify(is_file($consumer . '/.changelog/release-plan.json'), 'The local transaction did not retain its receipt.');
+    verify(!is_file($consumer . '/.changelog/release-plan.json'), 'Consolidation introduced a tracked plan file.');
+    verify([] === glob($consumer . '/.git/changelog-release-plan*.json'), 'Successful Git consolidation retained a private journal.');
+    verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), 'fast-forward-changelog:'), 'Consolidation polluted the history with generated metadata comments.');
+    $changed = $git(['diff', '--name-status', '--', 'CHANGELOG.md', '.changelog'])['stdout'];
+    verify("D\t.changelog/committed.md\nD\t.changelog/named.md\nM\tCHANGELOG.md\n" === $changed, 'The release diff must contain only history and consumed fragment deletions.');
     $notes = cli($binary, $consumer, $environment, ['notes', '1.1.0', '--source=tags']);
     verify($preview['notes'] === $notes['stdout'], 'Notes did not return the exact planned managed-history bytes.');
-    verify($notes['stdout'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'], 'Default notes did not select the pending receipt version.');
+    verify($notes['stdout'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'], 'Default notes did not select the latest maintained release.');
     cli($binary, $consumer, $environment, ['notes', '1.1.0', '--output=release-notes.md', '--source=tags']);
     verify($notes['stdout'] === file_get_contents($consumer . '/release-notes.md'), 'Managed notes output changed bytes.');
     $afterOutput = snapshot($consumer);
@@ -289,9 +294,44 @@ function exercise(string $installation, string $consumer, array $environment): v
     verify($afterOutput === snapshot($consumer), 'Rejected notes output modified an existing or managed file.');
     verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'Local consolidation changed unrelated staged work.');
     verify("unrelated working edit\n" === file_get_contents($consumer . '/working.txt'), 'Local consolidation changed unrelated worktree bytes.');
+    verify(is_string($applied['commit_message']), 'Git consolidation did not provide its reusable commit message.');
+    $git(['commit', '--only', '--message', $applied['commit_message'], '--', 'CHANGELOG.md', '.changelog/committed.md', '.changelog/named.md']);
+    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'The consolidation commit changed unrelated staged work.');
+    $approved = trim($git(['rev-parse', 'HEAD'])['stdout']);
+    $proofCode = <<<'PHP'
+require $argv[1];
+$container = \FastForward\Container\container(new \FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider(workingDirectory: getcwd(), temporaryDirectory: $argv[3]));
+$options = $container->get(\FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface::class)->create(['source' => 'tags']);
+$evidence = $container->get(\FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class)->validate($options, $argv[2]);
+fwrite(STDOUT, json_encode(['version' => $evidence->version, 'tag' => $evidence->tag, 'notes' => $evidence->notes], JSON_THROW_ON_ERROR));
+PHP;
+    $proof = json_decode(execute([PHP_BINARY, '-r', $proofCode, $installation . '/vendor/autoload.php', $approved, realpath($environment['TMPDIR'])], $consumer, $environment)['stdout'], true, 512, JSON_THROW_ON_ERROR);
+    verify('1.1.0' === $proof['version'] && 'v1.1.0' === $proof['tag'], 'Committed Git proof calculated the wrong publication identity.');
+    verify($preview['notes'] === $proof['notes'], 'Committed publication proof changed the maintained release notes.');
     verify("v0.9.0\nv1.0.0\n" === $git(['tag', '--list'])['stdout'], 'Local CLI operations created a tag.');
     verify(!str_contains(implode('\n', array_keys(snapshot($consumer))), 'executed-php-config'), 'The default CLI executed implicit PHP configuration.');
     fwrite(STDOUT, "Consumer behavior PASS: {$consumer}\n");
+}
+
+/** Verifies that non-Git consolidation keeps recovery state outside the consumer and cleans it on success. */
+function exerciseNonGit(string $installation, string $consumer, array $environment): void
+{
+    mkdir($consumer, 0700, true);
+    $binary = $installation . '/vendor/bin/changelog';
+    cli($binary, $consumer, $environment, ['add', 'Release output stays readable.', '--category=fixed', '--type=patch', '--name=plain-history.md']);
+    $preview = summary(cli($binary, $consumer, $environment, ['version', '--dry-run', '--source=tags']));
+    verify('0.0.1' === $preview['next_version'], 'Non-Git preview did not calculate its synthetic initial patch.');
+    verify(!is_file($consumer . '/CHANGELOG.md'), 'Non-Git preview wrote central history.');
+    $applied = summary(cli($binary, $consumer, $environment, ['version', '--source=tags']));
+    verify($preview['next_version'] === $applied['next_version'], 'Non-Git application changed its previewed version.');
+    $files = snapshot($consumer);
+    verify(['CHANGELOG.md'] === array_keys($files), 'Non-Git consolidation left a technical file in the consumer.');
+    $central = file_get_contents($consumer . '/CHANGELOG.md');
+    verify(!str_contains($central, 'fast-forward-changelog:'), 'Non-Git history includes synthetic metadata.');
+    verify($preview['notes'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'], 'Non-Git default notes changed planned Markdown.');
+    $journals = glob($environment['TMPDIR'] . '/fast-forward-changelog/*/release-plan.json');
+    verify([] === $journals, 'Successful non-Git application retained a recovery journal.');
+    fwrite(STDOUT, "Non-Git clean consolidation PASS: {$consumer}\n");
 }
 
 try {
@@ -313,6 +353,7 @@ try {
     execute(['composer', 'check-platform-reqs', '--no-dev'], $local, $localEnv);
     runtimeGraph($local);
     exercise($local, $fixtureRoot . '/local-consumer', $localEnv);
+    exerciseNonGit($local, $fixtureRoot . '/non-git-consumer', $localEnv);
     fwrite(STDOUT, "Installing native Composer global runtime...\n");
     execute(['composer', 'global', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'], $fixtureRoot . '/global-consumer', $globalEnv);
     execute(['composer', 'global', 'check-platform-reqs', '--no-dev'], $fixtureRoot . '/global-consumer', $globalEnv);

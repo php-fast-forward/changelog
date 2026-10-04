@@ -60,8 +60,8 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame(['version'], $this->plannerCalls);
         $trees = $this->writes('trees');
         self::assertSame(str_repeat('d', 40), $trees[0][2]['base_tree']);
-        self::assertSame(['CHANGELOG.md', '.changelog/release-plan.json', '.changelog/feature.md'], array_column($trees[0][2]['tree'], 'path'));
-        self::assertNull($trees[0][2]['tree'][2]['sha']);
+        self::assertSame(['CHANGELOG.md', '.changelog/feature.md'], array_column($trees[0][2]['tree'], 'path'));
+        self::assertNull($trees[0][2]['tree'][1]['sha']);
         $commit = $this->writes('commits')[0][2];
         self::assertSame([str_repeat('b', 40)], $commit['parents']);
         self::assertArrayNotHasKey('author', $commit);
@@ -157,10 +157,10 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertTrue($maintenance->maintenance);
         self::assertNull($maintenance->version);
         self::assertStringContainsString('Maintain existing', $this->writes('pulls')[0][2]['body']);
-        self::assertSame(['CHANGELOG.md', '.changelog/release-plan.json'], array_column($this->writes('trees')[0][2]['tree'], 'path'));
+        self::assertSame(['CHANGELOG.md'], array_column($this->writes('trees')[0][2]['tree'], 'path'));
         $this->calls = [];
         $pending = $this->synchronizeFixture(['pending' => true]);
-        self::assertSame('pending-publication', $pending->status);
+        self::assertSame('refused', $pending->status);
         self::assertSame('1.0.1', $pending->version);
         self::assertSame([], $this->writes());
     }
@@ -169,11 +169,11 @@ final class VersionPullRequestServiceTest extends TestCase
     public function pendingPublicationRequiresEveryConsumedFragmentAlreadyAbsentFromBase(): void
     {
         $pending = $this->synchronizeFixture(['pending' => true, 'pending_consumed' => true, 'pending_absent' => true]);
-        self::assertSame('pending-publication', $pending->status);
+        self::assertSame('refused', $pending->status);
         self::assertSame([], $this->writes());
         $partial = $this->synchronizeFixture(['pending' => true, 'pending_consumed' => true]);
         self::assertSame('refused', $partial->status);
-        self::assertStringContainsString('recover the transaction', implode(' ', $partial->diagnostics));
+        self::assertStringContainsString('planned base is stale', implode(' ', $partial->diagnostics));
         self::assertSame([], $this->writes());
     }
 
@@ -213,7 +213,7 @@ final class VersionPullRequestServiceTest extends TestCase
     #[TestWith(['pr_head_mismatch'])]
     #[TestWith(['unowned'])]
     #[TestWith(['wrong_authorization_head'])]
-    #[TestWith(['missing_old_receipt'])]
+    #[TestWith(['unowned'])]
     #[TestWith(['wrong_receipt_id'])]
     #[TestWith(['read_failure'])]
     #[TestWith(['nested_project'])]
@@ -221,7 +221,7 @@ final class VersionPullRequestServiceTest extends TestCase
     public function invalidOrUntrustedInputsFailBeforeMutation(string $case): void
     {
         $settings = [$case => true];
-        if (in_array($case, ['unowned', 'wrong_authorization_head', 'missing_old_receipt', 'unexpected_pr', 'pr_head_mismatch', 'duplicate_pr'], true)) {
+        if (in_array($case, ['unowned', 'wrong_authorization_head', 'unowned', 'unexpected_pr', 'pr_head_mismatch', 'duplicate_pr'], true)) {
             $settings['existing'] = true;
         }
         $result = $this->synchronizeFixture($settings);
@@ -328,7 +328,7 @@ final class VersionPullRequestServiceTest extends TestCase
         $github->method('paginate')->willReturnCallback(static function (string $path) use (&$pr, $settings): array {
             return null === $pr ? [] : (isset($settings['duplicate_pr']) ? [$pr, $pr] : [$pr]);
         });
-        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (&$head, &$pr, &$baseReads, &$headReads, $base, $settings, $input): ?array {
+        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (&$head, &$pr, &$baseReads, &$headReads, $base, $settings, $input, $oldData): ?array {
             $this->calls[] = [$method, $path, $body];
             if (isset($settings['read_failure'])) {
                 throw new RuntimeException('super-secret');
@@ -346,8 +346,11 @@ final class VersionPullRequestServiceTest extends TestCase
                 $sha = isset($settings['head_race']) && $headReads >= 2 ? str_repeat('f', 40) : $head;
                 return null === $sha ? null : ['object' => ['type' => 'commit', 'sha' => $sha]];
             }
+            if ('GET' === $method && str_contains($path, '/commits/') && ! str_contains($path, '/git/')) {
+                return ['commit' => ['message' => 'Changelog-Plan: ' . $oldData['id']]];
+            }
             if (str_contains($path, '/contents/')) {
-                return isset($settings['missing_old_receipt']) ? null : $this->file('old receipt');
+                return isset($settings['unowned']) ? null : $this->file('old receipt');
             }
             if ('GET' === $method && str_contains($path, '/git/commits/')) {
                 return isset($settings['missing_tree']) ? null : ['tree' => ['sha' => str_repeat('d', 40)]];
@@ -391,7 +394,7 @@ final class VersionPullRequestServiceTest extends TestCase
             return isset($settings['stale_local']) || (isset($settings['local_race']) && $localReads >= 2) ? str_repeat('f', 40) : $base;
         });
         $git->method('readFileAt')->willReturnCallback(static fn(string $directory, string $sha, string $path): ?string => match ($path) {
-            'CHANGELOG.md' => isset($settings['dirty_document']) ? 'dirty' : $original,
+            'CHANGELOG.md' => isset($settings['dirty_document']) || isset($settings['dirty_receipt']) ? 'dirty' : $original,
             '.changelog/release-plan.json' => isset($settings['dirty_receipt']) ? 'dirty' : $originalReceipt,
             default => isset($settings['missing_fragment']) || isset($settings['pending_absent']) ? null : (isset($settings['changed_recovery_fragment']) ? 'changed' : 'fragment'),
         });

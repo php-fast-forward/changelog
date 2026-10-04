@@ -20,11 +20,11 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Template\TemplateInterface;
 
-/** Builds localized category structure while retaining fragment identity and Markdown. */
+/** Builds readable localized release notes while preserving descriptions and useful links. */
 final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterface
 {
     /**
-     * Persists canonical category and fragment metadata in invisible semantic markers.
+     * Renders descriptions and references without leaking technical fragment metadata.
      * @param list<Changeset> $changesets independent author records
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
@@ -37,19 +37,14 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                 if ($change->category !== $category) {
                     continue;
                 }
-                $metadata = json_encode([
-                    'id' => $change->id, 'category' => $category->value, 'type' => $change->type->value,
-                    'issue' => $change->issue, 'pull_request' => $change->pullRequest, 'author' => $change->author,
-                ], JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_UNESCAPED_SLASHES);
                 $multiline = str_contains($change->description, "\n");
                 $body = ($multiline ? "-\n  " : '- ') . str_replace("\n", "\n  ", $change->description);
                 $references = $this->references($change, $repository);
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
-                $entries[] = '<!-- fast-forward-changelog:fragment ' . $metadata . " -->\n" . $body . $suffix;
+                $entries[] = $body . $suffix;
             }
             if ([] !== $entries) {
-                $sections[] = '<!-- fast-forward-changelog:category ' . $category->value . " -->\n"
-                    . $template->categoryHeading($category->value) . "\n\n" . implode("\n\n", $entries);
+                $sections[] = $template->categoryHeading($category->value) . "\n\n" . implode("\n\n", $entries);
             }
         }
         return [] === $sections ? '' : implode("\n\n", $sections) . "\n";

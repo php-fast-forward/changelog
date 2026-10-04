@@ -1,119 +1,61 @@
 # Publication from an approved commit
 
-Publication requires an explicit complete approved commit SHA. It never selects a
-moving branch or calculates another release. `CHANGELOG.md` at that commit is the
-only source of the GitHub Release body. The generated receipt records evidence;
-its ID proves internal consistency and does not grant publication authority.
-The caller must supply the SHA approved by the trusted release workflow.
+Publication receives the complete approved commit SHA. It never chooses a moving
+branch or calculates a second release. `CHANGELOG.md` at that exact commit is
+the source of the GitHub Release body. No tracked release-plan file is required.
+The caller must already have publication authority for that SHA.
 
 `PublicationServiceInterface::publish(options, approvedSha, dryRun = false)`
-returns an immutable `PublicationResult` with `state`, `version`, `tag`, `sha`,
-`url` and ordered `actions`. `summary()` exposes those exact machine fields.
+returns state, version, tag, SHA, URL and ordered actions. States distinguish
+maintenance, dry-run, published and unchanged. Actions are `create_tag` and
+`create_release`.
 
-| State | Meaning |
-| --- | --- |
-| `maintenance` | Receipt has no new version; no remote requests, tag or release |
-| `dry-run` | Local proof and remote reads succeeded; actions are proposed only |
-| `published` | Missing remote objects were requested and their persisted state verified |
-| `unchanged` | Exact matching tag and published release already exist |
+## Reconstruct committed evidence
 
-The action names are `create_tag` and `create_release`. A dry run reports what
-would be created. A normal run records creation attempts, including an uncertain
-response that was subsequently recovered through a successful authoritative read.
+Before any remote mutation, publication verifies:
 
-## Commit evidence
+- The full target SHA resolves exactly and the central document is a regular
+  tracked blob. Symbolic and submodule entries fail.
+- The consolidation's scalar Git commit trailers identify the source base,
+  output hash and option fingerprint. Merge targets must resolve consistent
+  transaction evidence matching their exact central bytes; a squash must retain
+  the trailers. Missing, conflicting or ambiguous evidence fails.
+- The source base is an ancestor of the approved target. Its complete pending
+  Markdown inventory consists of direct canonical regular fragments.
+- Every source fragment is parsed from its exact committed blob and is absent
+  from the approved target. No pending Markdown remains at that target.
+- Stable tags reachable from the source base establish the current version.
+  The complete source fragment set establishes SemVer impact and next version.
+- Notes extracted from the approved central section exactly match the complete
+  canonical fragment rendering and supported history round trip. The central
+  output hash and option fingerprint match the committed transaction.
 
-Before any remote mutation, publication verifies all of the following:
+Neither copied trailers nor a consistent hash grant publication authority.
+The merged-PR workflow separately verifies repository, branches, Bot identity,
+signed original head and approved merge target before invoking publication.
 
-- The supplied full SHA resolves to that exact commit. Receipt and central
-  changelog are regular tracked blobs, including their modes; symbolic and
-  submodule entries are rejected.
-- Receipt settings agree with the explicit options. The central document equals
-  the generated target snapshot and its SHA-256 hash.
-- A release receipt has an explicit repository and Git base. That base is an
-  ancestor of the approved commit, and its central bytes match the original
-  changelog hash.
-- The receipt consumes the complete Markdown fragment inventory at its base,
-  excluding only root `AGENTS.md`. Nested, hidden, noncanonical or symbolic
-  fragments fail. Every original fragment hash is checked against its exact base
-  blob, then its schema is parsed again.
-- No pending Markdown fragment remains at the approved consolidation commit,
-  including newly added, nested or symbolic files. Every declared consumed path
-  is also checked absent. A stale consolidation is rejected instead of publishing
-  a partial release. The workflow must target its exact approved merge SHA.
-- The current version comes from stable tags whose peeled commit is reachable
-  from the receipt base. Future/unrelated tags are excluded. Impact and next
-  version are recomputed from all consumed fragments and must match the receipt.
-  Existing stable versions may retain build metadata; the new resolved version
-  uses its numeric semantic version.
-- The approved version's exact notes are extracted from `CHANGELOG.md`, compared
-  with the receipt bytes/hash, and compared with the canonical complete fragment
-  rendering after an isolated history round trip.
-
-Publication never reads unstaged fragment or central document bytes. A built-in
-presentation can publish an explicit older approved SHA independently of the
-current checkout. An explicitly selected PHP template additionally requires
-`HEAD` to equal the approved SHA, a canonical regular tracked template path, and
-exact equality between its committed and guarded working file bytes before
-execution. Privileged callers must select trusted approved template code.
-
-Maintenance verifies its committed receipt and central snapshot, then returns
-without publishing a tag or release. It does not resolve notes or consume pending
-fragments.
+No unstaged central or fragment bytes are used. Built-in presentation can target
+an older approved commit. A custom PHP template additionally requires that exact
+checked-out HEAD, a canonical regular tracked path and unchanged trusted bytes
+before execution. Maintenance creates no tag or release.
 
 ## Remote reconciliation
 
-The authenticated `GitHubClientInterface` is injected. Constructors do not load
-credentials, invoke Git commands, read files or send HTTP. The service first reads
-the exact tag reference and release by tag, and rejects divergence before creating
-anything. Lightweight refs are checked directly. Annotated objects are peeled
-through controlled relative endpoints, with cycle detection and a maximum of
-8 tag objects. Server-supplied object URLs are never followed.
+The injected GitHub client reads the exact tag and release before mutation.
+A conflicting tag is never moved; divergent release notes are never updated.
+Annotated tags are peeled through controlled relative endpoints with cycle and
+depth limits. Server-supplied object URLs are never followed.
 
-A missing tag is created with `ref = refs/tags/<tag>` and the approved SHA. There
-is no update, force push, delete or tag movement. After creation, a fresh read must
-confirm its commit. A missing release uses the approved SHA as `target_commitish`,
-its tag as the title, and exact extracted central notes as `body`, with `draft`,
-`prerelease` and `generate_release_notes` all false. The tag is checked again before
-and after release creation. These payloads follow GitHub's
-[reference API](https://docs.github.com/en/rest/git/refs?apiVersion=2026-03-10),
-[tag-object API](https://docs.github.com/en/rest/git/tags?apiVersion=2026-03-10) and
-[release API](https://docs.github.com/en/rest/releases/releases?apiVersion=2026-03-10).
+A missing tag targets the approved SHA. A missing release uses that tag, the same
+approved SHA and exact central notes, with draft, prerelease and generated-notes
+flags disabled. Fresh reads confirm persisted state after each creation.
+A matching tag without its release is completed on retry. Uncertain responses
+are reconciled by authoritative reads; absent or conflicting results fail with
+a recoverable diagnostic. Repeating a complete publication returns unchanged.
 
-An existing tag must point to the approved commit. An existing release must have
-the exact tag and body and be a stable published release. Divergent objects are
-never edited. A tag without its release is completed safely on retry. A lost POST
-response or concurrent creation is reconciled by reading the persisted object;
-an absent or conflicting result fails with a recoverable diagnostic. A created
-tag is retained when release creation fails. Repeating a complete publication
-returns `unchanged` without further mutations.
+Dry-run performs proof and remote reads without POST, PATCH or DELETE.
+Unit tests replace Git, filesystem, templates, factories and HTTP; they create
+no real release and use no user credentials.
 
-A dry run performs the same local proof and remote GET requests, returns proposed
-actions and never sends POST, PATCH or DELETE. Unit tests replace all filesystem,
-Git, template, factory and HTTP boundaries with deterministic doubles; no real
-release, credential or user workspace is used.
-
-## Composition
-
-Register the following aliases:
-
-- `PublicationServiceInterface` → `PublicationService`.
-- `PublicationEvidenceValidatorInterface` → `PublicationEvidenceValidator`.
-- `PublicationEvidenceFactoryInterface` → `PublicationEvidenceFactory`.
-- `PublicationResultFactoryInterface` → `PublicationResultFactory`.
-
-The service constructor is `(PublicationEvidenceValidatorInterface,
-GitHubClientInterface, PublicationResultFactoryInterface,
-ReleaseExceptionFactoryInterface)`.
-
-The evidence validator constructor is `(GitRepositoryInterface,
-ReceiptCodecInterface, HistoryCodecInterface, ChangesetParserInterface,
-NextVersionResolverInterface, HistoryImporterInterface,
-ReleaseNotesRendererInterface, TemplateResolverInterface,
-PackagePathResolverInterface, ManagedFileStoreInterface,
-HistoryReleaseFactoryInterface, HistoryDocumentFactoryInterface,
-PublicationEvidenceFactoryInterface, ReleaseExceptionFactoryInterface)`.
-
-`GitRepositoryInterface::filesAt(directory, reference, relativePath)` supplies
-complete relative tree entries with `path` and `mode`. `tags()` supplies peeled
-commit SHAs. All Git access here is read-only.
+See [local recovery](release-receipts.md), [managed PRs](version-pull-request.md)
+and [workflow contracts](github-actions.md).

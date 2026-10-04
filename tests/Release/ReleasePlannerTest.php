@@ -21,6 +21,7 @@ use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
+use FastForward\Changelog\Release\ReleaseJournalPathResolverInterface;
 use FastForward\Changelog\Release\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
@@ -139,16 +140,15 @@ final class ReleasePlannerTest extends TestCase
         [$planner, $parts] = $this->planner(['receipt' => $receipt, 'versionsMock' => true, 'importerMock' => true]);
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['importer']->expects(self::never())->method('import');
-        $parts['plans']->expects(self::once())->method('resume')->with(self::isInstanceOf(ReleaseOptions::class), $receipt, '/consumer/CHANGELOG.md', 'before', '/consumer/.changelog/release-plan.json', 'receipt')->willReturn($parts['plan']);
+        $parts['plans']->expects(self::once())->method('resume')->with(self::isInstanceOf(ReleaseOptions::class), $receipt, '/consumer/CHANGELOG.md', 'before', '/consumer/.git/changelog-release-plan.json', 'receipt')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
     /** Published receipt evidence does not prevent the next independent release calculation. */
-    public function testPublishedReceiptAllowsANewPlan(): void
+    public function testPublishedTagCannotDiscardAnInterruptedLocalJournal(): void
     {
-        [$planner, $parts] = $this->planner(['receipt' => $this->receipt(), 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA]]]);
-        $parts['plans']->expects(self::never())->method('resume');
-        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+        [$planner, $parts] = $this->planner(['receipt' => $this->receipt(), 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA, 'date' => null, 'date_source' => null]]]);
+        $parts['plans']->expects(self::once())->method('resume')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
@@ -288,7 +288,7 @@ final class ReleasePlannerTest extends TestCase
         $receipt = new ReleaseReceipt($data);
         [$planner, $parts] = $this->planner(['receipt' => $receipt, 'original' => $original, 'fragments' => true, 'clockMock' => true]);
         $parts['clock']->expects(self::never())->method('now');
-        $parts['plans']->expects(self::once())->method('resume')->with(self::isInstanceOf(ReleaseOptions::class), $receipt, '/consumer/CHANGELOG.md', $original, '/consumer/.changelog/release-plan.json', 'receipt')->willReturn($parts['plan']);
+        $parts['plans']->expects(self::once())->method('resume')->with(self::isInstanceOf(ReleaseOptions::class), $receipt, '/consumer/CHANGELOG.md', $original, '/consumer/.git/changelog-release-plan.json', 'receipt')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
@@ -311,6 +311,7 @@ final class ReleasePlannerTest extends TestCase
     {
         $data = $this->receipt()->data;
         $data['next_version'] = null;
+        $data['notes'] = '';
         $data['notes_sha256'] = hash('sha256', '');
         [$planner, $parts] = $this->planner(['receipt' => new ReleaseReceipt($data), 'original' => 'original', 'failure' => 'invalid', 'fragments' => true, 'validatorMock' => true]);
         $parts['validator']->expects(self::never())->method('validate');
@@ -334,7 +335,7 @@ final class ReleasePlannerTest extends TestCase
         return new ReleaseReceipt(['base_sha' => self::SHA, 'next_version' => '1.0.1', 'changelog_file' => 'CHANGELOG.md',
             'fragment_directory' => '.changelog', 'locale' => 'en', 'template' => 'keep-a-changelog',
             'tag_prefix' => 'v', 'repository' => null, 'consumed' => [],
-            'before_changelog_sha256' => hash('sha256', 'original'), 'changelog_contents' => 'before', 'after_changelog_sha256' => hash('sha256', 'before'), 'notes_sha256' => hash('sha256', "Exact notes\n")]);
+            'before_changelog_sha256' => hash('sha256', 'original'), 'changelog_contents' => 'before', 'after_changelog_sha256' => hash('sha256', 'before'), 'notes' => "Exact notes\n", 'notes_sha256' => hash('sha256', "Exact notes\n")]);
     }
 
     /** All external collaborators are doubles; clock/date values are fixed input data. */
@@ -343,14 +344,16 @@ final class ReleasePlannerTest extends TestCase
         $options = new ReleaseOptions('/consumer');
         $document = $settings['document'] ?? new HistoryDocument();
         $template = $this->createStub(TemplateInterface::class);
-        $plan = new ReleasePlan($options, 'id', self::SHA, '1.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'before', 'after', '', '/consumer/.changelog/release-plan.json', null, 'receipt');
+        $plan = new ReleasePlan($options, 'id', self::SHA, '1.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'before', 'after', '', '/consumer/.git/changelog-release-plan.json', null, 'receipt');
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturnCallback(static fn(string $path): string => '/consumer/' . $path);
         $paths->method('relativePath')->willReturnCallback(static fn(string $path): string => substr($path, strlen('/consumer/')));
         $files = $this->createMock(ManagedFileStoreInterface::class);
         $original = array_key_exists('original', $settings) ? $settings['original'] : 'before';
-        $files->method('read')->willReturnMap([['/consumer/CHANGELOG.md', $original], ['/consumer/.changelog/release-plan.json', isset($settings['receipt']) ? 'receipt' : null]]);
+        $files->method('read')->willReturnMap([['/consumer/CHANGELOG.md', $original], ['/consumer/.git/changelog-release-plan.json', isset($settings['receipt']) ? 'receipt' : null]]);
         $files->expects(self::never())->method('write');
+        $journals = $this->createStub(ReleaseJournalPathResolverInterface::class);
+        $journals->method('resolve')->willReturn('/consumer/.git/changelog-release-plan.json');
         $git = $this->createStub(GitRepositoryInterface::class);
         $git->method('isRepository')->willReturn($settings['repository'] ?? true);
         $git->method('resolveRef')->willReturnOnConsecutiveCalls(self::SHA, ($settings['baseMismatch'] ?? false) ? str_repeat('b', 40) : self::SHA);
@@ -400,6 +403,7 @@ final class ReleasePlannerTest extends TestCase
             $plans,
             $exceptions,
             $inputs,
+            $journals,
         ),
             compact('document', 'template', 'plan', 'files', 'git', 'history', 'importer', 'validator', 'versions', 'releases', 'clock', 'plans', 'inputs', 'templates')];
     }

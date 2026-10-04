@@ -118,7 +118,7 @@ of an ordinary contribution. These commands also power their dedicated workflows
 
 Preview `status`, then `version --dry-run` with the same settings. Review the
 machine plan's current/next version, effective impact, consumed paths, historical
-additions, notes and affected files. Its receipt ID proves consistency and does
+additions, notes and affected files. Its plan ID proves consistency and does
 not provide approval.
 
 Fresh Git-backed release application compares the original central bytes, the
@@ -130,16 +130,17 @@ dirty files and staged work remain independent; read-only status and fragment
 previews can still inspect uncommitted contributions. Outside Git, explicitly
 trusted local templates remain supported.
 
-An authorized version operation writes its generated receipt journal, writes the
-planned central snapshot, then removes only the validated consumed fragments.
-Review the central file, receipt and those deletions together in the version PR.
-Retry the same settings after an interruption; preserve the journal and remaining
-fragments. New or modified inputs fail closed. See [transaction and recovery
+An authorized version operation writes a local recovery journal outside the
+versioned tree, writes the planned central snapshot, then removes only the
+validated fragments and deletes the journal. Review the central file and fragment
+deletions in the version PR; no plan file is committed. Retry the same settings
+after an interruption, preserving the journal and remaining fragments. Changed
+inputs block stale recovery. See [transaction and recovery
 contracts](release-receipts.md).
 
-Backfill and format preserve pending fragments. Human maintenance PRs commit only
-the central history and keep the generated journal local for recovery. Verified
-bot-managed maintenance can include its generated transaction evidence.
+Backfill and format preserve pending fragments. Maintenance PRs commit only
+the central history; recovery journals remain outside the versioned tree and are
+removed after success.
 History uses actual stable Git
 tags as version authority; GitHub can supply published notes/dates for those tags.
 Annotated tag dates have explicit provenance, lightweight tags with unavailable
@@ -154,7 +155,7 @@ central evidence, and uses only its exact central section body. It refuses any
 remaining pending Markdown at that commit, including newer fragments that were
 not consumed by the plan. Tags pointing elsewhere and divergent published notes
 are never changed. A partial tag without release can be completed by retrying the
-same SHA. Maintenance receipts create no tag/release. Custom PHP presentation
+same SHA. Maintenance consolidations create no tag/release. Custom PHP presentation
 also requires the approved checkout and unchanged tracked template bytes.
 See [publication contracts](publication.md).
 
@@ -210,7 +211,7 @@ historical_versions/notes/affected_files/resuming. `ValidationReport::isValid()`
 checks its diagnostic map; valid pending inventory is not a new-contribution
 count. Exact accepted input hashes are transaction evidence. Publication results
 expose state/version/tag/sha/url/actions with `summary()`. See the linked domain
-documents for construction boundaries, receipt schema and failure recovery.
+documents for construction boundaries, local plan serialization and failure recovery.
 
 ## A short adoption prompt
 

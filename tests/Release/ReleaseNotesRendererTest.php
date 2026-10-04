@@ -33,7 +33,7 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertSame('', new ReleaseNotesRenderer()->render([], $template));
     }
 
-    /** Descriptions retain Markdown, category identity and independent fragment metadata. */
+    /** Descriptions retain Markdown, stable category order and useful references without technical metadata. */
     public function testCategoriesAndIdsHaveStableOrderAndTrustedReferences(): void
     {
         $template = $this->createStub(TemplateInterface::class);
@@ -44,17 +44,17 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('a.md', Category::Added, null, null, null, 'Feature a.'),
         ];
         $notes = new ReleaseNotesRenderer()->render($changes, $template, 'owner/project');
-        self::assertStringContainsString('<!-- fast-forward-changelog:category added -->', $notes);
+        self::assertStringNotContainsString('fast-forward-changelog:', $notes);
         self::assertStringContainsString('### custom added', $notes);
-        self::assertLessThan(strpos($notes, '"id":"b.md"'), strpos($notes, '"id":"a.md"'));
-        self::assertLessThan(strpos($notes, 'category fixed'), strpos($notes, 'category added'));
-        self::assertStringContainsString('"type":"patch","issue":12,"pull_request":42,"author":"someone[bot]"', $notes);
+        self::assertLessThan(strpos($notes, 'Feature **b**.'), strpos($notes, 'Feature a.'));
+        self::assertLessThan(strpos($notes, '### custom fixed'), strpos($notes, '### custom added'));
+        self::assertStringNotContainsString('b.md', $notes);
         self::assertStringContainsString("-\n  Feature **b**.\n  \n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])", $notes);
         self::assertStringEndsWith("\n", $notes);
     }
 
     /** Unknown repository context preserves references without fabricating destinations. */
-    public function testPlainReferencesAndSingleLineMetadataAreRetained(): void
+    public function testPlainReferencesAndSingleLineDescriptionsAreRetained(): void
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Changed');

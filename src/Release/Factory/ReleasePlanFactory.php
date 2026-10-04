@@ -21,7 +21,7 @@ use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleaseReceipt;
 
-/** Produces deterministic transaction evidence beside the single maintained changelog. */
+/** Produces deterministic transaction evidence without adding tracked technical files. */
 final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
 {
     /** Shares canonical receipt validation and identity generation with receipt reads. */

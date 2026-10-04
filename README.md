@@ -107,9 +107,10 @@ See [GitHub action contracts](docs/github-actions.md),
 [version PRs](docs/version-pull-request.md), [policy](docs/policies.md) and
 [publication](docs/publication.md).
 
-Human backfill/format PRs commit only the central history; their generated journal
-stays local for recovery. Verified bot-managed maintenance may include its
-generated transaction evidence.
+Version PRs update only the central history and delete the consumed fragments.
+No plan file is added to `.changelog/`. Recovery journals stay outside the working
+tree and are removed after successful application; maintenance PRs update only
+the central history.
 
 This repository uses the same runtime and local actions for its own changelog.
 The [self-hosting examples](docs/self-changelog.md) explain events, defaults,

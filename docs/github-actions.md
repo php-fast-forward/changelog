@@ -2,7 +2,7 @@
 
 The five reusable workflows run the same PHP services as the local CLI. A
 contribution adds a fragment; version automation opens one managed PR; approval
-and merge precede publication of its receipt-backed tag and GitHub Release.
+and merge precede publication of its verified tag and GitHub Release.
 History maintenance is a separate operation.
 
 The examples below pin the reviewed full product commit `d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7`. Keep every consumer reference immutable when updating the runtime.
@@ -75,7 +75,7 @@ It compares the contribution with `base-sha`. A stale live PR head fails the
 shared check. The public labels `changelog-not-required` and
 `changelog-maintenance` are requests: the latest label grant must be by a current
 maintainer/admin to authorize a waiver or central-history edit. Editable PR text
-and copied receipts confer no authority. See [the policy contract](policies.md).
+and copied commit trailers confer no authority. See [the policy contract](policies.md).
 
 ## Dependabot fragments
 
@@ -165,10 +165,10 @@ jobs:
 
 The job checks out the fresh base and compares it with GitHub before planning.
 It creates or updates one same-repository managed PR. Updates require the
-configured Bot's verified signed head, receipt and exact allowed file scope;
+configured Bot's verified signed head, transaction trailers and exact allowed file scope;
 human edits are refused. It serializes with publication for the same repository
 and base branch. Repeated unchanged plans produce no extra commits, empty plans
-produce no new PR, and a merged receipt awaiting publication blocks a second
+produce no new PR, and a merged consolidation awaiting publication blocks a second
 version transaction. A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
@@ -214,10 +214,10 @@ jobs:
 The checkout is the approved merge target, never the PR head. Event values must
 match the supplied PR, original head and merge target. The runner also fetches
 the live merged PR and verifies repository, branches, Bot ownership, signed head
-and receipt against that target before tag/release creation. The tag resolves to
+and committed consolidation against that target before tag/release creation. The tag resolves to
 that approved commit and the notes come from its central history. A maintenance
-receipt creates no public release. `dry-run: true` validates without publication.
-See [publication](publication.md) and [receipts](release-receipts.md).
+consolidation creates no public release. `dry-run: true` validates without publication.
+See [publication](publication.md) and [local recovery](release-receipts.md).
 
 ## Backfill or format trusted history
 

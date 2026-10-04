@@ -10,6 +10,7 @@ use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseApplier;
+use FastForward\Changelog\Release\ReleaseJournalPathResolverInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleaseReceipt;
@@ -40,12 +41,13 @@ final class ReleaseApplierTest extends TestCase
         $applier = $this->applier($plan, $state);
         self::assertTrue($applier->apply($plan));
         self::assertSame([
-            ['write', '/consumer/.changelog/release-plan.json'],
+            ['write', '/consumer/.git/changelog-release-plan.json'],
             ['write', '/consumer/CHANGELOG.md'],
             ['remove', ['/consumer/.changelog/a.md', '/consumer/.changelog/b.md']],
         ], $state['operations']);
         self::assertSame('after', $state['central']);
-        self::assertSame($plan->receiptContents, $state['receipt']);
+        self::assertNull($state['receipt']);
+        self::assertSame(1, $state['journal_removals']);
         self::assertSame([], $state['fragments']);
         self::assertSame(2, $state['inventory_reads']);
         self::assertSame(4, $state['fragment_reads']);
@@ -261,6 +263,29 @@ final class ReleaseApplierTest extends TestCase
         self::assertSame(3, $state['releases']);
     }
 
+    /** Failure to remove a completed local journal can be retried without recreating history or consuming another set. */
+    public function testCompletedJournalCleanupFailureRetriesWithoutAnotherRelease(): void
+    {
+        $plan = $this->plan();
+        $state = $this->state($plan, ['fail_journal_cleanup' => true]);
+        $applier = $this->applier($plan, $state);
+        try {
+            $applier->apply($plan);
+            self::fail('Interrupted journal cleanup must be reported.');
+        } catch (RuntimeException $error) {
+            self::assertStringContainsString('journal cleanup interruption', $error->getMessage());
+        }
+        self::assertSame('after', $state['central']);
+        self::assertSame([], $state['fragments']);
+        self::assertSame($plan->receiptContents, $state['receipt']);
+        $operations = $state['operations'];
+        $state['fail_journal_cleanup'] = false;
+        self::assertFalse($applier->apply($plan));
+        self::assertSame($operations, $state['operations']);
+        self::assertNull($state['receipt']);
+        self::assertSame(1, $state['journal_removals']);
+    }
+
     /** An external writer racing either durable write MUST not make an unknown/modified fragment removable. */
     #[DataProvider('writeRaces')]
     public function testPostWriteInventoryAndHashRecheckRejectsRacingInputs(array $racing): void
@@ -319,7 +344,7 @@ final class ReleaseApplierTest extends TestCase
     {
         yield [['ancestor' => false], 'HEAD'];
         yield [['central' => 'manual edit'], 'Central changelog changed'];
-        yield [['receipt' => null], 'Release receipt changed'];
+        yield [['receipt' => 'manual edit'], 'Release receipt changed'];
     }
 
     /** Historical maintenance without a Git repository MUST write both outputs without removing anything. */
@@ -369,7 +394,7 @@ final class ReleaseApplierTest extends TestCase
             'currentVersion' => '1.0.0', 'nextVersion' => '1.0.1', 'impact' => 'patch',
             'consumed' => ['/consumer/.changelog/a.md' => hash('sha256', 'alpha'), '/consumer/.changelog/b.md' => hash('sha256', 'beta')],
             'historicalVersions' => ['0.1.0'], 'changelogPath' => '/consumer/CHANGELOG.md', 'originalChangelog' => 'before',
-            'changelogContents' => 'after', 'notes' => "Exact  notes\n", 'receiptPath' => '/consumer/.changelog/release-plan.json',
+            'changelogContents' => 'after', 'notes' => "Exact  notes\n", 'receiptPath' => '/consumer/.git/changelog-release-plan.json',
             'originalReceipt' => null, 'receiptContents' => 'approved receipt', 'resuming' => false,
         ], $changes));
     }
@@ -421,6 +446,16 @@ final class ReleaseApplierTest extends TestCase
             $state[$path === $approved->changelogPath ? 'central' : 'receipt'] = $contents;
             if ($path === $approved->receiptPath) {
                 $state['fragments'] = array_replace($state['fragments'], $state['after_receipt']);
+            }
+        });
+        $files->method('remove')->willReturnCallback(static function (string $path) use ($approved, &$state): void {
+            self::assertSame($approved->receiptPath, $path);
+            if ($state['fail_journal_cleanup'] ?? false) {
+                throw new RuntimeException('journal cleanup interruption');
+            }
+            if (null !== $state['receipt']) {
+                $state['journal_removals'] = ($state['journal_removals'] ?? 0) + 1;
+                $state['receipt'] = null;
             }
         });
         $fragments = $this->createStub(ChangesetStoreInterface::class);
@@ -486,6 +521,8 @@ final class ReleaseApplierTest extends TestCase
                 throw new RuntimeException('A release input differs from the approved base.');
             }
         });
-        return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $exceptions, $inputs);
+        $journals = $this->createStub(ReleaseJournalPathResolverInterface::class);
+        $journals->method('resolve')->willReturn('/consumer/.git/changelog-release-plan.json');
+        return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $exceptions, $inputs, $journals);
     }
 }

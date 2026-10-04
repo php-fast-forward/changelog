@@ -50,8 +50,10 @@ used across Fast Forward PHP packages.
 - Preserve deterministic rendering and exact historical Markdown.
 - Ordinary contributions add unique fragments. Approved consolidation consumes
   only its validated set and updates the single central history through services.
-- Receipts are generated transaction evidence, not editable release history or
-  publication authority. Privileged automation verifies its own trusted context.
+- Release PRs update the central history and delete consumed fragments; they
+  MUST NOT introduce technical plan files or generated metadata comments.
+- Recovery journals stay outside the versioned tree and are removed on success.
+  Privileged automation verifies its trusted context and committed Git evidence.
 
 One root contract owns source, tests, docs and development. Ordinary directories
 do not need duplicate `AGENTS.md` files. Host entrypoints are adapters; skill

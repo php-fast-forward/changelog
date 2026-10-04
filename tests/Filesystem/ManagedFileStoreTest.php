@@ -58,9 +58,13 @@ final class ManagedFileStoreTest extends TestCase
     {
         $filesystem = $this->prophesize(Filesystem::class);
         $store = $this->store($filesystem);
-        foreach (['read', 'write'] as $operation) {
+        foreach (['read', 'write', 'remove'] as $operation) {
             try {
-                'read' === $operation ? $store->read($path) : $store->write($path, 'contents');
+                match ($operation) {
+                    'read' => $store->read($path),
+                    'write' => $store->write($path, 'contents'),
+                    'remove' => $store->remove($path),
+                };
                 self::fail('Unsafe managed path must fail.');
             } catch (RuntimeException $error) {
                 self::assertStringContainsString('Unsafe managed path: ' . $path, $error->getMessage());
@@ -80,14 +84,18 @@ final class ManagedFileStoreTest extends TestCase
     public function testSymbolicAncestorIsNeverFollowed(): void
     {
         $filesystem = $this->filesystem();
-        $filesystem->readlink('/consumer')->willReturn('/elsewhere')->shouldBeCalledTimes(2);
+        $filesystem->readlink('/consumer')->willReturn('/elsewhere')->shouldBeCalledTimes(3);
         $filesystem->exists(Argument::any())->shouldNotBeCalled();
         $filesystem->readFile(Argument::any())->shouldNotBeCalled();
         $filesystem->dumpFile(Argument::any(), Argument::any())->shouldNotBeCalled();
         $store = $this->store($filesystem);
-        foreach (['read', 'write'] as $operation) {
+        foreach (['read', 'write', 'remove'] as $operation) {
             try {
-                'read' === $operation ? $store->read('/consumer/CHANGELOG.md') : $store->write('/consumer/CHANGELOG.md', 'contents');
+                match ($operation) {
+                    'read' => $store->read('/consumer/CHANGELOG.md'),
+                    'write' => $store->write('/consumer/CHANGELOG.md', 'contents'),
+                    'remove' => $store->remove('/consumer/CHANGELOG.md'),
+                };
                 self::fail('Symbolic ancestor must fail.');
             } catch (RuntimeException $error) {
                 self::assertStringContainsString('Symbolic managed path or ancestor: /consumer', $error->getMessage());
@@ -101,7 +109,7 @@ final class ManagedFileStoreTest extends TestCase
     public function testSymbolicDriveRootIsNeverFollowed(string $parent): void
     {
         $filesystem = $this->filesystem();
-        $filesystem->readlink('C:/')->willReturn('/outside')->shouldBeCalledTimes(2);
+        $filesystem->readlink('C:/')->willReturn('/outside')->shouldBeCalledTimes(3);
         $filesystem->readlink('C:')->shouldNotBeCalled();
         $filesystem->exists(Argument::any())->shouldNotBeCalled();
         $filesystem->readFile(Argument::any())->shouldNotBeCalled();
@@ -109,9 +117,13 @@ final class ManagedFileStoreTest extends TestCase
         $store = $this->store($filesystem);
 
         DirectoryName::withParent('C:/consumer', $parent, static function () use ($store): void {
-            foreach (['read', 'write'] as $operation) {
+            foreach (['read', 'write', 'remove'] as $operation) {
                 try {
-                    'read' === $operation ? $store->read('c:\\consumer\\CHANGELOG.md') : $store->write('c:\\consumer\\CHANGELOG.md', 'contents');
+                    match ($operation) {
+                        'read' => $store->read('c:\\consumer\\CHANGELOG.md'),
+                        'write' => $store->write('c:\\consumer\\CHANGELOG.md', 'contents'),
+                        'remove' => $store->remove('c:\\consumer\\CHANGELOG.md'),
+                    };
                     self::fail('A symbolic drive root must prevent managed-file access.');
                 } catch (RuntimeException $error) {
                     self::assertSame('Symbolic managed path or ancestor: C:/', $error->getMessage());
@@ -156,6 +168,45 @@ final class ManagedFileStoreTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Symbolic managed path');
         $this->store($filesystem)->write('/consumer/.changelog/release-plan.json', 'receipt');
+    }
+
+    /** Completed transaction cleanup removes one exact regular journal and ignores an absent journal. */
+    public function testRemovalIsIdempotentAndRequiresReadableFileBytes(): void
+    {
+        $filesystem = $this->filesystem();
+        $path = '/consumer/.git/changelog-release-plan.json';
+        $filesystem->exists($path)->willReturn(true, false)->shouldBeCalledTimes(2);
+        $filesystem->readFile($path)->willReturn('journal')->shouldBeCalledOnce();
+        $filesystem->remove($path)->shouldBeCalledOnce();
+        $filesystem->readlink($path)->willReturn(null)->shouldBeCalledTimes(3);
+        $store = $this->store($filesystem);
+        $store->remove($path);
+        $store->remove($path);
+    }
+
+    /** A directory or unreadable journal cannot reach Symfony's recursive removal operation. */
+    public function testDirectoryOrUnreadableTargetIsPreserved(): void
+    {
+        $filesystem = $this->filesystem();
+        $path = '/consumer/.git/changelog-release-plan.json';
+        $filesystem->exists($path)->willReturn(true)->shouldBeCalledOnce();
+        $filesystem->readFile($path)->willThrow(new RuntimeException('not a readable regular file'))->shouldBeCalledOnce();
+        $filesystem->remove(Argument::any())->shouldNotBeCalled();
+        $this->expectExceptionMessage('not a readable regular file');
+        $this->store($filesystem)->remove($path);
+    }
+
+    /** A symbolic path introduced during readability proof is refused before deletion. */
+    public function testRemovalRechecksAncestryAfterReadingTheJournal(): void
+    {
+        $filesystem = $this->filesystem();
+        $path = '/consumer/.git/changelog-release-plan.json';
+        $filesystem->exists($path)->willReturn(true)->shouldBeCalledOnce();
+        $filesystem->readFile($path)->willReturn('journal')->shouldBeCalledOnce();
+        $filesystem->readlink($path)->willReturn(null, '/outside')->shouldBeCalledTimes(2);
+        $filesystem->remove(Argument::any())->shouldNotBeCalled();
+        $this->expectExceptionMessage('Symbolic managed path');
+        $this->store($filesystem)->remove($path);
     }
 
     /** Supplies a filesystem boundary that never calls any native file function. */

@@ -33,8 +33,8 @@ final class ReleasePlanFactoryTest extends TestCase
         $codec->expects(self::exactly(2))->method('decode')->with('canonical receipt')->willReturn(new ReleaseReceipt(['id' => 'approved-id']));
         $factory = new ReleasePlanFactory($codec);
         $base = str_repeat('a', 40);
-        $plan = $factory->create($options, $base, '1.0.0+build.001', '1.0.1', 'patch', $changes, ['0.1.0+legacy.docs'], '/consumer/CHANGELOG.md', 'before', 'after', "Exact notes\n", '/consumer/.changelog/release-plan.json', null);
-        $again = $factory->create($options, $base, '1.0.0+build.001', '1.0.1', 'patch', array_reverse($changes, true), ['0.1.0+legacy.docs'], '/consumer/CHANGELOG.md', 'before', 'after', "Exact notes\n", '/consumer/.changelog/release-plan.json', null);
+        $plan = $factory->create($options, $base, '1.0.0+build.001', '1.0.1', 'patch', $changes, ['0.1.0+legacy.docs'], '/consumer/CHANGELOG.md', 'before', 'after', "Exact notes\n", '/consumer/.git/changelog-release-plan.json', null);
+        $again = $factory->create($options, $base, '1.0.0+build.001', '1.0.1', 'patch', array_reverse($changes, true), ['0.1.0+legacy.docs'], '/consumer/CHANGELOG.md', 'before', 'after', "Exact notes\n", '/consumer/.git/changelog-release-plan.json', null);
         self::assertSame($captured[0], $captured[1]);
         self::assertSame($base, $captured[0]['base_sha']);
         self::assertSame('1.0.0+build.001', $captured[0]['current_version']);
@@ -48,7 +48,7 @@ final class ReleasePlanFactoryTest extends TestCase
         self::assertSame('approved-id', $plan->id);
         self::assertSame($plan->id, $again->id);
         self::assertSame('release', $plan->mode());
-        self::assertSame(['/consumer/CHANGELOG.md', '/consumer/.changelog/release-plan.json', '/consumer/.changelog/a.md', '/consumer/.changelog/b.md'], $plan->affectedFiles());
+        self::assertSame(['/consumer/CHANGELOG.md', '/consumer/.changelog/a.md', '/consumer/.changelog/b.md'], $plan->affectedFiles());
         self::assertSame($plan->id, $plan->summary()['id']);
         self::assertSame('release', $plan->summary()['mode']);
         self::assertFalse($plan->summary()['resuming']);
@@ -66,12 +66,12 @@ final class ReleasePlanFactoryTest extends TestCase
         $codec->method('decode')->willReturn(new ReleaseReceipt(['id' => 'id']));
         $factory = new ReleasePlanFactory($codec);
         $options = new ReleaseOptions('/consumer');
-        $maintenance = $factory->create($options, null, '0.0.0', null, null, [], ['0.1.0'], '/consumer/CHANGELOG.md', null, 'Imported history', '', '/consumer/.changelog/release-plan.json', null);
+        $maintenance = $factory->create($options, null, '0.0.0', null, null, [], ['0.1.0'], '/consumer/CHANGELOG.md', null, 'Imported history', '', '/consumer/.git/changelog-release-plan.json', null);
         self::assertSame('maintenance', $maintenance->mode());
-        $empty = $factory->create($options, null, '0.0.0', null, null, [], [], '/consumer/CHANGELOG.md', null, '', '', '/consumer/.changelog/release-plan.json', null);
+        $empty = $factory->create($options, null, '0.0.0', null, null, [], [], '/consumer/CHANGELOG.md', null, '', '', '/consumer/.git/changelog-release-plan.json', null);
         self::assertSame('none', $empty->mode());
         self::assertSame([], $empty->affectedFiles());
-        $unchanged = new ReleasePlan($options, 'id', null, '0.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'same', 'same', '', '/consumer/.changelog/release-plan.json', null, 'receipt');
+        $unchanged = new ReleasePlan($options, 'id', null, '0.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'same', 'same', '', '/consumer/.git/changelog-release-plan.json', null, 'receipt');
         self::assertSame('none', $unchanged->mode());
     }
 
@@ -84,7 +84,7 @@ final class ReleasePlanFactoryTest extends TestCase
         $codec->expects(self::never())->method('decode');
         $data = ['id' => 'approved-id', 'base_sha' => str_repeat('a', 40), 'current_version' => '1.0.0', 'next_version' => '1.0.1',
             'impact' => 'patch', 'consumed' => ['.changelog/a.md' => hash('sha256', 'a')], 'historical_versions' => ['0.1.0'], 'changelog_contents' => 'after', 'notes' => "Exact notes\n"];
-        $plan = new ReleasePlanFactory($codec)->resume($options, new ReleaseReceipt($data), '/consumer/CHANGELOG.md', 'after', '/consumer/.changelog/release-plan.json', "original receipt\n");
+        $plan = new ReleasePlanFactory($codec)->resume($options, new ReleaseReceipt($data), '/consumer/CHANGELOG.md', 'after', '/consumer/.git/changelog-release-plan.json', "original receipt\n");
         self::assertSame('approved-id', $plan->id);
         self::assertSame(['/consumer/.changelog/a.md' => hash('sha256', 'a')], $plan->consumed);
         self::assertSame("original receipt\n", $plan->originalReceipt);
@@ -96,9 +96,9 @@ final class ReleasePlanFactoryTest extends TestCase
         self::assertSame('release', $plan->mode());
         $data['next_version'] = null;
         $data['impact'] = null;
-        $maintenance = new ReleasePlanFactory($codec)->resume($options, new ReleaseReceipt($data), '/consumer/CHANGELOG.md', 'after', '/consumer/.changelog/release-plan.json', 'receipt');
+        $maintenance = new ReleasePlanFactory($codec)->resume($options, new ReleaseReceipt($data), '/consumer/CHANGELOG.md', 'after', '/consumer/.git/changelog-release-plan.json', 'receipt');
         self::assertSame('maintenance', $maintenance->mode());
-        $prepared = new ReleasePlanFactory($codec)->resume($options, new ReleaseReceipt($data), '/consumer/CHANGELOG.md', null, '/consumer/.changelog/release-plan.json', 'receipt');
+        $prepared = new ReleasePlanFactory($codec)->resume($options, new ReleaseReceipt($data), '/consumer/CHANGELOG.md', null, '/consumer/.git/changelog-release-plan.json', 'receipt');
         self::assertNull($prepared->originalChangelog);
         self::assertSame('after', $prepared->changelogContents);
         self::assertSame('receipt', $prepared->receiptContents);

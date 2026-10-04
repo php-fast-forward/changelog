@@ -22,6 +22,9 @@ interface ManagedFileStoreInterface
     /** Reads exact bytes; missing files return null and unsafe ancestry MUST throw. */
     public function read(string $path): ?string;
 
+    /** Removes one guarded journal idempotently; the caller verifies transaction completion and holds its lock. */
+    public function remove(string $path): void;
+
     /** Writes exact bytes after rechecking all ancestry; the caller holds the fragment-directory lock. */
     public function write(string $path, string $contents): void;
 }

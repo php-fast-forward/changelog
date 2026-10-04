@@ -36,9 +36,10 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         private ReceiptCodecInterface $codec,
         private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputs,
+        private ReleaseJournalPathResolverInterface $journals,
     ) {}
 
-    /** Writes changelog and receipt before consuming only the revalidated approved fragment selection. */
+    /** Writes history and consumes fragments; its Git-internal recovery journal is removed on success. */
     public function apply(ReleasePlan $plan): bool
     {
         if ('none' === $plan->mode()) {
@@ -52,6 +53,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         try {
             $state = $this->preflight($plan);
             if ($state['complete']) {
+                $this->files->remove($plan->receiptPath);
                 return false;
             }
             $this->inputs->validate($plan);
@@ -66,10 +68,11 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
             if ([] !== $state['remaining']) {
                 $this->fragments->remove($state['remaining']);
             }
+            $this->files->remove($plan->receiptPath);
             return true;
         } catch (Throwable $error) {
             throw $this->exceptions->failure('Cannot apply release ' . $plan->id . ': ' . $error->getMessage()
-                . ' Retain the changelog, receipt and remaining fragments; retry this exact approved plan.', $error);
+                . ' Retain the changelog and remaining fragments; retry this exact approved plan or its Git-internal recovery journal.', $error);
         } finally {
             $lock->release();
         }
@@ -107,7 +110,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
             || $data['after_changelog_sha256'] !== hash('sha256', $plan->changelogContents)
             || (! $plan->resuming && $data['before_changelog_sha256'] !== (null === $plan->originalChangelog ? null : hash('sha256', $plan->originalChangelog)))
             || $plan->changelogPath !== $root . '/' . $options->changelogFile
-            || $plan->receiptPath !== $this->directory($plan) . '/release-plan.json') {
+            || $plan->receiptPath !== $this->journals->resolve($options)) {
             throw $this->exceptions->invalid('Release plan does not match its approved receipt evidence or managed paths.');
         }
         foreach (['fragment_directory' => 'fragmentDirectory', 'changelog_file' => 'changelogFile', 'locale' => 'locale',
@@ -121,7 +124,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
 
     /**
      * Reads full inventory and all hashes before allowing any write or removal.
-     * Missing consumed files are allowed only after both approved outputs are durable.
+     * Missing consumed files are allowed only after the approved history is durable.
      * @return array{central:?string,receipt:?string,remaining:list<string>,complete:bool}
      */
     private function preflight(ReleasePlan $plan): array
@@ -144,12 +147,12 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         if (! $afterCentral && ! $beforeCentral) {
             throw $this->exceptions->failure('Central changelog changed since approval: ' . $plan->changelogPath);
         }
-        if ((! $afterReceipt && $receipt !== $plan->originalReceipt) || ($plan->resuming && ! $afterReceipt)) {
+        if (null !== $receipt && ! $afterReceipt && $receipt !== $plan->originalReceipt) {
             throw $this->exceptions->failure('Release receipt changed since approval: ' . $plan->receiptPath);
         }
         if (null === $plan->nextVersion && [] === $plan->consumed) {
             return ['central' => $central, 'receipt' => $receipt, 'remaining' => [],
-                'complete' => $afterCentral && $afterReceipt];
+                'complete' => $afterCentral];
         }
         $paths = $this->fragments->paths($this->directory($plan));
         if (null === $paths) {
@@ -162,8 +165,8 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         if ([] !== array_diff($paths, $approved)) {
             throw $this->exceptions->failure('New or unapproved fragments appeared after release planning.');
         }
-        if ((! $afterCentral || ! $afterReceipt) && $paths !== $approved) {
-            throw $this->exceptions->failure('Approved fragments are missing before the changelog and receipt are durable.');
+        if (! $afterCentral && $paths !== $approved) {
+            throw $this->exceptions->failure('Approved fragments are missing before the changelog is durable.');
         }
         foreach ($paths as $path) {
             $contents = $this->fragments->read($path);
@@ -172,6 +175,6 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
             }
         }
         return ['central' => $central, 'receipt' => $receipt, 'remaining' => $paths,
-            'complete' => $afterCentral && $afterReceipt && [] === $paths];
+            'complete' => $afterCentral && [] === $paths];
     }
 }

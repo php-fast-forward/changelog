@@ -20,8 +20,8 @@ use FastForward\Changelog\Template\TemplateInterface;
 /** Parses and renders the sole changelog history without translating entry descriptions. */
 interface HistoryCodecInterface
 {
-    /** Parses supported release boundaries while retaining all body and footer bytes. */
-    public function parse(string $markdown): HistoryDocument;
+    /** Parses ordinary or legacy marked history; the selected template recognizes custom headings. */
+    public function parse(string $markdown, ?TemplateInterface $template = null): HistoryDocument;
 
     /** Renders localized structure, or preserves existing presentation for incremental collection. */
     public function render(HistoryDocument $document, TemplateInterface $template, bool $preservePresentation = false): string;

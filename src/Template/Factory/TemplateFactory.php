@@ -27,7 +27,7 @@ final class TemplateFactory implements TemplateFactoryInterface
      * Creates English or Brazilian Portuguese headings with explicit overrides.
      *
      * Unknown keys MUST fail early. Templates MUST retain level-two release
-     * headings and level-three categories so semantic markers can round-trip.
+     * headings and level-three categories so selected-template parsing can round-trip.
      */
     public function create(string $locale = 'en', array $overrides = []): TemplateInterface
     {

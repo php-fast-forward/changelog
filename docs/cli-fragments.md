@@ -91,8 +91,8 @@ is no public CLI skip/waiver flag that can manufacture this trusted context.
 `notes 1.2.3` returns the maintained release body without the outer release
 heading, structural delimiters or document reference footer. Category headings,
 descriptions, inline links and code fences remain in that body. With no version
-argument, it selects the pending receipt's next version, then the highest stable
-tag reachable from the current `HEAD`; an unrelated branch's tag cannot change
+argument, it selects the latest version maintained in the central history,
+then a stable tag reachable from `HEAD`; an unrelated branch's tag cannot change
 the default. An absent section produces a diagnostic.
 
 ```sh
