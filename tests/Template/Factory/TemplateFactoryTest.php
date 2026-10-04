@@ -100,6 +100,81 @@ final class TemplateFactoryTest extends TestCase
     }
 
     #[Test]
+    #[TestWith([['unreleased_heading' => '## [1.2.3]']])]
+    #[TestWith([['unreleased_heading' => '## [v1.2.3]']])]
+    #[TestWith([['unreleased_heading' => '## [V1.2.3-beta.1+build.7]']])]
+    #[TestWith([['unreleased_heading' => '## [1.2.3] - 2026-10-03']])]
+    #[TestWith([['unreleased_heading' => '## [1.2.3] - 2000-02-29']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'unreleased_heading' => '## Release 1.2.3']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'unreleased_heading' => '## Release 1.2.3 [YANKED]']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'unreleased_heading' => '## Release 1.2.3+01']])]
+    #[TestWith([['release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## Release 1.2.3: 2026-10-03']])]
+    #[TestWith([['release_heading_dated' => '## {date}/{version}', 'unreleased_heading' => '## 2026-10-03/V1.2.3-beta.1+build.7']])]
+    #[TestWith([['release_heading' => '## {version} vs {version}', 'unreleased_heading' => '## 1.2.3 vs 1.2.3']])]
+    #[TestWith([['release_heading' => '## {version}{version}', 'unreleased_heading' => '## 1.2.31.2.3']])]
+    #[TestWith([['release_heading_dated' => '## {version}: {date}/{date}', 'unreleased_heading' => '## 1.2.3: 2026-10-03/2026-10-03']])]
+    #[TestWith([['release_heading' => '## {version}:{date}', 'unreleased_heading' => '## 1.2.3:']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## [1.2.3]']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'unreleased_heading' => '## [V1.2.3](https://example.test/release) - 2026-10-03 [REMOVIDO]']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'unreleased_heading' => '## [1.2.3](https://example.test/release) [YANKED]']])]
+    #[TestWith([['release_heading' => '## Release {version}', 'unreleased_heading' => "##  [1.2.3]\t"]])]
+    public function rejectsPendingHeadingsThatAlsoIdentifyValidCustomOrBuiltinReleases(array $overrides): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('unreleased heading must not also identify a valid release heading');
+        new TemplateFactory()->create('en', $overrides);
+    }
+
+    #[Test]
+    public function rejectsActualRenderedReleaseAndPendingHeadingCollisionBeforeCreatingTemplate(): void
+    {
+        $unsafe = new KeepAChangelogTemplate('en', '# History', '## Release {version}', '## Release {version}: {date}', ['added' => '### Added', 'changed' => '### Changed', 'deprecated' => '### Deprecated', 'removed' => '### Removed', 'fixed' => '### Fixed', 'security' => '### Security'], '## Release 1.2.3', 'No notes');
+        self::assertSame($unsafe->unreleasedHeading(), $unsafe->releaseHeading('1.2.3', null));
+        $codec = $this->codec();
+        $rendered = $codec->render(new HistoryDocument([new HistoryRelease('1.2.3', body: "Concrete release notes.\n")]), $unsafe);
+        self::assertSame('unreleased', $codec->parse($rendered, $unsafe)->getReleases()[0]->getVersion());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('unreleased heading must not also identify a valid release heading');
+        new TemplateFactory()->create('en', ['release_heading' => '## Release {version}', 'unreleased_heading' => $unsafe->unreleasedHeading()]);
+    }
+
+    #[Test]
+    #[TestWith(['en', ['unreleased_heading' => '## [unreleased]']])]
+    #[TestWith(['en', ['unreleased_heading' => '## [Não publicado]']])]
+    #[TestWith(['pt-BR', ['unreleased_heading' => '## [não publicado]']])]
+    #[TestWith(['pt-BR', ['unreleased_heading' => '## [Unreleased]']])]
+    #[TestWith(['pt-BR', ['release_heading' => '## Versão {version}', 'release_heading_dated' => '## Versão {version} em {date}', 'unreleased_heading' => '## Próxima versão']])]
+    #[TestWith(['en', ['release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## release 1.2.3']])]
+    #[TestWith(['en', ['release_heading' => '## Release {version}', 'unreleased_heading' => '## Release 01.2.3']])]
+    #[TestWith(['en', ['release_heading' => '## Release {version}', 'unreleased_heading' => '## Release 1.2.3-01']])]
+    #[TestWith(['en', ['release_heading' => '## Release {version}', 'unreleased_heading' => '## Release 1.2.3 next']])]
+    #[TestWith(['en', ['release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## Release 1.2.3: 2026-02-30']])]
+    #[TestWith(['en', ['release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## Release 1.2.3: 1900-02-29']])]
+    #[TestWith(['en', ['release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## Release 1.2.3: 0000-02-28']])]
+    #[TestWith(['en', ['release_heading_dated' => '## Release {version}: {date}', 'unreleased_heading' => '## Release 1.2.3: 2026-2-03']])]
+    #[TestWith(['en', ['release_heading' => '## Release {version}', 'unreleased_heading' => '## [1.2.3](https://example.test/release) - 2026-02-30 [YANKED]']])]
+    #[TestWith(['en', ['release_heading' => '## {version} vs {version}', 'unreleased_heading' => '## 1.2.3 vs 1.2.4']])]
+    #[TestWith(['en', ['release_heading_dated' => '## {version}: {date}/{date}', 'unreleased_heading' => '## 1.2.3: 2026-10-03/2026-10-04']])]
+    public function preservesLocalizedPendingHeadingsAndNonreleaseNearMisses(string $locale, array $overrides): void
+    {
+        $template = new TemplateFactory()->create($locale, $overrides);
+        self::assertSame($overrides['unreleased_heading'], $template->unreleasedHeading());
+        $codec = $this->codec();
+        $markdown = $codec->render(new HistoryDocument([
+            new HistoryRelease('unreleased', body: "Pending notes.\n"),
+            new HistoryRelease('1.2.3', '2026-10-03', body: "Dated release notes.\n"),
+            new HistoryRelease('1.2.4', body: "Undated release notes.\n"),
+        ]), $template);
+        $parsed = $codec->parse($markdown, $template);
+        self::assertSame(['unreleased', '1.2.3', '1.2.4'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame('2026-10-03', $parsed->getRelease('1.2.3')->getDate());
+        self::assertSame("Pending notes.\n", $codec->notes($parsed, 'unreleased'));
+        self::assertSame("Dated release notes.\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame("Undated release notes.\n", $codec->notes($parsed, '1.2.4'));
+    }
+
+    #[Test]
     public function rejectsUnknownLocales(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -123,4 +198,16 @@ final class TemplateFactoryTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         new TemplateFactory()->create('en', $overrides);
     }
+    /** Exercises Markdown identity parsing with injected construction boundaries and no external state. */
+    private function codec(): HistoryCodec
+    {
+        $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
+        $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
+        $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
+        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease($version, $date, $source, $body, $heading, $ending));
+        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
+        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        return new HistoryCodec($documents, $releases, $exceptions);
+    }
+
 }

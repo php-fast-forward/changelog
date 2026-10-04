@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\History;
 
+use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Template\Factory\TemplateFactory;
+use FastForward\Changelog\Template\KeepAChangelogTemplate;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -21,6 +24,9 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
+#[UsesClass(TemplateFactory::class)]
+#[UsesClass(KeepAChangelogTemplate::class)]
+#[UsesClass(Category::class)]
 final class HistoryCodecTest extends TestCase
 {
     #[Test]
@@ -291,9 +297,149 @@ final class HistoryCodecTest extends TestCase
         $document = $codec->parse($dated, $template);
         self::assertSame('2026-10-03', $document->getRelease('1.2.3')->getDate());
         self::assertSame("Exact notes.\n", $codec->notes($document, '1.2.3'));
-        self::assertSame([], $codec->parse(str_replace('/ 1.2.3:', '/ 2.0.0:', $dated), $template)->getReleases());
-        self::assertSame([], $codec->parse(str_replace('/ 2026-10-03', '/ 2026-10-04', $dated), $template)->getReleases());
         self::assertNull($codec->parse("## 1.2.3 / 1.2.3\nExact notes.\n", $template)->getRelease('1.2.3')->getDate());
+    }
+
+    #[Test]
+    #[TestWith(['/ 1.2.3:', '/ 2.0.0:'])]
+    #[TestWith(['/ 2026-10-03', '/ 2026-10-04'])]
+    public function refusesDivergentRepeatedPlaceholdersInsteadOfHidingTheRelease(string $original, string $replacement): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('releaseHeading')->willReturnCallback(static fn(string $version, ?string $date): string => '## ' . $version . ' / ' . $version . (null === $date ? '' : ': ' . $date . ' / ' . $date));
+        $markdown = "## 1.2.3 / 1.2.3: 2026-10-03 / 2026-10-03\nExact notes.\n";
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('keep the matching release template or migrate historical release headings');
+        $this->codec()->parse(str_replace($original, $replacement, $markdown), $template);
+    }
+
+    #[Test]
+    #[TestWith([null])]
+    #[TestWith(['en'])]
+    #[TestWith(['pt-BR'])]
+    #[TestWith(['custom'])]
+    public function refusesChangingTemplatesBeforeMigratingExistingCustomHistory(?string $locale): void
+    {
+        $previous = new TemplateFactory()->create('en', ['introduction' => '# Project history', 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}']);
+        $codec = $this->codec();
+        $markdown = $codec->render(new HistoryDocument([
+            new HistoryRelease('1.2.3', '2026-10-03', body: "Maintained release notes.\n"),
+            new HistoryRelease('1.1.0', body: "Earlier release notes.\n"),
+        ]), $previous);
+        $parsed = $codec->parse($markdown, $previous);
+        self::assertSame(['1.2.3', '1.1.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame("Maintained release notes.\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame($markdown, $codec->render($parsed, $previous, true));
+
+        $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
+        $releases->expects(self::never())->method('create');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An unrecognized level-two heading resembles a release');
+        $this->codec($releases)->parse($markdown, null === $locale ? null : $this->template($locale));
+    }
+
+    #[Test]
+    public function recognizesReviewedHeadingMigrationWithoutDuplicatingCustomHistory(): void
+    {
+        $previous = new TemplateFactory()->create('en', ['release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}']);
+        $markdown = "# Project history\n\n## Release 1.2.3 on 2026-10-03\nMaintained notes.\n\n## Release 1.1.0\nEarlier notes.\n";
+        $codec = $this->codec();
+        $migrated = $codec->render($codec->parse($markdown, $previous), $this->template('en'));
+        $parsed = $codec->parse($migrated, $this->template('en'));
+
+        self::assertSame(['1.2.3', '1.1.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame("Maintained notes.\n\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame("Earlier notes.\n", $codec->notes($parsed, '1.1.0'));
+        self::assertSame(1, substr_count($migrated, '## [1.2.3]'));
+        self::assertSame(1, substr_count($migrated, '## [1.1.0]'));
+        self::assertStringNotContainsString('fast-forward-changelog:', $migrated);
+    }
+
+    #[Test]
+    #[TestWith(['## Release 1.2.3 on 2026-10-03'])]
+    #[TestWith(['## Published on 2026-10-03: v1.2.3'])]
+    #[TestWith(['## Versão V1.2.3-rc.1+build.007'])]
+    #[TestWith(['## Stable edition 999999999999999999999999.123456789012345678901234.0'])]
+    #[TestWith(['## Release (1.2.3)'])]
+    #[TestWith(['## Compatibility with PHP 8.5.0'])]
+    #[TestWith(['## Compatibility with PHP 8.5.0.1'])]
+    #[TestWith(['## Invalid version 01.2.3'])]
+    #[TestWith(['## Invalid version 1.2.3-01'])]
+    public function refusesUnsupportedVersionShapedHeadingsBeforeConstructingAnyReleases(string $heading): void
+    {
+        $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
+        $releases->expects(self::never())->method('create');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('For Markdown prose or examples, fence or nest this heading.');
+        $this->codec($releases)->parse("## [2.0.0]\nKnown notes.\n" . $heading . "\nOld notes stay available in the source.\n", $this->template('en'));
+    }
+
+    #[Test]
+    #[TestWith(['## Release{version}'])]
+    #[TestWith(['## r{version}notes'])]
+    #[TestWith(['## Step0{version}'])]
+    #[TestWith(['## {version}.4'])]
+    #[TestWith(['## {version}{version}'])]
+    public function refusesHidingCompactHistoryCreatedByAnAcceptedPreviousTemplate(string $heading): void
+    {
+        $previous = new TemplateFactory()->create('en', ['release_heading' => $heading]);
+        $codec = $this->codec();
+        $markdown = $codec->render(new HistoryDocument([new HistoryRelease('1.2.3', body: "Exact compact release notes.\n")]), $previous);
+        $parsed = $codec->parse($markdown, $previous);
+
+        self::assertSame(['1.2.3'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame("Exact compact release notes.\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame($markdown, $codec->render($parsed, $previous, true));
+
+        $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
+        $releases->expects(self::never())->method('create');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('keep the matching release template or migrate historical release headings');
+        $this->codec($releases)->parse($markdown, new TemplateFactory()->create());
+    }
+
+    #[Test]
+    public function refusesUnknownCompactHeadingWithALongNumericSuffix(): void
+    {
+        $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
+        $releases->expects(self::never())->method('create');
+        $markdown = "## [2.0.0]\nKnown notes.\n## Release1.2.3" . str_repeat('7', 100_000) . "\nOld release notes.\n";
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An unrecognized level-two heading resembles a release');
+        $this->codec($releases)->parse($markdown, $this->template('en'));
+    }
+
+    #[Test]
+    public function refusesUnsupportedReleaseShapedMarkdownBeforeRenderingNewHistory(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An unrecognized level-two heading resembles a release');
+        $this->codec()->render(new HistoryDocument([new HistoryRelease('2.0.0', body: "Description.\n## Release1.2.3\nHistorical example.\n")]), $this->template('en'));
+    }
+
+    #[Test]
+    public function preservesVersionTextInIntroductoryNestedAndFencedMarkdown(): void
+    {
+        $prefix = "# Compatibility with 8.5.0\r\n\r\nIntroductory prose mentions 1.2.3 without introducing a release.\r\n\r\n"
+            . "### Release 3.0.0 on 2026-10-03\r\n> ## Release 3.0.0\r\n- Nested example\r\n  ## Release 3.0.0\r\n- ## Release 3.0.0\r\n    ## Release 3.0.0\r\n\r\n"
+            . "```markdown\r\n## Release 3.0.0 on 2026-10-03\r\n```\r\n\r\n";
+        $body = "\r\nPlain body prose about 1.2.3 stays exact.\r\n### Release V1.2.3-rc.1+build.7\r\n"
+            . "> ## Release 1.2.3\r\n- Nested example\r\n  ## Release 1.2.3\r\n- ## Release 1.2.3\r\n    ## Release 1.2.3\r\n\r\n"
+            . "~~~markdown\r\n## Published on 2026-10-03: 1.2.3\r\n~~~\r\n"
+            . "## API 1.2 compatibility\r\n## Release roadmap\r\n## Description 2026-10-03\r\n";
+        $markdown = $prefix . "## [1.0.0] - 2026-10-03\r\n" . $body;
+        $codec = $this->codec();
+        $parsed = $codec->parse($markdown, $this->template('en'));
+
+        self::assertSame(['1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame($prefix, $parsed->getPrefix());
+        self::assertSame($body, $codec->notes($parsed, '1.0.0'));
+        self::assertSame($markdown, $codec->render($parsed, $this->template('en'), true));
+        $formatted = $codec->parse($codec->render($parsed, $this->template('en')), $this->template('en'));
+        self::assertSame($prefix, $formatted->getPrefix());
+        self::assertSame($body, $codec->notes($formatted, '1.0.0'));
     }
 
     #[Test]
