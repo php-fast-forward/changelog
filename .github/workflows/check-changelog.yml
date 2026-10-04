@@ -1,0 +1,30 @@
+name: Check changelog
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  group: check-changelog-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@c6de742770eae7df4c52b61098c9c180afad807b
+    with:
+      working-directory: '.'
+      repository: ${{ github.repository }}
+      pull-request: ${{ github.event.pull_request.number }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
+      base-sha: ${{ github.event.pull_request.base.sha }}
+      managed-branch: changelog/version
+      automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

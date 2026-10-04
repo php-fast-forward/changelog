@@ -3,89 +3,88 @@
 declare(strict_types=1);
 
 /**
- * Standalone changelog domain and CLI runtime for Fast Forward PHP packages.
+ * Standalone changeset and changelog tooling for Fast Forward PHP packages.
  *
- * This file is part of fast-forward/changelog project.
+ * This file is part of the fast-forward/changelog project.
  *
  * @copyright Copyright (c) 2026 Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
  * @license   https://opensource.org/licenses/MIT MIT License
- *
  * @see       https://github.com/php-fast-forward/changelog
- * @see       https://github.com/php-fast-forward/changelog/issues
- * @see       https://php-fast-forward.github.io/changelog/
- * @see       https://datatracker.ietf.org/doc/html/rfc2119
  */
 
 namespace FastForward\Changelog\Console\Command;
 
-use FastForward\Changelog\Checker\UnreleasedEntryCheckerInterface;
-use FastForward\Changelog\Filesystem\PackageFilesystemInterface;
+use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
+use FastForward\Changelog\Console\Input\ReleaseInput;
+use FastForward\Changelog\Git\GitRepositoryInterface;
+use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
+use FastForward\Changelog\Validation\CheckServiceInterface;
+use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Attribute\MapInput;
+use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Throwable;
 
-/**
- * Validates that Unreleased contains a meaningful new entry.
- */
-#[AsCommand(
-    name: 'changelog:check',
-    description: 'Check whether a changelog file contains meaningful unreleased entries.',
-)]
-final class CheckCommand extends Command
+/** Validates local contributions and accepts authorization only from verified pull-request policy. */
+#[AsCommand(name: 'check', description: 'Validate fragments and optional pull-request contribution evidence.')]
+final readonly class CheckCommand
 {
-    /**
-     * Initializes path resolution and baseline comparison collaborators.
-     *
-     * @param PackageFilesystemInterface      $filesystem resolves the changelog path
-     * @param UnreleasedEntryCheckerInterface $checker    performs baseline comparison
-     */
+    /** Captures validation, trusted policy and checkout identity without reading user environment. */
     public function __construct(
-        private readonly PackageFilesystemInterface $filesystem,
-        private readonly UnreleasedEntryCheckerInterface $checker,
-    ) {
-        parent::__construct();
-    }
+        private ReleaseOptionsFactoryInterface $options,
+        private CheckServiceInterface $checks,
+        private PullRequestPolicyInterface $policy,
+        private GitRepositoryInterface $git,
+    ) {}
 
-    /**
-     * Configures the optional baseline and changelog path options.
-     */
-    protected function configure(): void
-    {
-        $this
-            ->addOption('against', null, InputOption::VALUE_REQUIRED, 'Git reference used as the baseline.')
-            ->addOption('file', null, InputOption::VALUE_REQUIRED, 'Path to the changelog file.', 'CHANGELOG.md')
-            ->addOption('working-dir', null, InputOption::VALUE_REQUIRED, 'Base directory for relative paths.', '.');
-    }
-
-    /**
-     * Returns success only when a meaningful Unreleased change is present.
-     */
-    protected function execute(InputInterface $input, OutputInterface $output): int
-    {
-        $file = $this->filesystem->getAbsolutePath(
-            (string) $input->getOption('file'),
-            (string) $input->getOption('working-dir'),
-        );
-        $workingDirectory = $this->filesystem->getAbsolutePath(
-            '.',
-            (string) $input->getOption('working-dir'),
-        );
-        $against = $input->getOption('against');
-
-        if ($this->checker->hasPendingChanges(
-            $file,
-            \is_string($against) ? $against : null,
-            $workingDirectory,
-        )) {
-            $output->writeln('<info>The changelog contains unreleased changes ready for review.</info>');
-
-            return self::SUCCESS;
+    /** Verifies policy belongs to this checkout before exposing its authorization to schema validation. */
+    public function __invoke(
+        #[MapInput]
+        ReleaseInput $settings,
+        SymfonyStyle $io,
+        #[Option(description: 'Git baseline for the contribution delta.')]
+        ?string $since = null,
+        #[Option(description: 'Pull-request number whose trusted authorization is inspected.')]
+        ?string $pullRequest = null,
+    ): int {
+        try {
+            $options = $this->options->create($settings->values());
+            $central = false;
+            $waiver = false;
+            if (null !== $pullRequest) {
+                $number = filter_var($pullRequest, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                if (false === $number) {
+                    throw new InvalidArgumentException('--pull-request must be a positive integer.');
+                }
+                if (null === $since) {
+                    throw new InvalidArgumentException('--pull-request requires an explicit --since baseline.');
+                }
+                $authorization = $this->policy->inspect($options, $number);
+                foreach ($authorization->diagnostics as $diagnostic) {
+                    $io->note($diagnostic);
+                }
+                if (null === $authorization->headSha) {
+                    throw new RuntimeException('Pull-request policy could not establish an inspected head identity.');
+                }
+                if ($authorization->headSha !== $this->git->resolveRef($options->workingDirectory)) {
+                    throw new RuntimeException('Check out the inspected pull-request head before applying its authorization.');
+                }
+                $central = $authorization->centralChangeAuthorized;
+                $waiver = $authorization->waiverAuthorized;
+            }
+            $report = $this->checks->check($options, $since, $central, $waiver);
+            if (! $report->isValid()) {
+                $io->getErrorStyle()->error(json_encode($report->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                return Command::FAILURE;
+            }
+            $io->success(sprintf('Validated %d pending fragments.', count($report->changesets)));
+            return Command::SUCCESS;
+        } catch (Throwable $exception) {
+            $io->getErrorStyle()->error($exception->getMessage());
+            return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
-
-        $output->writeln('<error>The changelog must add a meaningful entry to the Unreleased section.</error>');
-
-        return self::FAILURE;
     }
 }

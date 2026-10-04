@@ -1,0 +1,189 @@
+# The caller MUST pin this reusable workflow to a reviewed full commit SHA.
+name: Changelog dependabot
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: 'Consumer-relative directory below the project checkout.'
+        type: string
+        required: false
+        default: '.'
+      fragment-directory:
+        description: 'Consumer-relative fragment directory.'
+        type: string
+        required: false
+        default: '.changelog'
+      changelog-file:
+        description: 'Consumer-relative central changelog path.'
+        type: string
+        required: false
+        default: 'CHANGELOG.md'
+      locale:
+        description: 'Built-in presentation locale en or pt-BR.'
+        type: string
+        required: false
+        default: 'en'
+      template:
+        description: 'Built-in template or explicit trusted base PHP template.'
+        type: string
+        required: false
+        default: 'keep-a-changelog'
+      base-ref:
+        description: 'Selected local base revision; automation normally uses HEAD.'
+        type: string
+        required: false
+        default: 'HEAD'
+      tag-prefix:
+        description: 'Exact stable-version tag prefix.'
+        type: string
+        required: false
+        default: 'v'
+      repository:
+        description: 'Target owner/name; empty uses the caller repository.'
+        type: string
+        required: false
+        default: ''
+      source:
+        description: 'Historical release notes source auto, github or tags.'
+        type: string
+        required: false
+        default: 'auto'
+      pull-request:
+        description: 'Dependabot PR number from the caller event.'
+        type: number
+        required: true
+      head-sha:
+        description: 'Dependabot PR head SHA from the caller event.'
+        type: string
+        required: true
+      security-alert-numbers:
+        description: 'JSON array of PR-associated alert numbers from trusted metadata.'
+        type: string
+        required: false
+        default: '[]'
+      include-dev:
+        description: 'Include development dependencies by default.'
+        type: boolean
+        required: false
+        default: true
+      include-actions:
+        description: 'Include GitHub Actions dependencies by default.'
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      token:
+        description: 'Optional scoped App token; otherwise uses github.token.'
+        required: false
+    outputs:
+      result:
+        description: 'Complete machine-readable operation result.'
+        value: ${{ jobs.changelog.outputs.result }}
+      status:
+        description: 'Operation status output.'
+        value: ${{ jobs.changelog.outputs.status }}
+      path:
+        description: 'Operation path output.'
+        value: ${{ jobs.changelog.outputs.path }}
+      head-sha:
+        description: 'Operation head-sha output.'
+        value: ${{ jobs.changelog.outputs.head-sha }}
+
+permissions: {}
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+    concurrency:
+      group: changelog-dependabot-${{ inputs.repository || github.repository }}-${{ inputs.pull-request }}
+      cancel-in-progress: false
+    outputs:
+      result: ${{ steps.operation.outputs.result }}
+      status: ${{ steps.operation.outputs.status }}
+      path: ${{ steps.operation.outputs.path }}
+      head-sha: ${{ steps.operation.outputs.head-sha }}
+    steps:
+      # Dynamic typing preserves new official job.workflow_* fields in older actionlint schemas.
+      - name: Validate the trusted workflow and consumer path
+        shell: bash
+        env:
+          FF_RUNTIME_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          FF_RUNTIME_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          FF_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          FF_EVENT_NAME: ${{ github.event_name }}
+          FF_EVENT_AUTHOR: ${{ github.event.pull_request.user.login }}
+          FF_EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          FF_EVENT_PR: ${{ github.event.pull_request.number }}
+          FF_HEAD_SHA: ${{ inputs.head-sha }}
+          FF_PR_NUMBER: ${{ inputs.pull-request }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FF_RUNTIME_REPOSITORY" || ! "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::The called workflow identity is unavailable; a trusted immutable runtime is required."
+            exit 1
+          fi
+          if [[ -z "$FF_WORKING_DIRECTORY" || "$FF_WORKING_DIRECTORY" == /* || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) ]]; then
+            echo "::error::working-directory must stay below the consumer project checkout."
+            exit 1
+          fi
+          if [[ "$FF_WORKING_DIRECTORY" != . ]]; then
+            echo "::error::GitHub PR operations require working-directory '.'. Prefix fragment-directory and changelog-file with the package path in monorepos."
+            exit 1
+          fi
+          if [[ "$FF_EVENT_NAME" != pull_request_target || "$FF_EVENT_AUTHOR" != "dependabot[bot]" || "$FF_PR_NUMBER" != "$FF_EVENT_PR" || "$FF_HEAD_SHA" != "$FF_EVENT_HEAD" ]]; then
+            echo "::error::Dependabot metadata must match the current Dependabot pull_request_target event."
+            exit 1
+          fi
+      - name: Check out consumer data
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          token: ${{ secrets.token || github.token }}
+          path: project
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out the called workflow runtime
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          path: .changelog-runtime
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Collect verified Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: ${{ secrets.token || github.token }}
+          alert-lookup: 'false'
+          compat-lookup: 'false'
+          skip-verification: 'false'
+          skip-commit-verification: 'false'
+      - name: Run the shared dependabot action
+        id: operation
+        uses: ./.changelog-runtime/actions/dependabot
+        with:
+          working-directory: ${{ github.workspace }}/project/${{ inputs.working-directory }}
+          fragment-directory: ${{ inputs.fragment-directory }}
+          changelog-file: ${{ inputs.changelog-file }}
+          locale: ${{ inputs.locale }}
+          template: ${{ inputs.template }}
+          base-ref: ${{ inputs.base-ref }}
+          tag-prefix: ${{ inputs.tag-prefix }}
+          repository: ${{ inputs.repository || github.repository }}
+          source: ${{ inputs.source }}
+          token: ${{ secrets.token || github.token }}
+          pull-request: ${{ inputs.pull-request }}
+          expected-head-sha: ${{ inputs.head-sha }}
+          security-alert-numbers: ${{ inputs.security-alert-numbers }}
+          include-dev: ${{ inputs.include-dev }}
+          include-actions: ${{ inputs.include-actions }}
+          dependency-names: ${{ steps.metadata.outputs.dependency-names }}
+          dependency-type: ${{ steps.metadata.outputs.dependency-type }}
+          ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}

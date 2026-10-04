@@ -1,0 +1,45 @@
+name: Publish changelog
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [closed]
+
+permissions: {}
+
+concurrency:
+  group: changelog-${{ github.repository }}-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'changelog/version' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out the approved merge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish the verified version receipt
+        uses: ./actions/publish
+        with:
+          working-directory: ${{ github.workspace }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
+          base-branch: main
+          managed-branch: changelog/version
+          automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+          pull-request: ${{ github.event.pull_request.number }}
+          expected-head-sha: ${{ github.event.pull_request.head.sha }}
+          target-sha: ${{ github.event.pull_request.merge_commit_sha }}

@@ -40,15 +40,19 @@
         }
     ],
     "require": {
-        "composer-runtime-api": "^2.0",
         "php": "^8.5",
+        "composer-runtime-api": "^2.0",
         "container-interop/service-provider": "^0.4.1",
         "fast-forward/clock": "^1.0",
+        "fast-forward/config": "^1.4",
         "fast-forward/container": "^1.6",
         "psr/clock": "^1.0",
         "psr/container": "^1.0 || ^2.0",
         "symfony/console": "^8.1",
         "symfony/filesystem": "^8.1",
+        "symfony/finder": "^8.1",
+        "symfony/http-client": "^8.1",
+        "symfony/lock": "^8.1",
         "symfony/process": "^8.1",
         "thecodingmachine/safe": "^3.4"
     },

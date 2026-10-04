@@ -1,0 +1,111 @@
+name: Fast Forward Changelog version
+description: "Create or update one version PR from the freshly checked-out trusted base."
+inputs:
+  working-directory:
+    description: "Consumer project directory; never the package installation root."
+    required: false
+    default: "."
+  fragment-directory:
+    description: "Project-relative pending fragment directory."
+    required: false
+    default: ".changelog"
+  changelog-file:
+    description: "Project-relative central changelog file."
+    required: false
+    default: "CHANGELOG.md"
+  locale:
+    description: "Structural language; en or pt-BR."
+    required: false
+    default: "en"
+  template:
+    description: "keep-a-changelog or an explicitly trusted project PHP template."
+    required: false
+    default: "keep-a-changelog"
+  base-ref:
+    description: "Git revision used by the shared release planner."
+    required: false
+    default: "HEAD"
+  tag-prefix:
+    description: "Prefix for stable release tags."
+    required: false
+    default: "v"
+  repository:
+    description: "GitHub owner/name of the consumer repository."
+    required: false
+    default: "${{ github.repository }}"
+  source:
+    description: "Historical source: auto, github or tags."
+    required: false
+    default: "auto"
+  token:
+    description: "GitHub token with the minimum permissions required by this operation."
+    required: false
+    default: "${{ github.token }}"
+  base-branch:
+    description: "Consumer release-line branch."
+    required: false
+    default: "main"
+  managed-branch:
+    description: "Exclusive managed version PR branch."
+    required: false
+    default: "changelog/version"
+  automation-actor:
+    description: "Authenticated Bot that owns signed generated commits."
+    required: false
+    default: "github-actions[bot]"
+  title:
+    description: "Generated PR title."
+    required: false
+    default: "chore: update changelog"
+  dry-run:
+    description: "Read and plan without creating GitHub objects."
+    required: false
+    default: "false"
+outputs:
+  result:
+    description: Complete stable JSON result.
+    value: ${{ steps.operation.outputs.result }}
+  status:
+    description: "Operation status; empty when unavailable."
+    value: ${{ steps.operation.outputs.status }}
+  version:
+    description: "Operation version; empty when unavailable."
+    value: ${{ steps.operation.outputs.version }}
+  pull-request:
+    description: "Operation pull-request; empty when unavailable."
+    value: ${{ steps.operation.outputs.pull-request }}
+  url:
+    description: "Operation url; empty when unavailable."
+    value: ${{ steps.operation.outputs.url }}
+  head-sha:
+    description: "Operation head-sha; empty when unavailable."
+    value: ${{ steps.operation.outputs.head-sha }}
+  plan-id:
+    description: "Operation plan-id; empty when unavailable."
+    value: ${{ steps.operation.outputs.plan-id }}
+  maintenance:
+    description: "Operation maintenance; empty when unavailable."
+    value: ${{ steps.operation.outputs.maintenance }}
+runs:
+  using: composite
+  steps:
+    - name: Set up package runtime
+      # setup-php 2.36.0
+      uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
+      with:
+        php-version: '8.5'
+        coverage: none
+        tools: composer:v2
+    - name: Install only the trusted Action package
+      shell: bash
+      env:
+        FF_RUNTIME_ROOT: ${{ github.action_path }}/../..
+      run: |
+        env -u GITHUB_TOKEN -u GH_TOKEN -u FF_CHANGELOG_INPUTS composer install --working-dir="$FF_RUNTIME_ROOT" --no-dev --no-plugins --no-scripts --prefer-dist --no-interaction --no-progress
+    - name: Run shared Changelog service
+      id: operation
+      shell: bash
+      env:
+        FF_RUNTIME_ROOT: ${{ github.action_path }}/../..
+        FF_CHANGELOG_INPUTS: ${{ toJSON(inputs) }}
+      run: php "$FF_RUNTIME_ROOT/scripts/automation.php" version
