@@ -5,7 +5,7 @@ contribution adds a fragment; version automation opens one managed PR; approval
 and merge precede publication of its verified tag and GitHub Release.
 History maintenance is a separate operation.
 
-The examples below pin the reviewed full product commit `316b36086bd4f50f904647912cbe61bcdc8187e0`. Keep every consumer reference immutable when updating the runtime.
+The examples below pin the reviewed full product commit `828f24f724699968e0726e1fe126535304932579`. Keep every consumer reference immutable when updating the runtime.
 The workflows check out their own runtime using the called workflow's immutable
 `job.workflow_repository` and `job.workflow_sha`, separately from consumer data.
 The caller's `github` context still identifies the consumer. This follows
@@ -62,7 +62,7 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@316b36086bd4f50f904647912cbe61bcdc8187e0
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@828f24f724699968e0726e1fe126535304932579
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -93,7 +93,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@316b36086bd4f50f904647912cbe61bcdc8187e0
+    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@828f24f724699968e0726e1fe126535304932579
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -154,7 +154,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@316b36086bd4f50f904647912cbe61bcdc8187e0
+    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@828f24f724699968e0726e1fe126535304932579
     with:
       base-branch: main
       managed-branch: changelog/version
@@ -208,7 +208,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@316b36086bd4f50f904647912cbe61bcdc8187e0
+    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@828f24f724699968e0726e1fe126535304932579
     with:
       base-branch: main
       pull-request: ${{ github.event.pull_request.number }}
@@ -245,7 +245,7 @@ jobs:
   changelog:
     permissions:
       contents: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@316b36086bd4f50f904647912cbe61bcdc8187e0
+    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@828f24f724699968e0726e1fe126535304932579
     with:
       base-branch: main
       operation: ${{ inputs.operation }}
