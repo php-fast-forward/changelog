@@ -82,6 +82,45 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame(['inspectHead', str_repeat('a', 40)], $this->policyCalls[0]);
     }
 
+    /** A successful PATCH can expose the old head while an independent read confirms the exact new transaction. */
+    #[Test]
+    public function successfulStalePatchResponseIsConfirmedThroughTheSamePrWithoutAnotherWrite(): void
+    {
+        $result = $this->synchronizeFixture(['existing' => true, 'stale_patch_response' => true]);
+        self::assertSame('updated', $result->status);
+        self::assertSame(7, $result->prNumber);
+        self::assertSame(str_repeat('c', 40), $result->headSha);
+        self::assertCount(1, $this->writes('pulls'));
+        self::assertSame('PATCH', $this->writes('pulls')[0][0]);
+        self::assertSame([['GET', '/repos/owner/project/pulls/7', null]], array_values(array_filter($this->calls, static fn(array $call): bool => 'GET' === $call[0] && str_contains($call[1], '/pulls/'))));
+        self::assertSame(['GET', '/repos/owner/project/pulls/7', null], array_last($this->calls));
+    }
+
+    /** Fresh confirmation never authorizes a changed head, creator, PR identity, branch, repository or closed PR. */
+    #[Test]
+    #[TestWith(['stale_head'])]
+    #[TestWith(['wrong_head'])]
+    #[TestWith(['foreign_creator'])]
+    #[TestWith(['foreign_creator_id'])]
+    #[TestWith(['wrong_number'])]
+    #[TestWith(['wrong_repository'])]
+    #[TestWith(['wrong_branch'])]
+    #[TestWith(['wrong_base_branch'])]
+    #[TestWith(['closed'])]
+    #[TestWith(['missing'])]
+    #[TestWith(['read_failure'])]
+    public function invalidFreshPrConfirmationFailsWithoutRepeatingTheWrite(string $confirmation): void
+    {
+        $result = $this->synchronizeFixture(['existing' => true, 'pr_confirmation' => $confirmation]);
+        self::assertSame('conflict', $result->status);
+        self::assertSame(str_repeat('c', 40), $result->headSha);
+        self::assertNotEmpty($result->diagnostics);
+        self::assertStringNotContainsString('super-secret', implode(' ', $result->diagnostics));
+        self::assertCount(1, $this->writes('pulls'));
+        self::assertSame('PATCH', $this->writes('pulls')[0][0]);
+        self::assertSame([['GET', '/repos/owner/project/pulls/7', null]], array_values(array_filter($this->calls, static fn(array $call): bool => 'GET' === $call[0] && str_contains($call[1], '/pulls/'))));
+    }
+
     #[Test]
     public function samePlanDoesNotGenerateEndlessCommitsOrAnotherPr(): void
     {
@@ -381,7 +420,41 @@ final class VersionPullRequestServiceTest extends TestCase
             }
             if (str_contains($path, '/pulls')) {
                 if ('GET' === $method) {
-                    return $pr;
+                    $confirmation = $pr;
+                    switch ($settings['pr_confirmation'] ?? null) {
+                        case 'stale_head':
+                            $confirmation['head']['sha'] = str_repeat('a', 40);
+                            break;
+                        case 'wrong_head':
+                            $confirmation['head']['sha'] = str_repeat('f', 40);
+                            break;
+                        case 'foreign_creator':
+                            $confirmation['user'] = $this->account('contributor', 'User', 202);
+                            break;
+                        case 'foreign_creator_id':
+                            $confirmation['user']['id'] = 999;
+                            break;
+                        case 'wrong_number':
+                            $confirmation['number'] = 8;
+                            break;
+                        case 'wrong_repository':
+                            $confirmation['head']['repo'] = ['id' => 2, 'full_name' => 'fork/project'];
+                            break;
+                        case 'wrong_branch':
+                            $confirmation['head']['ref'] = 'other';
+                            break;
+                        case 'wrong_base_branch':
+                            $confirmation['base']['ref'] = 'other';
+                            break;
+                        case 'closed':
+                            $confirmation['state'] = 'closed';
+                            break;
+                        case 'missing':
+                            return null;
+                        case 'read_failure':
+                            throw new RuntimeException('synthetic-super-secret');
+                    }
+                    return $confirmation;
                 }
                 $pr = $this->pr($input->automationActor, 'Bot', $input->managedBranch);
                 $pr['head']['sha'] = $head;
@@ -389,7 +462,11 @@ final class VersionPullRequestServiceTest extends TestCase
                 if (isset($settings['pr_lost_confirmed'])) {
                     throw new RuntimeException('super-secret');
                 }
-                return isset($settings['pr_bad_response']) ? null : $pr;
+                $response = $pr;
+                if (isset($settings['stale_patch_response']) && 'PATCH' === $method) {
+                    $response['head']['sha'] = str_repeat('a', 40);
+                }
+                return isset($settings['pr_bad_response']) ? null : $response;
             }
             return null;
         });
