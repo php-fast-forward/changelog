@@ -26,7 +26,9 @@ impact. A pending `1.0.1` cannot be skipped by a minor fragment that would other
 calculate `1.1.0` from tag `v1.0.0`. Section order and custom presentation do not
 change the check. Prerelease sections and build metadata do not change stable
 numeric precedence. Preexisting untagged stable history is subject to the same
-rule; Markdown is not proof of publication.
+rule; Markdown is not proof of publication. When no reachable stable tag exists,
+every maintained stable section blocks consumption, including `0.0.0`; the
+initial calculation baseline `0.0.0` does not itself prove a published tag.
 
 The check survives fresh checkouts and successful journal cleanup. Completing the
 approved stable tag unblocks the next transaction. History-only maintenance and

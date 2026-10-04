@@ -274,11 +274,46 @@ final class ReleasePlannerTest extends TestCase
     public function testPreexistingStableHistoryWithNoPublishedBaselineIsNotImplicitlyPublished(): void
     {
         [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('0.1.0')]),
-            'currentVersion' => '0.0.0', 'fragments' => true, 'versionsMock' => true]);
+            'currentVersion' => '0.0.0', 'tags' => [], 'fragments' => true, 'versionsMock' => true]);
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['plans']->expects(self::never())->method('create');
         $this->expectExceptionMessage('Maintained release 0.1.0 is awaiting');
         $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** The empty-tag 0.0.0 sentinel cannot unlock an untagged maintained 0.0.0 section. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testZeroMaintainedReleaseRequiresAnActualReachableStableTag(bool $unrelatedTag): void
+    {
+        $tags = $unrelatedTag ? [['name' => 'v0.0.0', 'sha' => str_repeat('9', 40), 'date' => null, 'date_source' => null]] : [];
+        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('0.0.0')]),
+            'currentVersion' => '0.0.0', 'tags' => $tags, 'fragments' => true, 'nextVersion' => '0.0.1',
+            'versionsMock' => true, 'clockMock' => true]);
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['clock']->expects(self::never())->method('now');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Maintained release 0.0.0 is awaiting its reachable stable Git tag');
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** An actual published zero tag and genuinely empty initial history both permit the first patch. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testActualZeroTagAndEmptyInitialHistoryAllowPatchPlanning(bool $tagged): void
+    {
+        $document = new HistoryDocument($tagged ? [new HistoryRelease('0.0.0')] : []);
+        $tags = $tagged ? [['name' => 'v0.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]] : [];
+        [$planner, $parts] = $this->planner(['document' => $document, 'currentVersion' => '0.0.0',
+            'tags' => $tags, 'fragments' => true, 'nextVersion' => '0.0.1', 'versionsMock' => true]);
+        $parts['versions']->expects(self::once())->method('resolve')->with('0.0.0', self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)))
+            ->willReturn(new VersionResolution('0.0.1', VersionImpact::Patch, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(static function (...$arguments) use ($parts): ReleasePlan {
+            self::assertSame('0.0.0', $arguments[2]);
+            self::assertSame('0.0.1', $arguments[3]);
+            return $parts['plan'];
+        });
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
     /** Numeric precedence remains exact for components wider than platform integers. */
@@ -463,7 +498,7 @@ final class ReleasePlannerTest extends TestCase
         $git = $this->createStub(GitRepositoryInterface::class);
         $git->method('isRepository')->willReturn($settings['repository'] ?? true);
         $git->method('resolveRef')->willReturnOnConsecutiveCalls(self::SHA, ($settings['baseMismatch'] ?? false) ? str_repeat('b', 40) : self::SHA);
-        $git->method('tags')->willReturn($settings['tags'] ?? []);
+        $git->method('tags')->willReturn($settings['tags'] ?? [['name' => 'v' . ($settings['currentVersion'] ?? '1.0.0'), 'sha' => self::SHA, 'date' => null, 'date_source' => null]]);
         $git->method('isAncestor')->willReturnCallback(static fn(string $directory, string $ancestor): bool => $ancestor !== str_repeat('9', 40));
         $history = ($settings['historyMock'] ?? false) ? $this->createMock(HistoryCodecInterface::class) : $this->createStub(HistoryCodecInterface::class);
         $history->method('parse')->willReturn($document);

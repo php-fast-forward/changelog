@@ -114,7 +114,7 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         if (null === $document) {
             throw $this->exceptions->invalid('The approved release is missing a historical section for a reachable stable Git tag.');
         }
-        $this->assertPublishedHistory($source, $current, $options->tagPrefix, $base);
+        $this->assertPublishedHistory($source, $current, $options->tagPrefix, $base, in_array($options->tagPrefix . $current, array_column($reachable, 'name'), true));
         $changesets = [];
         foreach ($selected as $path) {
             $contents = $this->git->readFileAt($options->workingDirectory, $base, $path);
@@ -154,15 +154,15 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         return $this->evidence->create($approvedSha, $version, $options->tagPrefix . $version, $centralNotes, $options->repository);
     }
 
-    /** Blocks consumption for another release until every maintained stable core has its reachable Git baseline. */
-    private function assertPublishedHistory(HistoryDocument $source, string $current, string $prefix, string $base): void
+    /** Requires an observed stable tag before treating any maintained stable core, including 0.0.0, as published. */
+    private function assertPublishedHistory(HistoryDocument $source, string $current, string $prefix, string $base, bool $publishedTag): void
     {
         $published = explode('+', $current, 2)[0];
         foreach ($source->getReleases() as $release) {
             if (1 !== preg_match('/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $release->getVersion(), $matches)) {
                 continue;
             }
-            if ($this->higher(implode('.', array_slice($matches, 1, 3)), $published, $prefix, $base)) {
+            if (! $publishedTag || $this->higher(implode('.', array_slice($matches, 1, 3)), $published, $prefix, $base)) {
                 throw $this->exceptions->invalid('The source-base history already contains a maintained release awaiting its reachable stable Git tag: ' . $release->getVersion());
             }
         }

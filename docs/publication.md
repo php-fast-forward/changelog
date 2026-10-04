@@ -26,6 +26,8 @@ Before any remote mutation, publication verifies:
   from the approved target. No pending Markdown remains at that target.
 - Stable tags reachable from the source base establish the current version.
   The complete source fragment set establishes SemVer impact and next version.
+  With no reachable stable tag, an existing stable source section (including
+  `0.0.0`) is pending publication and blocks another release.
 - Notes extracted from the approved central section exactly match the complete
   canonical fragment rendering and supported history round trip. Existing
   source-base history remains unchanged. Missing reachable tagged sections

@@ -110,7 +110,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $consumed = [];
         $notes = '';
         if (null !== $inventory && [] !== $inventory->changesets) {
-            $this->assertPublishedHistory($document, $currentVersion);
+            $this->assertPublishedHistory($document, $currentVersion, in_array($options->tagPrefix . $currentVersion, array_column($tags, 'name'), true));
             $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
             if (! $resolved->isValid()) {
                 throw $this->exceptions->invalid('Cannot calculate the next version: ' . implode('; ', $resolved->errors));
@@ -150,8 +150,8 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         );
     }
 
-    /** Refuses a second version while any maintained stable section exceeds the reachable stable Git baseline. */
-    private function assertPublishedHistory(HistoryDocument $document, string $currentVersion): void
+    /** Requires an observed stable tag baseline; the empty-history 0.0.0 sentinel cannot prove a maintained release. */
+    private function assertPublishedHistory(HistoryDocument $document, string $currentVersion, bool $publishedTag): void
     {
         $published = explode('.', explode('+', $currentVersion, 2)[0]);
         foreach ($document->getReleases() as $release) {
@@ -164,7 +164,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                 if (0 === $comparison) {
                     $comparison = strcmp($component, $published[$index]);
                 }
-                if (0 < $comparison) {
+                if (! $publishedTag || 0 < $comparison) {
                     throw $this->exceptions->failure('Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.');
                 }
                 if (0 > $comparison) {

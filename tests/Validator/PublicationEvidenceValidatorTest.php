@@ -385,6 +385,48 @@ final class PublicationEvidenceValidatorTest extends TestCase
         yield ['1000000000000000000000000000000000000000.0.0+prepared'];
     }
 
+    /** The no-tag sentinel cannot prove that an existing maintained zero release was published. */
+    #[DataProvider('unpublishedZeroTagSets')]
+    public function testZeroSourceReleaseRequiresAnActualReachableStableTag(array $tags): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->zeroBaselineState($options, true, $tags);
+        $this->failure($options, $state, 'awaiting its reachable stable Git tag: 0.0.0');
+        self::assertSame(0, $state['parser_calls']);
+        self::assertSame([], $state['resolved_ids']);
+        self::assertSame(1, $state['tags_calls']);
+    }
+
+    /** Missing, unrelated, prerelease and wrong-prefix tags cannot turn the sentinel into publication evidence. */
+    public static function unpublishedZeroTagSets(): iterable
+    {
+        yield [[]];
+        yield [[['name' => 'v0.0.0', 'sha' => str_repeat('d', 40), 'date' => null, 'date_source' => null]]];
+        yield [[['name' => 'v0.0.0-rc.1', 'sha' => str_repeat('c', 40), 'date' => null, 'date_source' => null]]];
+        yield [[['name' => 'other-0.0.0', 'sha' => str_repeat('c', 40), 'date' => null, 'date_source' => null]]];
+    }
+
+    /** A real published zero release and a truly empty initial history both retain valid first-release publication. */
+    #[DataProvider('publishedZeroOrEmptyHistory')]
+    public function testActualZeroTagAndEmptyInitialHistoryAllowPublication(bool $tagged): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $tags = $tagged ? [['name' => 'v0.0.0', 'sha' => str_repeat('c', 40), 'date' => null, 'date_source' => null]] : [];
+        $state = $this->zeroBaselineState($options, $tagged, $tags);
+        $evidence = $this->validator($state)->validate($options, self::APPROVED);
+        self::assertSame('0.0.1', $evidence->version);
+        self::assertSame('v0.0.1', $evidence->tag);
+        self::assertSame(['a.md', 'b.md'], $state['resolved_ids']);
+        self::assertSame(1, $state['tags_calls']);
+    }
+
+    /** Supplies an observed zero tag and a genuinely new project with no historical release. */
+    public static function publishedZeroOrEmptyHistory(): iterable
+    {
+        yield [false];
+        yield [true];
+    }
+
     /** A different build identity at the same stable core does not count as a pending higher release. */
     public function testSameCoreBuildIdentityDoesNotBlockReleasePublication(): void
     {
@@ -652,6 +694,20 @@ final class PublicationEvidenceValidatorTest extends TestCase
             'tree' => [self::BASE => ['CHANGELOG.md' => '100644', '.changelog/a.md' => '100644', '.changelog/b.md' => '100755', '.changelog/AGENTS.md' => '100644'],
                 self::APPROVED => ['CHANGELOG.md' => '100644', '.changelog/AGENTS.md' => '100644', $options->template => '100644']],
         ];
+    }
+
+    /** Builds consistent committed first-release evidence without equating the baseline sentinel with an actual tag. */
+    private function zeroBaselineState(ReleaseOptions $options, bool $maintained, array $tags): array
+    {
+        $state = $this->state($options);
+        $state['current'] = '0.0.0';
+        $state['next'] = '0.0.1';
+        $state['tags'] = $tags;
+        $state['base_doc'] = new HistoryDocument($maintained ? [new HistoryRelease('0.0.0', body: 'Maintained zero release')] : [], $state['base_doc']->getPrefix(), $state['base_doc']->getReferences());
+        $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
+        $state['approved_doc'] = $state['base_doc']->withReleases([new HistoryRelease('0.0.1', '2026-10-03', null, "Exact  notes\n"), ...$state['base_doc']->getReleases()]);
+        $this->refreshApproved($state);
+        return $state;
     }
 
     /** Models a history-only rewrite while retaining pending fragments byte for byte at both commits. */

@@ -52,7 +52,11 @@ For example:
 `en` or `pt-BR`. Settings include introduction, release/unreleased headings,
 category headings and the missing-notes message. Release headings require level
 two and `{version}`; dated headings also require `{date}`. Category headings
-require level three. Unknown settings and incompatible shapes fail early.
+require level three. Consecutive version/date placeholders need a literal
+delimiter outside the SemVer alphabet, such as a space, bracket or colon.
+Adjacent placeholders and separators consisting only of letters, digits, dots,
+hyphens or plus signs fail early because the rendered heading would be ambiguous.
+Unknown settings and incompatible shapes also fail early.
 
 An explicitly selected trusted PHP template may return:
 

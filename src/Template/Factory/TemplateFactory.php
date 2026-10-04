@@ -86,6 +86,7 @@ final class TemplateFactory implements TemplateFactoryInterface
             if (! str_contains($settings[$key], '{version}')) {
                 throw new InvalidArgumentException('Release heading templates must contain {version}.');
             }
+            $this->validatePlaceholderBoundaries($settings[$key]);
         }
 
         if (! str_contains($settings['release_heading_dated'], '{date}')) {
@@ -93,6 +94,17 @@ final class TemplateFactory implements TemplateFactoryInterface
         }
 
         return new KeepAChangelogTemplate($locale, $settings['introduction'], $settings['release_heading'], $settings['release_heading_dated'], $settings['category_headings'], $settings['unreleased_heading'], $settings['no_notes']);
+    }
+
+    /** Rejects mixed placeholders without a literal delimiter that makes plain Markdown capture boundaries unambiguous. */
+    private function validatePlaceholderBoundaries(string $heading): void
+    {
+        $parts = preg_split('/(\{(?:version|date)\})/', $heading, -1, PREG_SPLIT_DELIM_CAPTURE);
+        for ($index = 1; $index + 2 < count($parts); $index += 2) {
+            if ($parts[$index] !== $parts[$index + 2] && 1 !== preg_match('/[^0-9A-Za-z.+-]/', $parts[$index + 1])) {
+                throw new InvalidArgumentException('Mixed {version} and {date} placeholders require a literal delimiter outside valid version/date characters, such as a space, bracket, colon or slash.');
+            }
+        }
     }
 
     /** Rejects multiline or structurally incompatible headings before construction. */

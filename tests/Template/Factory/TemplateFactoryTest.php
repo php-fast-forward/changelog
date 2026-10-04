@@ -5,6 +5,12 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Template\Factory;
 
 use FastForward\Changelog\Changeset\Category;
+use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
+use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
+use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
+use FastForward\Changelog\History\HistoryCodec;
+use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
 use InvalidArgumentException;
@@ -17,6 +23,9 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(TemplateFactory::class)]
 #[UsesClass(KeepAChangelogTemplate::class)]
 #[UsesClass(Category::class)]
+#[UsesClass(HistoryCodec::class)]
+#[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryRelease::class)]
 final class TemplateFactoryTest extends TestCase
 {
     #[Test]
@@ -41,6 +50,53 @@ final class TemplateFactoryTest extends TestCase
         self::assertSame('### Fixed', $template->categoryHeading('fixed'));
         self::assertSame('## Release 1.0.0: 2026-10-03', $template->releaseHeading('1.0.0', '2026-10-03'));
         self::assertSame('No notes', $template->missingNotes());
+    }
+
+    #[Test]
+    #[TestWith(['## {version}{date}'])]
+    #[TestWith(['## {date}{version}'])]
+    #[TestWith(['## {version}.{date}'])]
+    #[TestWith(['## {date}.{version}'])]
+    #[TestWith(['## {version}-{date}'])]
+    #[TestWith(['## {date}-{version}'])]
+    #[TestWith(['## {version}on{date}'])]
+    #[TestWith(['## {date}on{version}'])]
+    public function rejectsAmbiguousMixedPlaceholderBoundariesBeforeRendering(string $heading): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('literal delimiter outside valid version/date characters');
+        new TemplateFactory()->create('en', ['release_heading_dated' => $heading]);
+    }
+
+    #[Test]
+    #[TestWith(['## {version} {date}'])]
+    #[TestWith(['## [{version}]{date}'])]
+    #[TestWith(['## {date}[{version}]'])]
+    #[TestWith(['## {version}:{date}'])]
+    #[TestWith(['## {date}/{version}'])]
+    #[TestWith(['## {version} released on {date}'])]
+    #[TestWith(['## {version}{version}:{date}'])]
+    #[TestWith(['## {date}{date}:{version}'])]
+    public function separatedLiteralAndRepeatedSamePlaceholderFormsRoundTripThroughTheActualCodec(string $heading): void
+    {
+        $template = new TemplateFactory()->create('en', ['release_heading_dated' => $heading]);
+        $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
+        $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
+        $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
+        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease($version, $date, $source, $body, $heading, $ending));
+        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
+        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        $codec = new HistoryCodec($documents, $releases, $exceptions);
+        $version = '1.2.3-beta.1+build.7';
+        $date = '2026-10-03';
+        $body = "Exact release notes.\n";
+        $markdown = $codec->render(new HistoryDocument([new HistoryRelease($version, $date, body: $body)]), $template);
+        $document = $codec->parse($markdown, $template);
+
+        self::assertCount(1, $document->getReleases());
+        self::assertSame($version, $document->getReleases()[0]->getVersion());
+        self::assertSame($date, $document->getReleases()[0]->getDate());
+        self::assertSame($body, $codec->notes($document, $version));
     }
 
     #[Test]
