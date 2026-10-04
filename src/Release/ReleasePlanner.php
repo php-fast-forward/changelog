@@ -22,6 +22,7 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
@@ -109,6 +110,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $consumed = [];
         $notes = '';
         if (null !== $inventory && [] !== $inventory->changesets) {
+            $this->assertPublishedHistory($document, $currentVersion);
             $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
             if (! $resolved->isValid()) {
                 throw $this->exceptions->invalid('Cannot calculate the next version: ' . implode('; ', $resolved->errors));
@@ -146,6 +148,30 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $receiptPath,
             $receiptBytes,
         );
+    }
+
+    /** Refuses a second version while any maintained stable section exceeds the reachable stable Git baseline. */
+    private function assertPublishedHistory(HistoryDocument $document, string $currentVersion): void
+    {
+        $published = explode('.', explode('+', $currentVersion, 2)[0]);
+        foreach ($document->getReleases() as $release) {
+            $version = $release->getVersion();
+            if (1 !== preg_match('/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $version, $matches)) {
+                continue;
+            }
+            foreach (array_slice($matches, 1, 3) as $index => $component) {
+                $comparison = strlen($component) <=> strlen($published[$index]);
+                if (0 === $comparison) {
+                    $comparison = strcmp($component, $published[$index]);
+                }
+                if (0 < $comparison) {
+                    throw $this->exceptions->failure('Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.');
+                }
+                if (0 > $comparison) {
+                    break;
+                }
+            }
+        }
     }
 
     /** Captures hashes of the exact bytes accepted by fragment validation, before any mutation. */

@@ -64,7 +64,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             if (GitHubEvidence::pullRequest($pr, $repo, $prNumber) && $pr['head']['ref'] === $managedBranch && GitHubEvidence::identity($pr['user'] ?? null, $automationActor, 'Bot')) {
                 $managed = $this->managedProof($options, $pr, $automationActor);
                 if (! $managed) {
-                    $diagnostics[] = 'Managed version PR lacks a signed Bot commit with validated source base and file scope.';
+                    $diagnostics[] = 'Managed version PR requires a fresh source base, signed Bot commit and validated file scope; resynchronize it before merge.';
                 }
             }
             $kind = $managed ? 'managed-version' : ($maintenance ? 'maintenance' : ($waiver ? 'waiver' : 'ordinary'));
@@ -105,11 +105,16 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 || ('admin' === ($permission['role_name'] ?? null) && 'admin' === ($permission['permission'] ?? null)));
     }
 
-    /** Verifies the PR creator independently, then shares immutable-head ownership proof with the updater. */
+    /** Requires the live PR base to match its generated source before allowing merge; updater ownership may remain older. */
     private function managedProof(ReleaseOptions $options, array $pr, string $actor): bool
     {
         $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
-        return GitHubEvidence::identity($account, $actor, 'Bot', $pr['user']['id'])
+        $commit = $this->github->request('GET', '/repos/' . $options->repository . '/commits/' . $pr['head']['sha']);
+        $message = $commit['commit']['message'] ?? null;
+        return is_string($message)
+            && 1 === preg_match_all('/^Changelog-Base: ((?:[a-f0-9]{40}|[a-f0-9]{64}))$/m', $message, $matches)
+            && $matches[1][0] === $pr['base']['sha']
+            && GitHubEvidence::identity($account, $actor, 'Bot', $pr['user']['id'])
             && $this->inspectHead($options, $pr['head']['sha'], $actor, $pr['base']['sha']);
     }
 

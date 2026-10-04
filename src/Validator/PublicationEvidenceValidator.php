@@ -22,12 +22,14 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
 
@@ -89,11 +91,30 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
                     throw $this->exceptions->invalid('Maintenance requires every pending fragment to retain its exact source-base bytes: ' . $path);
                 }
             }
-            return $this->evidence->create($approvedSha, null, null, '', $options->repository);
         }
-        if ([] === $selected) {
-            return $this->evidence->create($approvedSha, null, null, '', $options->repository);
+        $reachable = [];
+        foreach ($this->git->tags($options->workingDirectory) as $tag) {
+            if ($this->git->isAncestor($options->workingDirectory, $tag['sha'], $base)) {
+                $reachable[] = $tag;
+            }
         }
+        $current = $this->importer->currentVersion($reachable, $options->tagPrefix);
+        $this->trustedTemplate($options, $approvedSha);
+        $template = $this->templates->resolve($options);
+        $approved = $this->history->parse($central, $template);
+        $source = $this->history->parse($baseCentral ?? '', $template);
+        $document = $this->backfilledHistory($source, $approved, $options, $template, $reachable);
+        if ([] !== $remaining || [] === $selected) {
+            if ((null !== $document && $central === $this->history->render($document, $template, true))
+                || $central === $this->history->render($source, $template, false)) {
+                return $this->evidence->create($approvedSha, null, null, '', $options->repository);
+            }
+            throw $this->exceptions->invalid('The approved history is not supported backfill or format maintenance; an incomplete release must consume every source fragment.');
+        }
+        if (null === $document) {
+            throw $this->exceptions->invalid('The approved release is missing a historical section for a reachable stable Git tag.');
+        }
+        $this->assertPublishedHistory($source, $current, $options->tagPrefix, $base);
         $changesets = [];
         foreach ($selected as $path) {
             $contents = $this->git->readFileAt($options->workingDirectory, $base, $path);
@@ -109,28 +130,16 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
             }
             $changesets[] = $result->changeset;
         }
-        $reachable = [];
-        foreach ($this->git->tags($options->workingDirectory) as $tag) {
-            if ($this->git->isAncestor($options->workingDirectory, $tag['sha'], $base)) {
-                $reachable[] = $tag;
-            }
-        }
-        $current = $this->importer->currentVersion($reachable, $options->tagPrefix);
         $resolved = $this->versions->resolve($current, $changesets);
         if (! $resolved->isValid()) {
             throw $this->exceptions->invalid('The committed fragment set does not resolve a valid release version.');
         }
         $version = $resolved->nextVersion;
-        $this->trustedTemplate($options, $approvedSha);
-        $template = $this->templates->resolve($options);
-        $approved = $this->history->parse($central, $template);
         $section = $approved->getRelease($version);
         if (null === $section) {
             throw $this->exceptions->invalid('The approved history has no section for the computed release version.');
         }
         $rendered = $this->notes->render($changesets, $template, $options->repository);
-        $imported = $this->importer->import($this->history->parse($baseCentral ?? '', $template), $options, $template, $reachable);
-        $document = $imported->document;
         if (null !== $document->getRelease($version)) {
             throw $this->exceptions->invalid('The computed release already exists in the source-base history.');
         }
@@ -143,6 +152,76 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         }
         $centralNotes = $this->history->notes($approved, $version);
         return $this->evidence->create($approvedSha, $version, $options->tagPrefix . $version, $centralNotes, $options->repository);
+    }
+
+    /** Blocks consumption for another release until every maintained stable core has its reachable Git baseline. */
+    private function assertPublishedHistory(HistoryDocument $source, string $current, string $prefix, string $base): void
+    {
+        $published = explode('+', $current, 2)[0];
+        foreach ($source->getReleases() as $release) {
+            if (1 !== preg_match('/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $release->getVersion(), $matches)) {
+                continue;
+            }
+            if ($this->higher(implode('.', array_slice($matches, 1, 3)), $published, $prefix, $base)) {
+                throw $this->exceptions->invalid('The source-base history already contains a maintained release awaiting its reachable stable Git tag: ' . $release->getVersion());
+            }
+        }
+    }
+
+    /** Reuses approved imported snapshots while every pre-existing section retains its exact source-base presentation. */
+    private function backfilledHistory(HistoryDocument $source, HistoryDocument $approved, ReleaseOptions $options, TemplateInterface $template, array $tags): ?HistoryDocument
+    {
+        if ('tags' === $options->source) {
+            // This explicit importer mode never reads GitHub and preserves deterministic placeholders and tag dates.
+            return $this->importer->import($source, $options, $template, $tags)->document;
+        }
+        $tagged = [];
+        foreach ($tags as $tag) {
+            if (str_starts_with($tag['name'], $options->tagPrefix)) {
+                $version = substr($tag['name'], strlen($options->tagPrefix));
+                if ($this->stable($version)) {
+                    $tagged[$version] = $tag;
+                }
+            }
+        }
+        uksort($tagged, fn(string $left, string $right): int => $left === $right ? 0
+            : ($this->higher($left, $right, $options->tagPrefix, $tagged[$left]['sha']) ? -1 : 1));
+        $releases = $source->getReleases();
+        foreach ($tagged as $version => $tag) {
+            if (null !== $source->getRelease($version)) {
+                continue;
+            }
+            $snapshot = $approved->getRelease($version);
+            if (null === $snapshot) {
+                return null;
+            }
+            $section = $this->releases->create($version, $snapshot->getDate(), $snapshot->getDateSource(), $snapshot->getBody());
+            $position = count($releases);
+            foreach ($releases as $index => $existing) {
+                if ($this->stable($existing->getVersion())
+                    && $this->higher($version, $existing->getVersion(), $options->tagPrefix, $tag['sha'])) {
+                    $position = $index;
+                    break;
+                }
+            }
+            array_splice($releases, $position, 0, [$section]);
+        }
+        return $source->withReleases($releases);
+    }
+
+    /** Accepts exactly the stable identities that the shared historical importer accepts. */
+    private function stable(string $version): bool
+    {
+        return 1 === preg_match('/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $version);
+    }
+
+    /** Delegates ordering to the pure shared tag baseline, retaining large numeric components and build tie semantics. */
+    private function higher(string $left, string $right, string $prefix, string $sha): bool
+    {
+        return $left !== $right && $left === $this->importer->currentVersion([
+            ['name' => $prefix . $left, 'sha' => $sha, 'date' => null, 'date_source' => null],
+            ['name' => $prefix . $right, 'sha' => $sha, 'date' => null, 'date_source' => null],
+        ], $prefix);
     }
 
     /** Inventories the complete canonical pending scope while retaining safe maintenance without consumption. */

@@ -295,6 +295,21 @@ final class PullRequestPolicyTest extends TestCase
         self::assertTrue($this->policy($responses, [], $data)->inspectHead($this->options(), str_repeat('a', 40), baseSha: str_repeat('d', 40)));
     }
 
+    /** An older owned head may be safely updated but cannot authorize a stale consolidation for merge. */
+    #[Test]
+    public function managedMergeAuthorityRequiresTheLatestLiveBase(): void
+    {
+        [$responses, $data] = $this->managed();
+        $responses['/repos/owner/project/pulls/7']['base']['sha'] = str_repeat('d', 40);
+        $responses['/repos/owner/project/compare/' . str_repeat('b', 40) . '...' . str_repeat('d', 40)] = ['status' => 'ahead', 'merge_base_commit' => ['sha' => str_repeat('b', 40)]];
+        $policy = $this->policy($responses, [], $data);
+        self::assertTrue($policy->inspectHead($this->options(), str_repeat('a', 40), baseSha: str_repeat('d', 40)));
+        $result = $policy->inspect($this->options(), 7);
+        self::assertFalse($result->centralChangeAuthorized);
+        self::assertSame('ordinary', $result->kind);
+        self::assertStringContainsString('resynchronize', implode(' ', $result->diagnostics));
+    }
+
     #[Test]
     public function consumedFragmentsRequireExactBaseHashesAndCompleteRemovalScope(): void
     {

@@ -172,6 +172,14 @@ produce no new PR, and a merged consolidation awaiting publication blocks a seco
 version transaction. A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
+Before merging, the generated source base must equal the live PR base. A later
+base push resynchronizes the same PR and includes the newly accepted fragments;
+the contribution check refuses a stale generated head. Make that check required
+and enable strict up-to-date status checks in branch protection or the equivalent
+ruleset. These are consumer repository settings, not permissions that a workflow
+can grant itself. GitHub documents
+[required status checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-status-checks-before-merging).
+
 Set `dry-run: true` to plan without GitHub writes. Changing `automation-actor`
 requires a token authenticated as that Bot; a different name in an input does
 not establish identity. An optional short-lived App installation token may be

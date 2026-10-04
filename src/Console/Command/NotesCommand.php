@@ -20,6 +20,7 @@ use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
@@ -53,12 +54,12 @@ final readonly class NotesCommand
         private LockFactory $locks,
     ) {}
 
-    /** Uses the latest maintained release section, then actual stable tags, when no version argument is supplied. */
+    /** Uses the highest maintained stable SemVer independently of section order, then reachable stable tags. */
     public function __invoke(
         #[MapInput]
         ReleaseInput $settings,
         OutputInterface $output,
-        #[Argument(description: 'Version to read; defaults to the latest maintained release or current stable Git tag.')]
+        #[Argument(description: 'Version to read; defaults to the highest maintained stable version or current stable Git tag.')]
         ?string $version = null,
         #[Option(description: 'Optional project-relative managed output file.', name: 'output')]
         ?string $outputFile = null,
@@ -72,12 +73,7 @@ final readonly class NotesCommand
             if (null === $version) {
                 $template = $this->templates->resolve($options);
                 $document = $this->history->parse($contents, $template);
-                foreach ($document->getReleases() as $release) {
-                    if ('unreleased' !== $release->getVersion()) {
-                        $version = $release->getVersion();
-                        break;
-                    }
-                }
+                $version = $this->latestStableVersion($document);
                 if (null === $version) {
                     $tags = [];
                     if ($this->git->isRepository($options->workingDirectory)) {
@@ -129,4 +125,38 @@ final readonly class NotesCommand
             return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
     }
+
+    /** Returns the highest strict stable maintained identity without using presentation order or dates. */
+    private function latestStableVersion(HistoryDocument $document): ?string
+    {
+        $latest = null;
+        foreach ($document->getReleases() as $release) {
+            $candidate = $release->getVersion();
+            if (1 !== preg_match('/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $candidate)) {
+                continue;
+            }
+            if (null === $latest || $this->compareStableVersions($candidate, $latest) > 0) {
+                $latest = $candidate;
+            }
+        }
+        return $latest;
+    }
+
+    /** Compares arbitrary-width core numbers exactly; equal precedence uses deterministic build-metadata ordering. */
+    private function compareStableVersions(string $left, string $right): int
+    {
+        $leftParts = explode('.', explode('+', $left, 2)[0]);
+        $rightParts = explode('.', explode('+', $right, 2)[0]);
+        foreach ($leftParts as $index => $component) {
+            $comparison = strlen($component) <=> strlen($rightParts[$index]);
+            if (0 === $comparison) {
+                $comparison = strcmp($component, $rightParts[$index]);
+            }
+            if (0 !== $comparison) {
+                return $comparison;
+            }
+        }
+        return strcmp($left, $right);
+    }
+
 }

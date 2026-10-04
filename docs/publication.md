@@ -27,8 +27,12 @@ Before any remote mutation, publication verifies:
 - Stable tags reachable from the source base establish the current version.
   The complete source fragment set establishes SemVer impact and next version.
 - Notes extracted from the approved central section exactly match the complete
-  canonical fragment rendering and supported history round trip. The central
-  output hash and option fingerprint match the committed transaction.
+  canonical fragment rendering and supported history round trip. Existing
+  source-base history remains unchanged. Missing reachable tagged sections
+  imported during planning are taken from the reviewed approved bytes for
+  `auto`/`github`, rather than fetched again during publication; `tags` retains
+  its deterministic tag-derived dates and missing-note text. The central output
+  hash and option fingerprint match the committed transaction.
 
 Neither copied trailers nor a consistent hash grant publication authority.
 The merged-PR workflow separately verifies repository, branches, Bot identity,
@@ -37,7 +41,10 @@ signed original head and approved merge target before invoking publication.
 No unstaged central or fragment bytes are used. Built-in presentation can target
 an older approved commit. A custom PHP template additionally requires that exact
 checked-out HEAD, a canonical regular tracked path and unchanged trusted bytes
-before execution. Maintenance creates no tag or release.
+before execution. Maintenance creates no tag or release and must match genuine
+format/backfill output while retaining every pending fragment unchanged. A new
+release section with undeleted consumed fragments is an incomplete consolidation,
+not maintenance.
 
 ## Remote reconciliation
 

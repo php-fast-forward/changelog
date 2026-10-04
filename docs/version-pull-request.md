@@ -19,8 +19,19 @@ The generated tree starts from the fresh base tree. It updates only
 file to `.changelog/` or elsewhere. Maintenance updates only the central file.
 Local recovery journals are outside the versioned tree.
 
-A merged consolidation awaiting its public tag/release blocks another version
-transaction. This service never publishes tags or releases.
+Before calculating another version, the planner checks every maintained stable
+section against the latest reachable stable Git tag. Any section above that
+baseline blocks a new transaction, even when a new fragment requests a different
+impact. A pending `1.0.1` cannot be skipped by a minor fragment that would otherwise
+calculate `1.1.0` from tag `v1.0.0`. Section order and custom presentation do not
+change the check. Prerelease sections and build metadata do not change stable
+numeric precedence. Preexisting untagged stable history is subject to the same
+rule; Markdown is not proof of publication.
+
+The check survives fresh checkouts and successful journal cleanup. Completing the
+approved stable tag unblocks the next transaction. History-only maintenance and
+an empty fragment inventory do not invent another version. This service never
+publishes tags or releases.
 
 ## Ownership and repeatability
 
@@ -64,7 +75,28 @@ The immutable result exposes status, PR number/URL, head SHA, plan ID, version,
 maintenance flag and diagnostics. Statuses distinguish created, updated,
 unchanged, dry-run, none, refused and conflict. With no new fragments, a completed
 consolidation returns none. New fragments cannot prepare the same version again
-while that version remains in the maintained history without its stable tag.
+while any later stable section remains in the maintained history without a
+reachable stable tag.
 
 The service needs contents/PR write permissions and the policy's read permissions.
 Unit tests replace Git, GitHub, planner and authority boundaries.
+
+## Refresh before merge and recover a stale consolidation
+
+An open managed version PR is authorized only when its generated source base is
+exactly the current PR base. If another contribution lands, refresh the same
+managed branch from the newest base before merging. The updater can still verify
+ownership of the older signed head and replace its generated tree through a
+non-forced descendant commit. Older-head ownership is not approval to merge its
+stale consolidation. Consumers must make this check required and require the
+branch to be up to date; see [the policy contract](policies.md).
+
+If a stale consolidation was already merged and newer fragments remain,
+publication refuses the incomplete result. Keep those newer fragments. Provided
+no release tag was published, make a reviewed recovery change that reverts the
+failed consolidation's central-history changes and restores its consumed
+fragments from the exact source-base blobs. Preserve later contributions and
+unrelated approved work. Then refresh one version PR from that recovered base;
+it consumes the complete combined pending set and recalculates its single
+release impact. Do not delete newer fragments, bypass publication checks, move
+a tag or create a competing version branch to force the old plan through.

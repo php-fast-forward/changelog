@@ -60,15 +60,14 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $this->require($plan->baseSha === $base, 'The planned base is stale; refresh the base and rerun planning.');
             $old = null;
             if (null !== $head && $head !== $base) {
-                $owned = null === $pr ? $this->policy->inspectHead($options, $head, $input->automationActor, $base) : false;
+                $owned = $this->policy->inspectHead($options, $head, $input->automationActor, $base);
                 if (null !== $pr) {
-                    $authorization = $this->policy->inspect($options, $pr['number'], $input->managedBranch, $input->automationActor);
-                    $owned = $authorization->centralChangeAuthorized && 'managed-version' === $authorization->kind && $authorization->headSha === $head;
+                    $owned = $owned && $this->botCreatedPullRequest($options, $pr, $input->automationActor);
                 }
                 $this->require($owned, 'Existing managed head lacks signed Bot ownership or contains unexpected changes; it was preserved.');
                 $old = $this->identity($repo, $head);
             } elseif (null !== $pr) {
-                $this->require(GitHubEvidence::identity($pr['user'] ?? null, $input->automationActor, 'Bot'), 'A PR at the base commit must still belong to the configured Bot.');
+                $this->require($this->botCreatedPullRequest($options, $pr, $input->automationActor), 'A PR at the base commit must still belong to the configured Bot.');
             }
             if ('none' === $plan->mode()) {
                 return $this->result('none', $plan, $pr, $head, null === $pr ? [] : ['No changes remain; the existing owned PR was preserved for explicit review/closure.']);
@@ -129,6 +128,14 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         } catch (Throwable) {
             return $this->result($writing ? 'conflict' : 'refused', $plan, $pr, $head, ['Version PR synchronization could not be verified; inspect remote state before retrying. Response details were withheld.']);
         }
+    }
+
+    /** Confirms the PR creator's canonical Bot ID independently of its refreshable source base. */
+    private function botCreatedPullRequest(ReleaseOptions $options, array $pr, string $actor): bool
+    {
+        $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
+        return GitHubEvidence::identity($account, $actor, 'Bot')
+            && GitHubEvidence::identity($pr['user'] ?? null, $actor, 'Bot', $account['id']);
     }
 
     /** Reports only the immutable object identity and allowlisted verification scalars after failed ownership proof. */

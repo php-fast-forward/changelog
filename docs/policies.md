@@ -50,12 +50,20 @@ requires all of the following:
   Free-form Git author names/emails do not prove identity.
 - The signed commit identifies its source base, plan, output hash and configured
   options through scalar `Changelog-*` trailers. The source base must be a
-  GitHub-proven ancestor of the current PR base and head.
+  match the current live PR base exactly and be a GitHub-proven ancestor of the head.
 - The central blob at that head matches the declared output hash. Comparison
   scope contains only the central document and exact removals of the complete
   committed fragment inventory at the source base. Unknown files, renames,
   unsafe modes, invalid fragments or truncated comparisons fail closed.
   The comparison file limit is conservatively enforced below 300 files.
+
+An open managed PR generated before the current base is refused by the
+contribution check and must be resynchronized. The updater's separate
+`inspectHead()` ownership check still accepts a proven older ancestor so it can
+refresh that same PR safely. Configure the contribution check as required with
+strict up-to-date status checks; a passed check on an old base is not permission
+to merge after the base changes. A human maintenance grant does not change the
+publication validator's complete-consumption requirements.
 
 The trailers are evidence of the generated transaction, not identity
 credentials. A contributor copying them does not gain authority. Unsigned or

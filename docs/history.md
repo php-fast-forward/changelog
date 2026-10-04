@@ -77,6 +77,11 @@ Verified provenance and the upstream MIT notice remain in
 ## Notes
 
 `notes [version]` returns the exact maintained body. Without a version, it selects
-the latest stable maintained section, then reachable stable Git tags.
+the highest stable SemVer maintained in the document, independently of section
+order or release dates. Unreleased and prerelease sections do not become the
+default. Equal core versions with different build metadata use lexical ordering
+to make the selection deterministic. The stable maintained section takes priority
+over Git tags; reachable stable Git tags provide the fallback only when no
+stable maintained section exists. An explicit version may select a prerelease.
 `--output=notes/release.md` exports to a new project-relative file. Existing files,
 the consolidated changelog and all fragment-directory paths are refused.

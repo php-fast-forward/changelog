@@ -45,6 +45,23 @@ unsupported schemas, unsafe paths, malformed hashes and mismatched plan IDs.
 These checks protect recovery consistency; they do not establish who approved
 publication.
 
+## Pending publication after successful application
+
+Journal deletion does not erase pending-publication detection. Before preparing
+a new version from nonempty fragments, the planner compares all maintained stable
+sections with the latest reachable stable Git tag. A later untagged stable section
+blocks the next transaction regardless of the new fragments' patch, minor or
+major impact. The check also applies to preexisting history and works in a fresh
+checkout; it never treats a Markdown heading as a published tag. Ordinary history
+maintenance and an empty fragment inventory remain available.
+
+For a correctly merged consolidation, retry its approved publication. If newer
+fragments were retained by a stale merge, keep publication's complete-consumption
+check. With no published release tag, recover through a reviewed revert of the
+failed consolidation's central changes plus restoration of its consumed exact
+source-base fragments, preserving later contributions. The next single version
+PR can then consume the complete pending set. See [version PR recovery](version-pull-request.md#refresh-before-merge-and-recover-a-stale-consolidation).
+
 ## Git automation and publication
 
 Version automation builds its tree from the fresh approved source base and

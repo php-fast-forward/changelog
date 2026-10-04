@@ -20,7 +20,16 @@ An existing global Composer installation exposes `changelog` instead. Commands
 operate on the consumer working directory, including when the package itself is
 installed elsewhere; `--cwd=/path/to/project` selects it explicitly. A skill
 installation is separate and does not install PHP, Composer or this runtime.
-See [skill distribution and evidence](skills.md).
+The real canonical skill package is `.github/skills/changelog`; repository
+Codex/Claude directories link to that source. To discover an explicitly reviewed
+local checkout without installing into another environment:
+
+```sh
+npx --yes skills@1.7.0 add /path/to/changelog/.github/skills/changelog --list
+```
+
+See [skill distribution and evidence](skills.md) for separately authorized
+project copy installation and host limitations.
 
 There is no `init` step or mandatory local configuration. Defaults are
 `.changelog/`, `CHANGELOG.md`, English Keep a Changelog presentation, tag prefix
@@ -77,7 +86,7 @@ that same fragment instead of creating a duplicate.
 | `check` | `check --since=origin/main` | Validates inventory and the contribution delta |
 | `status` | `status --json --source=tags` | Prints a release plan without managed writes |
 | `version` | `version --dry-run --source=tags` | Previews consolidation; omit dry-run to apply an authorized transaction |
-| `notes` | `notes 1.2.3` | Returns exact central body bytes; optional `--output=notes.md` creates a new output file without replacing existing or maintained files |
+| `notes` | `notes 1.2.3` | Returns exact central body bytes; default selection is the highest maintained stable SemVer, independent of section order; optional `--output=notes.md` creates a new output file without replacing existing or maintained files |
 | `backfill` | `backfill --dry-run --source=tags` | Previews adding only missing historical versions |
 | `format` | `format --dry-run --locale=pt-BR` | Previews presentation changes while preserving descriptions/history |
 | `publish` | `publish --target-sha=<approved-full-sha> --repository=owner/repo --dry-run` | Proves committed evidence and reads remote state before creating missing objects |
@@ -200,14 +209,14 @@ network, clock or credential observation. Factories construct values/collaborato
 | `CheckServiceInterface` | `check($options, $since=null, $centralChangeAuthorized=false, $waiverAuthorized=false): ValidationReport`; authorization belongs to verified automation context |
 | `ReleasePlannerInterface` | `plan($options, $operation='version'): ReleasePlan`; version/backfill/format exact evidence without mutation |
 | `ReleaseApplierInterface` | `apply($plan): bool` and read-only `isApplied($plan): bool`; exact journal/snapshot/inventory transaction |
-| `HistoryCodecInterface` | `parse($markdown)`, `render($document, $template, $preservePresentation=false)`, `notes($document, $version)`; pure Markdown/history boundary |
+| `HistoryCodecInterface` | `parse($markdown, $template=null)`, `render($document, $template, $preservePresentation=false)`, `notes($document, $version)`; pure Markdown/history boundary |
 | `HistoryImporterInterface` | `import($document, $options, $template, $tags)` and `currentVersion($tags, $tagPrefix='v')`; actual stable tag evidence |
 | `PublicationServiceInterface` | `publish($options, string $approvedSha, bool $dryRun=false): PublicationResult`; complete SHA required at service boundary |
 
 `ReleaseOptions` carries workingDirectory, fragmentDirectory, changelogFile,
 locale, template, baseRef, tagPrefix, repository and source. `ReleasePlan::summary()`
 exposes id/mode/base_sha/current_version/next_version/impact/consumed/
-historical_versions/notes/affected_files/resuming. `ValidationReport::isValid()`
+historical_versions/notes/affected_files/commit_message/resuming. `ValidationReport::isValid()`
 checks its diagnostic map; valid pending inventory is not a new-contribution
 count. Exact accepted input hashes are transaction evidence. Publication results
 expose state/version/tag/sha/url/actions with `summary()`. See the linked domain

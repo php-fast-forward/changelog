@@ -234,10 +234,116 @@ final class ReleasePlannerTest extends TestCase
     public function testReleasePlanningFailuresAreDiagnostic(string $failure): void
     {
         $document = 'duplicate' === $failure ? new HistoryDocument([new HistoryRelease('1.0.1')]) : new HistoryDocument();
-        [$planner, $parts] = $this->planner(['fragments' => true, 'failure' => $failure, 'document' => $document]);
+        [$planner, $parts] = $this->planner(['fragments' => true, 'failure' => $failure, 'document' => $document, 'currentVersion' => 'duplicate' === $failure ? '1.0.1' : '1.0.0']);
         $parts['plans']->expects(self::never())->method('create');
         $this->expectException('duplicate' === $failure || 'hashless' === $failure ? RuntimeException::class : InvalidArgumentException::class);
         $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** A fresh checkout cannot skip an unpublished patch simply because the next fragment requests a minor or major. */
+    #[TestWith(['1.1.0', 'minor'])]
+    #[TestWith(['2.0.0', 'major'])]
+    public function testFreshCheckoutBlocksAnotherImpactWhileMaintainedReleaseAwaitsTag(string $next, string $impact): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]);
+        [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'nextVersion' => $next,
+            'impact' => VersionImpact::from($impact), 'versionsMock' => true, 'clockMock' => true]);
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['clock']->expects(self::never())->method('now');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Maintained release 1.0.1 is awaiting its reachable stable Git tag');
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** Every maintained stable section is checked despite custom presentation order, a v prefix or imported history. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPendingSectionOutsideFirstPositionAlsoBlocksAnIndependentVersion(bool $imported): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('unreleased'), new HistoryRelease('0.8.0'), new HistoryRelease('1.0.0')]);
+        $maintained = new HistoryDocument([new HistoryRelease('unreleased'), new HistoryRelease('0.8.0'), new HistoryRelease('v1.0.1+build.5'), new HistoryRelease('1.0.0')]);
+        [$planner, $parts] = $this->planner(['document' => $imported ? $document : $maintained,
+            'importedDocument' => $maintained, 'fragments' => true, 'versionsMock' => true]);
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Maintained release v1.0.1+build.5 is awaiting');
+        $planner->plan(new ReleaseOptions('/consumer', template: 'custom.php'));
+    }
+
+    /** Preexisting history cannot substitute for a real stable tag when adopting an untagged repository. */
+    public function testPreexistingStableHistoryWithNoPublishedBaselineIsNotImplicitlyPublished(): void
+    {
+        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('0.1.0')]),
+            'currentVersion' => '0.0.0', 'fragments' => true, 'versionsMock' => true]);
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Maintained release 0.1.0 is awaiting');
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** Numeric precedence remains exact for components wider than platform integers. */
+    public function testPendingHistoryUsesArbitraryWidthSemanticComponents(): void
+    {
+        $current = '999999999999999999999999999999.4.0';
+        $pending = '1000000000000000000000000000000.0.0';
+        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease($pending)]),
+            'currentVersion' => $current, 'fragments' => true, 'versionsMock' => true]);
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Maintained release ' . $pending . ' is awaiting');
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** Tagged baseline, older releases, build precedence and prerelease/unreleased sections do not block a new version. */
+    public function testPublishedAndNonStableHistoryAllowIndependentNextVersion(): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('unreleased'), new HistoryRelease('2.0.0-rc.1'),
+            new HistoryRelease('0.999.999'), new HistoryRelease('1.9.999'), new HistoryRelease('1.10.0+other.build')]);
+        [$planner, $parts] = $this->planner(['document' => $document, 'currentVersion' => '1.10.0+published.build',
+            'fragments' => true, 'nextVersion' => '1.10.1', 'versionsMock' => true]);
+        $parts['versions']->expects(self::once())->method('resolve')->with('1.10.0+published.build', self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)))
+            ->willReturn(new VersionResolution('1.10.1', VersionImpact::Patch, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
+    }
+
+    /** An observed publication unlocks the next impact rather than rewriting the existing maintained release. */
+    public function testReachableTagForPendingMaintainedSectionUnlocksNextVersion(): void
+    {
+        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]),
+            'currentVersion' => '1.0.1', 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA, 'date' => null, 'date_source' => null]],
+            'fragments' => true, 'nextVersion' => '1.1.0', 'versionsMock' => true]);
+        $parts['versions']->expects(self::once())->method('resolve')->with('1.0.1', self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)))
+            ->willReturn(new VersionResolution('1.1.0', VersionImpact::Minor, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
+    }
+
+    /** A same-named stable tag on another branch cannot unlock the maintained pending version. */
+    public function testUnrelatedMatchingTagCannotUnlockMaintainedPendingRelease(): void
+    {
+        $reachable = ['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null];
+        $unrelated = ['name' => 'v1.0.1', 'sha' => str_repeat('9', 40), 'date' => null, 'date_source' => null];
+        $document = new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]);
+        [$planner, $parts] = $this->planner(['document' => $document, 'tags' => [$unrelated, $reachable],
+            'fragments' => true, 'importerMock' => true, 'versionsMock' => true]);
+        $parts['importer']->expects(self::once())->method('currentVersion')->with([$reachable], 'v')->willReturn('1.0.0');
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectExceptionMessage('Maintained release 1.0.1 is awaiting');
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
+    /** Pending publication never blocks history maintenance or invents a new version when there are no fragments. */
+    #[TestWith(['version'])]
+    #[TestWith(['format'])]
+    #[TestWith(['backfill'])]
+    public function testPendingStableHistoryDoesNotBlockNonVersionWork(string $operation): void
+    {
+        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('1.0.1')]), 'versionsMock' => true]);
+        $parts['versions']->expects(self::never())->method('resolve');
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer'), $operation));
     }
 
     /** Saved plans cannot consume later fragments or silently change presentation settings. */
@@ -363,8 +469,8 @@ final class ReleasePlannerTest extends TestCase
         $history->method('parse')->willReturn($document);
         $history->method('notes')->willReturn("Exact notes\n");
         $importer = ($settings['importerMock'] ?? false) ? $this->createMock(HistoryImporterInterface::class) : $this->createStub(HistoryImporterInterface::class);
-        $importer->method('currentVersion')->willReturn('1.0.0');
-        $importer->method('import')->willReturn(new HistoryImportResult($document, $settings['missing'] ?? [], '1.0.0'));
+        $importer->method('currentVersion')->willReturn($settings['currentVersion'] ?? '1.0.0');
+        $importer->method('import')->willReturn(new HistoryImportResult($settings['importedDocument'] ?? $document, $settings['missing'] ?? [], $settings['currentVersion'] ?? '1.0.0'));
         $templates = ($settings['templatesMock'] ?? false) ? $this->createMock(TemplateResolverInterface::class) : $this->createStub(TemplateResolverInterface::class);
         $templates->method('resolve')->willReturn($template);
         $change = new Changeset('new.md', Category::Fixed, null, null, null, 'Description');
@@ -373,10 +479,13 @@ final class ReleasePlannerTest extends TestCase
         $validator = ($settings['validatorMock'] ?? false) ? $this->createMock(ChangesetValidatorInterface::class) : $this->createStub(ChangesetValidatorInterface::class);
         $validator->method('validate')->willReturn(new ValidationReport($fragments, 'invalid' === ($settings['failure'] ?? '') ? ['new.md' => ['bad category']] : [], false, $hashes));
         $versions = ($settings['versionsMock'] ?? false) ? $this->createMock(NextVersionResolverInterface::class) : $this->createStub(NextVersionResolverInterface::class);
-        $versions->method('resolve')->willReturn('semver' === ($settings['failure'] ?? '') ? new VersionResolution(null, null, ['invalid tag']) : new VersionResolution('1.0.1', VersionImpact::Patch, []));
+        $versions->method('resolve')->willReturn('semver' === ($settings['failure'] ?? '') ? new VersionResolution(null, null, ['invalid tag']) : new VersionResolution($settings['nextVersion'] ?? '1.0.1', $settings['impact'] ?? VersionImpact::Patch, []));
         $renderer = $this->createStub(ReleaseNotesRendererInterface::class);
         $renderer->method('render')->willReturn('Rendered fragments');
         $releases = ($settings['releaseMock'] ?? false) ? $this->createMock(HistoryReleaseFactoryInterface::class) : $this->createStub(HistoryReleaseFactoryInterface::class);
+        if (! ($settings['releaseMock'] ?? false)) {
+            $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease($version, $date, $source, $body));
+        }
         $clock = ($settings['clockMock'] ?? false) ? $this->createMock(ClockInterface::class) : $this->createStub(ClockInterface::class);
         $clock->method('now')->willReturn(new DateTimeImmutable('2026-10-03T23:30:00-03:00'));
         $receipts = $this->createStub(ReceiptCodecInterface::class);

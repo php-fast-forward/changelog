@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Automation\VersionPullRequest;
 
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
-use FastForward\Changelog\Automation\Policy\PullRequestAuthorization;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
@@ -33,7 +32,6 @@ use RuntimeException;
 
 #[CoversClass(VersionPullRequestService::class)]
 #[UsesClass(GitHubEvidence::class)]
-#[UsesClass(PullRequestAuthorization::class)]
 #[UsesClass(VersionPullRequestException::class)]
 #[UsesClass(VersionPullRequestInput::class)]
 #[UsesClass(VersionPullRequestResult::class)]
@@ -81,7 +79,7 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([str_repeat('a', 40), str_repeat('b', 40)], $this->writes('commits')[0][2]['parents']);
         self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
         self::assertSame('PATCH', $this->writes('pulls/7')[0][0]);
-        self::assertSame('inspect', $this->policyCalls[0][0]);
+        self::assertSame(['inspectHead', str_repeat('a', 40)], $this->policyCalls[0]);
     }
 
     #[Test]
@@ -212,7 +210,9 @@ final class VersionPullRequestServiceTest extends TestCase
     #[TestWith(['unexpected_pr'])]
     #[TestWith(['pr_head_mismatch'])]
     #[TestWith(['unowned'])]
-    #[TestWith(['wrong_authorization_head'])]
+    #[TestWith(['wrong_bot_creator'])]
+    #[TestWith(['missing_bot_account'])]
+    #[TestWith(['wrong_bot_account'])]
     #[TestWith(['unowned'])]
     #[TestWith(['wrong_receipt_id'])]
     #[TestWith(['read_failure'])]
@@ -221,7 +221,7 @@ final class VersionPullRequestServiceTest extends TestCase
     public function invalidOrUntrustedInputsFailBeforeMutation(string $case): void
     {
         $settings = [$case => true];
-        if (in_array($case, ['unowned', 'wrong_authorization_head', 'unowned', 'unexpected_pr', 'pr_head_mismatch', 'duplicate_pr'], true)) {
+        if (in_array($case, ['unowned', 'wrong_bot_creator', 'missing_bot_account', 'wrong_bot_account', 'unexpected_pr', 'pr_head_mismatch', 'duplicate_pr'], true)) {
             $settings['existing'] = true;
         }
         $result = $this->synchronizeFixture($settings);
@@ -316,6 +316,9 @@ final class VersionPullRequestServiceTest extends TestCase
         if (null !== $pr) {
             $pr['html_url'] = 'https://github.com/owner/project/pull/7';
             $pr['head']['sha'] = $head;
+            if (isset($settings['wrong_bot_creator'])) {
+                $pr['user']['id'] = 999;
+            }
             if (isset($settings['unexpected_pr'])) {
                 $pr['base']['ref'] = 'other';
             }
@@ -332,6 +335,9 @@ final class VersionPullRequestServiceTest extends TestCase
             $this->calls[] = [$method, $path, $body];
             if (isset($settings['read_failure'])) {
                 throw new RuntimeException('super-secret');
+            }
+            if ('GET' === $method && str_starts_with($path, '/users/')) {
+                return isset($settings['missing_bot_account']) ? null : $this->account($input->automationActor, 'Bot', isset($settings['wrong_bot_account']) ? 999 : 101);
             }
             if (str_ends_with($path, '/git/ref/heads/main')) {
                 ++$baseReads;
@@ -407,11 +413,8 @@ final class VersionPullRequestServiceTest extends TestCase
         $receipts->method('decode')->willReturnCallback(static fn(string $raw): ReleaseReceipt => new ReleaseReceipt('old receipt' === $raw ? $oldData : $data));
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('relativePath')->willReturn('.changelog/feature.md');
-        $policy = $this->createStub(PullRequestPolicyInterface::class);
-        $policy->method('inspect')->willReturnCallback(function () use ($head, $settings): PullRequestAuthorization {
-            $this->policyCalls[] = ['inspect'];
-            return new PullRequestAuthorization(false, ! isset($settings['unowned']), 'managed-version', [], isset($settings['wrong_authorization_head']) ? str_repeat('f', 40) : $head);
-        });
+        $policy = $this->createMock(PullRequestPolicyInterface::class);
+        $policy->expects(self::never())->method('inspect');
         $policy->method('inspectHead')->willReturnCallback(function (ReleaseOptions $received, string $sha) use ($settings): bool {
             $this->policyCalls[] = ['inspectHead', $sha];
             return ! isset($settings['unowned']) && ! (isset($settings['unsigned_new_commit']) && str_repeat('c', 40) === $sha);

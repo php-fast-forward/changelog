@@ -219,7 +219,11 @@ structural headings and keeps prose, fenced code, notes, dates and references;
 it does not translate descriptions. `notes` reads the exact maintained body,
 without the outer version heading. `--output=release-notes.md` writes that body
 only when an output file is requested. Without a version argument, notes selects
-the latest maintained section, then an actual stable Git baseline.
+the highest stable SemVer maintained in the document, independently of section
+order or dates. Unreleased and prerelease sections do not become the default;
+explicit versions may still select prereleases. Build metadata breaks equal-core
+version ties lexically. An actual reachable stable Git baseline is used only
+when no stable maintained section exists.
 
 Defaults need no file. For explicitly requested presentation customization,
 create a trusted project `changelog-template.php` containing:
@@ -261,6 +265,8 @@ to avoid accidentally selecting later commits. Publication reconstructs the
 consolidation from scalar commit trailers, source-base fragment blobs and the
 approved central history. It checks ancestry, option/output fingerprints,
 complete fragment removal, recalculated version/impact and exact central notes.
+Historical imports use the approved committed sections during publication;
+previous GitHub notes are not fetched again to reconstruct the approved history.
 A merge must resolve consistent transaction evidence; a squash must retain the
 trailers. Missing or ambiguous evidence fails. No tracked plan file is required.
 
