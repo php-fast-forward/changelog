@@ -62,7 +62,9 @@ outcomes return a conflict with known safe identifiers.
 
 The immutable result exposes status, PR number/URL, head SHA, plan ID, version,
 maintenance flag and diagnostics. Statuses distinguish created, updated,
-unchanged, dry-run, none, pending-publication, refused and conflict.
+unchanged, dry-run, none, refused and conflict. With no new fragments, a completed
+consolidation returns none. New fragments cannot prepare the same version again
+while that version remains in the maintained history without its stable tag.
 
 The service needs contents/PR write permissions and the policy's read permissions.
 Unit tests replace Git, GitHub, planner and authority boundaries.
