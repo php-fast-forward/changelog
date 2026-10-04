@@ -238,7 +238,11 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         $this->require($this->ref($repository, $branch) === $head, 'GitHub did not confirm the intended managed head.');
     }
 
-    /** Creates or refreshes the one PR; an uncertain create is recovered by its exclusive branch query. */
+    /**
+     * Creates or refreshes the one PR without retrying a mutation. Existing PR writes are confirmed
+     * through their trusted number because a successful PATCH may still return the previous head;
+     * an uncertain create is recovered by its exclusive branch query. Unconfirmed identities fail closed.
+     */
     private function writePullRequest(string $repository, VersionPullRequestInput $input, ?array $pr, string $head, string $body): array
     {
         try {
@@ -246,13 +250,17 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 ? $this->github->request('POST', '/repos/' . $repository . '/pulls', ['title' => $input->title, 'body' => $body, 'head' => $input->managedBranch, 'base' => $input->baseBranch])
                 : $this->github->request('PATCH', '/repos/' . $repository . '/pulls/' . $pr['number'], ['title' => $input->title, 'body' => $body]);
         } catch (Throwable) {
-            $response = null === $pr ? $this->pullRequest($repository, $input) : $this->github->request('GET', '/repos/' . $repository . '/pulls/' . $pr['number']);
+            $response = null === $pr ? $this->pullRequest($repository, $input) : null;
+        }
+        if (null !== $pr) {
+            $response = $this->github->request('GET', '/repos/' . $repository . '/pulls/' . $pr['number']);
         }
         $this->require(
             null !== $response && GitHubEvidence::pullRequest($response, $repository, $response['number'] ?? 0)
+            && (null === $pr || $response['number'] === $pr['number'])
             && $response['head']['sha'] === $head && $response['head']['ref'] === $input->managedBranch
             && ($response['base']['ref'] ?? null) === $input->baseBranch
-            && GitHubEvidence::identity($response['user'] ?? null, $input->automationActor, 'Bot')
+            && GitHubEvidence::identity($response['user'] ?? null, $input->automationActor, 'Bot', $pr['user']['id'] ?? null)
             && is_string($response['html_url'] ?? null) && str_starts_with($response['html_url'], 'https://'),
             'The version PR write was not confirmed as an owned PR at the intended head.',
         );
