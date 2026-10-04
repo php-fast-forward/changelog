@@ -16,16 +16,16 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Automation\Policy;
 
 use FastForward\Changelog\Automation\Policy\Factory\PullRequestAuthorizationFactoryInterface;
+use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use Throwable;
 
 /** Authorizes human grants and signed generated history using immutable GitHub account evidence. */
 final readonly class PullRequestPolicy implements PullRequestPolicyInterface
 {
-    /** Injects API, validated receipt and value boundaries; construction has no external effects. */
-    public function __construct(private GitHubClientInterface $github, private ReceiptCodecInterface $receipts, private PullRequestAuthorizationFactoryInterface $results) {}
+    /** Injects API, result construction and value boundaries; construction has no external effects. */
+    public function __construct(private GitHubClientInterface $github, private PullRequestAuthorizationFactoryInterface $results) {}
 
     /** Returns controlled diagnostics on inaccessible or inconsistent evidence, without exposing API secrets. */
     public function inspect(ReleaseOptions $options, int $prNumber, string $managedBranch = 'changelog/version', string $automationActor = 'github-actions[bot]', string $waiverLabel = 'changelog-not-required', string $maintenanceLabel = 'changelog-maintenance'): PullRequestAuthorization
@@ -64,7 +64,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             if (GitHubEvidence::pullRequest($pr, $repo, $prNumber) && $pr['head']['ref'] === $managedBranch && GitHubEvidence::identity($pr['user'] ?? null, $automationActor, 'Bot')) {
                 $managed = $this->managedProof($options, $pr, $automationActor);
                 if (! $managed) {
-                    $diagnostics[] = 'Managed version PR lacks a signed Bot commit and matching head receipt.';
+                    $diagnostics[] = 'Managed version PR requires a fresh source base, signed Bot commit and validated file scope; resynchronize it before merge.';
                 }
             }
             $kind = $managed ? 'managed-version' : ($maintenance ? 'maintenance' : ($waiver ? 'waiver' : 'ordinary'));
@@ -105,18 +105,23 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 || ('admin' === ($permission['role_name'] ?? null) && 'admin' === ($permission['permission'] ?? null)));
     }
 
-    /** Verifies the PR creator independently, then shares immutable-head ownership proof with the updater. */
+    /** Requires the live PR base to match its generated source before allowing merge; updater ownership may remain older. */
     private function managedProof(ReleaseOptions $options, array $pr, string $actor): bool
     {
         $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
-        return GitHubEvidence::identity($account, $actor, 'Bot', $pr['user']['id'])
+        $commit = $this->github->request('GET', '/repos/' . $options->repository . '/commits/' . $pr['head']['sha']);
+        $message = $commit['commit']['message'] ?? null;
+        return is_string($message)
+            && 1 === preg_match_all('/^Changelog-Base: ((?:[a-f0-9]{40}|[a-f0-9]{64}))$/m', $message, $matches)
+            && $matches[1][0] === $pr['base']['sha']
+            && GitHubEvidence::identity($account, $actor, 'Bot', $pr['user']['id'])
             && $this->inspectHead($options, $pr['head']['sha'], $actor, $pr['base']['sha']);
     }
 
     /**
      * Accepts an older generated base only when GitHub proves ancestry to the current base and head.
-     * Every changed file MUST belong to the saved transaction; unknown files, renames and truncated
-     * comparison scope fail closed. Raw commit emails, receipt IDs and PR prose never prove identity.
+     * Every changed file MUST belong to the generated transaction; unknown files, renames and truncated
+     * comparison scope fail closed. Raw commit emails, plan IDs and PR prose never prove identity.
      */
     public function inspectHead(ReleaseOptions $options, string $headSha, string $automationActor = 'github-actions[bot]', ?string $baseSha = null): bool
     {
@@ -138,27 +143,25 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             ) {
                 return false;
             }
-            $receiptPath = $options->fragmentDirectory . '/release-plan.json';
-            $raw = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($repository, $receiptPath, $headSha)));
-            if (null === $raw) {
+            $message = $commit['commit']['message'] ?? null;
+            if (! is_string($message)) {
                 return false;
             }
-            $data = $this->receipts->decode($raw)->data;
-            foreach (['repository' => $repository, 'changelog_file' => $options->changelogFile, 'fragment_directory' => $options->fragmentDirectory, 'locale' => $options->locale, 'template' => $options->template, 'tag_prefix' => $options->tagPrefix] as $key => $value) {
-                if (($data[$key] ?? null) !== $value) {
+            $data = [];
+            foreach (['Base' => 'base_sha', 'Plan' => 'id', 'Output' => 'after_changelog_sha256', 'Options' => 'options_sha256'] as $trailer => $key) {
+                if (1 !== preg_match_all('/^Changelog-' . $trailer . ':.*$/m', $message)
+                    || 1 !== preg_match_all('/^Changelog-' . $trailer . ': (.*)$/m', $message, $matches)
+                    || 1 !== preg_match('Base' === $trailer ? '/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/D' : '/^[a-f0-9]{64}$/D', $matches[1][0])) {
                     return false;
                 }
+                $data[$key] = $matches[1][0];
             }
-            if (! is_string($data['base_sha'] ?? null) || ! GitHubEvidence::sha($data['base_sha'])
-                || ! is_string($data['id'] ?? null) || ! is_string($commit['commit']['message'] ?? null)
-                || ! in_array('Changelog-Plan: ' . $data['id'], explode("\n", $commit['commit']['message']), true)
-            ) {
+            if (! GitHubEvidence::sha($data['base_sha']) || strlen($data['id']) !== 64
+                || $data['options_sha256'] !== $options->evidenceHash()) {
                 return false;
             }
             $central = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($repository, $options->changelogFile, $headSha)));
-            if (null === $central || $central !== ($data['changelog_contents'] ?? null)
-                || hash('sha256', $central) !== ($data['after_changelog_sha256'] ?? null)
-            ) {
+            if (null === $central || hash('sha256', $central) !== $data['after_changelog_sha256']) {
                 return false;
             }
             $scope = null;
@@ -213,41 +216,67 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             && true === ($object['signature']['wasSignedByGitHub'] ?? null);
     }
 
-    /** Checks complete comparison scope and each removed fragment's exact bytes at the receipt base. */
+    /** Proves a complete central-plus-deletions diff from immutable source-base blobs. */
     private function managedScope(ReleaseOptions $options, string $headSha, array $data, mixed $scope): bool
     {
-        if (! is_array($scope) || ! array_is_list($scope) || count($scope) >= 300 || ! is_array($data['consumed'] ?? null)) {
+        if (! is_array($scope) || ! array_is_list($scope) || count($scope) >= 300) {
             return false;
         }
-        $receiptPath = $options->fragmentDirectory . '/release-plan.json';
         $seen = [];
+        $removed = [];
         foreach ($scope as $file) {
             $path = $file['filename'] ?? null;
             if (! is_string($path) || isset($seen[$path]) || isset($file['previous_filename'])) {
                 return false;
             }
             $seen[$path] = true;
-            if (in_array($path, [$options->changelogFile, $receiptPath], true)) {
+            if ($path === $options->changelogFile) {
                 if (! in_array($file['status'] ?? null, ['added', 'modified'], true)) {
                     return false;
                 }
                 continue;
             }
-            if (! isset($data['consumed'][$path]) || ($file['status'] ?? null) !== 'removed') {
+            $prefix = $options->fragmentDirectory . '/';
+            if (! str_starts_with($path, $prefix)
+                || 1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, substr($path, strlen($prefix)))
+                || 'removed' !== ($file['status'] ?? null)) {
                 return false;
             }
-        }
-        if (! isset($seen[$receiptPath])) {
-            return false;
-        }
-        foreach ($data['consumed'] as $path => $hash) {
             $before = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $path, $data['base_sha'])));
             $after = $this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $path, $headSha));
-            if (! isset($seen[$path]) || null === $before || hash('sha256', $before) !== $hash || null !== $after) {
+            if (null === $before || null !== $after) {
                 return false;
             }
+            $removed[] = $path;
         }
-        $before = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $options->changelogFile, $data['base_sha'])));
-        return ($data['before_changelog_sha256'] ?? null) === (null === $before ? null : hash('sha256', $before));
+        if (! isset($seen[$options->changelogFile])) {
+            return false;
+        }
+        $entries = $this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $options->fragmentDirectory, $data['base_sha']));
+        if (null === $entries) {
+            return [] === $removed;
+        }
+        if (! array_is_list($entries) || count($entries) >= 1000) {
+            return false;
+        }
+        $pending = [];
+        foreach ($entries as $entry) {
+            $path = $entry['path'] ?? null;
+            if (! is_string($path)) {
+                return false;
+            }
+            if (! str_ends_with($path, '.md') || $path === $options->fragmentDirectory . '/AGENTS.md') {
+                continue;
+            }
+            $prefix = $options->fragmentDirectory . '/';
+            if ('file' !== ($entry['type'] ?? null) || ! str_starts_with($path, $prefix)
+                || 1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, substr($path, strlen($prefix)))) {
+                return false;
+            }
+            $pending[] = $path;
+        }
+        sort($pending, SORT_STRING);
+        sort($removed, SORT_STRING);
+        return $pending === $removed;
     }
 }

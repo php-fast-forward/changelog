@@ -20,26 +20,25 @@ use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
-use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
-use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
 
-/** Recomputes release semantics from committed fragment bytes rather than trusting receipt integrity as authority. */
+/** Recomputes release semantics from committed fragment bytes without relying on a generated repository file. */
 final readonly class PublicationEvidenceValidator implements PublicationEvidenceValidatorInterface
 {
     /** Injects read-only Git/domain proof and guarded custom-template boundaries without I/O. */
     public function __construct(
         private GitRepositoryInterface $git,
-        private ReceiptCodecInterface $receipts,
         private HistoryCodecInterface $history,
         private ChangesetParserInterface $parser,
         private NextVersionResolverInterface $versions,
@@ -49,7 +48,6 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         private PackagePathResolverInterface $paths,
         private ManagedFileStoreInterface $files,
         private HistoryReleaseFactoryInterface $releases,
-        private HistoryDocumentFactoryInterface $documents,
         private PublicationEvidenceFactoryInterface $evidence,
         private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
@@ -61,70 +59,67 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
             || $this->git->resolveRef($options->workingDirectory, $approvedSha) !== $approvedSha) {
             throw $this->exceptions->invalid('Publication requires the complete exact approved commit SHA.');
         }
-        $receiptPath = $options->fragmentDirectory . '/release-plan.json';
-        $this->regularFile($options, $approvedSha, $receiptPath);
-        $raw = $this->git->readFileAt($options->workingDirectory, $approvedSha, $receiptPath);
-        if (null === $raw) {
-            throw $this->exceptions->invalid('The approved commit has no release receipt.');
-        }
-        $data = $this->receipts->decode($raw)->data;
-        foreach (['fragment_directory' => $options->fragmentDirectory, 'changelog_file' => $options->changelogFile,
-            'locale' => $options->locale, 'template' => $options->template, 'tag_prefix' => $options->tagPrefix,
-            'repository' => $options->repository] as $field => $value) {
-            if ($data[$field] !== $value) {
-                throw $this->exceptions->invalid('Publication setting differs from the approved receipt: ' . $field);
-            }
-        }
-        $this->regularFile($options, $approvedSha, $options->changelogFile);
         $central = $this->git->readFileAt($options->workingDirectory, $approvedSha, $options->changelogFile);
-        if (null === $central || $central !== $data['changelog_contents']
-            || ! hash_equals($data['after_changelog_sha256'], hash('sha256', $central))) {
-            throw $this->exceptions->invalid('The approved central changelog differs from its receipt snapshot.');
+        if (null !== $central) {
+            $this->regularFile($options, $approvedSha, $options->changelogFile);
         }
-        if (null === $data['next_version']) {
-            return $this->evidence->create($approvedSha, null, null, '', $options->repository);
+        $data = $this->git->releaseMetadata($options->workingDirectory, $approvedSha, $options->changelogFile);
+        if (null === $data) {
+            throw $this->exceptions->invalid('The approved commit lacks generated release evidence. Preserve the four Changelog trailers when committing or squashing a consolidation.');
         }
-        if (null === $options->repository || null === $data['base_sha']
-            || ! $this->git->isAncestor($options->workingDirectory, $data['base_sha'], $approvedSha)) {
-            throw $this->exceptions->invalid('Publication requires a selected GitHub repository and the approved receipt base ancestry.');
+        if (null === $central || hash('sha256', $central) !== $data['output_sha256']
+            || $options->evidenceHash() !== $data['options_sha256']) {
+            throw $this->exceptions->invalid('The approved central history or settings differ from the generated commit evidence.');
         }
-        $baseCentral = $this->git->readFileAt($options->workingDirectory, $data['base_sha'], $options->changelogFile);
-        if ($data['before_changelog_sha256'] !== (null === $baseCentral ? null : hash('sha256', $baseCentral))) {
-            throw $this->exceptions->invalid('The receipt original changelog hash does not match its base commit.');
+        $base = $data['base_sha'];
+        if (null === $options->repository || ! $this->git->isAncestor($options->workingDirectory, $base, $approvedSha)) {
+            throw $this->exceptions->invalid('Publication requires a selected GitHub repository and the generated source-base ancestry.');
         }
+        $baseCentral = $this->git->readFileAt($options->workingDirectory, $base, $options->changelogFile);
         if (null !== $baseCentral) {
-            $this->regularFile($options, $data['base_sha'], $options->changelogFile);
+            $this->regularFile($options, $base, $options->changelogFile);
         }
-        $selected = [];
-        foreach ($this->git->filesAt($options->workingDirectory, $data['base_sha'], $options->fragmentDirectory) as $entry) {
-            $path = $entry['path'];
-            if (! str_ends_with($path, '.md') || $path === $options->fragmentDirectory . '/AGENTS.md') {
-                continue;
+        $selected = $this->pendingFragments($options, $base, true);
+        $remaining = $this->pendingFragments($options, $approvedSha, false);
+        if ([] !== $remaining) {
+            if ($selected !== $remaining) {
+                throw $this->exceptions->invalid('The approved consolidation still contains pending Markdown fragments from an incomplete or unexpected selection.');
             }
-            $prefix = $options->fragmentDirectory . '/';
-            if (! str_starts_with($path, $prefix)
-                || 1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, substr($path, strlen($prefix)))
-                || ! in_array($entry['mode'], ['100644', '100755'], true)) {
-                throw $this->exceptions->invalid('The receipt base contains an unsafe or noncanonical fragment: ' . $path);
-            }
-            $selected[] = $path;
-        }
-        sort($selected, SORT_STRING);
-        $consumed = array_keys($data['consumed']);
-        sort($consumed, SORT_STRING);
-        if ($selected !== $consumed) {
-            throw $this->exceptions->invalid('The receipt must consume the complete pending fragment set at its base commit.');
-        }
-        foreach ($this->git->filesAt($options->workingDirectory, $approvedSha, $options->fragmentDirectory) as $entry) {
-            if (str_ends_with($entry['path'], '.md') && $entry['path'] !== $options->fragmentDirectory . '/AGENTS.md') {
-                throw $this->exceptions->invalid('The approved consolidation still contains pending Markdown fragments: ' . $entry['path']);
+            foreach ($remaining as $path) {
+                $before = $this->git->readFileAt($options->workingDirectory, $base, $path);
+                if (null === $before || $before !== $this->git->readFileAt($options->workingDirectory, $approvedSha, $path)) {
+                    throw $this->exceptions->invalid('Maintenance requires every pending fragment to retain its exact source-base bytes: ' . $path);
+                }
             }
         }
+        $reachable = [];
+        foreach ($this->git->tags($options->workingDirectory) as $tag) {
+            if ($this->git->isAncestor($options->workingDirectory, $tag['sha'], $base)) {
+                $reachable[] = $tag;
+            }
+        }
+        $current = $this->importer->currentVersion($reachable, $options->tagPrefix);
+        $this->trustedTemplate($options, $approvedSha);
+        $template = $this->templates->resolve($options);
+        $approved = $this->history->parse($central, $template);
+        $source = $this->history->parse($baseCentral ?? '', $template);
+        $document = $this->backfilledHistory($source, $approved, $options, $template, $reachable);
+        if ([] !== $remaining || [] === $selected) {
+            if ((null !== $document && $central === $this->history->render($document, $template, true))
+                || $central === $this->history->render($source, $template, false)) {
+                return $this->evidence->create($approvedSha, null, null, '', $options->repository);
+            }
+            throw $this->exceptions->invalid('The approved history is not supported backfill or format maintenance; an incomplete release must consume every source fragment.');
+        }
+        if (null === $document) {
+            throw $this->exceptions->invalid('The approved release is missing a historical section for a reachable stable Git tag.');
+        }
+        $this->assertPublishedHistory($source, $current, $options->tagPrefix, $base, in_array($options->tagPrefix . $current, array_column($reachable, 'name'), true));
         $changesets = [];
-        foreach ($consumed as $path) {
-            $contents = $this->git->readFileAt($options->workingDirectory, $data['base_sha'], $path);
-            if (null === $contents || ! hash_equals($data['consumed'][$path], hash('sha256', $contents))) {
-                throw $this->exceptions->invalid('A consumed fragment does not match its committed base hash: ' . $path);
+        foreach ($selected as $path) {
+            $contents = $this->git->readFileAt($options->workingDirectory, $base, $path);
+            if (null === $contents) {
+                throw $this->exceptions->invalid('A consumed fragment is missing from its source base: ' . $path);
             }
             $result = $this->parser->parse($this->paths->absolutePath($path, $options->workingDirectory), $contents);
             if (! $result->isValid()) {
@@ -135,32 +130,121 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
             }
             $changesets[] = $result->changeset;
         }
-        $reachable = [];
-        foreach ($this->git->tags($options->workingDirectory) as $tag) {
-            if ($this->git->isAncestor($options->workingDirectory, $tag['sha'], $data['base_sha'])) {
-                $reachable[] = $tag;
+        $resolved = $this->versions->resolve($current, $changesets);
+        if (! $resolved->isValid()) {
+            throw $this->exceptions->invalid('The committed fragment set does not resolve a valid release version.');
+        }
+        $version = $resolved->nextVersion;
+        $section = $approved->getRelease($version);
+        if (null === $section) {
+            throw $this->exceptions->invalid('The approved history has no section for the computed release version.');
+        }
+        $rendered = $this->notes->render($changesets, $template, $options->repository);
+        if (null !== $document->getRelease($version)) {
+            throw $this->exceptions->invalid('The computed release already exists in the source-base history.');
+        }
+        $releases = $document->getReleases();
+        $position = isset($releases[0]) && 'unreleased' === $releases[0]->getVersion() ? 1 : 0;
+        array_splice($releases, $position, 0, [$this->releases->create($version, $section->getDate(), 'release-plan', $rendered)]);
+        $expected = $this->history->render($document->withReleases($releases), $template, true);
+        if ($central !== $expected) {
+            throw $this->exceptions->invalid('The approved history is not the canonical consolidation of every source-base fragment and exact prior history.');
+        }
+        $centralNotes = $this->history->notes($approved, $version);
+        return $this->evidence->create($approvedSha, $version, $options->tagPrefix . $version, $centralNotes, $options->repository);
+    }
+
+    /** Requires an observed stable tag before treating any maintained stable core, including 0.0.0, as published. */
+    private function assertPublishedHistory(HistoryDocument $source, string $current, string $prefix, string $base, bool $publishedTag): void
+    {
+        $published = explode('+', $current, 2)[0];
+        foreach ($source->getReleases() as $release) {
+            if (1 !== preg_match('/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $release->getVersion(), $matches)) {
+                continue;
+            }
+            if (! $publishedTag || $this->higher(implode('.', array_slice($matches, 1, 3)), $published, $prefix, $base)) {
+                throw $this->exceptions->invalid('The source-base history already contains a maintained release awaiting its reachable stable Git tag: ' . $release->getVersion());
             }
         }
-        $current = $this->importer->currentVersion($reachable, $options->tagPrefix);
-        $resolved = $this->versions->resolve($current, $changesets);
-        if ($current !== $data['current_version'] || ! $resolved->isValid()
-            || $resolved->nextVersion !== $data['next_version'] || $resolved->impact->value !== $data['impact']) {
-            throw $this->exceptions->invalid('The receipt release version or impact does not match its committed fragment evidence.');
+    }
+
+    /** Reuses approved imported snapshots while every pre-existing section retains its exact source-base presentation. */
+    private function backfilledHistory(HistoryDocument $source, HistoryDocument $approved, ReleaseOptions $options, TemplateInterface $template, array $tags): ?HistoryDocument
+    {
+        if ('tags' === $options->source) {
+            // This explicit importer mode never reads GitHub and preserves deterministic placeholders and tag dates.
+            return $this->importer->import($source, $options, $template, $tags)->document;
         }
-        $version = $data['next_version'];
-        $centralNotes = $this->history->notes($this->history->parse($central), $version);
-        if ($centralNotes !== $data['notes'] || ! hash_equals($data['notes_sha256'], hash('sha256', $centralNotes))) {
-            throw $this->exceptions->invalid('The approved central section notes differ from the receipt evidence.');
+        $tagged = [];
+        foreach ($tags as $tag) {
+            if (str_starts_with($tag['name'], $options->tagPrefix)) {
+                $version = substr($tag['name'], strlen($options->tagPrefix));
+                if ($this->stable($version)) {
+                    $tagged[$version] = $tag;
+                }
+            }
         }
-        $this->trustedTemplate($options, $approvedSha);
-        $template = $this->templates->resolve($options);
-        $rendered = $this->notes->render($changesets, $template, $options->repository);
-        $isolated = $this->documents->create([$this->releases->create($version, null, 'release-plan', $rendered)]);
-        $expected = $this->history->notes($this->history->parse($this->history->render($isolated, $template)), $version);
-        if ($centralNotes !== $expected) {
-            throw $this->exceptions->invalid('The approved section is not the canonical notes generated by every consumed base fragment.');
+        uksort($tagged, fn(string $left, string $right): int => $left === $right ? 0
+            : ($this->higher($left, $right, $options->tagPrefix, $tagged[$left]['sha']) ? -1 : 1));
+        $releases = $source->getReleases();
+        foreach ($tagged as $version => $tag) {
+            if (null !== $source->getRelease($version)) {
+                continue;
+            }
+            $snapshot = $approved->getRelease($version);
+            if (null === $snapshot) {
+                return null;
+            }
+            $section = $this->releases->create($version, $snapshot->getDate(), $snapshot->getDateSource(), $snapshot->getBody());
+            $position = count($releases);
+            foreach ($releases as $index => $existing) {
+                if ($this->stable($existing->getVersion())
+                    && $this->higher($version, $existing->getVersion(), $options->tagPrefix, $tag['sha'])) {
+                    $position = $index;
+                    break;
+                }
+            }
+            array_splice($releases, $position, 0, [$section]);
         }
-        return $this->evidence->create($approvedSha, $version, $options->tagPrefix . $version, $centralNotes, $options->repository);
+        return $source->withReleases($releases);
+    }
+
+    /** Accepts exactly the stable identities that the shared historical importer accepts. */
+    private function stable(string $version): bool
+    {
+        return 1 === preg_match('/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $version);
+    }
+
+    /** Delegates ordering to the pure shared tag baseline, retaining large numeric components and build tie semantics. */
+    private function higher(string $left, string $right, string $prefix, string $sha): bool
+    {
+        return $left !== $right && $left === $this->importer->currentVersion([
+            ['name' => $prefix . $left, 'sha' => $sha, 'date' => null, 'date_source' => null],
+            ['name' => $prefix . $right, 'sha' => $sha, 'date' => null, 'date_source' => null],
+        ], $prefix);
+    }
+
+    /** Inventories the complete canonical pending scope while retaining safe maintenance without consumption. */
+    private function pendingFragments(ReleaseOptions $options, string $sha, bool $source): array
+    {
+        $selected = [];
+        foreach ($this->git->filesAt($options->workingDirectory, $sha, $options->fragmentDirectory) as $entry) {
+            $path = $entry['path'];
+            if (! str_ends_with($path, '.md') || $path === $options->fragmentDirectory . '/AGENTS.md') {
+                continue;
+            }
+            $prefix = $options->fragmentDirectory . '/';
+            if (! str_starts_with($path, $prefix)
+                || 1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, substr($path, strlen($prefix)))
+                || ! in_array($entry['mode'], ['100644', '100755'], true)) {
+                throw $this->exceptions->invalid(($source
+                    ? 'The source base contains an unsafe or noncanonical fragment: '
+                    : 'The approved consolidation still contains pending Markdown fragments that are unsafe or noncanonical: ') . $path);
+            }
+            $selected[] = $path;
+        }
+        sort($selected, SORT_STRING);
+        return $selected;
     }
 
     /** Requires an exact regular blob, refusing Git symlink/submodule entries before any execution. */

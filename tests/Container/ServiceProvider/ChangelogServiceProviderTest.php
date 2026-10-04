@@ -19,10 +19,13 @@ use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactoryInterface;
 use FastForward\Changelog\Fragment\IdentifierGeneratorInterface;
 use FastForward\Changelog\Git\Factory\ProcessFactory;
+use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\Factory\GitHubClientFactoryInterface;
 use FastForward\Changelog\GitHub\Factory\HttpClientFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
+use FastForward\Changelog\Release\ReleaseJournalPathResolver;
+use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
 use FastForward\Changelog\Validator\ReleaseDateValidatorInterface;
 use FastForward\Changelog\Version\ComposerPackageVersionResolver;
@@ -42,12 +45,14 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 #[UsesClass(ProcessFactory::class)]
 #[UsesClass(ComposerPackageVersionResolver::class)]
 #[UsesClass(TimezoneFactory::class)]
+#[UsesClass(ReleaseJournalPathResolver::class)]
+#[UsesClass(ReleaseOptions::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     #[Test]
     public function declarationsStayLazyAndAliasesDelegateOnlyToContainer(): void
     {
-        $provider = new ChangelogServiceProvider('/consumer', '1.2.3', 'fixture-token', 'https://api.example.test');
+        $provider = new ChangelogServiceProvider('/consumer', '1.2.3', 'fixture-token', 'https://api.example.test', temporaryDirectory: '/synthetic-temp');
         $factories = $provider->getFactories();
         self::assertSame([], $provider->getExtensions());
         foreach ([ReleasePlannerInterface::class,PublicationServiceInterface::class,PullRequestPolicyInterface::class,AutomationRunnerInterface::class,VersionPullRequestServiceInterface::class,VersionPullRequestInputFactoryInterface::class,VersionPullRequestResultFactoryInterface::class,VersionPullRequestExceptionFactoryInterface::class,ReleaseDateValidatorInterface::class] as $required) {
@@ -64,10 +69,23 @@ final class ChangelogServiceProviderTest extends TestCase
         }
     }
 
+    /** Recovery composition must use an injected temporary root instead of reading host state in a unit test. */
+    #[Test]
+    public function recoveryFactoryRetainsTheExplicitTemporaryDirectory(): void
+    {
+        $factories = new ChangelogServiceProvider('/consumer', temporaryDirectory: '/synthetic-temp')->getFactories();
+        $git = $this->createMock(GitRepositoryInterface::class);
+        $git->expects(self::once())->method('journalPath')->with('/consumer')->willReturn(null);
+        $container = $this->createMock(ContainerInterface::class);
+        $container->expects(self::once())->method('get')->with(GitRepositoryInterface::class)->willReturn($git);
+        $resolver = $factories[ReleaseJournalPathResolver::class]($container);
+        self::assertStringStartsWith('/synthetic-temp/fast-forward-changelog/', $resolver->resolve(new ReleaseOptions('/consumer')));
+    }
+
     #[Test]
     public function explicitFactoriesUseOnlyConstructorValuesAndInjectedFactories(): void
     {
-        $factories = new ChangelogServiceProvider('/consumer', '1.2.3', 'fixture-token', 'https://api.example.test')->getFactories();
+        $factories = new ChangelogServiceProvider('/consumer', '1.2.3', 'fixture-token', 'https://api.example.test', temporaryDirectory: '/synthetic-temp')->getFactories();
         self::assertSame('1.2.3', $factories[ComposerPackageVersionResolver::class]()->resolve());
         self::assertSame('/consumer/file.md', $factories[PackagePathResolver::class]()->absolutePath('file.md'));
         self::assertInstanceOf(ProcessFactory::class, $factories[ProcessFactory::class]());

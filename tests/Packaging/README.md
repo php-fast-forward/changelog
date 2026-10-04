@@ -32,6 +32,10 @@ The checks cover:
 - Read-only status/version/backfill/format plans and drift checks against local
   tag history, contribution checks, one fixture-only consolidation, exact notes
   and explicit notes output.
+- Plain history and release diffs without a tracked plan file or generated
+  metadata comments, private-journal cleanup, and a non-Git consumer.
+- A real fixture consolidation commit using the CLI's exact commit message and
+  read-only publication validation from committed Git blobs, without remote writes.
 
 The final output reports assertions, executed commands and the retained fixture
 path. Command stdout/stderr logs remain there for diagnosis. An optional first

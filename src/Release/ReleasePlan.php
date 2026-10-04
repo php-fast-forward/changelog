@@ -62,7 +62,15 @@ final readonly class ReleasePlan
         if ('none' === $this->mode()) {
             return [];
         }
-        return [$this->changelogPath, $this->receiptPath, ...array_keys($this->consumed)];
+        return [$this->changelogPath, ...array_keys($this->consumed)];
+    }
+
+    /** Returns ready-to-use commit text for approved Git consolidation without a tracked receipt file. */
+    public function commitMessage(string $title = 'chore: update changelog'): ?string
+    {
+        return null === $this->baseSha ? null : $title . "\n\nChangelog-Plan: " . $this->id
+            . "\nChangelog-Base: " . $this->baseSha . "\nChangelog-Output: " . hash('sha256', $this->changelogContents)
+            . "\nChangelog-Options: " . $this->options->evidenceHash();
     }
 
     /** Exposes stable machine output without adding progress messages or mutable PR text. */
@@ -74,6 +82,7 @@ final readonly class ReleasePlan
             'impact' => $this->impact, 'consumed' => $this->consumed,
             'historical_versions' => $this->historicalVersions, 'notes' => $this->notes,
             'affected_files' => $this->affectedFiles(), 'resuming' => $this->resuming,
+            'commit_message' => $this->commitMessage(),
         ];
     }
 }

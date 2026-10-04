@@ -37,6 +37,7 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
 
         $serviceProvider = new ChangelogServiceProvider(
             workingDirectory: getcwd() ?: '.',
+            temporaryDirectory: realpath(sys_get_temp_dir()) ?: sys_get_temp_dir(),
             installedVersion: InstalledVersions::isInstalled('fast-forward/changelog') ? InstalledVersions::getPrettyVersion('fast-forward/changelog') : null,
             token: getenv('GITHUB_TOKEN') ?: '',
             apiUrl: getenv('GITHUB_API_URL') ?: 'https://api.github.com',

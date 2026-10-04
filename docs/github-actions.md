@@ -2,10 +2,10 @@
 
 The five reusable workflows run the same PHP services as the local CLI. A
 contribution adds a fragment; version automation opens one managed PR; approval
-and merge precede publication of its receipt-backed tag and GitHub Release.
+and merge precede publication of its verified tag and GitHub Release.
 History maintenance is a separate operation.
 
-The examples below pin the reviewed full product commit `d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7`. Keep every consumer reference immutable when updating the runtime.
+The examples below pin the reviewed full product commit `9ba7b1cd3a3bab8ee78307d61f70bf41b8bab67b`. Keep every consumer reference immutable when updating the runtime.
 The workflows check out their own runtime using the called workflow's immutable
 `job.workflow_repository` and `job.workflow_sha`, separately from consumer data.
 The caller's `github` context still identifies the consumer. This follows
@@ -62,7 +62,7 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@9ba7b1cd3a3bab8ee78307d61f70bf41b8bab67b
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -75,7 +75,7 @@ It compares the contribution with `base-sha`. A stale live PR head fails the
 shared check. The public labels `changelog-not-required` and
 `changelog-maintenance` are requests: the latest label grant must be by a current
 maintainer/admin to authorize a waiver or central-history edit. Editable PR text
-and copied receipts confer no authority. See [the policy contract](policies.md).
+and copied commit trailers confer no authority. See [the policy contract](policies.md).
 
 ## Dependabot fragments
 
@@ -93,7 +93,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7
+    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@9ba7b1cd3a3bab8ee78307d61f70bf41b8bab67b
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -154,7 +154,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7
+    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@9ba7b1cd3a3bab8ee78307d61f70bf41b8bab67b
     with:
       base-branch: main
       managed-branch: changelog/version
@@ -165,12 +165,20 @@ jobs:
 
 The job checks out the fresh base and compares it with GitHub before planning.
 It creates or updates one same-repository managed PR. Updates require the
-configured Bot's verified signed head, receipt and exact allowed file scope;
+configured Bot's verified signed head, transaction trailers and exact allowed file scope;
 human edits are refused. It serializes with publication for the same repository
 and base branch. Repeated unchanged plans produce no extra commits, empty plans
-produce no new PR, and a merged receipt awaiting publication blocks a second
+produce no new PR, and a merged consolidation awaiting publication blocks a second
 version transaction. A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
+
+Before merging, the generated source base must equal the live PR base. A later
+base push resynchronizes the same PR and includes the newly accepted fragments;
+the contribution check refuses a stale generated head. Make that check required
+and enable strict up-to-date status checks in branch protection or the equivalent
+ruleset. These are consumer repository settings, not permissions that a workflow
+can grant itself. GitHub documents
+[required status checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-status-checks-before-merging).
 
 Set `dry-run: true` to plan without GitHub writes. Changing `automation-actor`
 requires a token authenticated as that Bot; a different name in an input does
@@ -200,7 +208,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7
+    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@9ba7b1cd3a3bab8ee78307d61f70bf41b8bab67b
     with:
       base-branch: main
       pull-request: ${{ github.event.pull_request.number }}
@@ -214,10 +222,10 @@ jobs:
 The checkout is the approved merge target, never the PR head. Event values must
 match the supplied PR, original head and merge target. The runner also fetches
 the live merged PR and verifies repository, branches, Bot ownership, signed head
-and receipt against that target before tag/release creation. The tag resolves to
+and committed consolidation against that target before tag/release creation. The tag resolves to
 that approved commit and the notes come from its central history. A maintenance
-receipt creates no public release. `dry-run: true` validates without publication.
-See [publication](publication.md) and [receipts](release-receipts.md).
+consolidation creates no public release. `dry-run: true` validates without publication.
+See [publication](publication.md) and [local recovery](release-receipts.md).
 
 ## Backfill or format trusted history
 
@@ -237,7 +245,7 @@ jobs:
   changelog:
     permissions:
       contents: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@d6dd0b9fc566e1c5658e0a853c5685557ed2eeb7
+    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@9ba7b1cd3a3bab8ee78307d61f70bf41b8bab67b
     with:
       base-branch: main
       operation: ${{ inputs.operation }}

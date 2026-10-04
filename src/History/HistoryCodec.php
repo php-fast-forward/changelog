@@ -44,7 +44,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * Legacy reference footers require only definitions and blank lines through
      * EOF; following prose is ambiguous and MUST remain inside release notes.
      */
-    public function parse(string $markdown): HistoryDocument
+    public function parse(string $markdown, ?TemplateInterface $template = null): HistoryDocument
     {
         $sections = [];
         $referenceOffsets = [];
@@ -134,24 +134,13 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 $referenceOffsets[$lineOffset] = true;
             }
 
-            if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\]~u', $line, $matches)) {
-                continue;
+            $heading = $this->plainHeading($line, $template);
+            if (null !== $heading) {
+                $sections[] = [
+                    'offset' => $lineOffset, 'content' => $offset, 'body_end' => null,
+                    'version' => $heading['version'], 'date' => $heading['date'], 'source' => null,
+                ];
             }
-
-            $unreleased = in_array($matches['version'], ['Unreleased', 'unreleased', 'Não publicado', 'não publicado'], true);
-            if (! $unreleased && 1 !== preg_match('/\A[vV]?[0-9]+\.[^\s]*\z/u', $matches['version'])) {
-                continue;
-            }
-
-            if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+(?<date>\d{4}-\d{2}-\d{2}))?(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
-                throw $this->exceptionFactory->invalid('A legacy release heading must use a bracketed version, optional link and optional ISO date.');
-            }
-
-            $version = $unreleased ? 'unreleased' : $matches['version'];
-            $sections[] = [
-                'offset' => $lineOffset, 'content' => $offset, 'body_end' => null,
-                'version' => $version, 'date' => $matches['date'] ?? null, 'source' => null,
-            ];
         }
 
         if (null !== $pending || $protected) {
@@ -199,8 +188,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Renders localized structure or preserves existing sections during collection.
      *
-     * Semantically marked sections protect raw imported notes from accidental
-     * parsing of version-like headings within their descriptions.
+     * Newly rendered sections contain ordinary Markdown only. Ambiguous unfenced
+     * release headings or terminal reference definitions fail before any writes.
+     * Incremental collection preserves already stored sections byte for byte.
      */
     public function render(HistoryDocument $document, TemplateInterface $template, bool $preservePresentation = false): string
     {
@@ -224,17 +214,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             $body = $preservePresentation ? $release->getBody() : $this->formatBody($release->getBody(), $template);
-            $this->assertClosedFences($body);
+            $this->assertPlainBody($body, $template);
             if ('' !== $body && ! str_ends_with($body, "\n")) {
                 $body .= "\n";
             }
 
-            $metadata = ['version' => $release->getVersion(), 'date' => $release->getDate(),
-                'date_source' => $release->getDateSource(), 'body_length' => strlen($body)];
-            $output .= '<!-- fast-forward-changelog:release ' . json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_THROW_ON_ERROR) . " -->\n" . $heading . "\n" . $body;
-
+            $output .= $heading . "\n" . $body;
             $ending = preg_replace('/\A<!-- fast-forward-changelog:end-release -->\r?\n?/', '', $release->getEnding());
-            $output .= self::END_RELEASE . "\n" . $ending;
+            $output .= $ending;
         }
 
         return $output . $document->getReferences();
@@ -288,17 +275,78 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         return true;
     }
 
-    /** Rejects open fences that would hide the structural end-of-release delimiter. */
-    private function assertClosedFences(string $body): void
+    /**
+     * Recognizes standard headings and headings from the explicitly selected template.
+     *
+     * @return array{version:string,date:?string}|null
+     */
+    private function plainHeading(string $line, ?TemplateInterface $template): ?array
+    {
+        if (null !== $template) {
+            if (rtrim($line, " \t\r\n") === $template->unreleasedHeading()) {
+                return ['version' => 'unreleased', 'date' => null];
+            }
+
+            foreach ([true, false] as $dated) {
+                $heading = preg_quote($template->releaseHeading('{version}', $dated ? '{date}' : null), '~');
+                $pattern = $heading;
+                foreach (['version' => '(?<version>[vV]?[0-9]+\.[^\s]*?)', 'date' => '(?<date>[^\s]+)'] as $name => $capture) {
+                    $placeholder = preg_quote('{' . $name . '}', '~');
+                    $position = strpos($pattern, $placeholder);
+                    if (false === $position) {
+                        continue;
+                    }
+                    $pattern = substr_replace($pattern, $capture, $position, strlen($placeholder));
+                    $pattern = str_replace($placeholder, '\k<' . $name . '>', $pattern);
+                }
+                if (1 === preg_match('~^' . $pattern . '(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
+                    return ['version' => $matches['version'], 'date' => $matches['date'] ?? null];
+                }
+            }
+        }
+
+        if (1 === preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\]~u', $line, $matches)) {
+            $unreleased = in_array($matches['version'], ['Unreleased', 'unreleased', 'Não publicado', 'não publicado'], true);
+            if ($unreleased || 1 === preg_match('/\A[vV]?[0-9]+\.[^\s]*\z/u', $matches['version'])) {
+                if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+(?<date>\d{4}-\d{2}-\d{2}))?(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
+                    throw $this->exceptionFactory->invalid('A legacy release heading must use a bracketed version, optional link and optional ISO date.');
+                }
+
+                return ['version' => $unreleased ? 'unreleased' : $matches['version'], 'date' => $matches['date'] ?? null];
+            }
+        }
+
+        return null;
+    }
+
+    /** Refuses Markdown that cannot retain exact release boundaries in a plain changelog. */
+    private function assertPlainBody(string $body, TemplateInterface $template): void
     {
         $fence = null;
+        $terminalReference = false;
 
         foreach ($this->lines($body) as $line) {
-            $this->outsideFence($line, $fence);
+            if (! $this->outsideFence($line, $fence)) {
+                $terminalReference = false;
+
+                continue;
+            }
+
+            if (null !== $this->plainHeading($line, $template)
+                || 1 === preg_match('/^<!-- fast-forward-changelog:(?:release |end-release)/', $line)) {
+                throw $this->exceptionFactory->invalid('A plain changelog body cannot contain an unfenced release heading or legacy release delimiter; fence or nest this Markdown example.');
+            }
+
+            if ('' !== trim($line)) {
+                $terminalReference = 1 === preg_match('/^\[[^\]\r\n]+\]:[ \t]+\S/', $line);
+            }
         }
 
         if (null !== $fence) {
             throw $this->exceptionFactory->invalid('An unclosed code fence prevents safe historical reformatting.');
+        }
+        if ($terminalReference) {
+            throw $this->exceptionFactory->invalid('A plain changelog body cannot end with an unindented reference definition that is ambiguous with the global footer; place it before following prose or inside a nested example.');
         }
     }
 
@@ -331,7 +379,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /** Replaces known or marked introduction text while retaining unknown prose. */
     private function formatPrefix(string $prefix, TemplateInterface $template): string
     {
-        $introduction = "<!-- fast-forward-changelog:introduction -->\n" . rtrim($template->introduction(), "\r\n") . "\n<!-- /fast-forward-changelog:introduction -->\n\n";
+        $introduction = rtrim($template->introduction(), "\r\n") . "\n\n";
 
         if (1 === preg_match('/\A<!-- fast-forward-changelog:introduction -->\R.*?\R<!-- \/fast-forward-changelog:introduction -->\R*/s', $prefix, $matches)) {
             return $introduction . substr($prefix, strlen($matches[0]));
@@ -352,6 +400,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             'Deprecated' => 'deprecated', 'Obsoleto' => 'deprecated', 'Removed' => 'removed', 'Removido' => 'removed',
             'Fixed' => 'fixed', 'Corrigido' => 'fixed', 'Security' => 'security', 'Segurança' => 'security',
         ];
+        foreach (array_unique($categories) as $category) {
+            $categories[substr($template->categoryHeading($category), 4)] = $category;
+        }
         $fence = null;
         $pending = null;
         $output = '';
@@ -369,8 +420,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
             if (1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line, $matches)) {
                 $pending = $matches[1];
-                $output .= $line;
 
+                continue;
+            }
+
+            if (1 === preg_match('/^<!-- fast-forward-changelog:fragment \{.*\} -->\r?\n?\z/', $line)) {
                 continue;
             }
 
@@ -378,7 +432,6 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 $category = $pending ?? $categories[$matches[1]] ?? null;
 
                 if (null !== $category) {
-                    $output .= null === $pending ? '<!-- fast-forward-changelog:category ' . $category . " -->\n" : '';
                     $output .= $template->categoryHeading($category) . ($matches['newline'] ?? '');
                     $pending = null;
 

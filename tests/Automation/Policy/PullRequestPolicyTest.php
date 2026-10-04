@@ -9,9 +9,7 @@ use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestAuthorization;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicy;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
-use FastForward\Changelog\Release\ReleaseReceipt;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -23,7 +21,6 @@ use RuntimeException;
 #[UsesClass(GitHubEvidence::class)]
 #[UsesClass(PullRequestAuthorization::class)]
 #[UsesClass(ReleaseOptions::class)]
-#[UsesClass(ReleaseReceipt::class)]
 final class PullRequestPolicyTest extends TestCase
 {
     use PolicyFixtureTrait;
@@ -267,7 +264,7 @@ final class PullRequestPolicyTest extends TestCase
             'signature' => $responses[$commit]['commit']['verification']['verified'] = false,
             'reason' => $responses[$commit]['commit']['verification']['reason'] = 'unsigned',
             'author' => $responses[$commit]['author']['id'] = 666,
-            'receipt-null' => $responses[$receipt] = null,
+            'receipt-null' => $responses[$commit]['commit']['message'] = 'missing metadata',
             'receipt-error' => $data = new RuntimeException('super-secret'),
             'receipt-settings' => $data['repository'] = 'other/project',
             'message' => $responses[$commit]['commit']['message'] = 'Changelog-Plan: forged',
@@ -291,11 +288,26 @@ final class PullRequestPolicyTest extends TestCase
     }
 
     #[Test]
-    public function olderReceiptBaseCanBeAncestorOfFreshBaseWithoutLosingBotOwnership(): void
+    public function olderGeneratedBaseCanBeAncestorOfFreshBaseWithoutLosingBotOwnership(): void
     {
         [$responses, $data] = $this->managed();
         $responses['/repos/owner/project/compare/' . str_repeat('b', 40) . '...' . str_repeat('d', 40)] = ['status' => 'ahead', 'merge_base_commit' => ['sha' => str_repeat('b', 40)]];
         self::assertTrue($this->policy($responses, [], $data)->inspectHead($this->options(), str_repeat('a', 40), baseSha: str_repeat('d', 40)));
+    }
+
+    /** An older owned head may be safely updated but cannot authorize a stale consolidation for merge. */
+    #[Test]
+    public function managedMergeAuthorityRequiresTheLatestLiveBase(): void
+    {
+        [$responses, $data] = $this->managed();
+        $responses['/repos/owner/project/pulls/7']['base']['sha'] = str_repeat('d', 40);
+        $responses['/repos/owner/project/compare/' . str_repeat('b', 40) . '...' . str_repeat('d', 40)] = ['status' => 'ahead', 'merge_base_commit' => ['sha' => str_repeat('b', 40)]];
+        $policy = $this->policy($responses, [], $data);
+        self::assertTrue($policy->inspectHead($this->options(), str_repeat('a', 40), baseSha: str_repeat('d', 40)));
+        $result = $policy->inspect($this->options(), 7);
+        self::assertFalse($result->centralChangeAuthorized);
+        self::assertSame('ordinary', $result->kind);
+        self::assertStringContainsString('resynchronize', implode(' ', $result->diagnostics));
     }
 
     #[Test]
@@ -341,12 +353,71 @@ final class PullRequestPolicyTest extends TestCase
             'diverged' => $responses[$path]['status'] = 'diverged',
             'wrong-merge-base' => $responses[$path]['merge_base_commit']['sha'] = str_repeat('f', 40),
             'missing-base' => $data['base_sha'] = null,
-            'bad-before-hash' => $data['before_changelog_sha256'] = str_repeat('f', 64),
+            'bad-before-hash' => $data['consumed'] = ['.changelog/unconsumed.md' => hash('sha256', 'fragment')],
             'invalid-head' => $head = 'short',
             'invalid-base' => $base = 'short',
             'invalid-account' => $responses['/users/github-actions%5Bbot%5D'] = [],
         };
         self::assertFalse($this->policy($responses, [], $data)->inspectHead($this->options(), $head, baseSha: $base));
+    }
+
+    /** A malformed duplicate cannot hide beside the valid signed commit trailer. */
+    #[Test]
+    #[TestWith(['Plan'])]
+    #[TestWith(['Base'])]
+    #[TestWith(['Output'])]
+    #[TestWith(['Options'])]
+    public function malformedDuplicateTrailerPrefixesCannotAuthorizeTheManagedHead(string $key): void
+    {
+        [$responses, $data] = $this->managed();
+        $message = 'release' . "\n\nChangelog-Plan: " . $data['id'] . "\nChangelog-Base: " . $data['base_sha']
+            . "\nChangelog-Output: " . $data['after_changelog_sha256'] . "\nChangelog-Options: " . $this->options()->evidenceHash();
+        $responses['/repos/owner/project/commits/' . str_repeat('a', 40)]['commit']['message'] = $message;
+        self::assertTrue($this->policy($responses)->inspectHead($this->options(), str_repeat('a', 40)));
+        $responses['/repos/owner/project/commits/' . str_repeat('a', 40)]['commit']['message'] .= "\nChangelog-" . $key . ':invalid';
+        self::assertFalse($this->policy($responses)->inspectHead($this->options(), str_repeat('a', 40)));
+    }
+
+    /** Source inventories fail closed when listing shape or canonical flat fragment evidence is incomplete. */
+    #[Test]
+    #[TestWith(['missing-message'])]
+    #[TestWith(['missing-directory'])]
+    #[TestWith(['object-directory'])]
+    #[TestWith(['truncated-directory'])]
+    #[TestWith(['missing-path'])]
+    #[TestWith(['symlink'])]
+    #[TestWith(['nested'])]
+    #[TestWith(['outside'])]
+    #[TestWith(['missing-deletion'])]
+    public function sourceInventoryAndMessageRequireCompleteCanonicalEvidence(string $case): void
+    {
+        [$responses, $data] = $this->managed();
+        $directory = '/repos/owner/project/contents/.changelog?ref=' . str_repeat('b', 40);
+        $responses[$directory] = [];
+        match ($case) {
+            'missing-message' => $responses['/repos/owner/project/commits/' . str_repeat('a', 40)]['commit']['message'] = null,
+            'missing-directory' => $responses[$directory] = null,
+            'object-directory' => $responses[$directory] = ['type' => 'dir'],
+            'truncated-directory' => $responses[$directory] = array_fill(0, 1000, ['path' => '.changelog/a.md', 'type' => 'file']),
+            'missing-path' => $responses[$directory] = [['type' => 'file']],
+            'symlink' => $responses[$directory] = [['path' => '.changelog/a.md', 'type' => 'symlink']],
+            'nested' => $responses[$directory] = [['path' => '.changelog/nested/a.md', 'type' => 'file']],
+            'outside' => $responses[$directory] = [['path' => '.another/a.md', 'type' => 'file']],
+            'missing-deletion' => $responses[$directory] = [['path' => '.changelog/a.md', 'type' => 'file']],
+        };
+        $allowed = 'missing-directory' === $case;
+        self::assertSame($allowed, $this->policy($responses, [], $data)->inspectHead($this->options(), str_repeat('a', 40)));
+    }
+
+    /** A fragment directory's durable instruction file and unrelated non-Markdown data are never consumed. */
+    #[Test]
+    public function ignoresInstructionsAndNonFragmentEntriesInSourceInventory(): void
+    {
+        [$responses, $data] = $this->managed();
+        $responses['/repos/owner/project/contents/.changelog?ref=' . str_repeat('b', 40)] = [
+            ['path' => '.changelog/AGENTS.md', 'type' => 'file'], ['path' => '.changelog/template.php', 'type' => 'file'],
+        ];
+        self::assertTrue($this->policy($responses, [], $data)->inspectHead($this->options(), str_repeat('a', 40)));
     }
 
     private function options(): ReleaseOptions
@@ -356,6 +427,22 @@ final class PullRequestPolicyTest extends TestCase
 
     private function policy(array $responses, array|RuntimeException $timeline = [], array|RuntimeException $data = []): PullRequestPolicy
     {
+        $commitPath = '/repos/owner/project/commits/' . str_repeat('a', 40);
+        if ($data instanceof RuntimeException) {
+            $responses[$commitPath] = $data;
+        } elseif ([] !== $data && is_array($responses[$commitPath] ?? null)) {
+            $message = $responses[$commitPath]['commit']['message'] ?? '';
+            if (is_string($message) && str_contains($message, 'Changelog-Plan: ' . str_repeat('c', 64))) {
+                $selected = new ReleaseOptions('/consumer', fragmentDirectory: $data['fragment_directory'], changelogFile: $data['changelog_file'], locale: $data['locale'], template: $data['template'], tagPrefix: $data['tag_prefix'], repository: $data['repository']);
+                $responses[$commitPath]['commit']['message'] = 'release' . "\n\nChangelog-Plan: " . $data['id']
+                    . "\nChangelog-Base: " . ($data['base_sha'] ?? '') . "\nChangelog-Output: " . $data['after_changelog_sha256']
+                    . "\nChangelog-Options: " . $selected->evidenceHash();
+            }
+            $directory = '/repos/owner/project/contents/.changelog?ref=' . ($data['base_sha'] ?? '');
+            if (! array_key_exists($directory, $responses)) {
+                $responses[$directory] = array_map(static fn(string $path): array => ['path' => $path, 'type' => 'file'], array_keys($data['consumed']));
+            }
+        }
         $github = $this->createStub(GitHubClientInterface::class);
         $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use ($responses): ?array {
             $this->calls[] = [$method, $path, $body];
@@ -370,15 +457,9 @@ final class PullRequestPolicyTest extends TestCase
         } else {
             $github->method('paginate')->willReturn($timeline);
         }
-        $receipts = $this->createStub(ReceiptCodecInterface::class);
-        if ($data instanceof RuntimeException) {
-            $receipts->method('decode')->willThrowException($data);
-        } else {
-            $receipts->method('decode')->willReturn(new ReleaseReceipt($data));
-        }
         $results = $this->createStub(PullRequestAuthorizationFactoryInterface::class);
         $results->method('create')->willReturnCallback(static fn(bool $waiver, bool $central, string $kind, array $diagnostics, ?string $head = null): PullRequestAuthorization => new PullRequestAuthorization($waiver, $central, $kind, $diagnostics, $head));
-        return new PullRequestPolicy($github, $receipts, $results);
+        return new PullRequestPolicy($github, $results);
     }
 
     /** Models GitHub's signed App/Bot commits with its canonical web-flow committer. */
@@ -405,7 +486,7 @@ final class PullRequestPolicyTest extends TestCase
             '/repos/owner/project/contents/.changelog/release-plan.json?ref=' . $sha => $this->file('validated receipt'),
             '/repos/owner/project/contents/CHANGELOG.md?ref=' . $sha => $this->file('history'),
             '/repos/owner/project/contents/CHANGELOG.md?ref=' . str_repeat('b', 40) => $this->file('old history'),
-            '/repos/owner/project/compare/' . str_repeat('b', 40) . '...' . $sha => ['merge_base_commit' => ['sha' => str_repeat('b', 40)], 'status' => 'ahead', 'files' => [['filename' => 'CHANGELOG.md', 'status' => 'modified'], ['filename' => '.changelog/release-plan.json', 'status' => 'added']]],
+            '/repos/owner/project/compare/' . str_repeat('b', 40) . '...' . $sha => ['merge_base_commit' => ['sha' => str_repeat('b', 40)], 'status' => 'ahead', 'files' => [['filename' => 'CHANGELOG.md', 'status' => 'modified']]],
         ], $data];
     }
 }

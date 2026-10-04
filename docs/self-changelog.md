@@ -24,7 +24,7 @@ maintenance operation, separate from the ordinary contribution flow.
 | [`check-changelog`](../.github/workflows/check-changelog.yml) | PR to `main`, including label changes | Check the exact contribution head with read permissions. |
 | [`dependabot-changelog`](../.github/workflows/dependabot-changelog.yml) | Dependabot PR to `main` | Collect verified dependency metadata from the base context and create one deterministic fragment. |
 | [`release-changelog`](../.github/workflows/release-changelog.yml) | Push to `main` | Plan from the fresh base and create or update `changelog/version`. |
-| [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and receipt, then reconcile the approved tag and GitHub Release. |
+| [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, then reconcile the approved tag and GitHub Release. |
 
 The workflows call `./actions/...` from the selected checkout. Each Action sets
 up PHP 8.5 and installs this package with `--no-dev --no-scripts --no-plugins`.
@@ -37,8 +37,9 @@ Defaults are `.changelog`, `CHANGELOG.md`, English structural headings,
 `keep-a-changelog`, `v` tags and one managed branch `changelog/version`. The
 contribution Action verifies labels and generated-PR authority through the
 same services used by the CLI; branch names alone do not grant an exception.
-An automation-created receipt records a transaction and must not be edited by
-contributors. A maintenance-only receipt produces no public version.
+A version PR modifies `CHANGELOG.md` and removes its consumed fragments; it adds
+no plan file. New history is readable Markdown without generated metadata
+comments. A maintenance-only consolidation produces no public version.
 
 Write operations use `secrets.CHANGELOG_TOKEN` when configured, otherwise the
 job's `github.token`. Set `vars.CHANGELOG_AUTOMATION_ACTOR` to the exact Bot login

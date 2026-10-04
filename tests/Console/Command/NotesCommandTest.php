@@ -12,15 +12,17 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
-use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
-use FastForward\Changelog\Release\ReleaseReceipt;
+use FastForward\Changelog\Template\TemplateInterface;
+use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Tests\Console\PlanFixtureTrait;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -32,75 +34,91 @@ use Symfony\Component\Lock\SharedLockInterface;
 #[CoversClass(NotesCommand::class)]
 #[UsesClass(ReleaseInput::class)]
 #[UsesClass(ReleaseOptions::class)]
-#[UsesClass(ReleaseReceipt::class)]
 #[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryRelease::class)]
 final class NotesCommandTest extends TestCase
 {
     use PlanFixtureTrait;
 
     #[Test]
-    public function explicitVersionWritesOnlyExactRawNotesToStdout(): void
+    #[TestWith(['1.0.0'])]
+    #[TestWith(['9.0.0-rc.1'])]
+    public function explicitVersionWritesOnlyExactRawNotesToStdout(string $version): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
         $document = new HistoryDocument();
         $files->expects(self::once())->method('read')->with('/consumer/CHANGELOG.md')->willReturn('central');
         $history->expects(self::once())->method('parse')->with('central')->willReturn($document);
-        $history->expects(self::once())->method('notes')->with($document, '1.0.0')->willReturn("Raw <info>notes</info>\n\n");
-        $receipts->expects(self::never())->method('decode');
+        $history->expects(self::once())->method('notes')->with($document, $version)->willReturn("Raw <info>notes</info>\n\n");
         $git->expects(self::never())->method('tags');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::never())->method('write');
         $output = $this->createMock(OutputInterface::class);
         $output->expects(self::once())->method('write')->with("Raw <info>notes</info>\n\n", false, OutputInterface::OUTPUT_RAW);
         $output->expects(self::never())->method('writeln');
-        self::assertSame(0, $command($this->settings(), $output, '1.0.0'));
+        self::assertSame(0, $command($this->settings(), $output, $version));
     }
 
     #[Test]
-    public function defaultVersionUsesValidatedPendingReceiptBeforeGitTags(): void
+    #[DataProvider('maintainedVersionOrders')]
+    public function defaultVersionUsesHighestMaintainedStableSemVerBeforeGitTags(array $versions, string $expected): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $files->expects(self::atLeastOnce())->method('read')->willReturnMap([['/consumer/CHANGELOG.md','central'],['/consumer/.changelog/release-plan.json','receipt']]);
-        $receipts->expects(self::once())->method('decode')->with('receipt')->willReturn(new ReleaseReceipt(['next_version' => '1.1.0']));
-        $history->expects(self::once())->method('parse')->willReturn(new HistoryDocument());
-        $history->expects(self::once())->method('notes')->with(self::anything(), '1.1.0')->willReturn('notes');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
+        $files->expects(self::once())->method('read')->with('/consumer/CHANGELOG.md')->willReturn('central');
+        $releases = array_map(static fn(string $version): HistoryRelease => new HistoryRelease($version), $versions);
+        $history->expects(self::once())->method('parse')->willReturn(new HistoryDocument($releases));
+        $history->expects(self::once())->method('notes')->with(self::anything(), $expected)->willReturn('notes');
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         self::assertSame(0, $command($this->settings(), $this->createStub(OutputInterface::class)));
     }
 
+    /** Release ordering cannot change the selected stable identity, including arbitrary-width numeric components. */
+    public static function maintainedVersionOrders(): iterable
+    {
+        yield 'oldest first' => [['1.0.0', '2.0.0'], '2.0.0'];
+        yield 'newest first' => [['2.0.0', '1.0.0'], '2.0.0'];
+        yield 'custom order with pending and prerelease first' => [['unreleased', '99.0.0-rc.1', '1.10.0', '9.0.0', '2.0.0', '5.0.0'], '9.0.0'];
+        yield 'numeric minor width' => [['1.9.999', '1.10.0'], '1.10.0'];
+        yield 'numeric patch width' => [['1.0.9', '1.0.10'], '1.0.10'];
+        yield 'wide major' => [['18446744073709551615.0.0', '18446744073709551616.0.0'], '18446744073709551616.0.0'];
+        yield 'wide minor' => [['1.18446744073709551615.0', '1.18446744073709551616.0'], '1.18446744073709551616.0'];
+        yield 'wide patch' => [['1.0.18446744073709551615', '1.0.18446744073709551616'], '1.0.18446744073709551616'];
+        yield 'build tie forward order' => [['1.0.0', '1.0.0+build.a', '1.0.0+build.b'], '1.0.0+build.b'];
+        yield 'build tie reverse order' => [['1.0.0+build.b', '1.0.0+build.a', '1.0.0'], '1.0.0+build.b'];
+        yield 'invalid stable identity is not selected' => [['01.0.0', '1.1.0', 'unreleased'], '1.1.0'];
+        yield 'stable zero is a maintained release' => [['1.0.0-alpha', '0.0.0'], '0.0.0'];
+    }
+
     #[Test]
     #[DataProvider('baselineSources')]
-    public function fallbackUsesOnlyObservedStableGitEvidence(?string $receipt, bool $repository): void
+    public function fallbackUsesOnlyObservedStableGitEvidence(bool $repository, array $versions): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $files->expects(self::atLeastOnce())->method('read')->willReturnMap([['/consumer/CHANGELOG.md','central'],['/consumer/.changelog/release-plan.json',$receipt]]);
-        if (null !== $receipt) {
-            $receipts->expects(self::once())->method('decode')->willReturn(new ReleaseReceipt(['next_version' => null]));
-        } else {
-            $receipts->expects(self::never())->method('decode');
-        }
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
+        $files->expects(self::once())->method('read')->with('/consumer/CHANGELOG.md')->willReturn('central');
         $git->expects(self::once())->method('isRepository')->with('/consumer')->willReturn($repository);
         $git->expects($repository ? self::once() : self::never())->method('resolveRef')->with('/consumer', 'HEAD')->willReturn(str_repeat('b', 40));
         $tags = $repository ? [['name' => 'v2.0.0','sha' => str_repeat('a', 40),'date' => null,'date_source' => null]] : [];
         $git->expects($repository ? self::once() : self::never())->method('tags')->willReturn($tags);
         $git->expects($repository ? self::once() : self::never())->method('isAncestor')->with('/consumer', str_repeat('a', 40), str_repeat('b', 40))->willReturn(true);
-        $importer->expects(self::once())->method('currentVersion')->with($tags, 'v')->willReturn('2.0.0');
-        $history->expects(self::once())->method('parse')->willReturn(new HistoryDocument());
-        $history->expects(self::once())->method('notes')->with(self::anything(), '2.0.0')->willReturn('exact notes');
+        $expected = $repository ? '2.0.0' : '0.0.0';
+        $importer->expects(self::once())->method('currentVersion')->with($tags, 'v')->willReturn($expected);
+        $releases = array_map(static fn(string $version): HistoryRelease => new HistoryRelease($version), $versions);
+        $history->expects(self::once())->method('parse')->willReturn(new HistoryDocument($releases));
+        $history->expects(self::once())->method('notes')->with(self::anything(), $expected)->willReturn('exact notes');
         self::assertSame(0, $command($this->settings(), $this->createStub(OutputInterface::class)));
     }
 
+    /** Empty and prerelease-only maintained histories use the reachable stable-tag baseline. */
     public static function baselineSources(): array
     {
-        return [[null,true],['maintenance receipt',true],[null,false]];
+        return [[true, []], [true, ['unreleased', '9.0.0-rc.1']], [false, ['unreleased', '1.0.0-beta.2']]];
     }
 
     #[Test]
     public function optionalOutputUsesManagedWriterWithExactBytes(): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose(...$this->outputLocks(true));
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose(...$this->outputLocks(true));
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::exactly(2))->method('read')->willReturnMap([['/consumer/CHANGELOG.md','central'],['/consumer/notes/release.md',null]]);
@@ -118,8 +136,7 @@ final class NotesCommandTest extends TestCase
     #[DataProvider('unsafeOutputs')]
     public function rejectsOutputEscapingProjectBeforeManagedWrite(string $target): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::atLeastOnce())->method('read')->willReturn('central');
@@ -138,8 +155,7 @@ final class NotesCommandTest extends TestCase
     #[Test]
     public function missingCentralDocumentIsAnInvalidRequest(): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::atLeastOnce())->method('read')->willReturn(null);
@@ -150,8 +166,7 @@ final class NotesCommandTest extends TestCase
     #[Test]
     public function unsafeReadFailsOnErrorChannel(): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $history->expects(self::never())->method('parse');
@@ -167,8 +182,7 @@ final class NotesCommandTest extends TestCase
     #[DataProvider('outputFailures')]
     public function outputFailurePreservesLockOwnership(bool $acquired): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose(...$this->outputLocks($acquired));
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose(...$this->outputLocks($acquired));
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects($acquired ? self::exactly(2) : self::once())->method('read')->willReturnMap([['/consumer/CHANGELOG.md','central'],['/consumer/notes.md',null]]);
@@ -191,9 +205,8 @@ final class NotesCommandTest extends TestCase
     #[Test]
     public function defaultVersionIgnoresTagsOutsideTheCurrentHistory(): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $receipts->expects(self::never())->method('decode');
-        $files->expects(self::exactly(2))->method('read')->willReturnMap([['/consumer/CHANGELOG.md','central'],['/consumer/.changelog/release-plan.json',null]]);
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
+        $files->expects(self::once())->method('read')->willReturn('central');
         $git->expects(self::once())->method('isRepository')->willReturn(true);
         $head = str_repeat('b', 40);
         $reachable = ['name' => 'v1.0.0','sha' => str_repeat('a', 40),'date' => null,'date_source' => null];
@@ -211,8 +224,7 @@ final class NotesCommandTest extends TestCase
     #[DataProvider('managedOutputs')]
     public function refusesManagedOutputAndCaseAliasesWithoutTakingALock(string $target): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose();
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose();
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::once())->method('read')->with('/consumer/CHANGELOG.md')->willReturn('central');
@@ -232,8 +244,7 @@ final class NotesCommandTest extends TestCase
     #[DataProvider('existingExports')]
     public function refusesExistingExportsAndAlwaysReleasesItsLock(string $contents): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose(...$this->outputLocks(true));
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose(...$this->outputLocks(true));
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::exactly(2))->method('read')->willReturnMap([['/consumer/CHANGELOG.md','central'],['/consumer/notes.md',$contents]]);
@@ -252,8 +263,7 @@ final class NotesCommandTest extends TestCase
     #[Test]
     public function outputPreflightFailureReleasesItsLock(): void
     {
-        [$command,$files,$history,$receipts,$git,$importer,$paths] = $this->compose(...$this->outputLocks(true));
-        $receipts->expects(self::never())->method('decode');
+        [$command,$files,$history,$templates,$git,$importer,$paths] = $this->compose(...$this->outputLocks(true));
         $git->expects(self::never())->method('isRepository');
         $importer->expects(self::never())->method('currentVersion');
         $files->expects(self::exactly(2))->method('read')->willReturnCallback(static function (string $path): string {
@@ -289,7 +299,8 @@ final class NotesCommandTest extends TestCase
         $paths = $this->createMock(PackagePathResolverInterface::class);
         $paths->expects(self::atLeastOnce())->method('absolutePath')->willReturnCallback(static fn(string $path, ?string $cwd = null): string => '/consumer/' . $path);
         $history = $this->createMock(HistoryCodecInterface::class);
-        $receipts = $this->createMock(ReceiptCodecInterface::class);
+        $templates = $this->createStub(TemplateResolverInterface::class);
+        $templates->method('resolve')->willReturn($this->createStub(TemplateInterface::class));
         $git = $this->createMock(GitRepositoryInterface::class);
         $importer = $this->createMock(HistoryImporterInterface::class);
         if (null === $fragments) {
@@ -300,6 +311,6 @@ final class NotesCommandTest extends TestCase
             $locks = $this->createMock(LockFactory::class);
             $locks->expects(self::never())->method('createLock');
         }
-        return [new NotesCommand($options, $paths, $files, $history, $receipts, $git, $importer, $fragments, $locks),$files,$history,$receipts,$git,$importer,$paths];
+        return [new NotesCommand($options, $paths, $files, $history, $templates, $git, $importer, $fragments, $locks),$files,$history,$templates,$git,$importer,$paths];
     }
 }

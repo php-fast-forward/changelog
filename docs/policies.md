@@ -48,18 +48,24 @@ requires all of the following:
   account and a GraphQL signature bound to the exact commit, with `isValid: true`,
   `state: VALID` and `wasSignedByGitHub: true`. Other human committers fail closed.
   Free-form Git author names/emails do not prove identity.
-- The validated `release-plan.json` receipt is read at the head SHA. Its
-  repository, paths, locale, template and tag prefix match configured options.
-  Its saved base must be a GitHub-proven ancestor of the current PR base and
-  head, allowing the same trusted PR to update after the base advances. The commit contains the exact footer
-  `Changelog-Plan: <receipt-id>`.
-- The central changelog read at that same SHA equals the receipt's complete
-  contents and SHA-256 hash. Comparison scope contains only central/receipt
-  changes and exact removals of consumed fragments; unknown files, renames,
-  mismatched base hashes or potentially truncated comparisons fail closed.
+- The signed commit identifies its source base, plan, output hash and configured
+  options through scalar `Changelog-*` trailers. The source base must be a
+  match the current live PR base exactly and be a GitHub-proven ancestor of the head.
+- The central blob at that head matches the declared output hash. Comparison
+  scope contains only the central document and exact removals of the complete
+  committed fragment inventory at the source base. Unknown files, renames,
+  unsafe modes, invalid fragments or truncated comparisons fail closed.
   The comparison file limit is conservatively enforced below 300 files.
 
-The footer and receipt are evidence of the generated transaction, not identity
+An open managed PR generated before the current base is refused by the
+contribution check and must be resynchronized. The updater's separate
+`inspectHead()` ownership check still accepts a proven older ancestor so it can
+refresh that same PR safely. Configure the contribution check as required with
+strict up-to-date status checks; a passed check on an old base is not permission
+to merge after the base changes. A human maintenance grant does not change the
+publication validator's complete-consumption requirements.
+
+The trailers are evidence of the generated transaction, not identity
 credentials. A contributor copying them does not gain authority. Unsigned or
 inconsistent Bot commits fail closed and require a verified human maintenance
 grant. Writers creating commits through the GitHub API must authenticate as
@@ -140,5 +146,5 @@ and [GitHub's Dependabot automation guidance](https://docs.github.com/en/code-se
 Results use `created`, `unchanged`, `filtered`, `refused` or `conflict`. Callers
 must surface diagnostics and stop privileged follow-up on `refused`/`conflict`.
 API failures retain controlled diagnostic text and withhold raw server details
-and credentials. Unit tests replace API, receipt, metadata, changeset rendering
+and credentials. Unit tests replace API, Git evidence, metadata, changeset rendering
 and result boundaries; they never mutate a live GitHub repository.

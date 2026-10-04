@@ -22,6 +22,16 @@ interface GitRepositoryInterface
     /** Resolves the normalized absolute Git worktree root for repository-relative GitHub file APIs. */
     public function repositoryRoot(string $directory): string;
 
+    /** Resolves a private per-worktree recovery journal outside the tracked tree; non-Git consumers return null. */
+    public function journalPath(string $directory): ?string;
+
+    /**
+     * Reads exact release trailers bound to the approved changelog, including a bounded merged-branch search.
+     * Missing metadata returns null; malformed, truncated or ambiguous evidence MUST fail closed.
+     * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null
+     */
+    public function releaseMetadata(string $directory, string $reference, string $changelogFile = 'CHANGELOG.md'): ?array;
+
     /** Resolves the first origin fetch URL and rewrites without network access; returns null only when origin is absent. */
     public function originUrl(string $directory): ?string;
 

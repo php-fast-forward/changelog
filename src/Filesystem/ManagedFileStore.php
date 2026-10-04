@@ -32,6 +32,19 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
         return $this->filesystem->exists($path) ? $this->filesystem->readFile($path) : null;
     }
 
+    /** Removes only the caller-selected journal after repeated ancestry checks; an absent target is a no-op. */
+    public function remove(string $path): void
+    {
+        $path = $this->guard($path);
+        if (! $this->filesystem->exists($path)) {
+            return;
+        }
+        // Symfony remove accepts directories; require a readable file before delegating deletion.
+        $this->filesystem->readFile($path);
+        $this->guard($path);
+        $this->filesystem->remove($path);
+    }
+
     /** Rechecks ancestry after parent creation and delegates the atomic replacement to Symfony. */
     public function write(string $path, string $contents): void
     {

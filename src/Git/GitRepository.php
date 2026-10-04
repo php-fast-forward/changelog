@@ -41,6 +41,112 @@ final readonly class GitRepository implements GitRepositoryInterface
         return str_replace('\\', '/', $root);
     }
 
+    /** Uses Git's actual private directory so linked worktrees never treat their .git file as a directory. */
+    public function journalPath(string $directory): ?string
+    {
+        if (! $this->isRepository($directory)) {
+            return null;
+        }
+        $path = str_replace('\\', '/', rtrim($this->run($directory, ['rev-parse', '--absolute-git-dir']), "\r\n/\\"));
+        if ('' === $path || str_contains($path, "\0") || in_array('..', explode('/', $path), true)
+            || in_array('.', explode('/', $path), true)
+            || (! str_starts_with($path, '/') && 1 !== preg_match('~^[A-Za-z]:/~', $path))) {
+            throw $this->exceptions->failure('Git did not return a safe absolute private directory.');
+        }
+        return $path . '/changelog-release-plan.json';
+    }
+
+    /** Returns only complete scalar evidence whose generated output matches the exact approved central blob. */
+    public function releaseMetadata(string $directory, string $reference, string $changelogFile = 'CHANGELOG.md'): ?array
+    {
+        $sha = $this->resolveRef($directory, $reference);
+        $direct = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $sha, '--']));
+        $central = $this->readFileAt($directory, $sha, $changelogFile);
+        if (null === $central) {
+            return null;
+        }
+        $output = hash('sha256', $central);
+        if (null !== $direct) {
+            if (! hash_equals($direct['output_sha256'], $output)) {
+                throw $this->exceptions->failure('Release commit metadata differs from its approved changelog blob.');
+            }
+            return $direct;
+        }
+        $parents = trim($this->run($directory, ['show', '-s', '--format=%P', $sha, '--']));
+        $parents = '' === $parents ? [] : explode(' ', $parents);
+        foreach ($parents as $parent) {
+            if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $parent)) {
+                throw $this->exceptions->failure('Git returned malformed release commit parents.');
+            }
+        }
+        if (count($parents) < 2) {
+            return null;
+        }
+        // The current generated head may supersede an older plan with identical Markdown bytes.
+        // Exact matching direct parents identify the merged transaction before ancestor fallback.
+        $selected = null;
+        foreach ($parents as $parent) {
+            $candidate = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $parent, '--']));
+            if (null === $candidate || ! hash_equals($candidate['output_sha256'], $output)) {
+                continue;
+            }
+            if (null !== $selected && $selected !== $candidate) {
+                throw $this->exceptions->failure('The approved merge has conflicting matching direct-parent release metadata.');
+            }
+            $selected = $candidate;
+        }
+        if (null !== $selected) {
+            return $selected;
+        }
+        $raw = trim($this->run($directory, ['rev-list', '--topo-order', '--max-count=101', $parents[0] . '..' . $sha, '--']));
+        $commits = '' === $raw ? [] : explode("\n", $raw);
+        if (count($commits) > 100) {
+            throw $this->exceptions->failure('Merged release evidence exceeds the bounded commit inventory.');
+        }
+        $selected = null;
+        foreach ($commits as $commit) {
+            if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $commit)) {
+                throw $this->exceptions->failure('Git returned malformed merged release evidence.');
+            }
+            $candidate = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $commit, '--']));
+            if (null === $candidate || ! hash_equals($candidate['output_sha256'], $output)) {
+                continue;
+            }
+            if (null !== $selected && $selected !== $candidate) {
+                throw $this->exceptions->failure('The approved merge contains ambiguous matching release metadata.');
+            }
+            $selected = $candidate;
+        }
+        return $selected;
+    }
+
+    /** Parses four unique complete whole-line trailers without accepting prose, duplicate values or partial sets. */
+    private function metadata(string $message): ?array
+    {
+        $fields = ['Changelog-Base' => 'base_sha', 'Changelog-Plan' => 'plan_id',
+            'Changelog-Output' => 'output_sha256', 'Changelog-Options' => 'options_sha256'];
+        $data = [];
+        foreach (explode("\n", str_replace("\r\n", "\n", $message)) as $line) {
+            foreach ($fields as $trailer => $field) {
+                if (! str_starts_with($line, $trailer . ':')) {
+                    continue;
+                }
+                $pattern = 'base_sha' === $field ? '(?:[a-f0-9]{40}|[a-f0-9]{64})' : '[a-f0-9]{64}';
+                if (isset($data[$field]) || 1 !== preg_match('~^' . $trailer . ': (' . $pattern . ')$~D', $line, $match)) {
+                    throw $this->exceptions->failure('Release commit metadata contains malformed or duplicate trailers.');
+                }
+                $data[$field] = $match[1];
+            }
+        }
+        if ([] === $data) {
+            return null;
+        }
+        if (count($data) !== count($fields)) {
+            throw $this->exceptions->failure('Release commit metadata is incomplete.');
+        }
+        return array_replace(array_fill_keys(array_values($fields), ''), $data);
+    }
+
     /**
      * Resolves the first fetch URL and Git URL rewrites without contacting the server.
      * Missing origin is distinct from a failed Git/configuration probe.

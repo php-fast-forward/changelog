@@ -38,9 +38,11 @@ used across Fast Forward PHP packages.
   passing checks for the current head. Installing elsewhere or publishing real
   tags/releases requires separate user authorization; retain authority already
   explicitly given for the current task.
-- Edit `.agents/skills/changelog` as the sole skill source. Run
-  `node scripts/skills-sync.mjs --write` after changes and `--check` before review.
-  Claude/Copilot copies are generated real files, not independent procedures.
+- Edit the real `.github/skills/changelog` directory as the sole skill source.
+  `.agents/skills/changelog` and `.claude/skills/changelog` are relative directory
+  links to that package, not independent procedures. Run
+  `node scripts/skills-sync.mjs --check` before review; `--write` creates missing
+  declared links or migrates byte-identical legacy copies without overwriting manual files.
 
 ## Design Notes
 
@@ -50,8 +52,10 @@ used across Fast Forward PHP packages.
 - Preserve deterministic rendering and exact historical Markdown.
 - Ordinary contributions add unique fragments. Approved consolidation consumes
   only its validated set and updates the single central history through services.
-- Receipts are generated transaction evidence, not editable release history or
-  publication authority. Privileged automation verifies its own trusted context.
+- Release PRs update the central history and delete consumed fragments; they
+  MUST NOT introduce technical plan files or generated metadata comments.
+- Recovery journals stay outside the versioned tree and are removed on success.
+  Privileged automation verifies its trusted context and committed Git evidence.
 
 One root contract owns source, tests, docs and development. Ordinary directories
 do not need duplicate `AGENTS.md` files. Host entrypoints are adapters; skill
@@ -60,7 +64,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 
 ## Child DOX Index
 
-- [Changelog skill](.agents/skills/changelog/SKILL.md): portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
+- [Changelog skill](.github/skills/changelog/SKILL.md): portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
-- [Skill copy verifier](scripts/skills-sync.md): documents no-write drift checking and bounded regeneration of the two declared adapters.
+- [Skill link verifier](scripts/skills-sync.md): verifies the real canonical package and two bounded host links; preserves unrelated files and reports unmaterialized Windows checkouts.

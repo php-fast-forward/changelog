@@ -18,7 +18,7 @@ use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleaseReceipt;
 
-/** Constructs the immutable release transaction and its versioned evidence receipt. */
+/** Constructs the immutable release transaction and its ephemeral recovery journal. */
 interface ReleasePlanFactoryInterface
 {
     /**

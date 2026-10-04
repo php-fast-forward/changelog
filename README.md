@@ -64,7 +64,7 @@ See [fragment authoring and checking](docs/cli-fragments.md) and the
 | `check` | Validate inventory and contribution changes | `check --since=origin/main` |
 | `status` | Inspect the release plan without writes | `status --json --source=tags` |
 | `version` | Preview or apply an authorized consolidation | `version --dry-run --source=tags` |
-| `notes` | Read exact notes from the managed document | `notes 1.2.3` |
+| `notes` | Read exact notes; default to the highest maintained stable SemVer | `notes 1.2.3` |
 | `backfill` | Add only missing historical versions | `backfill --dry-run --source=tags` |
 | `format` | Preview presentation changes | `format --dry-run --locale=pt-BR` |
 | `publish` | Verify and publish an approved commit | `publish --target-sha="$APPROVED_SHA" --repository=owner/repository --dry-run` |
@@ -107,9 +107,10 @@ See [GitHub action contracts](docs/github-actions.md),
 [version PRs](docs/version-pull-request.md), [policy](docs/policies.md) and
 [publication](docs/publication.md).
 
-Human backfill/format PRs commit only the central history; their generated journal
-stays local for recovery. Verified bot-managed maintenance may include its
-generated transaction evidence.
+Version PRs update only the central history and delete the consumed fragments.
+No plan file is added to `.changelog/`. Recovery journals stay outside the working
+tree and are removed after successful application; maintenance PRs update only
+the central history.
 
 This repository uses the same runtime and local actions for its own changelog.
 The [self-hosting examples](docs/self-changelog.md) explain events, defaults,
@@ -138,6 +139,17 @@ interfaces. CLI and GitHub automation share the same planning and application
 services. See [adoption and service contracts](docs/adoption.md),
 [transaction recovery](docs/release-receipts.md) and
 [history/templates](docs/history.md).
+
+## Agent skill
+
+The portable procedure and license live in the real
+[`.github/skills/changelog`](.github/skills/changelog/SKILL.md) package.
+Repository `.agents/skills/changelog` and `.claude/skills/changelog` are relative
+directory links to that single source. Copilot reads real files in `.github`.
+Use the [link verifier](scripts/skills-sync.md) when maintaining this layout;
+Windows checkouts without materialized symlinks are reported explicitly.
+Discovery and an authorized project copy installation are documented separately
+in [skill distribution](docs/skills.md); neither claims native host activation.
 
 ## Contributing
 

@@ -49,7 +49,7 @@ adds and checks a fragment, then the version workflow opens a separate PR.
 Publication requires the approved complete SHA and validates committed evidence.
 
 Read `history and presentation <history.md>`_,
-`release receipts and recovery <release-receipts.md>`_ and
+`release transactions and local recovery <release-receipts.md>`_ and
 `publication <publication.md>`_.
 
 Automation and self-hosting

@@ -22,6 +22,7 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
@@ -53,6 +54,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private ReleasePlanFactoryInterface $plans,
         private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputs,
+        private ReleaseJournalPathResolverInterface $journals,
     ) {}
 
     /**
@@ -66,10 +68,9 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         }
         $changelogPath = $this->paths->absolutePath($options->changelogFile, $options->workingDirectory);
         $fragmentPath = $this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory);
-        $receiptPath = $this->paths->absolutePath($options->fragmentDirectory . '/release-plan.json', $options->workingDirectory);
+        $receiptPath = $this->journals->resolve($options);
         $original = $this->files->read($changelogPath);
         $receiptBytes = $this->files->read($receiptPath);
-        $document = $this->history->parse($original ?? '');
         $baseSha = null;
         $tags = [];
         if ($this->git->isRepository($options->workingDirectory)) {
@@ -84,23 +85,17 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         }
         if (null !== $receiptBytes) {
             $receipt = $this->receipts->decode($receiptBytes);
-            $version = $receipt->data['next_version'];
-            $published = null !== $version && array_any($tags, static fn(array $tag): bool => $tag['name'] === $options->tagPrefix . $version);
-            $currentHash = null === $original ? null : hash('sha256', $original);
-            $prepared = $receipt->data['before_changelog_sha256'] === $currentHash
-                && $receipt->data['after_changelog_sha256'] !== $currentHash;
-            if ($prepared || (null !== $version && ! $published)) {
-                if (null !== $version && 'version' !== $operation) {
-                    throw $this->exceptions->failure('Recover or publish the pending release plan before maintaining its history.');
-                }
-                $inventory = null === $version ? null : $this->inventory($fragmentPath);
-                $this->assertResumable($options, $receipt, $original, $inventory);
-                $this->inputs->validateTemplate($options, $receipt->data['base_sha']);
-                return $this->plans->resume($options, $receipt, $changelogPath, $original, $receiptPath, $receiptBytes);
+            if (null !== $receipt->data['next_version'] && 'version' !== $operation) {
+                throw $this->exceptions->failure('Recover the interrupted release before maintaining its history.');
             }
+            $inventory = null === $receipt->data['next_version'] ? null : $this->inventory($fragmentPath);
+            $this->assertResumable($options, $receipt, $original, $inventory);
+            $this->inputs->validateTemplate($options, $receipt->data['base_sha']);
+            return $this->plans->resume($options, $receipt, $changelogPath, $original, $receiptPath, $receiptBytes);
         }
         $this->inputs->validateTemplate($options, $baseSha);
         $template = $this->templates->resolve($options);
+        $document = $this->history->parse($original ?? '', $template);
         $inventory = 'version' === $operation ? $this->inventory($fragmentPath) : null;
         $currentVersion = $this->importer->currentVersion($tags, $options->tagPrefix);
         $missing = [];
@@ -115,6 +110,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $consumed = [];
         $notes = '';
         if (null !== $inventory && [] !== $inventory->changesets) {
+            $this->assertPublishedHistory($document, $currentVersion, in_array($options->tagPrefix . $currentVersion, array_column($tags, 'name'), true));
             $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
             if (! $resolved->isValid()) {
                 throw $this->exceptions->invalid('Cannot calculate the next version: ' . implode('; ', $resolved->errors));
@@ -135,7 +131,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $changed = 'format' === $operation || null !== $next || [] !== $missing;
         $contents = $changed ? $this->history->render($document, $template, 'format' !== $operation) : ($original ?? '');
         if (null !== $next) {
-            $notes = $this->history->notes($this->history->parse($contents), $next);
+            $notes = $this->history->notes($this->history->parse($contents, $template), $next);
         }
         return $this->plans->create(
             $options,
@@ -152,6 +148,30 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $receiptPath,
             $receiptBytes,
         );
+    }
+
+    /** Requires an observed stable tag baseline; the empty-history 0.0.0 sentinel cannot prove a maintained release. */
+    private function assertPublishedHistory(HistoryDocument $document, string $currentVersion, bool $publishedTag): void
+    {
+        $published = explode('.', explode('+', $currentVersion, 2)[0]);
+        foreach ($document->getReleases() as $release) {
+            $version = $release->getVersion();
+            if (1 !== preg_match('/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $version, $matches)) {
+                continue;
+            }
+            foreach (array_slice($matches, 1, 3) as $index => $component) {
+                $comparison = strlen($component) <=> strlen($published[$index]);
+                if (0 === $comparison) {
+                    $comparison = strcmp($component, $published[$index]);
+                }
+                if (! $publishedTag || 0 < $comparison) {
+                    throw $this->exceptions->failure('Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.');
+                }
+                if (0 > $comparison) {
+                    break;
+                }
+            }
+        }
     }
 
     /** Captures hashes of the exact bytes accepted by fragment validation, before any mutation. */
@@ -183,8 +203,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         if (! $before && $currentHash !== $data['after_changelog_sha256']) {
             throw $this->exceptions->failure('The pending release document differs from its saved plan.');
         }
-        $notes = null === $data['next_version'] ? '' : $this->history->notes($this->history->parse($data['changelog_contents']), $data['next_version']);
-        if (! hash_equals($data['notes_sha256'], hash('sha256', $notes))) {
+        if (! hash_equals($data['notes_sha256'], hash('sha256', $data['notes']))) {
             throw $this->exceptions->failure('The pending release notes differ from their saved plan.');
         }
         if (null === $inventory) {

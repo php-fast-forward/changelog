@@ -57,32 +57,24 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $this->require(null === $pr || $pr['head']['sha'] === $head, 'The managed PR and branch head snapshots disagree.');
             $plan = $this->planner->plan($options, 'version');
             $this->snapshot($options, $plan, $base);
-            if ($plan->resuming && null !== $plan->nextVersion && $plan->originalChangelog === $plan->changelogContents && $plan->originalReceipt === $plan->receiptContents) {
-                foreach ($plan->consumed as $absolute => $hash) {
-                    $relative = $this->paths->relativePath($absolute, $options->workingDirectory);
-                    $this->require(null === $this->git->readFileAt($options->workingDirectory, $base, $relative), 'The merged plan still contains approved fragments; recover the transaction before publication.');
-                }
-                return $this->result('pending-publication', $plan, $pr, $base, ['The merged release plan is awaiting publication; no duplicate version PR was created.']);
-            }
             $this->require($plan->baseSha === $base, 'The planned base is stale; refresh the base and rerun planning.');
             $old = null;
             if (null !== $head && $head !== $base) {
-                $owned = null === $pr ? $this->policy->inspectHead($options, $head, $input->automationActor, $base) : false;
+                $owned = $this->policy->inspectHead($options, $head, $input->automationActor, $base);
                 if (null !== $pr) {
-                    $authorization = $this->policy->inspect($options, $pr['number'], $input->managedBranch, $input->automationActor);
-                    $owned = $authorization->centralChangeAuthorized && 'managed-version' === $authorization->kind && $authorization->headSha === $head;
+                    $owned = $owned && $this->botCreatedPullRequest($options, $pr, $input->automationActor);
                 }
                 $this->require($owned, 'Existing managed head lacks signed Bot ownership or contains unexpected changes; it was preserved.');
-                $old = $this->receipt($repo, $options->fragmentDirectory . '/release-plan.json', $head);
+                $old = $this->identity($repo, $head);
             } elseif (null !== $pr) {
-                $this->require(GitHubEvidence::identity($pr['user'] ?? null, $input->automationActor, 'Bot'), 'A PR at the base commit must still belong to the configured Bot.');
+                $this->require($this->botCreatedPullRequest($options, $pr, $input->automationActor), 'A PR at the base commit must still belong to the configured Bot.');
             }
             if ('none' === $plan->mode()) {
                 return $this->result('none', $plan, $pr, $head, null === $pr ? [] : ['No changes remain; the existing owned PR was preserved for explicit review/closure.']);
             }
             $data = $this->receipts->decode($plan->receiptContents)->data;
-            $this->require(($data['id'] ?? null) === $plan->id && ($data['base_sha'] ?? null) === $base, 'The generated receipt does not match the planned transaction.');
-            if (null !== $old && $old['id'] === $plan->id) {
+            $this->require(($data['id'] ?? null) === $plan->id && ($data['base_sha'] ?? null) === $base, 'The generated in-memory plan does not match the planned transaction.');
+            if ($old === $plan->id) {
                 if (null !== $pr) {
                     return $this->result('unchanged', $plan, $pr, $head);
                 }
@@ -105,7 +97,6 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $this->require(is_string($treeSha) && GitHubEvidence::sha($treeSha), 'The remote base tree is unavailable.');
             $tree = [
                 ['path' => $options->changelogFile, 'mode' => '100644', 'type' => 'blob', 'content' => $plan->changelogContents],
-                ['path' => $options->fragmentDirectory . '/release-plan.json', 'mode' => '100644', 'type' => 'blob', 'content' => $plan->receiptContents],
             ];
             foreach ($data['consumed'] as $path => $hash) {
                 $tree[] = ['path' => $path, 'mode' => '100644', 'type' => 'blob', 'sha' => null];
@@ -121,7 +112,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             // GitHub signs App/Bot requests only when custom author, committer and signature are omitted.
             // https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification#signature-verification-for-bots
             $createdCommit = $this->github->request('POST', '/repos/' . $repo . '/git/commits', [
-                'message' => $input->title . "\n\nChangelog-Plan: " . $plan->id, 'tree' => $newTree, 'parents' => $parents,
+                'message' => $plan->commitMessage($input->title), 'tree' => $newTree, 'parents' => $parents,
             ]);
             $newHead = $createdCommit['sha'] ?? null;
             $this->require(is_string($newHead) && GitHubEvidence::sha($newHead), 'GitHub did not confirm the generated commit.');
@@ -137,6 +128,14 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         } catch (Throwable) {
             return $this->result($writing ? 'conflict' : 'refused', $plan, $pr, $head, ['Version PR synchronization could not be verified; inspect remote state before retrying. Response details were withheld.']);
         }
+    }
+
+    /** Confirms the PR creator's canonical Bot ID independently of its refreshable source base. */
+    private function botCreatedPullRequest(ReleaseOptions $options, array $pr, string $actor): bool
+    {
+        $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
+        return GitHubEvidence::identity($account, $actor, 'Bot')
+            && GitHubEvidence::identity($pr['user'] ?? null, $actor, 'Bot', $account['id']);
     }
 
     /** Reports only the immutable object identity and allowlisted verification scalars after failed ownership proof. */
@@ -181,12 +180,11 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         return $pr;
     }
 
-    /** Verifies original managed bytes and receipt scope; the shared input validator proves every fresh consumed base blob. */
+    /** Verifies original history bytes and exact fragment scope; the shared input validator proves every fresh consumed base blob. */
     private function snapshot(ReleaseOptions $options, ReleasePlan $plan, string $base): void
     {
         $this->require(
-            $this->git->readFileAt($options->workingDirectory, $base, $options->changelogFile) === $plan->originalChangelog
-            && $this->git->readFileAt($options->workingDirectory, $base, $options->fragmentDirectory . '/release-plan.json') === $plan->originalReceipt,
+            $this->git->readFileAt($options->workingDirectory, $base, $options->changelogFile) === $plan->originalChangelog,
             'Local managed files differ from the fresh committed base; refresh the checkout.',
         );
         if ($plan->resuming && $plan->originalChangelog === $plan->changelogContents) {
@@ -202,7 +200,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             }
             $consumed[$relative] = $hash;
         }
-        $this->require($consumed === ($data['consumed'] ?? null), 'Planned fragment scope differs from the validated receipt.');
+        $this->require($consumed === ($data['consumed'] ?? null), 'Planned fragment scope differs from the validated in-memory plan.');
     }
 
     /** Rechecks both branch tips and local HEAD immediately before tree/ref mutation. */
@@ -216,12 +214,12 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         );
     }
 
-    /** Reads canonical ownership metadata from a pinned head; the shared policy validates its bytes and scope first. */
-    private function receipt(string $repository, string $path, string $head): array
+    /** Reads a small signed commit trailer after immutable-head ownership and scope validation. */
+    private function identity(string $repository, string $head): ?string
     {
-        $bytes = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($repository, $path, $head)));
-        $this->require(null !== $bytes, 'The managed head receipt is unavailable.');
-        return $this->receipts->decode($bytes)->data;
+        $commit = $this->github->request('GET', '/repos/' . $repository . '/commits/' . $head);
+        $message = $commit['commit']['message'] ?? '';
+        return is_string($message) && 1 === preg_match('/^Changelog-Plan: ([a-f0-9]{64})$/m', $message, $match) ? $match[1] : null;
     }
 
     /** Uses a non-forced descendant ref update; after a lost response only an exact GET confirmation counts. */
@@ -274,7 +272,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     {
         return ('maintenance' === $plan->mode() ? 'Maintain existing changelog history.' : 'Prepare release ' . $plan->nextVersion . '.')
             . "\n\nPlan: `" . $plan->id . "`\nBase: `" . $plan->baseSha . "`\nConsumed fragments: " . count($data['consumed'])
-            . "\n\nGenerated receipt: `" . $options->fragmentDirectory . "/release-plan.json`.\nThis PR does not publish a tag or release.\n";
+            . "\n\nUpdates the changelog and removes the consumed fragments.\nThis PR does not publish a tag or release.\n";
     }
 
     /** Captures the exact plan and known remote PR/head state without claiming publication. */

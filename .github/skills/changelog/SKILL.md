@@ -175,13 +175,18 @@ staged work remain allowed; use read-only status and fragment previews while
 preparing an uncommitted contribution. A selected custom PHP template must also
 match its regular base blob before execution and application.
 
-This writes the generated receipt journal and central snapshot, then removes
-exactly the validated consumed fragments. Review `CHANGELOG.md`, the generated
-`.changelog/release-plan.json` and those deletions together. The receipt records
-transaction evidence; do not edit it as a second history or treat its hash as
-approval. If interrupted, preserve journal/central/remaining fragments and retry
-with the same settings. New or modified fragments block stale recovery; inspect
-the diagnostic instead of deleting them or changing the receipt to force a retry.
+This writes a recovery journal outside the versioned tree, updates the central
+history and removes exactly the validated fragments. It deletes the journal
+when application finishes. Review only `CHANGELOG.md` and the consumed-fragment
+deletions in the version PR: no release-plan file is added to `.changelog/`.
+New history is readable Markdown without generated metadata comments. If
+interrupted, preserve the local journal and remaining fragments and retry the
+same settings. Changed inputs block stale recovery; inspect the diagnostic
+rather than editing the journal or deleting newer inputs to force a retry.
+The machine summary includes `commit_message` with the same scalar trailers
+used by version automation. If explicitly tasked with committing a local
+consolidation for later publication, commit only its `affected_files` with that
+exact message; never invent the hashes or stage unrelated work.
 Existing `Unreleased` sections are legacy content preserved during import; new
 pending changes belong exclusively to independent `.changelog/` fragments.
 
@@ -206,15 +211,19 @@ vendor/bin/changelog format --locale=pt-BR --source=tags --no-interaction
 vendor/bin/changelog notes 1.2.3 --no-interaction
 ```
 
-Backfill and format preserve all pending fragments. Human maintenance PRs commit
-only the central changelog; retain the generated journal locally for recovery. Verified
-bot-managed maintenance can include its generated transaction evidence.
+Backfill and format preserve all pending fragments. Maintenance PRs commit only
+the central changelog. Recovery journals remain outside the versioned tree and
+are removed on success.
 Formatting changes recognized
 structural headings and keeps prose, fenced code, notes, dates and references;
 it does not translate descriptions. `notes` reads the exact maintained body,
 without the outer version heading. `--output=release-notes.md` writes that body
 only when an output file is requested. Without a version argument, notes selects
-a receipt release version, then an actual stable Git baseline.
+the highest stable SemVer maintained in the document, independently of section
+order or dates. Unreleased and prerelease sections do not become the default;
+explicit versions may still select prereleases. Build metadata breaks equal-core
+version ties lexically. An actual reachable stable Git baseline is used only
+when no stable maintained section exists.
 
 Defaults need no file. For explicitly requested presentation customization,
 create a trusted project `changelog-template.php` containing:
@@ -252,15 +261,19 @@ Set `APPROVED_SHA` to the full approved merge SHA from the task's verified evide
 With publication authority for that exact result, repeat without `--dry-run`.
 The CLI resolves
 `--target-sha` (default checked-out HEAD); supply the approved full SHA explicitly
-to avoid accidentally selecting later commits. Publication verifies committed
-receipt/central blobs, base ancestry, every base fragment and hash, the absence
-of all pending Markdown at the approved commit, recalculated version/impact and
-exact central section notes before creating missing remote objects.
+to avoid accidentally selecting later commits. Publication reconstructs the
+consolidation from scalar commit trailers, source-base fragment blobs and the
+approved central history. It checks ancestry, option/output fingerprints,
+complete fragment removal, recalculated version/impact and exact central notes.
+Historical imports use the approved committed sections during publication;
+previous GitHub notes are not fetched again to reconstruct the approved history.
+A merge must resolve consistent transaction evidence; a squash must retain the
+trailers. Missing or ambiguous evidence fails. No tracked plan file is required.
 
 Existing conflicting tags are never moved; divergent release notes are never
 updated. A matching tag without its release or an uncertain create response is
 recovered through verified remote reads. Repeat the same SHA to finish a partial
-publication. Maintenance receipts create no tag or release. Built-in presentation
+publication. Maintenance consolidations create no tag or release. Built-in presentation
 can target an older approved SHA; custom PHP additionally requires that exact
 checked-out HEAD and unchanged tracked template bytes.
 

@@ -34,4 +34,14 @@ final readonly class ReleaseOptions
         public ?string $repository = null,
         public string $source = 'auto',
     ) {}
+
+    /** Binds publication policy to trusted caller settings without persisting JSON in the repository. */
+    public function evidenceHash(): string
+    {
+        return hash('sha256', json_encode([
+            'repository' => $this->repository, 'changelog_file' => $this->changelogFile,
+            'fragment_directory' => $this->fragmentDirectory, 'locale' => $this->locale,
+            'template' => $this->template, 'tag_prefix' => $this->tagPrefix, 'source' => $this->source,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
 }
