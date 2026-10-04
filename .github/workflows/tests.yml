@@ -52,6 +52,11 @@ jobs:
               env:
                   XDEBUG_MODE: coverage
 
+            - name: Verify canonical skill and adapter synchronization
+              run: |
+                  node --test scripts/skills-sync.test.mjs
+                  node scripts/skills-sync.mjs --check
+
             - name: Smoke test the CLI
               run: php bin/changelog list --raw
 

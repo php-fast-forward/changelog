@@ -47,6 +47,7 @@ final class HistoryCodecTest extends TestCase
     #[TestWith([''])]
     #[TestWith(['Unstructured raw history without supported release headings.'])]
     #[TestWith(["# Custom\n\n[link]: https://example.test\n\nfooter\n"])]
+    #[TestWith(["# Custom\n\n## [Migration guide](migration.md)\n\nPreserve this prose.\n"])]
     public function retainsUnstructuredHistory(string $markdown): void
     {
         $codec = $this->codec();
@@ -58,6 +59,99 @@ final class HistoryCodecTest extends TestCase
         } else {
             self::assertStringContainsString('Intro pt-BR', $codec->render($document, $this->template()));
         }
+    }
+
+    #[Test]
+    public function preservesUnknownLinkedHeadingsWithinHistoricalProse(): void
+    {
+        $prefix = "# Package history\r\n\r\n## [Migration guide](migration.md)\r\n\r\nSee the migration examples.\r\n\r\n## [vNext]\r\nA custom roadmap stays prose.\r\n\r\n";
+        $pending = "\r\n## [Overview](overview.md)\r\n\r\n- A pending description.  \r\n\r\n";
+        $body = "\r\n## [Migration guide](migration.md)\r\n\r\n1. Keep the nested list.\r\n   Continue the description.  \r\n\r\n"
+            . "## [Security considerations]\r\nPreserve **rich Markdown** and [inline links](security.md).\r\n\r\n"
+            . "## [2026 roadmap](roadmap.md)\r\nFuture prose.\r\n\r\n## [1. Documentation](docs.md)\r\nA numbered topic.\r\n\r\n"
+            . "```markdown\r\n## [2.0.0] - invalid-date\r\n```\r\n";
+        $markdown = $prefix . "## [Não publicado]\r\n" . $pending . "## [v1.2.3](releases/v1.2.3) - 2026-10-03\r\n" . $body;
+        $codec = $this->codec();
+        $document = $codec->parse($markdown);
+
+        self::assertSame(['unreleased', '1.2.3'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $document->getReleases()));
+        self::assertSame($prefix, $document->getPrefix());
+        self::assertSame($pending, $codec->notes($document, 'unreleased'));
+        self::assertSame($body, $codec->notes($document, '1.2.3'));
+        self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
+
+        $formatted = $codec->parse($codec->render($document, $this->template('en')));
+        self::assertSame($prefix, $formatted->getPrefix());
+        self::assertSame($pending, $codec->notes($formatted, 'unreleased'));
+        self::assertSame($body, $codec->notes($formatted, '1.2.3'));
+    }
+
+    #[Test]
+    #[TestWith(['0.0.0', '0.0.0'])]
+    #[TestWith(['v1.2.3', '1.2.3'])]
+    #[TestWith(['V1.2.3-rc.1+build.7', '1.2.3-rc.1+build.7'])]
+    #[TestWith(['1.0.0-alpha.beta', '1.0.0-alpha.beta'])]
+    #[TestWith(['1.0.0+docs.01', '1.0.0+docs.01'])]
+    public function stillRecognizesLinkedSemanticVersionHeadings(string $version, string $canonical): void
+    {
+        $markdown = '## [' . $version . "](releases.md) - 2026-10-03 [YANKED]\nExact release notes.\n";
+        $codec = $this->codec();
+        $document = $codec->parse($markdown);
+
+        self::assertCount(1, $document->getReleases());
+        self::assertSame("Exact release notes.\n", $codec->notes($document, $canonical));
+        self::assertSame('2026-10-03', $document->getRelease($canonical)->getDate());
+        self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
+    }
+
+    #[Test]
+    #[TestWith(['Unreleased'])]
+    #[TestWith(['unreleased'])]
+    #[TestWith(['Não publicado'])]
+    #[TestWith(['não publicado'])]
+    public function stillRecognizesEveryExistingUnreleasedAlias(string $label): void
+    {
+        $markdown = '## [' . $label . "](compare.md)\nPending notes.\n";
+        $codec = $this->codec();
+        $document = $codec->parse($markdown);
+
+        self::assertCount(1, $document->getReleases());
+        self::assertSame("Pending notes.\n", $codec->notes($document, 'unreleased'));
+        self::assertSame($markdown, $codec->render($document, $this->template(), true));
+    }
+
+    #[Test]
+    #[TestWith(["## [1.2.3] - 2026-10-xx\n"])]
+    #[TestWith(["## [Unreleased] - yesterday\n"])]
+    #[TestWith(["## [v1.2.3](broken-link\n"])]
+    #[TestWith(["## [V1.2.3] - 2026-10-03 unexpected suffix\n"])]
+    public function rejectsMalformedRecognizedReleaseHeadings(string $heading): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A legacy release heading must use a bracketed version');
+        $this->codec()->parse($heading . "Notes stay available in the source.\n");
+    }
+
+    #[Test]
+    #[TestWith(['01.2.3', null])]
+    #[TestWith(['v01.2.3', null])]
+    #[TestWith(['1.2', null])]
+    #[TestWith(['1.', null])]
+    #[TestWith(['1.2.3-01', null])]
+    #[TestWith(['1.2.3-', null])]
+    #[TestWith(['1.2.3+build..1', null])]
+    #[TestWith(['1.2.3', '2026-02-30'])]
+    public function preservesFactoryAuthorityForMalformedVersionsAndCalendarDates(string $version, ?string $date): void
+    {
+        $heading = '## [' . $version . ']' . (null === $date ? '' : ' - ' . $date) . "\n";
+        $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
+        $releases->expects(self::once())->method('create')
+            ->with($version, $date, null, "Exact notes.\n", $heading, '')
+            ->willThrowException(new InvalidArgumentException('The release factory rejected this version or calendar date.'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The release factory rejected this version or calendar date.');
+        $this->codec($releases)->parse($heading . "Exact notes.\n");
     }
 
     #[Test]
@@ -265,12 +359,14 @@ final class HistoryCodecTest extends TestCase
     }
 
     /** Returns the codec with all service-construction boundaries replaced by doubles. */
-    private function codec(): HistoryCodec
+    private function codec(?HistoryReleaseFactoryInterface $releases = null): HistoryCodec
     {
         $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
         $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
-        $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
-        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $dateSource, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease(preg_replace('/^[vV](?=\d)/', '', $version), $date, $dateSource, $body, $heading, $ending));
+        if (null === $releases) {
+            $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
+            $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $dateSource, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease(preg_replace('/^[vV](?=\d)/', '', $version), $date, $dateSource, $body, $heading, $ending));
+        }
         $errors = $this->createStub(HistoryExceptionFactoryInterface::class);
         $errors->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
 

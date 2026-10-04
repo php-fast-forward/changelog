@@ -125,6 +125,18 @@ Repository Actions execution policies must permit these base-controlled
 [workflow execution protections](https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution).
 The reusable workflows still verify the event and use trusted checkouts.
 
+The write token must be permitted by the repository's execution policy. GitHub
+restricts `pull_request_target` when the base ref itself was created by
+Dependabot; this differs from the ordinary maintained-base pattern used by
+[the official fetch-metadata examples](https://github.com/dependabot/fetch-metadata#usage-instructions).
+When an organization policy limits the default token but secrets remain
+available, pass an authorized scoped Bot/App token through the reusable
+workflow's `token` secret. In the special Dependabot-created base-ref case,
+GitHub also withholds secrets: an additional secret cannot fix that run. Use
+a maintained base or a separately authorized trusted trigger instead.
+Declaring `contents: write` does not override these platform restrictions. See
+[GitHub's Dependabot event restrictions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions).
+
 ## One version PR per release line
 
 Run from a push to the maintained base, or a manual dispatch:

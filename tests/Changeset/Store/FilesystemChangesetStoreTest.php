@@ -9,6 +9,7 @@ use FastForward\Changelog\Changeset\Store\FilesystemChangesetStore;
 use FastForward\Changelog\Changeset\Store\WriteResult;
 use FastForward\Changelog\Filesystem\Factory\FinderFactoryInterface;
 use FastForward\Changelog\Filesystem\Factory\PathExceptionFactoryInterface;
+use FastForward\Changelog\Tests\Filesystem\Fixture\DirectoryName;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -24,6 +25,9 @@ use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\SharedLockInterface;
+
+// Register lexical doubles before either adapter can bind to the native function.
+require_once __DIR__ . '/../../Filesystem/Fixture/dirname.php';
 
 #[CoversClass(FilesystemChangesetStore::class)]
 final class FilesystemChangesetStoreTest extends TestCase
@@ -90,6 +94,37 @@ final class FilesystemChangesetStoreTest extends TestCase
         self::assertNull($store->paths('/repo/.changelog'));
         self::assertSame(WriteResult::UnsafePath, $store->inspectWrite('/repo/.changelog/entry.md'));
         self::assertSame(WriteResult::UnsafePath, $store->write('/repo/.changelog/entry.md', 'body'));
+    }
+
+    /** Both native drive-root spellings must reject a symbolic root before reading or deleting fragments. */
+    #[Test]
+    #[TestWith(['C:'])]
+    #[TestWith(['C:/'])]
+    public function symbolicDriveRootsAreRejectedBeforeFragmentAccess(string $parent): void
+    {
+        $filesystem = $this->filesystem();
+        $filesystem->readlink('C:/')->willReturn('/outside')->shouldBeCalledTimes(3);
+        $filesystem->readlink('C:')->shouldNotBeCalled();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $filesystem->readFile(Argument::any())->shouldNotBeCalled();
+        $filesystem->remove(Argument::any())->shouldNotBeCalled();
+        $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
+        $exceptions->create('C:/consumer/entry.md')->willReturn(new InvalidArgumentException('Symbolic drive root'))->shouldBeCalledOnce();
+        $store = $this->store($filesystem, exceptions: $exceptions);
+
+        DirectoryName::withParent('C:/consumer', $parent, static function () use ($store): void {
+            self::assertNull($store->read('c:\\consumer\\entry.md'));
+            self::assertSame(WriteResult::UnsafePath, $store->inspectWrite('c:\\consumer\\entry.md'));
+
+            try {
+                $store->remove(['C:/consumer/entry.md']);
+                self::fail('A symbolic drive root must prevent fragment deletion.');
+            } catch (InvalidArgumentException $error) {
+                self::assertSame('Symbolic drive root', $error->getMessage());
+            }
+        });
+
+        self::assertSame(\dirname('C:/consumer'), DirectoryName::resolve('C:/consumer'));
     }
 
     #[Test]

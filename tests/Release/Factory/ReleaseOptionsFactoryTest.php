@@ -66,6 +66,48 @@ final class ReleaseOptionsFactoryTest extends TestCase
         self::assertSame('changes/pending-history/CHANGES.md', $options->changelogFile);
     }
 
+    /** Supported prefixes must form valid complete Git tag refs without changing their spelling. */
+    #[DataProvider('validTagPrefixes')]
+    public function testValidTagNamespacesPreserveTheConfiguredPrefix(string $prefix): void
+    {
+        self::assertSame($prefix, $this->factory()->create(['tagPrefix' => $prefix])->tagPrefix);
+    }
+
+    /** Supplies valid namespaces and prefixes whose suffix is safe only after appending the version. */
+    public static function validTagPrefixes(): array
+    {
+        return [
+            [''], ['v'], ['release/'], ['release/v'], ['release/stable/v'],
+            ['release/-v'], ['release/_v'], ['release./v'], ['v.'],
+            ['v.lock'], ['release/v.lock'], ['release.LOCK/v'],
+        ];
+    }
+
+    /** Invalid Git ref syntax must fail before the working-directory adapter resolves a repository path. */
+    #[DataProvider('invalidTagPrefixes')]
+    public function testInvalidGitTagPrefixesFailBeforeResolvingTheWorkingDirectory(string $prefix): void
+    {
+        $paths = $this->createMock(PackagePathResolverInterface::class);
+        $paths->method('isAbsolute')->willReturn(false);
+        $paths->expects(self::never())->method('absolutePath');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Tag prefix must use supported characters and form a valid Git tag reference.');
+        new ReleaseOptionsFactory($paths)->create(['tagPrefix' => $prefix]);
+    }
+
+    /** Covers empty/dot/lock components, revision expressions and every Git-prohibited character family. */
+    public static function invalidTagPrefixes(): array
+    {
+        return [
+            ['release//'], ['release//v'], ['release///v'], ['v..'],
+            ['release/..v'], ['release/.hidden/v'], ['release/./v'],
+            ['release/../v'], ['release.lock/'], ['release.lock/v'],
+            ['release/.lock/v'], ['/v'], ['v~'], ['v^'], ['v:'],
+            ['v?'], ['v*'], ['v['], ['v\\'], ['v@{'], ['v '],
+            ["v\t"], ["v\n"], ["v\r"], ["v\x1f"], ["v\x7f"],
+        ];
+    }
+
     public static function invalidSettings(): array
     {
         return [

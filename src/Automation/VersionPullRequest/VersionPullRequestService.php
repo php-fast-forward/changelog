@@ -115,6 +115,8 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 return $this->result('none', $plan, $pr, $head, ['The generated tree matches the base; no empty PR was created.']);
             }
             $parents = array_values(array_unique([...(null === $head ? [] : [$head]), $base]));
+            // GitHub signs App/Bot requests only when custom author, committer and signature are omitted.
+            // https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification#signature-verification-for-bots
             $createdCommit = $this->github->request('POST', '/repos/' . $repo . '/git/commits', [
                 'message' => $input->title . "\n\nChangelog-Plan: " . $plan->id, 'tree' => $newTree, 'parents' => $parents,
             ]);

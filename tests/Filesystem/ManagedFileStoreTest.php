@@ -6,8 +6,10 @@ namespace FastForward\Changelog\Tests\Filesystem;
 
 use FastForward\Changelog\Filesystem\ManagedFileStore;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use FastForward\Changelog\Tests\Filesystem\Fixture\DirectoryName;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
@@ -15,6 +17,9 @@ use Prophecy\Prophecy\ObjectProphecy;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
 use Throwable;
+
+// Register lexical doubles before either adapter can bind to the native function.
+require_once __DIR__ . '/Fixture/dirname.php';
 
 #[CoversClass(ManagedFileStore::class)]
 final class ManagedFileStoreTest extends TestCase
@@ -88,6 +93,33 @@ final class ManagedFileStoreTest extends TestCase
                 self::assertStringContainsString('Symbolic managed path or ancestor: /consumer', $error->getMessage());
             }
         }
+    }
+
+    /** A symbolic drive root must fail before managed-file I/O under either native parent spelling. */
+    #[TestWith(['C:'])]
+    #[TestWith(['C:/'])]
+    public function testSymbolicDriveRootIsNeverFollowed(string $parent): void
+    {
+        $filesystem = $this->filesystem();
+        $filesystem->readlink('C:/')->willReturn('/outside')->shouldBeCalledTimes(2);
+        $filesystem->readlink('C:')->shouldNotBeCalled();
+        $filesystem->exists(Argument::any())->shouldNotBeCalled();
+        $filesystem->readFile(Argument::any())->shouldNotBeCalled();
+        $filesystem->dumpFile(Argument::any(), Argument::any())->shouldNotBeCalled();
+        $store = $this->store($filesystem);
+
+        DirectoryName::withParent('C:/consumer', $parent, static function () use ($store): void {
+            foreach (['read', 'write'] as $operation) {
+                try {
+                    'read' === $operation ? $store->read('c:\\consumer\\CHANGELOG.md') : $store->write('c:\\consumer\\CHANGELOG.md', 'contents');
+                    self::fail('A symbolic drive root must prevent managed-file access.');
+                } catch (RuntimeException $error) {
+                    self::assertSame('Symbolic managed path or ancestor: C:/', $error->getMessage());
+                }
+            }
+        });
+
+        self::assertSame(\dirname('C:/consumer'), DirectoryName::resolve('C:/consumer'));
     }
 
     /** Writes MUST create only a missing parent and recheck ancestry before replacement. */

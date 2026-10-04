@@ -77,8 +77,8 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
             }
             $settings['template'] = $template;
         }
-        if ('' !== $settings['tagPrefix'] && 1 !== preg_match('~^[A-Za-z0-9][A-Za-z0-9._/-]*$~D', $settings['tagPrefix'])) {
-            throw new InvalidArgumentException('Tag prefix contains unsupported characters.');
+        if (! $this->isValidTagPrefix($settings['tagPrefix'])) {
+            throw new InvalidArgumentException('Tag prefix must use supported characters and form a valid Git tag reference.');
         }
         if (str_starts_with($settings['baseRef'], '-') || preg_match('/[\r\n]/', $settings['baseRef'])) {
             throw new InvalidArgumentException('Base reference must be a Git revision, not an option.');
@@ -88,5 +88,27 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         }
         $settings['workingDirectory'] = $this->paths->absolutePath($settings['workingDirectory']);
         return new ReleaseOptions(...$settings);
+    }
+
+    /**
+     * Validates the supported prefix alphabet and the complete generated Git ref without processes or I/O.
+     * A namespace component MUST NOT be empty, start with a dot or end with .lock; consecutive dots are forbidden.
+     * The appended stable SemVer makes a trailing prefix dot or .lock valid in the final component.
+     *
+     * @see https://git-scm.com/docs/git-check-ref-format
+     */
+    private function isValidTagPrefix(string $prefix): bool
+    {
+        if ('' !== $prefix && 1 !== preg_match('~^[A-Za-z0-9][A-Za-z0-9._/-]*$~D', $prefix)) {
+            return false;
+        }
+
+        $reference = 'refs/tags/' . $prefix . '1.0.0';
+        if (str_contains($reference, '..')) {
+            return false;
+        }
+
+        return array_all(explode('/', $reference), static fn(string $component): bool => '' !== $component
+            && ! str_starts_with($component, '.') && ! str_ends_with($component, '.lock'));
     }
 }

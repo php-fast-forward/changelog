@@ -65,6 +65,7 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([str_repeat('b', 40)], $commit['parents']);
         self::assertArrayNotHasKey('author', $commit);
         self::assertArrayNotHasKey('committer', $commit);
+        self::assertArrayNotHasKey('signature', $commit);
         self::assertStringContainsString('Changelog-Plan: ' . str_repeat('c', 64), $commit['message']);
         self::assertSame(['ref' => 'refs/heads/changelog/version', 'sha' => str_repeat('c', 40)], $this->writes('refs')[0][2]);
         self::assertStringContainsString('does not publish', $this->writes('pulls')[0][2]['body']);

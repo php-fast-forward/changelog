@@ -38,6 +38,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      *
      * Fenced code MUST NOT create release boundaries. Unknown prose, nested
      * Markdown, references and footer boilerplate MUST remain byte-preserved.
+     * Legacy boundaries require an Unreleased alias or a numeric version token;
+     * recognized malformed headings MUST fail, with semantic validation owned
+     * by the release factory rather than silently treating releases as prose.
      */
     public function parse(string $markdown): HistoryDocument
     {
@@ -129,12 +132,20 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 $referenceOffsets[] = $lineOffset;
             }
 
-            if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+(?<date>\d{4}-\d{2}-\d{2}))?(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
+            if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\]~u', $line, $matches)) {
                 continue;
             }
 
-            $version = in_array($matches['version'], ['Unreleased', 'unreleased', 'Não publicado', 'não publicado'], true)
-                ? 'unreleased' : $matches['version'];
+            $unreleased = in_array($matches['version'], ['Unreleased', 'unreleased', 'Não publicado', 'não publicado'], true);
+            if (! $unreleased && 1 !== preg_match('/\A[vV]?[0-9]+\.[^\s]*\z/u', $matches['version'])) {
+                continue;
+            }
+
+            if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+(?<date>\d{4}-\d{2}-\d{2}))?(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
+                throw $this->exceptionFactory->invalid('A legacy release heading must use a bracketed version, optional link and optional ISO date.');
+            }
+
+            $version = $unreleased ? 'unreleased' : $matches['version'];
             $sections[] = [
                 'offset' => $lineOffset, 'content' => $offset, 'body_end' => null,
                 'version' => $version, 'date' => $matches['date'] ?? null, 'source' => null,

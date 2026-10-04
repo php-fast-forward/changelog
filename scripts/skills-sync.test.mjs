@@ -1,17 +1,20 @@
 /** Disposable integration fixtures for generated skill adapters; no host state is used. */
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { afterEach, test } from 'node:test';
 import { synchronize } from './skills-sync.mjs';
 
 const roots = [];
+// Platform aliases such as macOS /var must not trip the production symbolic-path guard.
+const temporaryDirectory = await realpath(tmpdir());
 const canonical = '.agents/skills/changelog';
 const adapters = ['.claude/skills/changelog', '.github/skills/changelog'];
 
 async function fixture() {
-  const root = await mkdtemp('/private/tmp/changelog-skills-fixture-');
+  const root = await mkdtemp(join(temporaryDirectory, 'changelog-skills-fixture-'));
   roots.push(root);
   await mkdir(join(root, canonical), { recursive: true });
   await writeFile(join(root, canonical, 'SKILL.md'), '---\nname: changelog\ndescription: fixture\n---\nFixture bytes.\n');
@@ -154,10 +157,10 @@ test('CLI derives its root from the copied script and default check never writes
   await mkdir(join(root, 'scripts'));
   await writeFile(join(root, 'scripts/skills-sync.mjs'), await readFile(new URL('./skills-sync.mjs', import.meta.url)));
   const script = join(root, 'scripts/skills-sync.mjs');
-  const checked = spawnSync(process.execPath, [script], { cwd: '/private/tmp', encoding: 'utf8', env: {} });
+  const checked = spawnSync(process.execPath, [script], { cwd: temporaryDirectory, encoding: 'utf8', env: {} });
   assert.equal(checked.status, 1);
   assert.equal(JSON.parse(checked.stdout).mode, 'check');
   assert.deepEqual(await readdir(root), ['.agents', 'scripts']);
-  assert.equal(spawnSync(process.execPath, [script, '--write'], { cwd: '/private/tmp', encoding: 'utf8', env: {} }).status, 0);
-  assert.equal(spawnSync(process.execPath, [script, '--check'], { cwd: '/private/tmp', encoding: 'utf8', env: {} }).status, 0);
+  assert.equal(spawnSync(process.execPath, [script, '--write'], { cwd: temporaryDirectory, encoding: 'utf8', env: {} }).status, 0);
+  assert.equal(spawnSync(process.execPath, [script, '--check'], { cwd: temporaryDirectory, encoding: 'utf8', env: {} }).status, 0);
 });
