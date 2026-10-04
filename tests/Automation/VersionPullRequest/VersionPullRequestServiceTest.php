@@ -264,6 +264,25 @@ final class VersionPullRequestServiceTest extends TestCase
         }
     }
 
+    /** Failed ownership proof exposes recoverable public identity and allowlisted scalars, never raw API details. */
+    #[Test]
+    #[TestWith([true, 'valid', 'true', 'valid'])]
+    #[TestWith([false, 'unsigned', 'false', 'unsigned'])]
+    #[TestWith([null, null, 'unavailable', 'unavailable'])]
+    #[TestWith(['true', 'synthetic-super-secret', 'unavailable', 'unavailable'])]
+    #[TestWith([1, ['synthetic-super-secret'], 'unavailable', 'unavailable'])]
+    public function rejectedGeneratedCommitDiagnosticPreservesItsShaWithoutLeakingResponse(mixed $verified, mixed $reason, string $expectedVerified, string $expectedReason): void
+    {
+        $result = $this->synchronizeFixture(['unsigned_new_commit' => true, 'commit_verification' => ['verified' => $verified, 'reason' => $reason, 'signature' => 'synthetic-super-secret', 'payload' => 'synthetic-super-secret']]);
+        self::assertSame('conflict', $result->status);
+        self::assertStringContainsString('generated-sha=' . str_repeat('c', 40), $result->diagnostics[0]);
+        self::assertStringContainsString('create-verification=' . $expectedVerified, $result->diagnostics[0]);
+        self::assertStringContainsString('create-reason=' . $expectedReason, $result->diagnostics[0]);
+        self::assertStringNotContainsString('synthetic-super-secret', $result->diagnostics[0]);
+        self::assertSame([], $this->writes('refs'));
+        self::assertSame([], $this->writes('pulls'));
+    }
+
     #[Test]
     #[TestWith([['ref_lost_confirmed' => true]])]
     #[TestWith([['pr_lost_confirmed' => true]])]
@@ -340,7 +359,7 @@ final class VersionPullRequestServiceTest extends TestCase
                 return isset($settings['bad_tree_response']) ? null : ['sha' => str_repeat(isset($settings['empty_tree']) ? 'd' : 'e', 40)];
             }
             if ('POST' === $method && str_ends_with($path, '/git/commits')) {
-                return isset($settings['bad_commit_response']) ? null : ['sha' => str_repeat('c', 40)];
+                return isset($settings['bad_commit_response']) ? null : ['sha' => str_repeat('c', 40), 'verification' => $settings['commit_verification'] ?? null, 'author' => ['email' => 'synthetic-super-secret']];
             }
             if ('GET' !== $method && str_contains($path, '/git/refs')) {
                 if (! isset($settings['ref_lost_unconfirmed']) && ! isset($settings['ref_success_unconfirmed'])) {

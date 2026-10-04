@@ -125,7 +125,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             ]);
             $newHead = $createdCommit['sha'] ?? null;
             $this->require(is_string($newHead) && GitHubEvidence::sha($newHead), 'GitHub did not confirm the generated commit.');
-            $this->require($this->policy->inspectHead($options, $newHead, $input->automationActor, $base), 'The generated commit is not a verified signed Bot transaction; no branch was updated.');
+            $this->require($this->policy->inspectHead($options, $newHead, $input->automationActor, $base), $this->commitProofDiagnostic($newHead, $createdCommit));
             $this->preflight($options, $input, $base, $head);
             $this->updateRef($repo, $input->managedBranch, $head, $newHead);
             $head = $newHead;
@@ -137,6 +137,18 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         } catch (Throwable) {
             return $this->result($writing ? 'conflict' : 'refused', $plan, $pr, $head, ['Version PR synchronization could not be verified; inspect remote state before retrying. Response details were withheld.']);
         }
+    }
+
+    /** Reports only the immutable object identity and allowlisted verification scalars after failed ownership proof. */
+    private function commitProofDiagnostic(string $head, array $commit): string
+    {
+        $verified = match ($commit['verification']['verified'] ?? null) {
+            true => 'true', false => 'false', default => 'unavailable',
+        };
+        $reason = $commit['verification']['reason'] ?? null;
+        $known = ['valid', 'unsigned', 'expired_key', 'not_signing_key', 'gpgverify_error', 'gpgverify_unavailable', 'unknown_signature_type', 'no_user', 'unverified_email', 'bad_email', 'unknown_key', 'malformed_signature', 'invalid'];
+        return 'The generated commit failed signed Bot ownership proof; no branch was updated. generated-sha=' . $head
+            . '; create-verification=' . $verified . '; create-reason=' . (in_array($reason, $known, true) ? $reason : 'unavailable');
     }
 
     /** Reads one branch ref, rejecting abbreviated identities and non-commit targets. */

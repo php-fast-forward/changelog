@@ -73,6 +73,15 @@ policy before any branch is updated. See
 [GitHub commit creation](https://docs.github.com/en/rest/git/commits#create-a-commit)
 and [Bot signing requirements](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification#signature-verification-for-bots).
 
+GitHub may use its `web-flow` account as the committer of a signed Bot-authored
+transaction. That route requires the exact platform account and an independently
+pinned GraphQL signature proving GitHub's signing key, in addition to the Bot
+author, valid REST signature, receipt and complete file scope. See
+[GitHub signature evidence](https://docs.github.com/en/graphql/reference/git#gitsignature).
+If generated-head ownership fails, controlled diagnostics report only the
+complete generated SHA and allowlisted creation-verification metadata; they do
+not expose credentials, raw signature payloads or arbitrary API response text.
+
 Both remote branch tips and local HEAD are rechecked before tree generation
 and again before ref publication. Existing refs update with `force: false`;
 initial refs are created without replacing an existing branch. A concurrent
