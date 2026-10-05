@@ -1,7 +1,7 @@
 # Fast Forward Changelog
 
 <p align="center">
-  <img src="docs/_static/mascot-banner.png" alt="Dash organizing change fragments into a release history" width="840">
+  <img src="https://raw.githubusercontent.com/php-fast-forward/changelog/651aa70d95676d53f2ef59fb5424d6bdaea41ff5/docs/_static/mascot-banner.png" alt="Dash organizing change fragments into a release history" width="840">
 </p>
 
 Independent Markdown fragments, a reviewed version PR and exact release notes
