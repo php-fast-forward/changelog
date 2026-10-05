@@ -11,3 +11,5 @@
 /phpunit.xml.dist       export-ignore
 /README.md              export-ignore
 /assets/brand/ export-ignore
+/docs/_static/mascot-banner.png export-ignore
+/docs/_static/mascot-banner.receipt.json export-ignore

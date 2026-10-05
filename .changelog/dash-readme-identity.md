@@ -3,4 +3,4 @@ category: changed
 type: patch
 ---
 
-Aligns the README illustration with the approved Dash developer identity and records the artwork source.
+Adds contextual Dash artwork organizing change fragments into a release history, records its generation and publication authority, and excludes README artwork from package archives.

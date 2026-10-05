@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "asset": "docs/_static/mascot-banner.png",
+  "repository": "php-fast-forward/changelog",
+  "collection": "developer",
+  "character": "Dash",
+  "source_kit_commit": "654e4a463533f1d8b8223369b3b0bbc1a4a0badf",
+  "references": [
+    {
+      "id": "dash-developer-welcome",
+      "path": "assets/mascot/dash-developer-welcome.png",
+      "sha256": "38b2c5bb87c94326bcab6463f74fc785414d8539e9175e088b5a5c797a466e09"
+    },
+    {
+      "id": "dash-developer-build",
+      "path": "assets/mascot/dash-developer-build.png",
+      "sha256": "3cca06ae5f82e33a97855ddcb38b3e59c4b750743e7bdb16103a122c492ea303"
+    }
+  ],
+  "generation": {
+    "tool": "image_gen.imagegen",
+    "model": "not reported by tool",
+    "prompt": "Use case: stylized-concept. Asset type: contextual repository README illustration, landscape PNG around 1536x1024. Reference image 1 (dash-developer-welcome) is the authoritative face, anatomy and adult developer identity. Reference image 2 (dash-developer-build) only supports the established 3D materials and paws; do not copy its seated pose. Create a unique contextual illustration with one Dash, the PHP Fast Forward fox. Preserve mature developer proportions, amber/brown eyes, orange fur, cream muzzle/cheeks, forehead tuft, triangular dark-tipped ears, small dark nose, one complete fluffy cream-tipped tail, plain purple hoodie with exactly two cream drawstrings, polished 3D shading and detailed soft fur. Keep both ears, all limbs and the entire tail inside the canvas with safe margins. Friendly capable professional, never toddler/chibi. Clean high-end navy/violet developer environment with warm orange key lighting, subtle cyan accent highlights, excellent contrast at an 840px README width. Purposeful props and readable silhouette, restrained detail. No generated text, letters, numbers, code, package labels, hoodie emblems, logos, watermarks or multiple foxes. This must illustrate the specific software concept, not reuse a waving mascot portrait. Scene: Dash is a release editor assembling a clean history book. He sits on a tall stool at an editorial desk, gathering several separate small Markdown-like paper fragments carrying only abstract colored strokes into one open chronological release ledger. A tidy release timeline of cards arcs behind the desk and a closed review seal tray sits nearby. One paw places a fragment, one holds the ledger. Purpose: independent changelog fragments, reviewed consolidation and exact release notes, not arbitrary code writing.",
+    "transparent_background": false
+  },
+  "output": {
+    "sha256": "a5e740350c79961311f8d12ecac1831c69b5ca59dc86efc80a0109586e2a9239",
+    "bytes": 2033274,
+    "dimensions": [
+      1536,
+      1024
+    ]
+  },
+  "visual_review": {
+    "status": "reviewed",
+    "checks": [
+      "Recognizable orange fox with cream muzzle and tail tip, amber eyes and plain purple hoodie",
+      "Single Dash and repository-specific scene",
+      "Readable at README size; no generated package title or logo"
+    ],
+    "limitations": "Contextual illustration, not an anatomy reference sheet."
+  },
+  "publication": {
+    "status": "authorized",
+    "authority": "maintainer-request",
+    "date": "2026-10-05",
+    "scope": "repository README and documentation",
+    "evidence": "Maintainer requested contextual Dash artwork for each implemented repository, public PRs, and replacement of the previous banner at docs/_static/mascot-banner.png."
+  },
+  "rights": "Generated for authorized repository identity work. Historical reference-art rights remain unrecorded; no independent third-party asset license is asserted."
+}
