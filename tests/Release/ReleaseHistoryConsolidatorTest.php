@@ -18,8 +18,10 @@ namespace FastForward\Changelog\Tests\Release;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -127,12 +129,80 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
         self::assertStringContainsString("- Old fix.\n- New fix.", $body);
     }
 
+    /** Closing metadata is consumed while trailing prose and exact newline bytes survive even an empty body. */
+    #[TestWith(["<!-- fast-forward-changelog:end-release -->\n\nTrailing  prose.\n", "\nTrailing  prose.\n", 'Pending notes.'])]
+    #[TestWith(["<!-- fast-forward-changelog:end-release -->\r\n\r\nTrailing  prose.\r\n", "\r\nTrailing  prose.\r\n", ''])]
+    #[TestWith(["\n\nUnmarked trailing prose.\n", "\n\nUnmarked trailing prose.\n", 'Pending notes.'])]
+    public function testPendingEndingIsTransferredWithoutTheReservedDelimiter(string $ending, string $expected, string $body): void
+    {
+        $pending = new HistoryRelease('unreleased', body: $body, ending: $ending);
+        $result = $this->service()->promote(new HistoryDocument([$pending]), '1.0.0', null, 'New notes.', $this->template());
+        self::assertSame($expected, $result->getRelease('1.0.0')->getEnding());
+        self::assertSame($ending, $pending->getEnding());
+        self::assertNull($result->getRelease('unreleased'));
+    }
+
+    /** Explicit legacy category identity overrides unfamiliar presentation and merges new fixes under one selected heading. */
+    #[TestWith([''])]
+    #[TestWith(["\n\n"])]
+    public function testMarkedCustomCategoryKeepsItsIdentity(string $spacing): void
+    {
+        $body = "<!-- fast-forward-changelog:category fixed -->\n{$spacing}### Bug fixes\n\n- Legacy fix.\n";
+        $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $body)]), '1.0.0', null, "### Corrections\n\n- New fix.\n", $this->template('Corrections'));
+        self::assertSame("### Corrections\n\n- Legacy fix.\n- New fix.\n", $result->getRelease('1.0.0')->getBody());
+    }
+
+    /** A malformed or dangling category marker cannot silently reclassify or discard pending descriptions. */
+    #[TestWith(["<!-- fast-forward-changelog:category fixed -->\nMissing heading.\n"])]
+    #[TestWith(["<!-- fast-forward-changelog:category fixed -->\n\n"])]
+    public function testInvalidCategoryMarkerFailsWithoutChangingTheSource(string $body): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('unreleased', body: $body)]);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Legacy category markers must be followed by a level-three heading.');
+        try {
+            $this->service()->promote($document, '1.0.0', null, '- New note.', $this->template());
+        } finally {
+            self::assertSame($body, $document->getRelease('unreleased')->getBody());
+        }
+    }
+
+    /** Every pending value is consumed exactly once, including later bodies after an empty first section. */
+    #[TestWith([''])]
+    #[TestWith(["### Fixed\n\n- First fix.\n"])]
+    public function testAllPendingSectionsAreConsolidated(string $first): void
+    {
+        $old = new HistoryRelease('0.9.0', body: 'Published bytes.');
+        $document = new HistoryDocument([new HistoryRelease('unreleased', body: $first, ending: "\nFirst tail.\n"), $old, new HistoryRelease('unreleased', body: "### Fixed\n\n- Second fix.\n\n### Added\n\n- Addition.\n", ending: "\nSecond tail.\n")]);
+        $result = $this->service()->promote($document, '1.0.0', null, "### Fixed\n\n- New fix.\n", $this->template());
+        $expected = "### Added\n\n- Addition.\n\n### Fixed\n\n" . ('' === $first ? '' : "- First fix.\n") . "- Second fix.\n- New fix.\n";
+        self::assertSame($expected, $result->getRelease('1.0.0')->getBody());
+        self::assertSame("\nFirst tail.\n\nSecond tail.\n", $result->getRelease('1.0.0')->getEnding());
+        self::assertSame([$result->getRelease('1.0.0'), $old], $result->getReleases());
+        self::assertCount(3, $document->getReleases());
+    }
+
+    /** Selected category labels take precedence over every canonical alias even when their names collide. */
+    public function testSelectedHeadingsOverrideCanonicalAliases(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => '### ' . match ($category) {
+            'added' => 'Fixed', 'fixed' => 'Bugs', default => ucfirst($category),
+        });
+        $legacy = "### Fixed\n\n- Old addition.\n\n### Bugs\n\n- Old fix.\n";
+        $current = "### Fixed\n\n- New addition.\n\n### Bugs\n\n- New fix.\n";
+        $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, $current, $template);
+        self::assertSame("### Fixed\n\n- Old addition.\n- New addition.\n\n### Bugs\n\n- Old fix.\n- New fix.\n", $result->getRelease('1.0.0')->getBody());
+    }
+
     /** Value construction is injected and no host or side-effect boundary is consulted. */
     private function service(): ReleaseHistoryConsolidator
     {
         $factory = $this->createStub(HistoryReleaseFactoryInterface::class);
-        $factory->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease($version, $date, $source, $body));
-        return new ReleaseHistoryConsolidator($factory);
+        $factory->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading = null, string $ending = ''): HistoryRelease => new HistoryRelease($version, $date, $source, $body, $heading, $ending));
+        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
+        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        return new ReleaseHistoryConsolidator($factory, $exceptions);
     }
 
     /** Supplies explicit category labels independently of production template behavior. */

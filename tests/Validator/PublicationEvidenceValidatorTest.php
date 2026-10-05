@@ -312,7 +312,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
         $existing = new HistoryRelease('1.0.0', '2026-09-01', null, 'Preserved previous notes', "## [1.0.0] - 2026-09-01\n", "\n");
         $state['base_doc'] = $state['base_doc']->withReleases([$pending, $first, $existing]);
         $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
-        $state['approved_doc'] = $state['base_doc']->withReleases([new HistoryRelease('1.0.1', '2026-10-03', null, "Pending legacy prose\n\nExact  notes\n"), ...$older, $first, $existing]);
+        $state['approved_doc'] = $state['base_doc']->withReleases([new HistoryRelease('1.0.1', '2026-10-03', null, "Pending legacy prose\n\nExact  notes\n", ending: "\n\n"), ...$older, $first, $existing]);
         $this->refreshApproved($state);
         self::assertSame('1.0.1', $this->validator($state)->validate($options, self::APPROVED)->version);
         self::assertSame(['1.0.1', '0.8.0', '0.5.0', '0.4.0', '1.0.0'], $state['rendered_versions']);
@@ -915,7 +915,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
             return $state['live_template'];
         });
         $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
-        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease($version, $date, $source, $body));
+        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading = null, string $ending = ''): HistoryRelease => new HistoryRelease($version, $date, $source, $body, $heading, $ending));
         $evidence = $this->createStub(PublicationEvidenceFactoryInterface::class);
         $evidence->method('create')->willReturnCallback(static function (string $sha, ?string $version, ?string $tag, string $notes, ?string $repository) use (&$state): PublicationEvidence {
             $state['created'][] = [$sha, $version, $tag, $notes, $repository];
@@ -923,6 +923,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
         });
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
         $exceptions->method('invalid')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException($message, previous: $previous));
-        return new PublicationEvidenceValidator($git, $history, $parser, $versions, $importer, $notes, $templates, $paths, $files, $releases, $evidence, $exceptions, new \FastForward\Changelog\Release\ReleaseHistoryConsolidator($releases));
+        return new PublicationEvidenceValidator($git, $history, $parser, $versions, $importer, $notes, $templates, $paths, $files, $releases, $evidence, $exceptions, new \FastForward\Changelog\Release\ReleaseHistoryConsolidator($releases, $exceptions));
     }
 }

@@ -19,20 +19,35 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Template\TemplateInterface;
 
 /** Consumes the legacy pending section when fragments establish an actual release. */
 final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsolidatorInterface
 {
     /** Injects value construction; consolidation performs no I/O or clock access. */
-    public function __construct(private HistoryReleaseFactoryInterface $releases) {}
+    public function __construct(private HistoryReleaseFactoryInterface $releases, private ReleaseExceptionFactoryInterface $exceptions) {}
 
     /** Preserves descriptions, fenced examples and prior releases while removing the pending heading. */
     public function promote(HistoryDocument $document, string $version, ?string $date, string $notes, TemplateInterface $template): HistoryDocument
     {
-        $pending = $document->getRelease('unreleased');
-        if (null !== $pending && '' !== trim($pending->getBody())) {
-            $legacy = $this->sections($pending->getBody(), $template);
+        $legacy = ['' => ''];
+        $hasLegacy = false;
+        $ending = '';
+        foreach ($document->getReleases() as $pending) {
+            if ('unreleased' !== $pending->getVersion()) {
+                continue;
+            }
+            $ending .= preg_replace('/\A<!-- fast-forward-changelog:end-release -->\r?\n?/', '', $pending->getEnding());
+            if ('' === trim($pending->getBody())) {
+                continue;
+            }
+            $hasLegacy = true;
+            foreach ($this->sections($pending->getBody(), $template) as $key => $body) {
+                $legacy[$key] = $this->join($legacy[$key] ?? '', $body, null !== Category::tryFrom($key));
+            }
+        }
+        if ($hasLegacy) {
             $current = $this->sections($notes, $template);
             $notes = $this->join($legacy[''], $current['']);
             foreach (Category::cases() as $category) {
@@ -44,7 +59,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
             }
         }
         $retained = array_values(array_filter($document->getReleases(), static fn(HistoryRelease $release): bool => 'unreleased' !== $release->getVersion()));
-        array_unshift($retained, $this->releases->create($version, $date, 'release-plan', $notes));
+        array_unshift($retained, $this->releases->create($version, $date, 'release-plan', $notes, null, $ending));
         return $document->withReleases($retained);
     }
 
@@ -60,34 +75,51 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $headings = [];
         foreach (Category::cases() as $category) {
             $headings['### ' . $category->heading()] = $category->value;
-            $headings[$template->categoryHeading($category->value)] = $category->value;
         }
         foreach (['Adicionado' => 'added', 'Modificado' => 'changed', 'Obsoleto' => 'deprecated', 'Removido' => 'removed', 'Corrigido' => 'fixed', 'Segurança' => 'security'] as $heading => $category) {
             $headings['### ' . $heading] ??= $category;
+        }
+        foreach (Category::cases() as $category) {
+            $headings[rtrim($template->categoryHeading($category->value), " \t")] = $category->value;
         }
         $sections = ['' => ''];
         $active = '';
         $unknown = false;
         $fence = null;
+        $markedCategory = null;
         foreach (preg_split('/(?<=\n)/', $body) as $line) {
             $heading = preg_replace('/^ {0,3}/', '', rtrim($line, " \t\r\n"));
             $outside = $this->outsideFence($line, $fence);
-            if ($outside && (1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line)
-                || 1 === preg_match('/^<!-- fast-forward-changelog:fragment \{.*\} -->\r?\n?\z/', $line))) {
+            $peer = $outside && 1 === preg_match('/^ {0,3}###(?:[ \t]|\r?\n|\z)/', $line);
+            if (null !== $markedCategory && '' !== trim($line) && ! $peer) {
+                throw $this->exceptions->invalid('Legacy category markers must be followed by a level-three heading.');
+            }
+            if (null !== $markedCategory && '' === trim($line)) {
                 continue;
             }
-            if ($outside && isset($headings[$heading])) {
-                $active = $headings[$heading];
+            if ($outside && 1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line, $matches)) {
+                $markedCategory = $matches[1];
+                continue;
+            }
+            if ($outside && 1 === preg_match('/^<!-- fast-forward-changelog:fragment \{.*\} -->\r?\n?\z/', $line)) {
+                continue;
+            }
+            if ($outside && (null !== $markedCategory || isset($headings[$heading]))) {
+                $active = $markedCategory ?? $headings[$heading];
+                $markedCategory = null;
                 $unknown = false;
                 $sections[$active] ??= '';
                 continue;
             }
-            if ($outside && 1 === preg_match('/^ {0,3}###(?:[ \t]|\r?\n|\z)/', $line)) {
+            if ($peer) {
                 $unknown = true;
             }
             $key = $unknown && '' !== $active ? $active . ':after' : $active;
             $sections[$key] ??= '';
             $sections[$key] .= $line;
+        }
+        if (null !== $markedCategory) {
+            throw $this->exceptions->invalid('Legacy category markers must be followed by a level-three heading.');
         }
         return $sections;
     }

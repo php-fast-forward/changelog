@@ -66,7 +66,7 @@ final class ReleasePlannerTest extends TestCase
         $older = new HistoryRelease('1.0.0', body: 'Rich history');
         $document = new HistoryDocument([$unreleased, $older]);
         [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'releaseMock' => true, 'historyMock' => true]);
-        $parts['releases']->expects(self::once())->method('create')->with('1.0.1', '2026-10-04', 'release-plan', "Legacy pending text\n\nRendered fragments")->willReturn(new HistoryRelease('1.0.1', body: "Legacy pending text\n\nRendered fragments"));
+        $parts['releases']->expects(self::once())->method('create')->with('1.0.1', '2026-10-04', 'release-plan', "Legacy pending text\n\nRendered fragments", null, '')->willReturn(new HistoryRelease('1.0.1', body: "Legacy pending text\n\nRendered fragments"));
         $parts['history']->expects(self::once())->method('render')->willReturnCallback(static function (HistoryDocument $actual, TemplateInterface $template, bool $preserve): string {
             self::assertTrue($preserve);
             self::assertSame(['1.0.1', '1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $actual->getReleases()));
@@ -543,7 +543,7 @@ final class ReleasePlannerTest extends TestCase
             $validator,
             $versions,
             $renderer,
-            new ReleaseHistoryConsolidator($releases),
+            new ReleaseHistoryConsolidator($releases, $exceptions),
             $clock,
             new DateTimeZone('UTC'),
             $receipts,
