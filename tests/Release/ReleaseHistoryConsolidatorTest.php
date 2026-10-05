@@ -86,11 +86,14 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
     }
 
     /** New fixes stay under their category before the original following unknown peer blocks. */
-    public function testNewCategoryEntriesPrecedeUnknownPeerBlocks(): void
+    #[TestWith(['### Upgrade notes'])]
+    #[TestWith(["  ###\tUpgrade notes"])]
+    #[TestWith(['###'])]
+    public function testNewCategoryEntriesPrecedeUnknownPeerBlocks(string $peer): void
     {
-        $legacy = "### Fixed\n\n- Old fix.\n\n### Upgrade notes\n\nPreserve upgrade instructions.\n\n### Compatibility\n\nOrdinary peer prose.\n\n### Added\n\n- Old addition.\n";
+        $legacy = "### Fixed\n\n- Old fix.\n\n{$peer}\n\nPreserve upgrade instructions.\n\n### Compatibility\n\nOrdinary peer prose.\n\n### Added\n\n- Old addition.\n";
         $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, "### Fixed\n\n- New fix.\n", $this->template());
-        self::assertSame("### Added\n\n- Old addition.\n\n### Fixed\n\n- Old fix.\n- New fix.\n\n### Upgrade notes\n\nPreserve upgrade instructions.\n\n### Compatibility\n\nOrdinary peer prose.\n\n", $result->getRelease('1.0.0')->getBody());
+        self::assertSame("### Added\n\n- Old addition.\n\n### Fixed\n\n- Old fix.\n- New fix.\n\n{$peer}\n\nPreserve upgrade instructions.\n\n### Compatibility\n\nOrdinary peer prose.\n\n", $result->getRelease('1.0.0')->getBody());
     }
 
     /** Reserved legacy metadata is removed only outside fences while project comments and examples remain literal. */
@@ -108,6 +111,20 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
         self::assertStringContainsString("{$fence}markdown\n<!-- fast-forward-changelog:category added -->\n{$marker}\n{$fence}", $body);
         self::assertStringContainsString('- Exact legacy note.', $body);
         self::assertStringContainsString('- New fix.', $body);
+    }
+
+    /** Inline backtick spans cannot hide subsequent categories and reserved metadata as fenced data. */
+    #[TestWith(['```foo``` bar'])]
+    #[TestWith(['   ````lang`inline'])]
+    public function testBacktickInfoStringsCannotOpenFences(string $inline): void
+    {
+        $legacy = $inline . "\n\n<!-- fast-forward-changelog:category fixed -->\n### Fixed\n\n<!-- fast-forward-changelog:fragment {} -->\n- Old fix.\n";
+        $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, "### Fixed\n\n- New fix.\n", $this->template());
+        $body = $result->getRelease('1.0.0')->getBody();
+        self::assertStringStartsWith($inline . "\n\n", $body);
+        self::assertStringNotContainsString('fast-forward-changelog:', $body);
+        self::assertSame(1, substr_count($body, '### Fixed'));
+        self::assertStringContainsString("- Old fix.\n- New fix.", $body);
     }
 
     /** Value construction is injected and no host or side-effect boundary is consulted. */

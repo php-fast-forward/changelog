@@ -70,7 +70,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $unknown = false;
         $fence = null;
         foreach (preg_split('/(?<=\n)/', $body) as $line) {
-            $heading = rtrim($line, " \t\r\n");
+            $heading = preg_replace('/^ {0,3}/', '', rtrim($line, " \t\r\n"));
             $outside = $this->outsideFence($line, $fence);
             if ($outside && (1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line)
                 || 1 === preg_match('/^<!-- fast-forward-changelog:fragment \{.*\} -->\r?\n?\z/', $line))) {
@@ -82,7 +82,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
                 $sections[$active] ??= '';
                 continue;
             }
-            if ($outside && str_starts_with($line, '### ')) {
+            if ($outside && 1 === preg_match('/^ {0,3}###(?:[ \t]|\r?\n|\z)/', $line)) {
                 $unknown = true;
             }
             $key = $unknown && '' !== $active ? $active . ':after' : $active;
@@ -121,7 +121,8 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
             }
             return false;
         }
-        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $matches)) {
+        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
+            && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
             $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
             return false;
         }

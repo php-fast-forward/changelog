@@ -29,6 +29,20 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(Category::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** Inline spans with backticks in the info string cannot hide real release boundaries. */
+    #[Test]
+    #[TestWith(['```foo``` bar'])]
+    #[TestWith(['   ````lang`inline'])]
+    public function inlineBacktickSpansDoNotOpenFencedHistory(string $inline): void
+    {
+        $markdown = "# Changelog\n\n## [Unreleased]\n\n" . $inline . "\n\n## [1.0.0]\n\n### Fixed\n\n- Published note.\n";
+        $codec = $this->codec();
+        $parsed = $codec->parse($markdown, $this->template('en'));
+        self::assertSame(['unreleased', '1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertStringContainsString($inline, $parsed->getRelease('unreleased')->getBody());
+        self::assertSame($markdown, $codec->render($parsed, $this->template('en'), true));
+    }
+
     /** New releases separate legacy pending notes, release/category headings and older history without rewriting descriptions. */
     #[Test]
     #[TestWith(["\n", false])]
