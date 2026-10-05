@@ -252,7 +252,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
         $state['remote_history'] = [['tag_name' => 'v0.8.0', 'body' => 'Edited remotely after review', 'published_at' => '2026-10-04T00:00:00Z']];
         $evidence = $this->validator($state)->validate($options, self::APPROVED);
         self::assertSame('1.0.1', $evidence->version);
-        self::assertSame("Exact  notes\n", $evidence->notes);
+        self::assertSame("\nExact  notes\n\n", $evidence->notes);
         self::assertStringContainsString($prior, $central);
         self::assertStringContainsString($older[0]->getBody(), $central);
         self::assertStringEndsWith("[prior]: https://example.test/prior\r\n", $central);

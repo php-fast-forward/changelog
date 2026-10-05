@@ -192,7 +192,8 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      *
      * Newly rendered sections contain ordinary Markdown only. Ambiguous unfenced
      * release headings or terminal reference definitions fail before any writes.
-     * Incremental collection preserves already stored sections byte for byte.
+     * Incremental collection preserves stored sections, adding only boundary
+     * whitespace around newly rendered releases so headings remain separate.
      */
     public function render(HistoryDocument $document, TemplateInterface $template, bool $preservePresentation = false): string
     {
@@ -201,7 +202,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $output = $preservePresentation && ('' !== $document->getPrefix() || $existing)
             ? $document->getPrefix() : $this->formatPrefix($document->getPrefix(), $template);
 
-        foreach ($releases as $release) {
+        foreach ($releases as $index => $release) {
+            if ('' !== $output && (! $preservePresentation || null === $release->getHeading()
+                || ($index > 0 && null === $releases[$index - 1]->getHeading()))
+                && 1 !== preg_match('/(?:\r?\n){2}\z/', $output)) {
+                $newline = str_ends_with($output, "\r\n") ? "\r\n" : "\n";
+                $output .= (str_ends_with($output, "\n") ? '' : $newline) . $newline;
+            }
+
             if ($preservePresentation && null !== $release->getHeading()) {
                 $output .= $release->getHeading() . $release->getBody() . $release->getEnding();
 
@@ -221,7 +229,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 $body .= "\n";
             }
 
-            $output .= $heading . "\n" . $body;
+            $output .= $heading . "\n";
+            if ('' !== $body && ! str_starts_with($body, "\n") && ! str_starts_with($body, "\r\n")) {
+                $output .= "\n";
+            }
+            $output .= $body;
             $ending = preg_replace('/\A<!-- fast-forward-changelog:end-release -->\r?\n?/', '', $release->getEnding());
             $output .= $ending;
         }

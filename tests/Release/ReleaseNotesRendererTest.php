@@ -62,6 +62,32 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertStringContainsString('- Keep two spaces.   (#8, #7)', $notes);
     }
 
+    /** Simple changes form a compact list while categories retain a blank-line boundary. */
+    public function testSimpleEntriesHaveNoBlankLinesBetweenChanges(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => '### ' . $category);
+        $changes = [
+            new Changeset('b.md', Category::Added, null, null, null, 'Second.'),
+            new Changeset('a.md', Category::Added, null, null, null, 'First.'),
+            new Changeset('c.md', Category::Fixed, null, null, null, 'Correction.'),
+        ];
+        self::assertSame("### added\n\n- First.\n- Second.\n\n### fixed\n\n- Correction.\n", new ReleaseNotesRenderer()->render($changes, $template));
+    }
+
+    /** Internal author paragraphs remain within their item without spreading blank separators to adjacent items. */
+    public function testMultilineParagraphsRemainIndentedBetweenCompactEntries(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Fixed');
+        $changes = [
+            new Changeset('a.md', Category::Fixed, null, null, null, 'Before.'),
+            new Changeset('b.md', Category::Fixed, null, null, null, "First paragraph.\n\nSecond paragraph."),
+            new Changeset('c.md', Category::Fixed, null, null, null, 'After.'),
+        ];
+        self::assertSame("### Fixed\n\n- Before.\n-\n  First paragraph.\n  \n  Second paragraph.\n- After.\n", new ReleaseNotesRenderer()->render($changes, $template));
+    }
+
     /** Standalone fenced descriptions remain fenced after list indentation. */
     public function testFencedBodyAndNormalAuthorAreWellFormed(): void
     {
