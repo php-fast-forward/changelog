@@ -29,6 +29,40 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(Category::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** New releases separate legacy pending notes, release/category headings and older history without rewriting descriptions. */
+    #[Test]
+    #[TestWith(["\n", false])]
+    #[TestWith(["\r\n", false])]
+    #[TestWith(["\n", true])]
+    public function newlyInsertedReleaseHasBlankHeadingBoundaries(string $newline, bool $existingGap): void
+    {
+        $prefix = '# Changelog' . $newline . $newline;
+        $pending = '## [Unreleased]' . $newline . $newline . '### Added' . $newline . $newline . '- Legacy pending change.' . $newline . ($existingGap ? $newline : '');
+        $old = "## [0.1.0]\n\n### Fixed\n\n- Older exact description.\n";
+        $codec = $this->codec();
+        $existing = $codec->parse($prefix . $pending . $old, $this->template('en'));
+        $releases = $existing->getReleases();
+        array_splice($releases, 1, 0, [new HistoryRelease('1.0.0', '2026-10-05', 'release-plan', "### Fixed\n\n- First.\n- Second.\n")]);
+        $output = $codec->render($existing->withReleases($releases), $this->template('en'), true);
+
+        self::assertSame($prefix . $pending . ($existingGap ? '' : $newline) . "## [1.0.0] - 2026-10-05\n\n### Fixed\n\n- First.\n- Second.\n\n" . $old, $output);
+        self::assertSame($output, $codec->render($codec->parse($output, $this->template('en')), $this->template('en'), true));
+        self::assertSame("\n### Fixed\n\n- First.\n- Second.\n\n", $codec->notes($codec->parse($output, $this->template('en')), '1.0.0'));
+    }
+
+    /** Existing leading body separators are retained, rather than accumulating another blank line on each format. */
+    #[Test]
+    #[TestWith(["\n"])]
+    #[TestWith(["\r\n"])]
+    public function alreadySeparatedNewBodyDoesNotAcquireAnotherBlankLine(string $newline): void
+    {
+        $body = $newline . '### Fixed' . $newline . $newline . '- Exact.' . $newline;
+        $codec = $this->codec();
+        $output = $codec->render(new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]), $this->template('en'), true);
+        self::assertStringContainsString("## [1.0.0]\n" . $body, $output);
+        self::assertSame($body, $codec->notes($codec->parse($output, $this->template('en')), '1.0.0'));
+    }
+
     #[Test]
     public function preservesCrLfDescriptionsFencesAndAmbiguousReferenceFooterProse(): void
     {
@@ -329,7 +363,7 @@ final class HistoryCodecTest extends TestCase
         ]), $previous);
         $parsed = $codec->parse($markdown, $previous);
         self::assertSame(['1.2.3', '1.1.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
-        self::assertSame("Maintained release notes.\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame("\nMaintained release notes.\n\n", $codec->notes($parsed, '1.2.3'));
         self::assertSame($markdown, $codec->render($parsed, $previous, true));
 
         $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
@@ -349,8 +383,8 @@ final class HistoryCodecTest extends TestCase
         $parsed = $codec->parse($migrated, $this->template('en'));
 
         self::assertSame(['1.2.3', '1.1.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
-        self::assertSame("Maintained notes.\n\n", $codec->notes($parsed, '1.2.3'));
-        self::assertSame("Earlier notes.\n", $codec->notes($parsed, '1.1.0'));
+        self::assertSame("\nMaintained notes.\n\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame("\nEarlier notes.\n", $codec->notes($parsed, '1.1.0'));
         self::assertSame(1, substr_count($migrated, '## [1.2.3]'));
         self::assertSame(1, substr_count($migrated, '## [1.1.0]'));
         self::assertStringNotContainsString('fast-forward-changelog:', $migrated);
@@ -389,7 +423,7 @@ final class HistoryCodecTest extends TestCase
         $parsed = $codec->parse($markdown, $previous);
 
         self::assertSame(['1.2.3'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
-        self::assertSame("Exact compact release notes.\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame("\nExact compact release notes.\n", $codec->notes($parsed, '1.2.3'));
         self::assertSame($markdown, $codec->render($parsed, $previous, true));
 
         $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
@@ -477,7 +511,7 @@ final class HistoryCodecTest extends TestCase
         $document = new HistoryDocument([new HistoryRelease('1.0.0', null, null, 'raw notes')], " \n");
         $output = $codec->render($document, $this->template(), true);
         $parsed = $codec->parse($output);
-        self::assertSame("raw notes\n", $codec->notes($parsed, '1.0.0'));
+        self::assertSame("\nraw notes\n", $codec->notes($parsed, '1.0.0'));
         self::assertNull($parsed->getRelease('1.0.0')->getDate());
         self::assertNull($parsed->getRelease('1.0.0')->getDateSource());
     }
@@ -512,6 +546,7 @@ final class HistoryCodecTest extends TestCase
     {
         $codec = $this->codec();
         $expected = '' === $body || str_ends_with($body, "\n") ? $body : $body . "\n";
+        $expected = '' === $expected ? '' : "\n" . $expected;
         $output = $codec->render(new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]), $this->template('en'), true);
         self::assertStringNotContainsString('fast-forward-changelog:', $output);
         self::assertSame($expected, $codec->notes($codec->parse($output), '1.0.0'));
@@ -557,7 +592,7 @@ final class HistoryCodecTest extends TestCase
         $migrated = $codec->render($parsed, $this->template('en'));
         self::assertStringNotContainsString('fast-forward-changelog:release ', $migrated);
         self::assertSame(1, substr_count($migrated, '<!-- fast-forward-changelog:end-release -->'));
-        self::assertSame($body, $codec->notes($codec->parse($migrated), '1.0.0'));
+        self::assertSame("\n" . $body, $codec->notes($codec->parse($migrated), '1.0.0'));
     }
 
     #[Test]

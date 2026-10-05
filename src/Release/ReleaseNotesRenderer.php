@@ -44,7 +44,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                 $entries[] = $body . $suffix;
             }
             if ([] !== $entries) {
-                $sections[] = $template->categoryHeading($category->value) . "\n\n" . implode("\n\n", $entries);
+                $sections[] = $template->categoryHeading($category->value) . "\n\n" . implode("\n", $entries);
             }
         }
         return [] === $sections ? '' : implode("\n\n", $sections) . "\n";

@@ -96,7 +96,7 @@ final class TemplateFactoryTest extends TestCase
         self::assertCount(1, $document->getReleases());
         self::assertSame($version, $document->getReleases()[0]->getVersion());
         self::assertSame($date, $document->getReleases()[0]->getDate());
-        self::assertSame($body, $codec->notes($document, $version));
+        self::assertSame("\n" . $body, $codec->notes($document, $version));
     }
 
     #[Test]
@@ -169,9 +169,9 @@ final class TemplateFactoryTest extends TestCase
         $parsed = $codec->parse($markdown, $template);
         self::assertSame(['unreleased', '1.2.3', '1.2.4'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
         self::assertSame('2026-10-03', $parsed->getRelease('1.2.3')->getDate());
-        self::assertSame("Pending notes.\n", $codec->notes($parsed, 'unreleased'));
-        self::assertSame("Dated release notes.\n", $codec->notes($parsed, '1.2.3'));
-        self::assertSame("Undated release notes.\n", $codec->notes($parsed, '1.2.4'));
+        self::assertSame("\nPending notes.\n\n", $codec->notes($parsed, 'unreleased'));
+        self::assertSame("\nDated release notes.\n\n", $codec->notes($parsed, '1.2.3'));
+        self::assertSame("\nUndated release notes.\n", $codec->notes($parsed, '1.2.4'));
     }
 
     #[Test]
