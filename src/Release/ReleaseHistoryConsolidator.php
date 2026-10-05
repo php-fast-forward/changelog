@@ -40,6 +40,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
                 if ('' !== trim($body)) {
                     $notes = $this->join($notes, $template->categoryHeading($category->value) . "\n\n" . ltrim($body, "\r\n"));
                 }
+                $notes = $this->join($notes, $this->join($legacy[$category->value . ':after'] ?? '', $current[$category->value . ':after'] ?? ''));
             }
         }
         $retained = array_values(array_filter($document->getReleases(), static fn(HistoryRelease $release): bool => 'unreleased' !== $release->getVersion()));
@@ -49,8 +50,10 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
 
     /**
      * Separates recognized category structure without parsing or rewriting descriptions.
-     * Fenced headings remain literal body bytes; unknown headings stay in their original section.
-     * @return array<string,string> uncategorized prose plus canonical category bodies
+     * Fenced examples and ordinary comments remain data. Reserved legacy markers
+     * are removed; unknown peer blocks follow their original preceding category
+     * after that category receives its new entries.
+     * @return array<string,string> prose, category bodies and following unknown peer blocks
      */
     private function sections(string $body, TemplateInterface $template): array
     {
@@ -64,15 +67,27 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         }
         $sections = ['' => ''];
         $active = '';
+        $unknown = false;
         $fence = null;
         foreach (preg_split('/(?<=\n)/', $body) as $line) {
             $heading = rtrim($line, " \t\r\n");
-            if ($this->outsideFence($line, $fence) && isset($headings[$heading])) {
+            $outside = $this->outsideFence($line, $fence);
+            if ($outside && (1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line)
+                || 1 === preg_match('/^<!-- fast-forward-changelog:fragment \{.*\} -->\r?\n?\z/', $line))) {
+                continue;
+            }
+            if ($outside && isset($headings[$heading])) {
                 $active = $headings[$heading];
+                $unknown = false;
                 $sections[$active] ??= '';
                 continue;
             }
-            $sections[$active] .= $line;
+            if ($outside && str_starts_with($line, '### ')) {
+                $unknown = true;
+            }
+            $key = $unknown && '' !== $active ? $active . ':after' : $active;
+            $sections[$key] ??= '';
+            $sections[$key] .= $line;
         }
         return $sections;
     }
@@ -86,10 +101,11 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         if ('' === trim($right)) {
             return $left;
         }
+        $newline = str_ends_with($left, "\r\n") ? "\r\n" : "\n";
         $left = rtrim($left, "\r\n");
         $right = ltrim($right, "\r\n");
         $separator = $compactList && 1 === preg_match('/(?:\A|\n)- [^\r\n]*\z/', $left)
-            && str_starts_with($right, '- ') ? "\n" : "\n\n";
+            && str_starts_with($right, '- ') ? $newline : $newline . $newline;
         return $left . $separator . $right;
     }
 

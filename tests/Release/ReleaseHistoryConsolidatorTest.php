@@ -67,7 +67,7 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
         $legacy = "Legacy  prose.\r\n\r\n### Fixed\r\n\r\n- Rich item\r\n  - nested\r\n\r\n{$fence}markdown\r\n### Added\r\n{$fence}\r\n\r\n### Unknown\r\nOther  text.\r\n";
         $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, 'New prose.', $this->template());
         $body = $result->getRelease('1.0.0')->getBody();
-        self::assertStringContainsString("Legacy  prose.\n\nNew prose.", $body);
+        self::assertStringContainsString("Legacy  prose.\r\n\r\nNew prose.", $body);
         self::assertStringContainsString("- Rich item\r\n  - nested\r\n", $body);
         self::assertStringContainsString("{$fence}markdown\r\n### Added\r\n{$fence}\r\n", $body);
         self::assertStringContainsString("### Unknown\r\nOther  text.\r\n", $body);
@@ -83,6 +83,31 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
         self::assertSame('Legacy prose.', $plain->getRelease('1.0.0')->getBody());
         $localized = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: "### Corrigido\n\n- Localized fix.\n")]), '1.0.0', null, "### Fixed\n\n- New fix.\n", $template);
         self::assertSame("### Corrections\n\n- Localized fix.\n- New fix.\n", $localized->getRelease('1.0.0')->getBody());
+    }
+
+    /** New fixes stay under their category before the original following unknown peer blocks. */
+    public function testNewCategoryEntriesPrecedeUnknownPeerBlocks(): void
+    {
+        $legacy = "### Fixed\n\n- Old fix.\n\n### Upgrade notes\n\nPreserve upgrade instructions.\n\n### Compatibility\n\nOrdinary peer prose.\n\n### Added\n\n- Old addition.\n";
+        $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, "### Fixed\n\n- New fix.\n", $this->template());
+        self::assertSame("### Added\n\n- Old addition.\n\n### Fixed\n\n- Old fix.\n- New fix.\n\n### Upgrade notes\n\nPreserve upgrade instructions.\n\n### Compatibility\n\nOrdinary peer prose.\n\n", $result->getRelease('1.0.0')->getBody());
+    }
+
+    /** Reserved legacy metadata is removed only outside fences while project comments and examples remain literal. */
+    #[TestWith(['```'])]
+    #[TestWith(['~~~'])]
+    public function testLegacyMarkersDoNotPollutePromotedHistory(string $fence): void
+    {
+        $marker = '<!-- fast-forward-changelog:fragment {"id":"legacy.md","category":"fixed"} -->';
+        $legacy = "<!-- project comment -->\n\n<!-- fast-forward-changelog:category fixed -->\n### Fixed\n\n{$marker}\n- Exact legacy note.\n\n{$fence}markdown\n<!-- fast-forward-changelog:category added -->\n{$marker}\n{$fence}\n";
+        $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, "### Fixed\n\n- New fix.\n", $this->template());
+        $body = $result->getRelease('1.0.0')->getBody();
+        self::assertStringContainsString('<!-- project comment -->', $body);
+        self::assertSame(1, substr_count($body, $marker));
+        self::assertStringNotContainsString('<!-- fast-forward-changelog:category fixed -->', $body);
+        self::assertStringContainsString("{$fence}markdown\n<!-- fast-forward-changelog:category added -->\n{$marker}\n{$fence}", $body);
+        self::assertStringContainsString('- Exact legacy note.', $body);
+        self::assertStringContainsString('- New fix.', $body);
     }
 
     /** Value construction is injected and no host or side-effect boundary is consulted. */
