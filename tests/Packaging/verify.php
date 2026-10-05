@@ -228,6 +228,10 @@ function exercise(string $installation, string $consumer, array $environment): v
     $git(['add', '--', 'CHANGELOG.md']);
     $git(['commit', '--message', 'test: current release']);
     $git(['tag', 'v1.0.0']);
+    $history = str_replace("## [1.0.0]", "## [Unreleased]\n\n### Fixed\n\n- Preserve legacy  pending descriptions.\n\n## [1.0.0]", $history);
+    file_put_contents($consumer . '/CHANGELOG.md', $history);
+    $git(['add', '--', 'CHANGELOG.md']);
+    $git(['commit', '--message', 'test: legacy pending notes']);
     $base = trim($git(['rev-parse', 'HEAD'])['stdout']);
     file_put_contents($consumer . '/staged.txt', "unrelated staged edit\n");
     file_put_contents($consumer . '/working.txt', "unrelated working edit\n");
@@ -280,6 +284,9 @@ function exercise(string $installation, string $consumer, array $environment): v
     verify(!is_file($consumer . '/.changelog/release-plan.json'), 'Consolidation introduced a tracked plan file.');
     verify([] === glob($consumer . '/.git/changelog-release-plan*.json'), 'Successful Git consolidation retained a private journal.');
     verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), 'fast-forward-changelog:'), 'Consolidation polluted the history with generated metadata comments.');
+    verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), '## [Unreleased]'), 'Version consolidation retained the legacy pending heading.');
+    verify(1 === substr_count($preview['notes'], 'Preserve legacy  pending descriptions.'), 'Legacy pending descriptions were discarded or duplicated.');
+    verify(1 === substr_count($preview['notes'], '### Fixed'), 'Legacy and new fix categories were not combined.');
     $changed = $git(['diff', '--name-status', '--', 'CHANGELOG.md', '.changelog'])['stdout'];
     verify("D\t.changelog/committed.md\nD\t.changelog/named.md\nM\tCHANGELOG.md\n" === $changed, 'The release diff must contain only history and consumed fragment deletions.');
     $notes = cli($binary, $consumer, $environment, ['notes', '1.1.0', '--source=tags']);

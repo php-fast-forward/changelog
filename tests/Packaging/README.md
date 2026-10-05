@@ -34,6 +34,8 @@ The checks cover:
   and explicit notes output.
 - Plain history and release diffs without a tracked plan file or generated
   metadata comments, private-journal cleanup, and a non-Git consumer.
+- Legacy pending descriptions promoted once into the concrete version, with no
+  retained Unreleased heading or duplicate fix category.
 - A real fixture consolidation commit using the CLI's exact commit message and
   read-only publication validation from committed Git blobs, without remote writes.
 

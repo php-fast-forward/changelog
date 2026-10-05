@@ -187,8 +187,11 @@ The machine summary includes `commit_message` with the same scalar trailers
 used by version automation. If explicitly tasked with committing a local
 consolidation for later publication, commit only its `affected_files` with that
 exact message; never invent the hashes or stage unrelated work.
-Existing `Unreleased` sections are legacy content preserved during import; new
-pending changes belong exclusively to independent `.changelog/` fragments.
+Existing `Unreleased` sections are legacy pending content: version consolidation
+moves their descriptions into the new concrete version and removes the pending
+heading. Matching categories are combined without rewriting description bytes.
+Backfill and format retain pending content; new contributions belong exclusively
+to independent `.changelog/` fragments.
 
 ## Historical notes and presentation
 

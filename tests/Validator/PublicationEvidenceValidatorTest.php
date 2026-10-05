@@ -37,11 +37,13 @@ use FastForward\Changelog\Version\VersionResolution;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
 #[CoversClass(PublicationEvidenceValidator::class)]
+#[UsesClass(\FastForward\Changelog\Release\ReleaseHistoryConsolidator::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(ChangesetParseResult::class)]
 #[UsesClass(Category::class)]
@@ -95,18 +97,35 @@ final class PublicationEvidenceValidatorTest extends TestCase
         self::assertSame($sha, $this->validator($state)->validate($options, $sha)->sha);
     }
 
-    /** A pending Unreleased section stays first while approved release notes and older history remain exact. */
-    public function testNewSectionFollowsExistingUnreleasedSection(): void
+    /** Committed promotion must consume pending prose into the concrete version and preserve older history. */
+    public function testNewSectionConsumesExistingUnreleasedSection(): void
     {
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
         $state = $this->state($options);
         $pending = new HistoryRelease('unreleased', body: 'Existing pending prose');
         $state['base_doc'] = $state['base_doc']->withReleases([$pending, ...$state['base_doc']->getReleases()]);
-        $state['approved_doc'] = $state['approved_doc']->withReleases([$pending, ...$state['approved_doc']->getReleases()]);
+        $state['approved_doc'] = $state['approved_doc']->withReleases([new HistoryRelease('1.0.1', '2026-10-03', null, "Existing pending prose\n\nExact  notes\n"), $state['approved_doc']->getReleases()[1]]);
         $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
         $this->refreshApproved($state);
         self::assertSame('1.0.1', $this->validator($state)->validate($options, self::APPROVED)->version);
-        self::assertSame(['unreleased', '1.0.1', '1.0.0'], $state['rendered_versions']);
+        self::assertSame(['1.0.1', '1.0.0'], $state['rendered_versions']);
+    }
+
+    /** Rebound output hashes cannot authorize retaining the pending section or dropping its descriptions. */
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testReleaseRejectsUnconsumedOrDiscardedLegacyNotes(bool $retained): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $pending = new HistoryRelease('unreleased', body: 'Existing pending prose');
+        $state['base_doc'] = $state['base_doc']->withReleases([$pending, ...$state['base_doc']->getReleases()]);
+        $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
+        if ($retained) {
+            $state['approved_doc'] = $state['approved_doc']->withReleases([$pending, ...$state['approved_doc']->getReleases()]);
+        }
+        $this->refreshApproved($state);
+        $this->failure($options, $state, 'canonical consolidation');
     }
 
     /** Canonical history maintenance with no source fragments cannot produce a release. */
@@ -293,10 +312,10 @@ final class PublicationEvidenceValidatorTest extends TestCase
         $existing = new HistoryRelease('1.0.0', '2026-09-01', null, 'Preserved previous notes', "## [1.0.0] - 2026-09-01\n", "\n");
         $state['base_doc'] = $state['base_doc']->withReleases([$pending, $first, $existing]);
         $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
-        $state['approved_doc'] = $state['base_doc']->withReleases([$pending, new HistoryRelease('1.0.1', '2026-10-03', null, "Exact  notes\n"), ...$older, $first, $existing]);
+        $state['approved_doc'] = $state['base_doc']->withReleases([new HistoryRelease('1.0.1', '2026-10-03', null, "Pending legacy prose\n\nExact  notes\n"), ...$older, $first, $existing]);
         $this->refreshApproved($state);
         self::assertSame('1.0.1', $this->validator($state)->validate($options, self::APPROVED)->version);
-        self::assertSame(['unreleased', '1.0.1', '0.8.0', '0.5.0', '0.4.0', '1.0.0'], $state['rendered_versions']);
+        self::assertSame(['1.0.1', '0.8.0', '0.5.0', '0.4.0', '1.0.0'], $state['rendered_versions']);
     }
 
     /** The tags-only mode retains deterministic missing-note placeholders and annotated tag dates with no network. */
@@ -904,6 +923,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
         });
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
         $exceptions->method('invalid')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException($message, previous: $previous));
-        return new PublicationEvidenceValidator($git, $history, $parser, $versions, $importer, $notes, $templates, $paths, $files, $releases, $evidence, $exceptions);
+        return new PublicationEvidenceValidator($git, $history, $parser, $versions, $importer, $notes, $templates, $paths, $files, $releases, $evidence, $exceptions, new \FastForward\Changelog\Release\ReleaseHistoryConsolidator($releases));
     }
 }

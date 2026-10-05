@@ -103,6 +103,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             \FastForward\Changelog\Release\ReceiptCodecInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReceiptCodec::class),
             \FastForward\Changelog\Release\ReleaseApplierInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReleaseApplier::class),
             \FastForward\Changelog\Release\ReleaseNotesRendererInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReleaseNotesRenderer::class),
+            \FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReleaseHistoryConsolidator::class),
             \FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface::class => new AliasFactory(\FastForward\Changelog\Release\Factory\ReleaseOptionsFactory::class),
             \FastForward\Changelog\Release\ReleasePlannerInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReleasePlanner::class),
             \FastForward\Changelog\Template\Factory\TemplateFactoryInterface::class => new AliasFactory(\FastForward\Changelog\Template\Factory\TemplateFactory::class),

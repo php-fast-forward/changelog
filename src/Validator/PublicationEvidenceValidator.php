@@ -27,6 +27,7 @@ use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface;
 use FastForward\Changelog\Release\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Template\TemplateInterface;
@@ -50,6 +51,7 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         private HistoryReleaseFactoryInterface $releases,
         private PublicationEvidenceFactoryInterface $evidence,
         private ReleaseExceptionFactoryInterface $exceptions,
+        private ReleaseHistoryConsolidatorInterface $consolidator,
     ) {}
 
     /** Validates exact blobs, complete base inventory, ancestry, recomputed impact/version and central note bytes. */
@@ -143,10 +145,7 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         if (null !== $document->getRelease($version)) {
             throw $this->exceptions->invalid('The computed release already exists in the source-base history.');
         }
-        $releases = $document->getReleases();
-        $position = isset($releases[0]) && 'unreleased' === $releases[0]->getVersion() ? 1 : 0;
-        array_splice($releases, $position, 0, [$this->releases->create($version, $section->getDate(), 'release-plan', $rendered)]);
-        $expected = $this->history->render($document->withReleases($releases), $template, true);
+        $expected = $this->history->render($this->consolidator->promote($document, $version, $section->getDate(), $rendered, $template), $template, true);
         if ($central !== $expected) {
             throw $this->exceptions->invalid('The approved history is not the canonical consolidation of every source-base fragment and exact prior history.');
         }

@@ -1,7 +1,10 @@
 # Historical Markdown and templates
 
-`CHANGELOG.md` is the single published history. A release preserves existing
-sections; backfill adds absent versions. Newly rendered history is readable
+`CHANGELOG.md` is the single published history. A release preserves published
+sections and promotes legacy `Unreleased` descriptions into the new version,
+removing the pending heading and combining matching categories. Backfill and
+format retain pending content; new contributions use independent fragments.
+Backfill adds absent versions. Newly rendered history is readable
 Markdown: headings, descriptions and links, with no generated fragment JSON,
 category markers, release delimiters or introduction comments.
 
