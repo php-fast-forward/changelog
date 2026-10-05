@@ -228,12 +228,16 @@ function exercise(string $installation, string $consumer, array $environment): v
     $git(['add', '--', 'CHANGELOG.md']);
     $git(['commit', '--message', 'test: current release']);
     $git(['tag', 'v1.0.0']);
+    $history = str_replace("## [1.0.0]", "<!-- fast-forward-changelog:release {\"version\":\"unreleased\"} -->\n## [Unreleased]\n\n<!-- fast-forward-changelog:category fixed -->\n### Bug fixes\n\n- Preserve legacy  pending descriptions.\n<!-- fast-forward-changelog:end-release -->\n\nPreserve trailing  legacy prose.\n\n## [1.0.0]", $history);
+    file_put_contents($consumer . '/CHANGELOG.md', $history);
+    $git(['add', '--', 'CHANGELOG.md']);
+    $git(['commit', '--message', 'test: legacy pending notes']);
     $base = trim($git(['rev-parse', 'HEAD'])['stdout']);
     file_put_contents($consumer . '/staged.txt', "unrelated staged edit\n");
     file_put_contents($consumer . '/working.txt', "unrelated working edit\n");
     $git(['add', '--', 'staged.txt']);
     $index = $git(['diff', '--cached', '--binary'])['stdout'];
-    cli($binary, $consumer, $environment, ['add', 'A deterministic <info>literal</info> contribution.', '--name=named.md']);
+    cli($binary, $consumer, $environment, ['add', "A deterministic <info>literal</info> contribution.\n\n### Fixed\n\nKeep this title inside Added.", '--name=named.md']);
     $fragment = file_get_contents($consumer . '/.changelog/named.md');
     cli($binary, $consumer, $environment, ['add', 'Do not overwrite.', '--name=named.md'], 1);
     verify($fragment === file_get_contents($consumer . '/.changelog/named.md'), 'An explicit name collision overwrote a fragment.');
@@ -261,7 +265,7 @@ function exercise(string $installation, string $consumer, array $environment): v
     cli($binary, $consumer, $environment, ['backfill', '--check', '--source=tags'], 1);
     $format = summary(cli($binary, $consumer, $environment, ['format', '--dry-run', '--source=tags']));
     verify(null === $format['next_version'] && [] === $format['consumed'] && [] === $format['historical_versions'], 'Format preview must preserve the release inventory.');
-    cli($binary, $consumer, $environment, ['format', '--check', '--source=tags']);
+    cli($binary, $consumer, $environment, ['format', '--check', '--source=tags'], 1);
     cli($binary, $consumer, $environment, ['version', '--dry-run', '--check', '--source=tags'], 2);
     verify($before === snapshot($consumer), 'Preview, check or status mutated consumer bytes.');
 
@@ -280,6 +284,12 @@ function exercise(string $installation, string $consumer, array $environment): v
     verify(!is_file($consumer . '/.changelog/release-plan.json'), 'Consolidation introduced a tracked plan file.');
     verify([] === glob($consumer . '/.git/changelog-release-plan*.json'), 'Successful Git consolidation retained a private journal.');
     verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), 'fast-forward-changelog:'), 'Consolidation polluted the history with generated metadata comments.');
+    verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), '## [Unreleased]'), 'Version consolidation retained the legacy pending heading.');
+    verify(1 === substr_count($preview['notes'], 'Preserve legacy  pending descriptions.'), 'Legacy pending descriptions were discarded or duplicated.');
+    verify(1 === substr_count($preview['notes'], 'Preserve trailing  legacy prose.'), 'Text after the legacy closing delimiter was discarded or duplicated.');
+    verify(!str_contains($preview['notes'], '### Bug fixes'), 'A marked category retained an obsolete presentation heading.');
+    verify(1 === preg_match_all('/^### Fixed$/m', $preview['notes']), 'Legacy and new fix categories were not combined.');
+    verify(str_contains($preview['notes'], "  ### Fixed\n  \n  Keep this title inside Added."), 'A nested fragment heading or its description was moved to another category.');
     $changed = $git(['diff', '--name-status', '--', 'CHANGELOG.md', '.changelog'])['stdout'];
     verify("D\t.changelog/committed.md\nD\t.changelog/named.md\nM\tCHANGELOG.md\n" === $changed, 'The release diff must contain only history and consumed fragment deletions.');
     $notes = cli($binary, $consumer, $environment, ['notes', '1.1.0', '--source=tags']);

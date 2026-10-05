@@ -5,8 +5,17 @@ for PHP packages.
 
 [![PHP Version](https://img.shields.io/badge/php-%5E8.5-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
 [![Composer Package](https://img.shields.io/badge/composer-fast--forward%2Fchangelog-F28D1A.svg?logo=composer&logoColor=white)](https://packagist.org/packages/fast-forward/changelog)
+[![Tests](https://img.shields.io/github/actions/workflow/status/php-fast-forward/changelog/tests.yml?logo=githubactions&logoColor=white&label=tests&color=22C55E)](https://github.com/php-fast-forward/changelog/actions/workflows/tests.yml)
 [![License](https://img.shields.io/github/license/php-fast-forward/changelog?color=64748B)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/php-fast-forward?logo=githubsponsors&logoColor=white&color=EC4899)](https://github.com/sponsors/php-fast-forward)
+
+## ✨ Features
+
+- 📝 Independent Markdown fragments keep ordinary contributions out of the central history.
+- 🔖 A reviewed version PR consumes fragments and promotes any legacy pending notes into one concrete version.
+- 🔍 Publication reconstructs the approved transaction from exact committed Git evidence.
+- 🔌 Injected services support Symfony Console and replaceable filesystem, Git, HTTP and clock boundaries.
+- 🌎 Built-in English and Brazilian Portuguese templates preserve author descriptions and fenced examples.
 
 Ordinary contributions create one unique `.changelog/*.md` fragment. The version
 workflow consolidates approved fragments into `CHANGELOG.md` in a separate PR.
@@ -14,7 +23,7 @@ Publication verifies the approved merge SHA and uses that document's exact note
 bytes. History backfill and formatting preserve pending fragments and existing
 descriptions.
 
-## Installation
+## 📦 Installation
 
 Install a release or reviewed revision containing this command surface:
 
@@ -39,7 +48,7 @@ local tags without GitHub history requests. An explicit repository with `auto`
 may use GitHub history; explicit `--source=tags` or `--source=github` selects that
 source directly.
 
-## Author a contribution
+## 🛠️ Usage
 
 ```sh
 vendor/bin/changelog add "Preserves meaningful Markdown spaces." --category=fixed --no-interaction
@@ -56,7 +65,7 @@ unstaged work. Ordinary contributions leave consolidation to the version workflo
 See [fragment authoring and checking](docs/cli-fragments.md) and the
 [fragment schema](docs/specification/fragment-format.md).
 
-## Commands
+## 🧰 API summary
 
 | Command | Purpose | Example |
 | --- | --- | --- |
@@ -88,7 +97,9 @@ template with the approved base. Keep those inputs committed at that base.
 Unrelated staged or unstaged work remains allowed; `status` and fragment previews
 remain useful before committing the release inputs.
 
-## GitHub automation
+## 🔌 Integration
+
+### GitHub automation
 
 Use the composite actions or reusable workflows at a reviewed immutable commit:
 
@@ -108,6 +119,9 @@ See [GitHub action contracts](docs/github-actions.md),
 [publication](docs/publication.md).
 
 Version PRs update only the central history and delete the consumed fragments.
+If legacy `Unreleased` content exists, its descriptions move into the new version;
+the pending heading is removed and matching categories are combined. Future
+changes go into independent fragments.
 No plan file is added to `.changelog/`. Recovery journals stay outside the working
 tree and are removed after successful application; maintenance PRs update only
 the central history.
@@ -116,7 +130,7 @@ This repository uses the same runtime and local actions for its own changelog.
 The [self-hosting examples](docs/self-changelog.md) explain events, defaults,
 credentials and the review boundary before merging a generated version PR.
 
-## PHP integration
+### PHP integration
 
 Commands are plain invokable objects backed by injected services. Embed the lazy
 command loader in another Symfony Console application:
@@ -140,7 +154,33 @@ services. See [adoption and service contracts](docs/adoption.md),
 [transaction recovery](docs/release-receipts.md) and
 [history/templates](docs/history.md).
 
-## Agent skill
+## 📁 Directory structure
+
+A consumer keeps published history separate from independent contributions:
+
+```text
+project/
+├── CHANGELOG.md
+├── .changelog/
+│   ├── preserve-markdown.md
+│   └── dependency-update.md
+└── .github/workflows/
+    ├── check-changelog.yml
+    └── release-changelog.yml
+```
+
+File names identify examples; each contribution creates a new unique fragment.
+Version consolidation removes the consumed fragments and updates the central
+history without adding a tracked plan file.
+
+## ⚙️ Customization
+
+Use `--locale=pt-BR` for localized structural headings. A reviewed PHP template
+can customize release and category headings without translating descriptions.
+See [history and templates](docs/history.md) for the supported fields and
+committed-template contract.
+
+### Agent skill
 
 The portable procedure and license live in the real
 [`.github/skills/changelog`](.github/skills/changelog/SKILL.md) package.
@@ -151,7 +191,29 @@ Windows checkouts without materialized symlinks are reported explicitly.
 Discovery and an authorized project copy installation are documented separately
 in [skill distribution](docs/skills.md); neither claims native host activation.
 
-## Contributing
+## ❓ FAQ
+
+**Does a version PR publish the release?**
+
+No. It prepares the central history for review. Publication requires the exact
+approved consolidation SHA and separate release authority.
+
+**Where do pending changes belong?**
+
+In unique `.changelog/*.md` fragments. Legacy `Unreleased` descriptions are
+consumed by the next actual version consolidation.
+
+**Can the CLI run globally?**
+
+Yes. A Composer global installation exposes `changelog`; project installation
+exposes `vendor/bin/changelog`. Both operate on the consumer directory.
+
+## 🛡 License
+
+MIT © 2026 [Felipe Sayao Lobato Abreu](https://github.com/coisa).
+See [LICENSE](LICENSE).
+
+## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Run `composer check` before opening a PR.
 Unit tests replace I/O collaborators with doubles and require 100% production
@@ -164,9 +226,7 @@ The [foundation extraction map](docs/foundation.md) documents reusable quality
 configuration; [skill distribution](docs/skills.md) describes the separate
 project-scoped agent skill.
 
-## Community and license
-
-MIT © 2026 Felipe Sayao Lobato Abreu
+## 🔗 Links
 
 - [Support](SUPPORT.md)
 - [Security policy](SECURITY.md)
@@ -177,3 +237,7 @@ MIT © 2026 Felipe Sayao Lobato Abreu
 - [Packagist](https://packagist.org/packages/fast-forward/changelog)
 - [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+- [API and adoption guide](docs/adoption.md)
+- [Documentation](docs/index.rst)
+- [PSR-11 containers](https://www.php-fig.org/psr/psr-11/)
+- [PSR-20 clocks](https://www.php-fig.org/psr/psr-20/)

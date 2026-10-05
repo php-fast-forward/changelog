@@ -21,6 +21,7 @@ use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
+use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Release\ReleaseJournalPathResolverInterface;
 use FastForward\Changelog\Release\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -45,6 +46,7 @@ use RuntimeException;
 #[CoversClass(ReleasePlanner::class)]
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(ReleasePlan::class)]
+#[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(ReleaseReceipt::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
@@ -64,12 +66,12 @@ final class ReleasePlannerTest extends TestCase
         $older = new HistoryRelease('1.0.0', body: 'Rich history');
         $document = new HistoryDocument([$unreleased, $older]);
         [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'releaseMock' => true, 'historyMock' => true]);
-        $parts['releases']->expects(self::once())->method('create')->with('1.0.1', '2026-10-04', 'release-plan', 'Rendered fragments')->willReturn(new HistoryRelease('1.0.1', body: 'Rendered fragments'));
+        $parts['releases']->expects(self::once())->method('create')->with('1.0.1', '2026-10-04', 'release-plan', "Legacy pending text\n\nRendered fragments", null, '')->willReturn(new HistoryRelease('1.0.1', body: "Legacy pending text\n\nRendered fragments"));
         $parts['history']->expects(self::once())->method('render')->willReturnCallback(static function (HistoryDocument $actual, TemplateInterface $template, bool $preserve): string {
             self::assertTrue($preserve);
-            self::assertSame(['unreleased', '1.0.1', '1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $actual->getReleases()));
-            self::assertSame('Legacy pending text', $actual->getReleases()[0]->getBody());
-            self::assertSame('Rich history', $actual->getReleases()[2]->getBody());
+            self::assertSame(['1.0.1', '1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $actual->getReleases()));
+            self::assertSame("Legacy pending text\n\nRendered fragments", $actual->getReleases()[0]->getBody());
+            self::assertSame('Rich history', $actual->getReleases()[1]->getBody());
             return 'after';
         });
         $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use ($parts): ReleasePlan {
@@ -485,6 +487,7 @@ final class ReleasePlannerTest extends TestCase
         $options = new ReleaseOptions('/consumer');
         $document = $settings['document'] ?? new HistoryDocument();
         $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => '### ' . ucfirst($category));
         $plan = new ReleasePlan($options, 'id', self::SHA, '1.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'before', 'after', '', '/consumer/.git/changelog-release-plan.json', null, 'receipt');
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturnCallback(static fn(string $path): string => '/consumer/' . $path);
@@ -540,7 +543,7 @@ final class ReleasePlannerTest extends TestCase
             $validator,
             $versions,
             $renderer,
-            $releases,
+            new ReleaseHistoryConsolidator($releases, $exceptions),
             $clock,
             new DateTimeZone('UTC'),
             $receipts,

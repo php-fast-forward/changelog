@@ -20,7 +20,6 @@ use DateTimeZone;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
-use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
@@ -47,7 +46,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private ChangesetValidatorInterface $validator,
         private NextVersionResolverInterface $versions,
         private ReleaseNotesRendererInterface $notesRenderer,
-        private HistoryReleaseFactoryInterface $releases,
+        private ReleaseHistoryConsolidatorInterface $consolidator,
         private ClockInterface $clock,
         private DateTimeZone $timezone,
         private ReceiptCodecInterface $receipts,
@@ -122,11 +121,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $impact = $resolved->impact->value;
             $consumed = $inventory->hashes;
             $notes = $this->notesRenderer->render($inventory->changesets, $template, $options->repository);
-            $release = $this->releases->create($next, $this->clock->now()->setTimezone($this->timezone)->format('Y-m-d'), 'release-plan', $notes);
-            $existing = $document->getReleases();
-            $position = isset($existing[0]) && 'unreleased' === $existing[0]->getVersion() ? 1 : 0;
-            array_splice($existing, $position, 0, [$release]);
-            $document = $document->withReleases($existing);
+            $document = $this->consolidator->promote($document, $next, $this->clock->now()->setTimezone($this->timezone)->format('Y-m-d'), $notes, $template);
         }
         $changed = 'format' === $operation || null !== $next || [] !== $missing;
         $contents = $changed ? $this->history->render($document, $template, 'format' !== $operation) : ($original ?? '');

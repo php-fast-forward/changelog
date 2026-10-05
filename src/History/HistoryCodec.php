@@ -280,7 +280,8 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             return false;
         }
 
-        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $matches)) {
+        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
+            && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
             $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
 
             return false;
