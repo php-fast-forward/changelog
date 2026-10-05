@@ -237,7 +237,7 @@ function exercise(string $installation, string $consumer, array $environment): v
     file_put_contents($consumer . '/working.txt', "unrelated working edit\n");
     $git(['add', '--', 'staged.txt']);
     $index = $git(['diff', '--cached', '--binary'])['stdout'];
-    cli($binary, $consumer, $environment, ['add', 'A deterministic <info>literal</info> contribution.', '--name=named.md']);
+    cli($binary, $consumer, $environment, ['add', "A deterministic <info>literal</info> contribution.\n\n### Fixed\n\nKeep this title inside Added.", '--name=named.md']);
     $fragment = file_get_contents($consumer . '/.changelog/named.md');
     cli($binary, $consumer, $environment, ['add', 'Do not overwrite.', '--name=named.md'], 1);
     verify($fragment === file_get_contents($consumer . '/.changelog/named.md'), 'An explicit name collision overwrote a fragment.');
@@ -288,7 +288,8 @@ function exercise(string $installation, string $consumer, array $environment): v
     verify(1 === substr_count($preview['notes'], 'Preserve legacy  pending descriptions.'), 'Legacy pending descriptions were discarded or duplicated.');
     verify(1 === substr_count($preview['notes'], 'Preserve trailing  legacy prose.'), 'Text after the legacy closing delimiter was discarded or duplicated.');
     verify(!str_contains($preview['notes'], '### Bug fixes'), 'A marked category retained an obsolete presentation heading.');
-    verify(1 === substr_count($preview['notes'], '### Fixed'), 'Legacy and new fix categories were not combined.');
+    verify(1 === preg_match_all('/^### Fixed$/m', $preview['notes']), 'Legacy and new fix categories were not combined.');
+    verify(str_contains($preview['notes'], "  ### Fixed\n  \n  Keep this title inside Added."), 'A nested fragment heading or its description was moved to another category.');
     $changed = $git(['diff', '--name-status', '--', 'CHANGELOG.md', '.changelog'])['stdout'];
     verify("D\t.changelog/committed.md\nD\t.changelog/named.md\nM\tCHANGELOG.md\n" === $changed, 'The release diff must contain only history and consumed fragment deletions.');
     $notes = cli($binary, $consumer, $environment, ['notes', '1.1.0', '--source=tags']);

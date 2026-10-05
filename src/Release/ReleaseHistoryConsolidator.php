@@ -65,6 +65,8 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
 
     /**
      * Separates recognized category structure without parsing or rewriting descriptions.
+     * Only unindented level-three headings define categories, matching canonical
+     * history output; headings inside list descriptions remain literal data.
      * Fenced examples and ordinary comments remain data. Reserved legacy markers
      * are removed; unknown peer blocks follow their original preceding category
      * after that category receives its new entries.
@@ -88,9 +90,9 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $fence = null;
         $markedCategory = null;
         foreach (preg_split('/(?<=\n)/', $body) as $line) {
-            $heading = preg_replace('/^ {0,3}/', '', rtrim($line, " \t\r\n"));
+            $heading = rtrim($line, " \t\r\n");
             $outside = $this->outsideFence($line, $fence);
-            $peer = $outside && 1 === preg_match('/^ {0,3}###(?:[ \t]|\r?\n|\z)/', $line);
+            $peer = $outside && 1 === preg_match('/^###(?:[ \t]|\r?\n|\z)/', $line);
             if (null !== $markedCategory && '' !== trim($line) && ! $peer) {
                 throw $this->exceptions->invalid('Legacy category markers must be followed by a level-three heading.');
             }

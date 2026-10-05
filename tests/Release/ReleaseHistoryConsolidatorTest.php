@@ -89,7 +89,7 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
 
     /** New fixes stay under their category before the original following unknown peer blocks. */
     #[TestWith(['### Upgrade notes'])]
-    #[TestWith(["  ###\tUpgrade notes"])]
+    #[TestWith(["###\tUpgrade notes"])]
     #[TestWith(['###'])]
     public function testNewCategoryEntriesPrecedeUnknownPeerBlocks(string $peer): void
     {
@@ -193,6 +193,20 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
         $current = "### Fixed\n\n- New addition.\n\n### Bugs\n\n- New fix.\n";
         $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: $legacy)]), '1.0.0', null, $current, $template);
         self::assertSame("### Fixed\n\n- Old addition.\n- New addition.\n\n### Bugs\n\n- Old fix.\n- New fix.\n", $result->getRelease('1.0.0')->getBody());
+    }
+
+    /** Headings nested inside either legacy or newly rendered list descriptions retain their exact category and bytes. */
+    #[TestWith(['### Fixed'])]
+    #[TestWith(['### Corrigido'])]
+    #[TestWith(['### Corrections'])]
+    #[TestWith(['### Upgrade notes'])]
+    #[TestWith(['###'])]
+    public function testNestedDescriptionHeadingsAreNotCategoryBoundaries(string $heading): void
+    {
+        $legacy = "-\n  Legacy introduction.\n  \n  {$heading}\n  \n  Legacy continuation.\n";
+        $current = "-\n  New introduction.\n  \n  {$heading}\n  \n  New continuation.\n";
+        $result = $this->service()->promote(new HistoryDocument([new HistoryRelease('unreleased', body: "### Added\n\n" . $legacy)]), '1.0.0', null, "### Added\n\n" . $current . "\n### Corrections\n\n- Real fix.\n", $this->template('Corrections'));
+        self::assertSame("### Added\n\n" . rtrim($legacy, "\n") . "\n\n" . rtrim($current, "\n") . "\n\n### Corrections\n\n- Real fix.\n", $result->getRelease('1.0.0')->getBody());
     }
 
     /** Value construction is injected and no host or side-effect boundary is consulted. */
