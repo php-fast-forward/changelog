@@ -1,5 +1,9 @@
 # Fast Forward Changelog
 
+<p align="center">
+  <img src="docs/_static/mascot-banner.png" alt="Dash organizing change fragments into a release history" width="840">
+</p>
+
 Independent Markdown fragments, a reviewed version PR and exact release notes
 for PHP packages.
 
