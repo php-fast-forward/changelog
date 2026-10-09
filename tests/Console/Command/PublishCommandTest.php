@@ -41,11 +41,26 @@ final class PublishCommandTest extends TestCase
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('resolveRef')->with('/consumer', $target ?? 'HEAD')->willReturn($sha);
         $publication = $this->createMock(PublicationServiceInterface::class);
-        $result = new PublicationResult($dry ? 'planned' : 'published', '1.1.0', 'v1.1.0', $sha, 'https://example.test/release', ['create_release']);
+        $result = new PublicationResult(
+            $dry ? 'planned' : 'published',
+            '1.1.0',
+            'v1.1.0',
+            $sha,
+            'https://example.test/release',
+            [
+                'create_release',
+
+            ]);
         $publication->expects(self::once())->method('publish')->with($options, $sha, $dry)->willReturn($result);
         $output = $this->createMock(OutputInterface::class);
-        $output->expects(self::once())->method('writeln')->with(json_encode($result->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), OutputInterface::OUTPUT_RAW);
-        self::assertSame(0, new PublishCommand($factory, $git, $publication)($this->settings(), $output, $target, $dry));
+        $output->expects(self::once())->method('writeln')->with(
+            json_encode($result->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            OutputInterface::OUTPUT_RAW,
+        );
+        self::assertSame(
+            0,
+            new PublishCommand($factory, $git, $publication)($this->settings(), $output, $target, $dry),
+        );
     }
 
     public static function targets(): array
@@ -59,10 +74,17 @@ final class PublishCommandTest extends TestCase
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->willReturn($this->options());
         $git = $this->createMock(GitRepositoryInterface::class);
-        $git->expects(self::once())->method('resolveRef')->willThrowException(new InvalidArgumentException('invalid revision'));
+        $git->expects(self::once())->method('resolveRef')->willThrowException(
+            new InvalidArgumentException('invalid revision'),
+        );
         $publication = $this->createMock(PublicationServiceInterface::class);
         $publication->expects(self::never())->method('publish');
-        self::assertSame(2, new PublishCommand($factory, $git, $publication)($this->settings(), $this->createStub(OutputInterface::class), '--all'));
+        self::assertSame(
+            2,
+            new PublishCommand($factory, $git, $publication)($this->settings(), $this->createStub(
+                OutputInterface::class,
+            ), '--all'),
+        );
     }
 
     #[Test]
@@ -73,7 +95,9 @@ final class PublishCommandTest extends TestCase
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('resolveRef')->willReturn(str_repeat('a', 40));
         $publication = $this->createMock(PublicationServiceInterface::class);
-        $publication->expects(self::once())->method('publish')->willThrowException(new RuntimeException('conflicting tag'));
+        $publication->expects(self::once())->method('publish')->willThrowException(
+            new RuntimeException('conflicting tag'),
+        );
         $output = $this->createMock(ConsoleOutputInterface::class);
         $error = $this->createMock(OutputInterface::class);
         $output->expects(self::once())->method('getErrorOutput')->willReturn($error);

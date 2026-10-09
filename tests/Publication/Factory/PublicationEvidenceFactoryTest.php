@@ -16,7 +16,13 @@ final class PublicationEvidenceFactoryTest extends TestCase
     /** Evidence construction MUST perform no lookup or note transformation. */
     public function testCapturesExactApprovedNotes(): void
     {
-        $evidence = new PublicationEvidenceFactory()->create(str_repeat('b', 40), '1.0.1', 'v1.0.1', "Exact  notes\n", 'owner/repo');
+        $evidence = new PublicationEvidenceFactory()->create(
+            str_repeat('b', 40),
+            '1.0.1',
+            'v1.0.1',
+            "Exact  notes\n",
+            'owner/repo',
+        );
         self::assertSame(str_repeat('b', 40), $evidence->sha);
         self::assertSame('1.0.1', $evidence->version);
         self::assertSame('v1.0.1', $evidence->tag);

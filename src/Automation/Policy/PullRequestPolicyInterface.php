@@ -21,7 +21,19 @@ use FastForward\Changelog\Release\ReleaseOptions;
 interface PullRequestPolicyInterface
 {
     /** Inspects a live PR snapshot and returns fail-closed proof bound to its immutable head SHA. */
-    public function inspect(ReleaseOptions $options, int $prNumber, string $managedBranch = 'changelog/version', string $automationActor = 'github-actions[bot]', string $waiverLabel = 'changelog-not-required', string $maintenanceLabel = 'changelog-maintenance'): PullRequestAuthorization;
+    public function inspect(
+        ReleaseOptions $options,
+        int $prNumber,
+        string $managedBranch = 'changelog/version',
+        string $automationActor = 'github-actions[bot]',
+        string $waiverLabel = 'changelog-not-required',
+        string $maintenanceLabel = 'changelog-maintenance',
+    ): PullRequestAuthorization;
     /** Verifies signed Bot identity, receipt bytes, ancestry and exclusively managed changes at one immutable head. */
-    public function inspectHead(ReleaseOptions $options, string $headSha, string $automationActor = 'github-actions[bot]', ?string $baseSha = null): bool;
+    public function inspectHead(
+        ReleaseOptions $options,
+        string $headSha,
+        string $automationActor = 'github-actions[bot]',
+        ?string $baseSha = null,
+    ): bool;
 }

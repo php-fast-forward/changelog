@@ -22,8 +22,11 @@ use FastForward\Changelog\History\Import\HistoryImportResult;
 final class HistoryImportResultFactory implements HistoryImportResultFactoryInterface
 {
     /** Creates a result without fetching releases or inferring any date. */
-    public function create(HistoryDocument $document, array $missingVersions, string $currentVersion): HistoryImportResult
-    {
+    public function create(
+        HistoryDocument $document,
+        array $missingVersions,
+        string $currentVersion,
+    ): HistoryImportResult {
         return new HistoryImportResult($document, $missingVersions, $currentVersion);
     }
 }

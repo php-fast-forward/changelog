@@ -21,7 +21,13 @@ $cacheDirectory = $fixtureRoot . '/composer-cache';
 if (isset($argv[2])) {
     $requested = realpath($argv[2]);
     $temporary = realpath(sys_get_temp_dir());
-    if (false === $requested || false === $temporary || !str_starts_with($requested, $temporary . '/changelog-packaging-') || !str_ends_with($requested, '/composer-cache')) {
+    if (false === $requested || false === $temporary || !str_starts_with(
+        $requested,
+        $temporary . '/changelog-packaging-',
+    ) || !str_ends_with(
+        $requested,
+        '/composer-cache',
+    )) {
         throw new InvalidArgumentException('Only a previously generated disposable packaging cache may be reused.');
     }
     $cacheDirectory = $requested;
@@ -47,15 +53,29 @@ function execute(array $arguments, string $directory, array $environment, int $e
     $stdout = $fixtureRoot . '/command-' . $commands . '.out';
     $stderr = $fixtureRoot . '/command-' . $commands . '.err';
     $null = 'Windows' === PHP_OS_FAMILY ? 'NUL' : '/dev/null';
-    $process = proc_open(['rtk', 'proxy', ...$arguments], [0 => ['file', $null, 'r'], 1 => ['file', $stdout, 'w'], 2 => ['file', $stderr, 'w']], $pipes, $directory, $environment);
+    $process = proc_open([
+        'rtk', 'proxy', ...$arguments],
+        [0 => ['file', $null, 'r'], 1 => ['file', $stdout, 'w'], 2 => ['file', $stderr, 'w']],
+        $pipes,
+        $directory,
+        $environment,
+    );
     if (!is_resource($process)) {
         throw new RuntimeException('Cannot launch fixture command.');
     }
     $exit = proc_close($process);
     $result = ['exit' => $exit, 'stdout' => file_get_contents($stdout), 'stderr' => file_get_contents($stderr)];
     if ($expected !== $exit) {
-        throw new RuntimeException(sprintf("Command %s exited %d; expected %d.\n%s%s", implode(' ', $arguments), $exit, $expected, $result['stdout'], $result['stderr']));
+        throw new RuntimeException(sprintf(
+            "Command %s exited %d; expected %d.\n%s%s",
+            implode(' ', $arguments),
+            $exit,
+            $expected,
+            $result['stdout'],
+            $result['stderr'],
+        ));
     }
+
     return $result;
 }
 
@@ -64,9 +84,32 @@ function environment(string $fixtureRoot, string $composerHome): array
 {
     global $cacheDirectory;
     $values = getenv();
-    foreach (['GITHUB_TOKEN', 'GH_TOKEN', 'FF_CHANGELOG_TOKEN', 'GITHUB_OUTPUT', 'FF_CHANGELOG_INPUTS', 'COMPOSER', 'COMPOSER_AUTH', 'COMPOSER_BIN_DIR', 'COMPOSER_VENDOR_DIR', 'COMPOSER_ROOT_VERSION', 'COMPOSER_DISABLE_NETWORK', 'GIT_ASKPASS', 'SSH_ASKPASS', 'SSH_AUTH_SOCK', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG', 'GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_DIR', 'GIT_WORK_TREE'] as $key) {
+    foreach ([
+        'GITHUB_TOKEN',
+        'GH_TOKEN',
+        'FF_CHANGELOG_TOKEN',
+        'GITHUB_OUTPUT',
+        'FF_CHANGELOG_INPUTS',
+        'COMPOSER',
+        'COMPOSER_AUTH',
+        'COMPOSER_BIN_DIR',
+        'COMPOSER_VENDOR_DIR',
+        'COMPOSER_ROOT_VERSION',
+        'COMPOSER_DISABLE_NETWORK',
+        'GIT_ASKPASS',
+        'SSH_ASKPASS',
+        'SSH_AUTH_SOCK',
+        'GIT_CONFIG_COUNT',
+        'GIT_CONFIG_PARAMETERS',
+        'GIT_CONFIG',
+        'GIT_SSH',
+        'GIT_SSH_COMMAND',
+        'GIT_DIR',
+        'GIT_WORK_TREE',
+    ] as $key) {
         unset($values[$key]);
     }
+
     return [...$values, 'HOME' => $fixtureRoot . '/home', 'COMPOSER_HOME' => $composerHome,
         'COMPOSER_CACHE_DIR' => $cacheDirectory, 'COMPOSER_AUTH' => '{}',
         'COMPOSER_NO_INTERACTION' => '1', 'COMPOSER_DISABLE_XDEBUG_WARN' => '1', 'XDEBUG_MODE' => 'off',
@@ -83,7 +126,10 @@ function environment(string $fixtureRoot, string $composerHome): array
 function snapshot(string $directory): array
 {
     $state = [];
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS));
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
+        $directory,
+        FilesystemIterator::SKIP_DOTS,
+    ));
     foreach ($iterator as $file) {
         $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($directory) + 1));
         if (str_starts_with($relative, '.git/')) {
@@ -94,6 +140,7 @@ function snapshot(string $directory): array
         }
     }
     ksort($state);
+
     return $state;
 }
 
@@ -102,24 +149,43 @@ function summary(array $result): array
 {
     $value = json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
     verify(is_array($value) && isset($value['mode']), 'CLI summary must be one JSON object.');
+
     return $value;
 }
 
 /** Preserves the exact result of one installed executable invoked from its consumer cwd. */
 function cli(string $binary, string $consumer, array $environment, array $arguments, int $expected = 0): array
 {
-    return execute([PHP_BINARY, $binary, ...$arguments, '--no-interaction', '--no-ansi'], $consumer, $environment, $expected);
+    return execute([
+        PHP_BINARY, $binary, ...$arguments, '--no-interaction', '--no-ansi'],
+        $consumer,
+        $environment,
+        $expected,
+    );
 }
 
 /** Checks both installed runtime dependencies and the mirrored package bootstrap. */
 function runtimeGraph(string $installation): void
 {
-    $data = json_decode(file_get_contents($installation . '/vendor/composer/installed.json'), true, 512, JSON_THROW_ON_ERROR);
+    $data = json_decode(
+        file_get_contents($installation . '/vendor/composer/installed.json'),
+        true,
+        512,
+        JSON_THROW_ON_ERROR,
+    );
     $packages = $data['packages'] ?? $data;
     $names = array_column($packages, 'name');
     verify(in_array('fast-forward/changelog', $names, true), 'The product package was not installed.');
-    foreach (['fast-forward/dev-tools', 'phpunit/phpunit', 'rector/rector', 'symplify/easy-coding-standard'] as $forbidden) {
-        verify(!in_array($forbidden, $names, true), 'Development dependency leaked into the runtime graph: ' . $forbidden);
+    foreach ([
+        'fast-forward/dev-tools',
+        'phpunit/phpunit',
+        'rector/rector',
+        'symplify/easy-coding-standard',
+    ] as $forbidden) {
+        verify(
+            !in_array($forbidden, $names, true),
+            'Development dependency leaked into the runtime graph: ' . $forbidden,
+        );
     }
     $package = $installation . '/vendor/fast-forward/changelog';
     verify(!is_link($package), 'The path repository must be mirrored with symlink=false.');
@@ -130,7 +196,11 @@ function runtimeGraph(string $installation): void
 /** Exports current tracked/unignored source bytes without copying checkout vendor, caches or Git administration. */
 function exportSource(string $packageRoot, string $destination, array $environment): void
 {
-    $files = execute(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], $packageRoot, $environment);
+    $files = execute([
+        'git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+        $packageRoot,
+        $environment,
+    );
     foreach (array_unique(explode("\0", $files['stdout'])) as $relative) {
         if ('' === $relative || !is_file($packageRoot . '/' . $relative)) {
             continue;
@@ -158,7 +228,10 @@ function exercise(string $installation, string $consumer, array $environment): v
     // A development checkout may leave its own vendor tree in a path mirror.
     // The native Composer proxy must select its top-level installation autoloader.
     mkdir($installed . '/vendor', 0700, true);
-    file_put_contents($installed . '/vendor/autoload.php', "<?php throw new RuntimeException('nested vendor must not win over native Composer');\n");
+    file_put_contents(
+        $installed . '/vendor/autoload.php',
+        "<?php throw new RuntimeException('nested vendor must not win over native Composer');\n",
+    );
     try {
         cli($binary, $consumer, $environment, ['list', '--raw']);
     } finally {
@@ -170,7 +243,10 @@ function exercise(string $installation, string $consumer, array $environment): v
         verify(1 === preg_match('/^' . $command . '\s/m', $listing['stdout']), 'Missing public command: ' . $command);
         verify(!str_contains($listing['stdout'], 'changelog:' . $command), 'A legacy prefixed alias leaked.');
     }
-    verify(str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], 'dev-main'), 'The binary did not use native installed package metadata.');
+    verify(
+        str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], 'dev-main'),
+        'The binary did not use native installed package metadata.',
+    );
     cli($binary, $consumer, $environment, ['--help']);
     foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $command) {
         cli($binary, $consumer, $environment, ['help', $command]);
@@ -178,14 +254,22 @@ function exercise(string $installation, string $consumer, array $environment): v
 
     $provider = $installed . '/src/Container/ServiceProvider/ChangelogServiceProvider.php';
     $originalProvider = file_get_contents($provider);
-    $poisoned = str_replace("return [\n", "return [\n            \\FastForward\\Changelog\\Console\\Command\\StatusCommand::class => static fn(): never => throw new \\RuntimeException('fixture selected graph'),\n", $originalProvider, $replacements);
+    $poisoned = str_replace(
+        "return [\n",
+        "return [\n            \\FastForward\\Changelog\\Console\\Command\\StatusCommand::class => static fn(): never => throw new \\RuntimeException('fixture selected graph'),\n",
+        $originalProvider,
+        $replacements,
+    );
     verify(1 === $replacements, 'The lazy-loading probe could not identify the provider factory map.');
     file_put_contents($provider, $poisoned);
     try {
         cli($binary, $consumer, $environment, ['list', '--raw']);
         cli($binary, $consumer, $environment, ['--help']);
         $failure = cli($binary, $consumer, $environment, ['status', '--source=tags'], 1);
-        verify(str_contains($failure['stdout'] . $failure['stderr'], 'fixture selected graph'), 'Selected-command failure did not retain its diagnostic.');
+        verify(
+            str_contains($failure['stdout'] . $failure['stderr'], 'fixture selected graph'),
+            'Selected-command failure did not retain its diagnostic.',
+        );
         cli($binary, $consumer, $environment, ['add', 'Graph failures stay isolated.', '--name=lazy-isolation.md']);
         unlink($consumer . '/.changelog/lazy-isolation.md');
     } finally {
@@ -202,11 +286,23 @@ function exercise(string $installation, string $consumer, array $environment): v
     $newFiles = array_diff_key($after, $before);
     verify(1 === count($newFiles), 'Default add must create exactly one consumer file.');
     $defaultPath = array_key_first($newFiles);
-    verify(str_starts_with($defaultPath, '.changelog/') && str_ends_with($defaultPath, '.md'), 'Default add did not use the consumer fragment directory.');
-    verify(!is_file($consumer . '/CHANGELOG.md') && !is_file($consumer . '/.changelog/release-plan.json'), 'Add wrote central history or a receipt.');
+    verify(
+        str_starts_with($defaultPath, '.changelog/') && str_ends_with($defaultPath, '.md'),
+        'Default add did not use the consumer fragment directory.',
+    );
+    verify(
+        !is_file($consumer . '/CHANGELOG.md') && !is_file($consumer . '/.changelog/release-plan.json'),
+        'Add wrote central history or a receipt.',
+    );
     verify([] === array_diff_assoc($before, $after), 'Add modified an existing consumer file.');
-    verify(str_contains(file_get_contents($consumer . '/' . $defaultPath), '<info>literal</info>'), 'Authoring changed literal Markdown formatter tags.');
-    verify(!is_file($installed . '/.changelog/' . basename($defaultPath)), 'Add used the package installation directory as cwd.');
+    verify(
+        str_contains(file_get_contents($consumer . '/' . $defaultPath), '<info>literal</info>'),
+        'Authoring changed literal Markdown formatter tags.',
+    );
+    verify(
+        !is_file($installed . '/.changelog/' . basename($defaultPath)),
+        'Add used the package installation directory as cwd.',
+    );
     unlink($consumer . '/' . $defaultPath);
     cli($binary, $consumer, $environment, ['add'], 2);
 
@@ -219,7 +315,10 @@ function exercise(string $installation, string $consumer, array $environment): v
     file_put_contents($consumer . '/README.md', "Disposable consumer.\n");
     file_put_contents($consumer . '/staged.txt', "baseline staged file\n");
     file_put_contents($consumer . '/working.txt', "baseline working file\n");
-    file_put_contents($consumer . '/CHANGELOG.md', "# Changelog\n\n## [0.9.0] - 2025-12-01\n\n### Fixed\n\n- Prior fixture release.\n");
+    file_put_contents(
+        $consumer . '/CHANGELOG.md',
+        "# Changelog\n\n## [0.9.0] - 2025-12-01\n\n### Fixed\n\n- Prior fixture release.\n",
+    );
     $git(['add', '--all']);
     $git(['commit', '--message', 'test: prior release']);
     $git(['tag', 'v0.9.0']);
@@ -228,7 +327,11 @@ function exercise(string $installation, string $consumer, array $environment): v
     $git(['add', '--', 'CHANGELOG.md']);
     $git(['commit', '--message', 'test: current release']);
     $git(['tag', 'v1.0.0']);
-    $history = str_replace("## [1.0.0]", "<!-- fast-forward-changelog:release {\"version\":\"unreleased\"} -->\n## [Unreleased]\n\n<!-- fast-forward-changelog:category fixed -->\n### Bug fixes\n\n- Preserve legacy  pending descriptions.\n<!-- fast-forward-changelog:end-release -->\n\nPreserve trailing  legacy prose.\n\n## [1.0.0]", $history);
+    $history = str_replace(
+        "## [1.0.0]",
+        "<!-- fast-forward-changelog:release {\"version\":\"unreleased\"} -->\n## [Unreleased]\n\n<!-- fast-forward-changelog:category fixed -->\n### Bug fixes\n\n- Preserve legacy  pending descriptions.\n<!-- fast-forward-changelog:end-release -->\n\nPreserve trailing  legacy prose.\n\n## [1.0.0]",
+        $history,
+    );
     file_put_contents($consumer . '/CHANGELOG.md', $history);
     $git(['add', '--', 'CHANGELOG.md']);
     $git(['commit', '--message', 'test: legacy pending notes']);
@@ -237,76 +340,216 @@ function exercise(string $installation, string $consumer, array $environment): v
     file_put_contents($consumer . '/working.txt', "unrelated working edit\n");
     $git(['add', '--', 'staged.txt']);
     $index = $git(['diff', '--cached', '--binary'])['stdout'];
-    cli($binary, $consumer, $environment, ['add', "A deterministic <info>literal</info> contribution.\n\n### Fixed\n\nKeep this title inside Added.", '--name=named.md']);
+    cli(
+        $binary,
+        $consumer,
+        $environment,
+        [
+            'add',
+            "A deterministic <info>literal</info> contribution.\n\n### Fixed\n\nKeep this title inside Added.",
+            '--name=named.md',
+        ],
+    );
     $fragment = file_get_contents($consumer . '/.changelog/named.md');
     cli($binary, $consumer, $environment, ['add', 'Do not overwrite.', '--name=named.md'], 1);
-    verify($fragment === file_get_contents($consumer . '/.changelog/named.md'), 'An explicit name collision overwrote a fragment.');
+    verify(
+        $fragment === file_get_contents($consumer . '/.changelog/named.md'),
+        'An explicit name collision overwrote a fragment.',
+    );
     verify($base === trim($git(['rev-parse', 'HEAD'])['stdout']), 'Default add unexpectedly committed.');
-    cli($binary, $consumer, $environment, ['add', 'Only this fragment belongs in the commit.', '--category=fixed', '--type=patch', '--name=committed.md', '--commit', '--commit-message=test: scoped fragment']);
-    verify(".changelog/committed.md\n" === $git(['show', '--pretty=format:', '--name-only', 'HEAD'])['stdout'], 'The optional commit included unrelated paths.');
-    verify("test: scoped fragment\n" === $git(['log', '-1', '--format=%s'])['stdout'], 'The optional commit did not retain its explicit message.');
-    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'The optional commit changed unrelated staged work.');
-    verify("unrelated working edit\n" === file_get_contents($consumer . '/working.txt'), 'The optional commit changed unrelated worktree bytes.');
-    verify($history === file_get_contents($consumer . '/CHANGELOG.md'), 'Fragment creation changed the central history.');
+    cli(
+        $binary,
+        $consumer,
+        $environment,
+        [
+            'add',
+            'Only this fragment belongs in the commit.',
+            '--category=fixed',
+            '--type=patch',
+            '--name=committed.md',
+            '--commit',
+            '--commit-message=test: scoped fragment',
+        ],
+    );
+    verify(
+        ".changelog/committed.md\n" === $git(['show', '--pretty=format:', '--name-only', 'HEAD'])['stdout'],
+        'The optional commit included unrelated paths.',
+    );
+    verify(
+        "test: scoped fragment\n" === $git(['log', '-1', '--format=%s'])['stdout'],
+        'The optional commit did not retain its explicit message.',
+    );
+    verify(
+        $index === $git(['diff', '--cached', '--binary'])['stdout'],
+        'The optional commit changed unrelated staged work.',
+    );
+    verify(
+        "unrelated working edit\n" === file_get_contents($consumer . '/working.txt'),
+        'The optional commit changed unrelated worktree bytes.',
+    );
+    verify(
+        $history === file_get_contents($consumer . '/CHANGELOG.md'),
+        'Fragment creation changed the central history.',
+    );
     cli($binary, $consumer, $environment, ['check', '--since=' . $base]);
 
     $before = snapshot($consumer);
     $status = summary(cli($binary, $consumer, $environment, ['status', '--json', '--source=tags']));
     $preview = summary(cli($binary, $consumer, $environment, ['version', '--dry-run', '--source=tags']));
-    verify('release' === $status['mode'] && '1.0.0' === $status['current_version'] && '1.1.0' === $status['next_version'], 'Status did not calculate the expected synthetic release.');
-    foreach (['mode', 'current_version', 'next_version', 'impact', 'consumed', 'historical_versions', 'notes'] as $field) {
+    verify(
+        'release' === $status['mode'] && '1.0.0' === $status['current_version'] && '1.1.0' === $status['next_version'],
+        'Status did not calculate the expected synthetic release.',
+    );
+    foreach ([
+        'mode',
+        'current_version',
+        'next_version',
+        'impact',
+        'consumed',
+        'historical_versions',
+        'notes',
+    ] as $field) {
         verify($status[$field] === $preview[$field], 'Status and version preview disagree: ' . $field);
     }
-    verify(['0.9.0'] === $preview['historical_versions'], 'The stable ancestor tag was not included as missing history.');
-    verify(str_contains($preview['notes'], '<info>literal</info>'), 'Machine release notes changed literal Markdown formatter tags.');
+    verify([
+        '0.9.0'] === $preview['historical_versions'],
+        'The stable ancestor tag was not included as missing history.',
+    );
+    verify(
+        str_contains($preview['notes'], '<info>literal</info>'),
+        'Machine release notes changed literal Markdown formatter tags.',
+    );
     cli($binary, $consumer, $environment, ['version', '--check', '--source=tags'], 1);
     $backfill = summary(cli($binary, $consumer, $environment, ['backfill', '--dry-run', '--source=tags']));
-    verify(null === $backfill['next_version'] && [] === $backfill['consumed'] && ['0.9.0'] === $backfill['historical_versions'], 'Backfill preview must import history without consuming pending fragments.');
+    verify(
+        null === $backfill['next_version'] && [] === $backfill['consumed'] && [
+            '0.9.0',
+        ] === $backfill['historical_versions'],
+        'Backfill preview must import history without consuming pending fragments.',
+    );
     cli($binary, $consumer, $environment, ['backfill', '--check', '--source=tags'], 1);
     $format = summary(cli($binary, $consumer, $environment, ['format', '--dry-run', '--source=tags']));
-    verify(null === $format['next_version'] && [] === $format['consumed'] && [] === $format['historical_versions'], 'Format preview must preserve the release inventory.');
+    verify(
+        null === $format['next_version'] && [] === $format['consumed'] && [] === $format['historical_versions'],
+        'Format preview must preserve the release inventory.',
+    );
     cli($binary, $consumer, $environment, ['format', '--check', '--source=tags'], 1);
     cli($binary, $consumer, $environment, ['version', '--dry-run', '--check', '--source=tags'], 2);
     verify($before === snapshot($consumer), 'Preview, check or status mutated consumer bytes.');
 
     $uncommitted = snapshot($consumer);
     cli($binary, $consumer, $environment, ['version', '--source=tags'], 1);
-    verify($uncommitted === snapshot($consumer), 'A fragment outside the approved Git base changed managed files before rejection.');
-    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'Rejected consolidation changed unrelated staged work.');
+    verify(
+        $uncommitted === snapshot($consumer),
+        'A fragment outside the approved Git base changed managed files before rejection.',
+    );
+    verify(
+        $index === $git(['diff', '--cached', '--binary'])['stdout'],
+        'Rejected consolidation changed unrelated staged work.',
+    );
     $git(['add', '--', '.changelog/named.md']);
     $git(['commit', '--only', '--message', 'test: approve pending fragment', '--', '.changelog/named.md']);
-    verify(".changelog/named.md\n" === $git(['show', '--pretty=format:', '--name-only', 'HEAD'])['stdout'], 'Approval committed unrelated paths.');
-    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'Fragment approval changed unrelated staged work.');
+    verify(
+        ".changelog/named.md\n" === $git(['show', '--pretty=format:', '--name-only', 'HEAD'])['stdout'],
+        'Approval committed unrelated paths.',
+    );
+    verify(
+        $index === $git(['diff', '--cached', '--binary'])['stdout'],
+        'Fragment approval changed unrelated staged work.',
+    );
     $preview = summary(cli($binary, $consumer, $environment, ['version', '--dry-run', '--source=tags']));
     $applied = summary(cli($binary, $consumer, $environment, ['version', '--source=tags']));
-    verify('1.1.0' === $applied['next_version'], 'The explicit fixture-only maintenance operation changed the approved version.');
-    verify(!is_file($consumer . '/.changelog/named.md') && !is_file($consumer . '/.changelog/committed.md'), 'The local transaction did not consume its exact fragment set.');
+    verify(
+        '1.1.0' === $applied['next_version'],
+        'The explicit fixture-only maintenance operation changed the approved version.',
+    );
+    verify(
+        !is_file($consumer . '/.changelog/named.md') && !is_file($consumer . '/.changelog/committed.md'),
+        'The local transaction did not consume its exact fragment set.',
+    );
     verify(!is_file($consumer . '/.changelog/release-plan.json'), 'Consolidation introduced a tracked plan file.');
-    verify([] === glob($consumer . '/.git/changelog-release-plan*.json'), 'Successful Git consolidation retained a private journal.');
-    verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), 'fast-forward-changelog:'), 'Consolidation polluted the history with generated metadata comments.');
-    verify(!str_contains(file_get_contents($consumer . '/CHANGELOG.md'), '## [Unreleased]'), 'Version consolidation retained the legacy pending heading.');
-    verify(1 === substr_count($preview['notes'], 'Preserve legacy  pending descriptions.'), 'Legacy pending descriptions were discarded or duplicated.');
-    verify(1 === substr_count($preview['notes'], 'Preserve trailing  legacy prose.'), 'Text after the legacy closing delimiter was discarded or duplicated.');
-    verify(!str_contains($preview['notes'], '### Bug fixes'), 'A marked category retained an obsolete presentation heading.');
-    verify(1 === preg_match_all('/^### Fixed$/m', $preview['notes']), 'Legacy and new fix categories were not combined.');
-    verify(str_contains($preview['notes'], "  ### Fixed\n  \n  Keep this title inside Added."), 'A nested fragment heading or its description was moved to another category.');
+    verify([
+    ] === glob($consumer . '/.git/changelog-release-plan*.json'),
+        'Successful Git consolidation retained a private journal.',
+    );
+    verify(
+        !str_contains(file_get_contents($consumer . '/CHANGELOG.md'), 'fast-forward-changelog:'),
+        'Consolidation polluted the history with generated metadata comments.',
+    );
+    verify(
+        !str_contains(file_get_contents($consumer . '/CHANGELOG.md'), '## [Unreleased]'),
+        'Version consolidation retained the legacy pending heading.',
+    );
+    verify(
+        1 === substr_count($preview['notes'], 'Preserve legacy  pending descriptions.'),
+        'Legacy pending descriptions were discarded or duplicated.',
+    );
+    verify(
+        1 === substr_count($preview['notes'], 'Preserve trailing  legacy prose.'),
+        'Text after the legacy closing delimiter was discarded or duplicated.',
+    );
+    verify(
+        !str_contains($preview['notes'], '### Bug fixes'),
+        'A marked category retained an obsolete presentation heading.',
+    );
+    verify(
+        1 === preg_match_all('/^### Fixed$/m', $preview['notes']),
+        'Legacy and new fix categories were not combined.',
+    );
+    verify(
+        str_contains($preview['notes'], "  ### Fixed\n  \n  Keep this title inside Added."),
+        'A nested fragment heading or its description was moved to another category.',
+    );
     $changed = $git(['diff', '--name-status', '--', 'CHANGELOG.md', '.changelog'])['stdout'];
-    verify("D\t.changelog/committed.md\nD\t.changelog/named.md\nM\tCHANGELOG.md\n" === $changed, 'The release diff must contain only history and consumed fragment deletions.');
+    verify(
+        "D\t.changelog/committed.md\nD\t.changelog/named.md\nM\tCHANGELOG.md\n" === $changed,
+        'The release diff must contain only history and consumed fragment deletions.',
+    );
     $notes = cli($binary, $consumer, $environment, ['notes', '1.1.0', '--source=tags']);
     verify($preview['notes'] === $notes['stdout'], 'Notes did not return the exact planned managed-history bytes.');
-    verify($notes['stdout'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'], 'Default notes did not select the latest maintained release.');
+    verify(
+        $notes['stdout'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'],
+        'Default notes did not select the latest maintained release.',
+    );
     cli($binary, $consumer, $environment, ['notes', '1.1.0', '--output=release-notes.md', '--source=tags']);
-    verify($notes['stdout'] === file_get_contents($consumer . '/release-notes.md'), 'Managed notes output changed bytes.');
+    verify(
+        $notes['stdout'] === file_get_contents($consumer . '/release-notes.md'),
+        'Managed notes output changed bytes.',
+    );
     $afterOutput = snapshot($consumer);
     cli($binary, $consumer, $environment, ['notes', '1.1.0', '--output=release-notes.md', '--source=tags'], 2);
     cli($binary, $consumer, $environment, ['notes', '1.1.0', '--output=CHANGELOG.md', '--source=tags'], 2);
-    cli($binary, $consumer, $environment, ['notes', '1.1.0', '--output=.changelog/new-fragment.md', '--source=tags'], 2);
+    cli(
+        $binary,
+        $consumer,
+        $environment,
+        ['notes', '1.1.0', '--output=.changelog/new-fragment.md', '--source=tags'],
+        2,
+    );
     verify($afterOutput === snapshot($consumer), 'Rejected notes output modified an existing or managed file.');
-    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'Local consolidation changed unrelated staged work.');
-    verify("unrelated working edit\n" === file_get_contents($consumer . '/working.txt'), 'Local consolidation changed unrelated worktree bytes.');
+    verify(
+        $index === $git(['diff', '--cached', '--binary'])['stdout'],
+        'Local consolidation changed unrelated staged work.',
+    );
+    verify(
+        "unrelated working edit\n" === file_get_contents($consumer . '/working.txt'),
+        'Local consolidation changed unrelated worktree bytes.',
+    );
     verify(is_string($applied['commit_message']), 'Git consolidation did not provide its reusable commit message.');
-    $git(['commit', '--only', '--message', $applied['commit_message'], '--', 'CHANGELOG.md', '.changelog/committed.md', '.changelog/named.md']);
-    verify($index === $git(['diff', '--cached', '--binary'])['stdout'], 'The consolidation commit changed unrelated staged work.');
+    $git([
+        'commit',
+        '--only',
+        '--message',
+        $applied['commit_message'],
+        '--',
+        'CHANGELOG.md',
+        '.changelog/committed.md',
+        '.changelog/named.md',
+    ]);
+    verify(
+        $index === $git(['diff', '--cached', '--binary'])['stdout'],
+        'The consolidation commit changed unrelated staged work.',
+    );
     $approved = trim($git(['rev-parse', 'HEAD'])['stdout']);
     $proofCode = <<<'PHP'
 require $argv[1];
@@ -315,11 +558,28 @@ $options = $container->get(\FastForward\Changelog\Release\Factory\ReleaseOptions
 $evidence = $container->get(\FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class)->validate($options, $argv[2]);
 fwrite(STDOUT, json_encode(['version' => $evidence->version, 'tag' => $evidence->tag, 'notes' => $evidence->notes], JSON_THROW_ON_ERROR));
 PHP;
-    $proof = json_decode(execute([PHP_BINARY, '-r', $proofCode, $installation . '/vendor/autoload.php', $approved, realpath($environment['TMPDIR'])], $consumer, $environment)['stdout'], true, 512, JSON_THROW_ON_ERROR);
-    verify('1.1.0' === $proof['version'] && 'v1.1.0' === $proof['tag'], 'Committed Git proof calculated the wrong publication identity.');
+    $proof = json_decode(
+        execute([
+            PHP_BINARY, '-r', $proofCode, $installation . '/vendor/autoload.php', $approved, realpath(
+                $environment['TMPDIR'],
+            )],
+            $consumer,
+            $environment,
+        )['stdout'],
+        true,
+        512,
+        JSON_THROW_ON_ERROR,
+    );
+    verify(
+        '1.1.0' === $proof['version'] && 'v1.1.0' === $proof['tag'],
+        'Committed Git proof calculated the wrong publication identity.',
+    );
     verify($preview['notes'] === $proof['notes'], 'Committed publication proof changed the maintained release notes.');
     verify("v0.9.0\nv1.0.0\n" === $git(['tag', '--list'])['stdout'], 'Local CLI operations created a tag.');
-    verify(!str_contains(implode('\n', array_keys(snapshot($consumer))), 'executed-php-config'), 'The default CLI executed implicit PHP configuration.');
+    verify(
+        !str_contains(implode('\n', array_keys(snapshot($consumer))), 'executed-php-config'),
+        'The default CLI executed implicit PHP configuration.',
+    );
     fwrite(STDOUT, "Consumer behavior PASS: {$consumer}\n");
 }
 
@@ -328,7 +588,12 @@ function exerciseNonGit(string $installation, string $consumer, array $environme
 {
     mkdir($consumer, 0700, true);
     $binary = $installation . '/vendor/bin/changelog';
-    cli($binary, $consumer, $environment, ['add', 'Release output stays readable.', '--category=fixed', '--type=patch', '--name=plain-history.md']);
+    cli(
+        $binary,
+        $consumer,
+        $environment,
+        ['add', 'Release output stays readable.', '--category=fixed', '--type=patch', '--name=plain-history.md'],
+    );
     $preview = summary(cli($binary, $consumer, $environment, ['version', '--dry-run', '--source=tags']));
     verify('0.0.1' === $preview['next_version'], 'Non-Git preview did not calculate its synthetic initial patch.');
     verify(!is_file($consumer . '/CHANGELOG.md'), 'Non-Git preview wrote central history.');
@@ -338,14 +603,27 @@ function exerciseNonGit(string $installation, string $consumer, array $environme
     verify(['CHANGELOG.md'] === array_keys($files), 'Non-Git consolidation left a technical file in the consumer.');
     $central = file_get_contents($consumer . '/CHANGELOG.md');
     verify(!str_contains($central, 'fast-forward-changelog:'), 'Non-Git history includes synthetic metadata.');
-    verify($preview['notes'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'], 'Non-Git default notes changed planned Markdown.');
+    verify(
+        $preview['notes'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'],
+        'Non-Git default notes changed planned Markdown.',
+    );
     $journals = glob($environment['TMPDIR'] . '/fast-forward-changelog/*/release-plan.json');
     verify([] === $journals, 'Successful non-Git application retained a recovery journal.');
     fwrite(STDOUT, "Non-Git clean consolidation PASS: {$consumer}\n");
 }
 
 try {
-    foreach (['home', 'tmp', 'composer-cache', 'local-composer', 'global-composer', 'local-installation', 'local-consumer', 'global-consumer', 'package'] as $name) {
+    foreach ([
+        'home',
+        'tmp',
+        'composer-cache',
+        'local-composer',
+        'global-composer',
+        'local-installation',
+        'local-consumer',
+        'global-consumer',
+        'package',
+    ] as $name) {
         mkdir($fixtureRoot . '/' . $name, 0700, true);
     }
     $localEnv = environment($fixtureRoot, $fixtureRoot . '/local-composer');
@@ -356,20 +634,42 @@ try {
         'require' => ['fast-forward/changelog' => 'dev-main'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];
     $local = $fixtureRoot . '/local-installation';
     $global = $fixtureRoot . '/global-composer';
-    file_put_contents($local . '/composer.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
-    file_put_contents($global . '/composer.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    file_put_contents(
+        $local . '/composer.json',
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+    );
+    file_put_contents(
+        $global . '/composer.json',
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+    );
     fwrite(STDOUT, "Packaging fixtures: {$fixtureRoot}\nInstalling local runtime...\n");
-    execute(['composer', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'], $local, $localEnv);
+    execute([
+        'composer', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'],
+        $local,
+        $localEnv,
+    );
     execute(['composer', 'check-platform-reqs', '--no-dev'], $local, $localEnv);
     runtimeGraph($local);
     exercise($local, $fixtureRoot . '/local-consumer', $localEnv);
     exerciseNonGit($local, $fixtureRoot . '/non-git-consumer', $localEnv);
     fwrite(STDOUT, "Installing native Composer global runtime...\n");
-    execute(['composer', 'global', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'], $fixtureRoot . '/global-consumer', $globalEnv);
+    execute([
+        'composer', 'global', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'],
+        $fixtureRoot . '/global-consumer',
+        $globalEnv,
+    );
     execute(['composer', 'global', 'check-platform-reqs', '--no-dev'], $fixtureRoot . '/global-consumer', $globalEnv);
     runtimeGraph($global);
     exercise($global, $fixtureRoot . '/global-consumer', $globalEnv);
-    fwrite(STDOUT, sprintf("Packaging PASS: %d assertions, %d commands; local/global Composer installations and Git consumers are retained only at %s. No real API/tag/release operation ran.\n", $assertions, $commands, $fixtureRoot));
+    fwrite(
+        STDOUT,
+        sprintf(
+            "Packaging PASS: %d assertions, %d commands; local/global Composer installations and Git consumers are retained only at %s. No real API/tag/release operation ran.\n",
+            $assertions,
+            $commands,
+            $fixtureRoot,
+        ),
+    );
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\nFixture retained for diagnosis: " . $fixtureRoot . "\n");
     exit(1);

@@ -94,7 +94,10 @@ final class ReleaseApplierTest extends TestCase
         self::assertSame([], $state['operations']);
         self::assertSame('before', $state['central']);
         self::assertNull($state['receipt']);
-        self::assertSame(['/consumer/.changelog/a.md' => 'alpha', '/consumer/.changelog/b.md' => 'beta'], $state['fragments']);
+        self::assertSame([
+            '/consumer/.changelog/a.md' => 'alpha', '/consumer/.changelog/b.md' => 'beta'],
+            $state['fragments'],
+        );
         self::assertSame(1, $state['input_evidence_checks']);
         self::assertSame(1, $state['releases']);
     }
@@ -102,7 +105,9 @@ final class ReleaseApplierTest extends TestCase
     /** An empty plan MUST be a no-op and MUST not touch I/O, a lock or Git. */
     public function testNoChangePlanDoesNotConsultCollaborators(): void
     {
-        $plan = $this->plan(['nextVersion' => null, 'impact' => null, 'historicalVersions' => [], 'originalChangelog' => 'same', 'changelogContents' => 'same']);
+        $plan = $this->plan(
+            ['nextVersion' => null, 'impact' => null, 'historicalVersions' => [], 'originalChangelog' => 'same', 'changelogContents' => 'same'],
+        );
         $state = $this->state($plan);
         $applier = $this->applier($plan, $state);
         self::assertFalse($applier->apply($plan));
@@ -234,7 +239,10 @@ final class ReleaseApplierTest extends TestCase
         self::assertSame([], $state['operations']);
         $state['fail_write'] = null;
         self::assertTrue($applier->apply($plan));
-        self::assertSame([['write', $plan->receiptPath], ['write', $plan->changelogPath], ['remove', array_keys($plan->consumed)]], $state['operations']);
+        self::assertSame(
+            [['write', $plan->receiptPath], ['write', $plan->changelogPath], ['remove', array_keys($plan->consumed)]],
+            $state['operations'],
+        );
         self::assertSame([], $state['fragments']);
         self::assertSame(2, $state['releases']);
     }
@@ -315,8 +323,16 @@ final class ReleaseApplierTest extends TestCase
     /** A resumed plan can outlive a scoped release commit if its original base remains an ancestor. */
     public function testResumingUsesBaseAncestryAndCompleteApprovedConsumedSet(): void
     {
-        $plan = $this->plan(['resuming' => true, 'originalChangelog' => 'after', 'originalReceipt' => 'approved receipt']);
-        $state = $this->state($plan, ['central' => 'after', 'receipt' => 'approved receipt', 'head' => str_repeat('b', 40), 'fragments' => ['/consumer/.changelog/b.md' => 'beta']]);
+        $plan = $this->plan(
+            ['resuming' => true, 'originalChangelog' => 'after', 'originalReceipt' => 'approved receipt'],
+        );
+        $state = $this->state(
+            $plan,
+            ['central' => 'after', 'receipt' => 'approved receipt', 'head' => str_repeat(
+                'b',
+                40,
+            ), 'fragments' => ['/consumer/.changelog/b.md' => 'beta']],
+        );
         self::assertTrue($this->applier($plan, $state)->apply($plan));
         self::assertSame([['remove', ['/consumer/.changelog/b.md']]], $state['operations']);
         self::assertSame(0, $state['head_reads']);
@@ -325,9 +341,13 @@ final class ReleaseApplierTest extends TestCase
 
     /** Resume MUST reject unrelated history, changed central or changed original receipt. */
     #[DataProvider('resumeFailures')]
-    public function testResumeRequiresOriginalHistoryAndBothApprovedDurableOutputs(array $changes, string $diagnostic): void
-    {
-        $plan = $this->plan(['resuming' => true, 'originalChangelog' => 'after', 'originalReceipt' => 'approved receipt']);
+    public function testResumeRequiresOriginalHistoryAndBothApprovedDurableOutputs(
+        array $changes,
+        string $diagnostic,
+    ): void {
+        $plan = $this->plan(
+            ['resuming' => true, 'originalChangelog' => 'after', 'originalReceipt' => 'approved receipt'],
+        );
         $state = $this->state($plan, array_replace(['central' => 'after', 'receipt' => 'approved receipt'], $changes));
         try {
             $this->applier($plan, $state)->apply($plan);
@@ -350,8 +370,13 @@ final class ReleaseApplierTest extends TestCase
     /** Historical maintenance without a Git repository MUST write both outputs without removing anything. */
     public function testMaintenanceAndPreviouslyAbsentCentralHaveNoGitOrFragmentMutation(): void
     {
-        $plan = $this->plan(['baseSha' => null, 'nextVersion' => null, 'impact' => null, 'consumed' => [], 'originalChangelog' => null]);
-        $state = $this->state($plan, ['central' => null, 'fragments' => ['/consumer/.changelog/.invalid.md' => 'invalid pending']]);
+        $plan = $this->plan(
+            ['baseSha' => null, 'nextVersion' => null, 'impact' => null, 'consumed' => [], 'originalChangelog' => null],
+        );
+        $state = $this->state(
+            $plan,
+            ['central' => null, 'fragments' => ['/consumer/.changelog/.invalid.md' => 'invalid pending']],
+        );
         self::assertTrue($this->applier($plan, $state)->apply($plan));
         self::assertSame([['write', $plan->receiptPath], ['write', $plan->changelogPath]], $state['operations']);
         self::assertSame(0, $state['head_reads']);
@@ -367,7 +392,10 @@ final class ReleaseApplierTest extends TestCase
         $plan = $this->plan(['resuming' => true, 'originalReceipt' => 'approved receipt']);
         $state = $this->state($plan, ['receipt' => 'approved receipt']);
         self::assertTrue($this->applier($plan, $state)->apply($plan));
-        self::assertSame([['write', $plan->changelogPath], ['remove', array_keys($plan->consumed)]], $state['operations']);
+        self::assertSame(
+            [['write', $plan->changelogPath], ['remove', array_keys($plan->consumed)]],
+            $state['operations'],
+        );
         self::assertSame(2, $state['ancestor_reads']);
         self::assertSame('after', $state['central']);
     }
@@ -392,8 +420,13 @@ final class ReleaseApplierTest extends TestCase
         return new ReleasePlan(...array_replace([
             'options' => new ReleaseOptions('/consumer'), 'id' => str_repeat('f', 64), 'baseSha' => str_repeat('a', 40),
             'currentVersion' => '1.0.0', 'nextVersion' => '1.0.1', 'impact' => 'patch',
-            'consumed' => ['/consumer/.changelog/a.md' => hash('sha256', 'alpha'), '/consumer/.changelog/b.md' => hash('sha256', 'beta')],
-            'historicalVersions' => ['0.1.0'], 'changelogPath' => '/consumer/CHANGELOG.md', 'originalChangelog' => 'before',
+            'consumed' => ['/consumer/.changelog/a.md' => hash('sha256', 'alpha'), '/consumer/.changelog/b.md' => hash(
+                'sha256',
+                'beta',
+            )],
+            'historicalVersions' => [
+                '0.1.0',
+            ], 'changelogPath' => '/consumer/CHANGELOG.md', 'originalChangelog' => 'before',
             'changelogContents' => 'after', 'notes' => "Exact  notes\n", 'receiptPath' => '/consumer/.git/changelog-release-plan.json',
             'originalReceipt' => null, 'receiptContents' => 'approved receipt', 'resuming' => false,
         ], $changes));
@@ -422,23 +455,38 @@ final class ReleaseApplierTest extends TestCase
             'consumed' => [], 'notes' => $approved->notes, 'notes_sha256' => hash('sha256', $approved->notes),
             'changelog_contents' => $approved->changelogContents,
             'after_changelog_sha256' => hash('sha256', $approved->changelogContents),
-            'before_changelog_sha256' => ($approved->resuming && 'after' === $approved->originalChangelog) ? hash('sha256', 'before') : (null === $approved->originalChangelog ? null : hash('sha256', $approved->originalChangelog)),
+            'before_changelog_sha256' => ($approved->resuming && 'after' === $approved->originalChangelog) ? hash(
+                'sha256',
+                'before',
+            ) : (null === $approved->originalChangelog ? null : hash(
+                'sha256',
+                $approved->originalChangelog,
+            )),
         ]);
         foreach ($approved->consumed as $path => $hash) {
             $data['consumed'][substr($path, strlen('/consumer/'))] = $hash;
         }
         $codec = $this->createStub(ReceiptCodecInterface::class);
-        $codec->method('decode')->willReturnCallback(static function (string $contents) use ($approved, $data, &$state): ReleaseReceipt {
+        $codec->method('decode')->willReturnCallback(static function (string $contents) use (
+            $approved,
+            $data,
+            &$state
+        ): ReleaseReceipt {
             self::assertSame($approved->receiptContents, $contents);
             ++$state['codec_reads'];
+
             return new ReleaseReceipt($data);
         });
         $files = $this->createStub(ManagedFileStoreInterface::class);
         $files->method('read')->willReturnCallback(static function (string $path) use ($approved, &$state): ?string {
             ++$state['managed_reads'];
+
             return $path === $approved->changelogPath ? $state['central'] : $state['receipt'];
         });
-        $files->method('write')->willReturnCallback(static function (string $path, string $contents) use ($approved, &$state): void {
+        $files->method('write')->willReturnCallback(static function (string $path, string $contents) use (
+            $approved,
+            &$state
+        ): void {
             if ($path === $state['fail_write']) {
                 throw new RuntimeException('disk failure at ' . $path);
             }
@@ -461,15 +509,18 @@ final class ReleaseApplierTest extends TestCase
         $fragments = $this->createStub(ChangesetStoreInterface::class);
         $fragments->method('lockResource')->willReturnCallback(static function (string $directory): string {
             self::assertSame('/consumer/.changelog', $directory);
+
             return 'shared directory resource';
         });
         $fragments->method('paths')->willReturnCallback(static function (string $directory) use (&$state): ?array {
             self::assertSame('/consumer/.changelog', $directory);
             ++$state['inventory_reads'];
+
             return $state['unsafe_directory'] ? null : array_keys($state['fragments']);
         });
         $fragments->method('read')->willReturnCallback(static function (string $path) use (&$state): ?string {
             ++$state['fragment_reads'];
+
             return $state['fragments'][$path];
         });
         $fragments->method('remove')->willReturnCallback(static function (array $paths) use (&$state): void {
@@ -482,39 +533,63 @@ final class ReleaseApplierTest extends TestCase
             }
         });
         $git = $this->createMock(GitRepositoryInterface::class);
-        $git->method('resolveRef')->willReturnCallback(static function (string $directory, string $reference) use (&$state): string {
+        $git->method('resolveRef')->willReturnCallback(static function (string $directory, string $reference) use (
+            &$state
+        ): string {
             self::assertSame('/consumer', $directory);
             self::assertSame('HEAD', $reference);
             ++$state['head_reads'];
+
             return $state['head'];
         });
-        $git->method('isAncestor')->willReturnCallback(static function (string $directory, string $ancestor, string $descendant) use ($approved, &$state): bool {
-            self::assertSame('/consumer', $directory);
-            self::assertSame($approved->baseSha, $ancestor);
-            self::assertSame('HEAD', $descendant);
-            ++$state['ancestor_reads'];
-            return $state['ancestor'];
-        });
+        $git->method('isAncestor')->willReturnCallback(
+            static function (string $directory, string $ancestor, string $descendant) use ($approved, &$state): bool {
+                self::assertSame('/consumer', $directory);
+                self::assertSame($approved->baseSha, $ancestor);
+                self::assertSame('HEAD', $descendant);
+                ++$state['ancestor_reads'];
+
+                return $state['ancestor'];
+            },
+        );
         $git->expects(self::never())->method('commitFragment');
         $lock = $this->createStub(SharedLockInterface::class);
         $lock->method('acquire')->willReturnCallback(static function (bool $blocking) use (&$state): bool {
             self::assertTrue($blocking);
+
             return $state['acquired'];
         });
         $lock->method('release')->willReturnCallback(static function () use (&$state): void {
             ++$state['releases'];
         });
         $locks = $this->createStub(LockFactory::class);
-        $locks->method('createLock')->willReturnCallback(static function (string $resource) use ($lock, &$state): SharedLockInterface {
+        $locks->method('createLock')->willReturnCallback(static function (string $resource) use (
+            $lock,
+            &$state
+        ): SharedLockInterface {
             self::assertSame('shared directory resource', $resource);
             ++$state['lock_constructions'];
+
             return $lock;
         });
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException($message, previous: $previous));
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException($message, previous: $previous));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException(
+                $message,
+                previous: $previous,
+            ),
+        );
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException(
+                $message,
+                previous: $previous,
+            ),
+        );
         $inputs = $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
-        $inputs->method('validate')->willReturnCallback(static function (ReleasePlan $received) use ($approved, &$state): void {
+        $inputs->method('validate')->willReturnCallback(static function (ReleasePlan $received) use (
+            $approved,
+            &$state
+        ): void {
             self::assertSame($approved, $received);
             ++$state['input_evidence_checks'];
             if ($state['input_evidence_failure']) {
@@ -523,6 +598,7 @@ final class ReleaseApplierTest extends TestCase
         });
         $journals = $this->createStub(ReleaseJournalPathResolverInterface::class);
         $journals->method('resolve')->willReturn('/consumer/.git/changelog-release-plan.json');
+
         return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $exceptions, $inputs, $journals);
     }
 }

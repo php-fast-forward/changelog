@@ -22,5 +22,11 @@ use FastForward\Changelog\Publication\PublicationEvidence;
 interface PublicationEvidenceFactoryInterface
 {
     /** Retains the validated target identity, central notes and repository selection. */
-    public function create(string $sha, ?string $version, ?string $tag, string $notes, ?string $repository): PublicationEvidence;
+    public function create(
+        string $sha,
+        ?string $version,
+        ?string $tag,
+        string $notes,
+        ?string $repository,
+    ): PublicationEvidence;
 }

@@ -39,7 +39,10 @@ final class GitHubEvidenceTest extends TestCase
         self::assertTrue(GitHubEvidence::sha(str_repeat('a', 40)));
         self::assertTrue(GitHubEvidence::sha(str_repeat('b', 64)));
         self::assertFalse(GitHubEvidence::sha('aaaaaaa'));
-        self::assertSame('/repos/owner/project/contents/.changelog/f%20name.md?ref=' . str_repeat('a', 40), GitHubEvidence::contentsPath('owner/project', '.changelog/f name.md', str_repeat('a', 40)));
+        self::assertSame(
+            '/repos/owner/project/contents/.changelog/f%20name.md?ref=' . str_repeat('a', 40),
+            GitHubEvidence::contentsPath('owner/project', '.changelog/f name.md', str_repeat('a', 40)),
+        );
     }
 
     #[Test]
@@ -57,7 +60,13 @@ final class GitHubEvidenceTest extends TestCase
     #[Test]
     public function separatesReadPolicyForForksFromPrivilegedWritePolicy(): void
     {
-        $pr = ['number' => 2, 'state' => 'open', 'base' => ['repo' => ['id' => 5, 'full_name' => 'Owner/Project'], 'sha' => str_repeat('b', 40)], 'head' => ['repo' => ['id' => 5, 'full_name' => 'owner/project'], 'sha' => str_repeat('a', 40), 'ref' => 'safe/branch']];
+        $pr = ['number' => 2, 'state' => 'open', 'base' => ['repo' => ['id' => 5, 'full_name' => 'Owner/Project'], 'sha' => str_repeat(
+            'b',
+            40,
+        )], 'head' => ['repo' => ['id' => 5, 'full_name' => 'owner/project'], 'sha' => str_repeat(
+            'a',
+            40,
+        ), 'ref' => 'safe/branch']];
         self::assertTrue(GitHubEvidence::pullRequest($pr, 'owner/project', 2));
         $pr['head']['repo'] = ['id' => 6, 'full_name' => 'fork/project'];
         self::assertFalse(GitHubEvidence::pullRequest($pr, 'owner/project', 2));

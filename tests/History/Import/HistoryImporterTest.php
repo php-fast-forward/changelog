@@ -35,7 +35,15 @@ final class HistoryImporterTest extends TestCase
     {
         $importer = $this->importer();
         self::assertSame('0.0.0', $importer->currentVersion([]));
-        self::assertSame('2.0.0', $importer->currentVersion([$this->tag('release/1.0.0'), $this->tag('release/2.0.0'), $this->tag('v9.0.0'), $this->tag('release/3.0.0-rc.1')], 'release/'));
+        self::assertSame(
+            '2.0.0',
+            $importer->currentVersion([
+                $this->tag('release/1.0.0'),
+                $this->tag('release/2.0.0'),
+                $this->tag('v9.0.0'),
+                $this->tag('release/3.0.0-rc.1'),
+            ], 'release/'),
+        );
     }
 
     #[Test]
@@ -55,7 +63,12 @@ final class HistoryImporterTest extends TestCase
     {
         $tags = [$this->tag('v1.2.3', '2020-01-01', 'annotated-tag'), $this->tag('v1.10.0', '1999-01-01', 'commit'),
             $this->tag('v2.0.0-beta.1'), $this->tag('other3.0.0'), $this->tag('v01.0.0'), $this->tag('vv1.0.0')];
-        $result = $this->importer()->import(new HistoryDocument(), new ReleaseOptions('/consumer', source: $source), $this->template(), $tags);
+        $result = $this->importer()->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', source: $source),
+            $this->template(),
+            $tags,
+        );
         self::assertSame('1.10.0', $result->currentVersion);
         self::assertSame(['1.10.0', '1.2.3'], $result->missingVersions);
         self::assertNull($result->document->getRelease('1.10.0')->getDate());
@@ -69,10 +82,25 @@ final class HistoryImporterTest extends TestCase
     public function retainsExistingSectionObjectsOrderDescriptionsMetadataAndFooter(): void
     {
         $pending = new HistoryRelease('unreleased', null, null, 'pending', 'heading');
-        $old = new HistoryRelease('1.0.0', '2020-01-01', 'manual', 'original raw notes', 'original heading', 'original ending');
+        $old = new HistoryRelease(
+            '1.0.0',
+            '2020-01-01',
+            'manual',
+            'original raw notes',
+            'original heading',
+            'original ending',
+        );
         $document = new HistoryDocument([$pending, $old], 'raw prefix', 'raw refs and footer');
-        $result = $this->importer()->import($document, new ReleaseOptions('/consumer', source: 'tags'), $this->template(), [$this->tag('v1.0.0'), $this->tag('v2.0.0'), $this->tag('v0.5.0')]);
-        self::assertSame([$pending, $result->document->getRelease('2.0.0'), $old, $result->document->getRelease('0.5.0')], $result->document->getReleases());
+        $result = $this->importer()->import(
+            $document,
+            new ReleaseOptions('/consumer', source: 'tags'),
+            $this->template(),
+            [$this->tag('v1.0.0'), $this->tag('v2.0.0'), $this->tag('v0.5.0')],
+        );
+        self::assertSame(
+            [$pending, $result->document->getRelease('2.0.0'), $old, $result->document->getRelease('0.5.0')],
+            $result->document->getReleases(),
+        );
         self::assertSame(['2.0.0', '0.5.0'], $result->missingVersions);
         self::assertSame('raw prefix', $result->document->getPrefix());
         self::assertSame('raw refs and footer', $result->document->getReferences());
@@ -83,10 +111,30 @@ final class HistoryImporterTest extends TestCase
     public function stableComparisonSupportsLargeNumericComponentsBuildMetadataAndEmptyPrefix(): void
     {
         $tags = [$this->tag('1.0.0+build.a'), $this->tag('1.0.0+build.b'), $this->tag('18446744073709551615.0.0'),
-            $this->tag('18446744073709551616.0.0'), $this->tag('2.0.0'), $this->tag('2.1.0'), $this->tag('2.1.1'), $this->tag('v99.0.0')];
-        $result = $this->importer()->import(new HistoryDocument(), new ReleaseOptions('/consumer', tagPrefix: '', source: 'tags'), $this->template(), $tags);
+            $this->tag('18446744073709551616.0.0'), $this->tag('2.0.0'), $this->tag('2.1.0'), $this->tag(
+                '2.1.1',
+            ), $this->tag(
+                'v99.0.0',
+            )];
+        $result = $this->importer()->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', tagPrefix: '', source: 'tags'),
+            $this->template(),
+            $tags,
+        );
         self::assertSame('18446744073709551616.0.0', $result->currentVersion);
-        self::assertSame(['18446744073709551616.0.0', '18446744073709551615.0.0', '2.1.1', '2.1.0', '2.0.0', '1.0.0+build.b', '1.0.0+build.a'], $result->missingVersions);
+        self::assertSame(
+            [
+                '18446744073709551616.0.0',
+                '18446744073709551615.0.0',
+                '2.1.1',
+                '2.1.0',
+                '2.0.0',
+                '1.0.0+build.b',
+                '1.0.0+build.a',
+            ],
+            $result->missingVersions,
+        );
     }
 
     #[Test]
@@ -100,7 +148,12 @@ final class HistoryImporterTest extends TestCase
             $this->release('v2.0.0', 'draft', 'invalid', true),
             $this->release('v3.0.0', 'prerelease', 'invalid', false, true),
         ]);
-        $result = $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0', '2020-01-01', 'annotated-tag'), $this->tag('v2.0.0'), $this->tag('v3.0.0')]);
+        $result = $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0', '2020-01-01', 'annotated-tag'), $this->tag('v2.0.0'), $this->tag('v3.0.0')],
+        );
         self::assertSame('3.0.0', $result->currentVersion);
         self::assertSame($raw, $result->document->getRelease('1.0.0')->getBody());
         self::assertSame('2026-10-02', $result->document->getRelease('1.0.0')->getDate());
@@ -116,8 +169,15 @@ final class HistoryImporterTest extends TestCase
     public function missingGithubNotesUseTemplateTextAndKeepObservedPublicationDate(?string $body): void
     {
         $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::once())->method('paginate')->willReturn([$this->release('v1.0.0', $body, '2026-10-03T02:30:00.123Z')]);
-        $result = $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project', source: 'github'), $this->template(), [$this->tag('v1.0.0')]);
+        $github->expects(self::once())->method('paginate')->willReturn(
+            [$this->release('v1.0.0', $body, '2026-10-03T02:30:00.123Z')],
+        );
+        $result = $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project', source: 'github'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
         self::assertSame("No notes available.\n", $result->document->getRelease('1.0.0')->getBody());
         self::assertSame('2026-10-03', $result->document->getRelease('1.0.0')->getDate());
     }
@@ -127,7 +187,12 @@ final class HistoryImporterTest extends TestCase
     {
         $release = new HistoryRelease('1.0.0', null, null, 'old body', 'old heading');
         $document = new HistoryDocument([$release]);
-        $result = $this->importer()->import($document, new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0')]);
+        $result = $this->importer()->import(
+            $document,
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
         self::assertSame($document, $result->document);
         self::assertSame([], $result->missingVersions);
         self::assertSame('1.0.0', $result->currentVersion);
@@ -137,7 +202,12 @@ final class HistoryImporterTest extends TestCase
     public function githubSourceWithoutRepositoryIsAnExplicitError(): void
     {
         $this->expectExceptionMessage('requires an explicit repository');
-        $this->importer()->import(new HistoryDocument(), new ReleaseOptions('/consumer', source: 'github'), $this->template(), []);
+        $this->importer()->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', source: 'github'),
+            $this->template(),
+            [],
+        );
     }
 
     #[Test]
@@ -157,23 +227,40 @@ final class HistoryImporterTest extends TestCase
     public function duplicateStableTagsAreAmbiguousEvenWhenTheyPointToSameSha(): void
     {
         $this->expectExceptionMessage('same canonical stable version');
-        $this->importer()->import(new HistoryDocument(), new ReleaseOptions('/consumer'), $this->template(), [$this->tag('v1.0.0'), $this->tag('v1.0.0')]);
+        $this->importer()->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer'),
+            $this->template(),
+            [$this->tag('v1.0.0'), $this->tag('v1.0.0')],
+        );
     }
 
     #[Test]
     public function malformedRepositoryFailsBeforeNetwork(): void
     {
         $this->expectExceptionMessage('must use owner/name');
-        $this->importer()->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project/evil'), $this->template(), [$this->tag('v1.0.0')]);
+        $this->importer()->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project/evil'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
     }
 
     #[Test]
     public function autoDoesNotHidePermissionOrTransportFailure(): void
     {
         $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::once())->method('paginate')->willThrowException(new RuntimeException('GitHub API request failed with HTTP 403.'));
+        $github->expects(self::once())->method('paginate')->willThrowException(
+            new RuntimeException('GitHub API request failed with HTTP 403.'),
+        );
         $this->expectExceptionMessage('HTTP 403');
-        $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0')]);
+        $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
     }
 
     #[Test]
@@ -185,7 +272,12 @@ final class HistoryImporterTest extends TestCase
         $github = $this->createMock(GitHubClientInterface::class);
         $github->expects(self::once())->method('paginate')->willReturn([$record]);
         $this->expectExceptionMessage('invalid record');
-        $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0')]);
+        $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
     }
 
     #[Test]
@@ -195,7 +287,12 @@ final class HistoryImporterTest extends TestCase
         $release = $this->release('v1.0.0');
         $github->expects(self::once())->method('paginate')->willReturn([$release, $release]);
         $this->expectExceptionMessage('Multiple published');
-        $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0')]);
+        $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
     }
 
     #[Test]
@@ -212,7 +309,12 @@ final class HistoryImporterTest extends TestCase
         $github = $this->createMock(GitHubClientInterface::class);
         $github->expects(self::once())->method('paginate')->willReturn([$this->release('v1.0.0', 'body', $date)]);
         $this->expectExceptionMessage('valid explicit ISO timestamp');
-        $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0', '2020-01-01', 'annotated-tag')]);
+        $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0', '2020-01-01', 'annotated-tag')],
+        );
     }
 
     #[Test]
@@ -223,7 +325,12 @@ final class HistoryImporterTest extends TestCase
         $record['body'] = 42;
         $github->expects(self::once())->method('paginate')->willReturn([$record]);
         $this->expectExceptionMessage('string or null');
-        $this->importer($github)->import(new HistoryDocument(), new ReleaseOptions('/consumer', repository: 'owner/project'), $this->template(), [$this->tag('v1.0.0')]);
+        $this->importer($github)->import(
+            new HistoryDocument(),
+            new ReleaseOptions('/consumer', repository: 'owner/project'),
+            $this->template(),
+            [$this->tag('v1.0.0')],
+        );
     }
 
     private function importer(?GitHubClientInterface $github = null): HistoryImporter
@@ -233,13 +340,35 @@ final class HistoryImporterTest extends TestCase
             $github->expects(self::never())->method('paginate');
         }
         $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
-        $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
+        $documents->method('create')->willReturnCallback(
+            static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument(
+                $releases,
+                $prefix,
+                $references,
+            ),
+        );
         $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
-        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease($version, $date, $source, $body));
+        $releases->method('create')->willReturnCallback(
+            static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease(
+                $version,
+                $date,
+                $source,
+                $body,
+            ),
+        );
         $results = $this->createStub(HistoryImportResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(static fn(HistoryDocument $document, array $missing, string $current): HistoryImportResult => new HistoryImportResult($document, $missing, $current));
+        $results->method('create')->willReturnCallback(
+            static fn(HistoryDocument $document, array $missing, string $current): HistoryImportResult => new HistoryImportResult(
+                $document,
+                $missing,
+                $current,
+            ),
+        );
         $errors = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $errors->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        $errors->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
+
         return new HistoryImporter($github, $documents, $releases, $results, $errors);
     }
 
@@ -247,6 +376,7 @@ final class HistoryImporterTest extends TestCase
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('missingNotes')->willReturn('No notes available.');
+
         return $template;
     }
 
@@ -255,8 +385,13 @@ final class HistoryImporterTest extends TestCase
         return ['name' => $name, 'sha' => str_repeat('a', 40), 'date' => $date, 'date_source' => $source];
     }
 
-    private function release(string $tag, ?string $body = 'notes', ?string $date = '2026-10-03T00:00:00Z', bool $draft = false, bool $prerelease = false): array
-    {
+    private function release(
+        string $tag,
+        ?string $body = 'notes',
+        ?string $date = '2026-10-03T00:00:00Z',
+        bool $draft = false,
+        bool $prerelease = false,
+    ): array {
         return ['tag_name' => $tag, 'draft' => $draft, 'prerelease' => $prerelease, 'body' => $body, 'published_at' => $date];
     }
 }

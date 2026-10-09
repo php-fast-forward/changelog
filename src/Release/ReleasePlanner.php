@@ -90,6 +90,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $inventory = null === $receipt->data['next_version'] ? null : $this->inventory($fragmentPath);
             $this->assertResumable($options, $receipt, $original, $inventory);
             $this->inputs->validateTemplate($options, $receipt->data['base_sha']);
+
             return $this->plans->resume($options, $receipt, $changelogPath, $original, $receiptPath, $receiptBytes);
         }
         $this->inputs->validateTemplate($options, $baseSha);
@@ -109,25 +110,44 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $consumed = [];
         $notes = '';
         if (null !== $inventory && [] !== $inventory->changesets) {
-            $this->assertPublishedHistory($document, $currentVersion, in_array($options->tagPrefix . $currentVersion, array_column($tags, 'name'), true));
+            $this->assertPublishedHistory(
+                $document,
+                $currentVersion,
+                in_array($options->tagPrefix . $currentVersion, array_column($tags, 'name'), true),
+            );
             $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
             if (! $resolved->isValid()) {
-                throw $this->exceptions->invalid('Cannot calculate the next version: ' . implode('; ', $resolved->errors));
+                throw $this->exceptions->invalid(
+                    'Cannot calculate the next version: ' . implode('; ', $resolved->errors),
+                );
             }
             $next = $resolved->nextVersion;
             if (null !== $document->getRelease($next)) {
-                throw $this->exceptions->failure('The next version already has a local section without a matching published tag: ' . $next);
+                throw $this->exceptions->failure(
+                    'The next version already has a local section without a matching published tag: ' . $next,
+                );
             }
             $impact = $resolved->impact->value;
             $consumed = $inventory->hashes;
             $notes = $this->notesRenderer->render($inventory->changesets, $template, $options->repository);
-            $document = $this->consolidator->promote($document, $next, $this->clock->now()->setTimezone($this->timezone)->format('Y-m-d'), $notes, $template);
+            $document = $this->consolidator->promote(
+                $document,
+                $next,
+                $this->clock->now()->setTimezone($this->timezone)->format('Y-m-d'),
+                $notes,
+                $template,
+            );
         }
         $changed = 'format' === $operation || null !== $next || [] !== $missing;
-        $contents = $changed ? $this->history->render($document, $template, 'format' !== $operation) : ($original ?? '');
+        $contents = $changed ? $this->history->render(
+            $document,
+            $template,
+            'format' !== $operation,
+        ) : ($original ?? '');
         if (null !== $next) {
             $notes = $this->history->notes($this->history->parse($contents, $template), $next);
         }
+
         return $this->plans->create(
             $options,
             $baseSha,
@@ -151,7 +171,11 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         $published = explode('.', explode('+', $currentVersion, 2)[0]);
         foreach ($document->getReleases() as $release) {
             $version = $release->getVersion();
-            if (1 !== preg_match('/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $version, $matches)) {
+            if (1 !== preg_match(
+                '/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
+                $version,
+                $matches,
+            )) {
                 continue;
             }
             foreach (array_slice($matches, 1, 3) as $index => $component) {
@@ -160,7 +184,9 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                     $comparison = strcmp($component, $published[$index]);
                 }
                 if (! $publishedTag || 0 < $comparison) {
-                    throw $this->exceptions->failure('Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.');
+                    throw $this->exceptions->failure(
+                        'Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.',
+                    );
                 }
                 if (0 > $comparison) {
                     break;
@@ -174,17 +200,27 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
     {
         $inventory = $this->validator->validate($fragmentPath, false, false);
         if (! $inventory->isValid()) {
-            throw $this->exceptions->invalid('Invalid pending fragments: ' . json_encode($inventory->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+            throw $this->exceptions->invalid(
+                'Invalid pending fragments: ' . json_encode(
+                    $inventory->errors,
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+                ),
+            );
         }
         if (count($inventory->hashes) !== count($inventory->changesets)) {
             throw $this->exceptions->failure('Fragment validation must include the exact accepted content hashes.');
         }
+
         return $inventory;
     }
 
     /** Requires an exact before/after state, saved output, notes and settings before recovery. */
-    private function assertResumable(ReleaseOptions $options, ReleaseReceipt $receipt, ?string $contents, ?ValidationReport $inventory): void
-    {
+    private function assertResumable(
+        ReleaseOptions $options,
+        ReleaseReceipt $receipt,
+        ?string $contents,
+        ?ValidationReport $inventory,
+    ): void {
         $data = $receipt->data;
         foreach (['changelog_file' => $options->changelogFile, 'fragment_directory' => $options->fragmentDirectory,
             'locale' => $options->locale, 'template' => $options->template, 'tag_prefix' => $options->tagPrefix,
@@ -204,13 +240,19 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         if (null === $inventory) {
             return;
         }
-        if ($before && $currentHash !== $data['after_changelog_sha256'] && count($inventory->hashes) !== count($data['consumed'])) {
-            throw $this->exceptions->failure('All approved fragments must remain available before writing the pending changelog.');
+        if ($before && $currentHash !== $data['after_changelog_sha256'] && count($inventory->hashes) !== count(
+            $data['consumed'],
+        )) {
+            throw $this->exceptions->failure(
+                'All approved fragments must remain available before writing the pending changelog.',
+            );
         }
         foreach ($inventory->hashes as $path => $hash) {
             $relative = $this->paths->relativePath($path, $options->workingDirectory);
             if (! isset($data['consumed'][$relative]) || ! hash_equals($data['consumed'][$relative], $hash)) {
-                throw $this->exceptions->failure('Recover or publish the pending plan before collecting new or modified fragments: ' . $relative);
+                throw $this->exceptions->failure(
+                    'Recover or publish the pending plan before collecting new or modified fragments: ' . $relative,
+                );
             }
         }
     }

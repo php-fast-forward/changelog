@@ -40,9 +40,20 @@ final class ChangelogCommandLoaderTest extends TestCase
         $container->expects(self::never())->method('get');
         $factory = $this->createMock(LazyCommandFactoryInterface::class);
         $command = $this->createStub(Command::class);
-        $factory->expects(self::once())->method('create')->with('add', [], 'Create one changelog fragment with optional release metadata.', AddCommand::class, $container)->willReturn($command);
+        $factory->expects(self::once())->method('create')->with(
+            'add',
+            [],
+            'Create one changelog fragment with optional release metadata.',
+            AddCommand::class,
+            $container,
+        )->willReturn(
+            $command,
+        );
         $loader = new ChangelogCommandLoader($container, $factory);
-        self::assertSame(['add','check','status','version','notes','publish','backfill','format','github'], $loader->getNames());
+        self::assertSame([
+            'add','check','status','version','notes','publish','backfill','format','github'],
+            $loader->getNames(),
+        );
         self::assertTrue($loader->has('add'));
         self::assertFalse($loader->has('changelog:entry'));
         self::assertFalse($loader->has('unknown'));
@@ -102,10 +113,14 @@ final class ChangelogCommandLoaderTest extends TestCase
         $planner = $this->createMock(ReleasePlannerInterface::class);
         $planner->expects(self::once())->method('plan')->willReturn($plan);
         $status = new StatusCommand($factory, $planner);
-        $container->expects(self::exactly(2))->method('get')->willReturnCallback(static function (string $service) use ($status): object {
+        $container->expects(self::exactly(2))->method('get')->willReturnCallback(static function (string $service) use (
+            $status
+        ): object {
             if (AddCommand::class === $service) {
                 throw new RuntimeException('add graph unavailable');
-            }return $status;
+            }
+
+            return $status;
         });
         $application = new Application('Changelog', 'test');
         $application->setAutoExit(false);
@@ -114,6 +129,9 @@ final class ChangelogCommandLoaderTest extends TestCase
         self::assertSame(1, $tester->run(['command' => 'add','message' => 'test'], ['interactive' => false]));
         self::assertStringContainsString('add graph unavailable', $tester->getDisplay(true));
         self::assertSame(0, $tester->run(['command' => 'status'], ['interactive' => false]));
-        self::assertSame($plan->summary(), json_decode(trim($tester->getDisplay(true)), true, 512, JSON_THROW_ON_ERROR));
+        self::assertSame(
+            $plan->summary(),
+            json_decode(trim($tester->getDisplay(true)), true, 512, JSON_THROW_ON_ERROR),
+        );
     }
 }

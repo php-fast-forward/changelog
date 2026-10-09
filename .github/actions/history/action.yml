@@ -1,63 +1,79 @@
 name: Fast Forward Changelog history
 description: "Preview, verify or apply local historical import/reformatting without publishing."
+
 inputs:
   working-directory:
     description: "Consumer project directory; never the package installation root."
     required: false
     default: "."
+
   fragment-directory:
     description: "Project-relative pending fragment directory."
     required: false
     default: ".changelog"
+
   changelog-file:
     description: "Project-relative central changelog file."
     required: false
     default: "CHANGELOG.md"
+
   locale:
     description: "Structural language; en or pt-BR."
     required: false
     default: "en"
+
   template:
     description: "keep-a-changelog or an explicitly trusted project PHP template."
     required: false
     default: "keep-a-changelog"
+
   base-ref:
     description: "Git revision used by the shared release planner."
     required: false
     default: "HEAD"
+
   tag-prefix:
     description: "Prefix for stable release tags."
     required: false
     default: "v"
+
   repository:
     description: "GitHub owner/name of the consumer repository."
     required: false
     default: "${{ github.repository }}"
+
   source:
     description: "Historical source: auto, github or tags."
     required: false
     default: "auto"
+
   token:
     description: "GitHub token with the minimum permissions required by this operation."
     required: false
     default: "${{ github.token }}"
+
   operation:
     description: "backfill or format."
     required: false
     default: "backfill"
+
   dry-run:
     description: "Plan without filesystem writes."
     required: false
     default: "false"
+
   check:
     description: "Verify already-applied history; mutually exclusive with dry-run."
     required: false
     default: "false"
+
 outputs:
   result:
     description: Complete stable JSON result.
+
   status:
     description: "Operation status; empty when unavailable."
+
 runs:
   using: docker
   image: "../../../Dockerfile"

@@ -46,6 +46,7 @@ final readonly class TemplateResolver implements TemplateResolverInterface
             throw $this->exceptions->invalid('The selected PHP template does not exist: ' . $options->template);
         }
         $overrides = $this->sources->create($path)->toArray();
+
         return $this->templates->create($options->locale, $overrides);
     }
 }

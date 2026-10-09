@@ -21,5 +21,12 @@ use FastForward\Changelog\History\HistoryRelease;
 interface HistoryReleaseFactoryInterface
 {
     /** Creates a strict semantic section, preserving all raw presentation fields. */
-    public function create(string $version, ?string $date = null, ?string $dateSource = null, string $body = '', ?string $heading = null, string $ending = ''): HistoryRelease;
+    public function create(
+        string $version,
+        ?string $date = null,
+        ?string $dateSource = null,
+        string $body = '',
+        ?string $heading = null,
+        string $ending = '',
+    ): HistoryRelease;
 }

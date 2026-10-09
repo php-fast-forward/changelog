@@ -35,7 +35,9 @@ final class GitHubCommandTest extends TestCase
             'automation-actor' => 'app[bot]', 'title' => 'Release <info>literal</info>', 'dry-run' => 'true'];
         $runner->expects(self::once())->method('run')->with('version', $expected)->willReturn(['status' => 'planned']);
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
-        $writer->expects(self::once())->method('write')->with(['status' => 'planned'])->willReturn('{"status":"<info>literal</info>"}');
+        $writer->expects(self::once())->method('write')->with(['status' => 'planned'])->willReturn(
+            '{"status":"<info>literal</info>"}',
+        );
         $tester = new CommandTester(new Command('github', new GitHubCommand($runner, $writer)));
         self::assertSame(0, $tester->execute(['operation' => 'version', '--base-branch' => 'stable',
             '--managed-branch' => 'release/stable', '--automation-actor' => 'app[bot]',
@@ -47,11 +49,22 @@ final class GitHubCommandTest extends TestCase
     public function testHistoryOperationAndFalseValuesRemainExplicit(): void
     {
         $runner = $this->createMock(AutomationRunnerInterface::class);
-        $runner->expects(self::once())->method('run')->with('history', new GitHubInput()->values() + ['operation' => 'format', 'dry-run' => 'false', 'check' => 'true'])->willReturn(['status' => 'planned']);
+        $runner->expects(self::once())->method('run')->with(
+            'history',
+            new GitHubInput()->values() + ['operation' => 'format', 'dry-run' => 'false', 'check' => 'true'],
+        )->willReturn(
+            ['status' => 'planned'],
+        );
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
         $writer->expects(self::once())->method('write')->willReturn('{"status":"planned"}');
         $tester = new CommandTester(new Command('github', new GitHubCommand($runner, $writer)));
-        self::assertSame(0, $tester->execute(['operation' => 'history', '--operation' => 'format', '--dry-run' => 'false', '--check' => 'true'], ['interactive' => false]));
+        self::assertSame(
+            0,
+            $tester->execute(
+                ['operation' => 'history', '--operation' => 'format', '--dry-run' => 'false', '--check' => 'true'],
+                ['interactive' => false],
+            ),
+        );
     }
 
     /** Controlled validation/JSON failures are distinct from failed operations and never write result outputs. */
@@ -63,7 +76,13 @@ final class GitHubCommandTest extends TestCase
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
         $writer->expects(self::never())->method('write');
         $output = $this->createMock(OutputInterface::class);
-        $output->expects(self::once())->method('writeln')->with(json_encode(['error' => $failure->getMessage()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), OutputInterface::OUTPUT_RAW);
+        $output->expects(self::once())->method('writeln')->with(
+            json_encode(
+                ['error' => $failure->getMessage()],
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE,
+            ),
+            OutputInterface::OUTPUT_RAW,
+        );
         self::assertSame($status, new GitHubCommand($runner, $writer)('check', new GitHubInput(), $output));
     }
 
@@ -80,9 +99,14 @@ final class GitHubCommandTest extends TestCase
         $runner = $this->createMock(AutomationRunnerInterface::class);
         $runner->expects(self::once())->method('run')->willReturn(['status' => 'updated']);
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
-        $writer->expects(self::once())->method('write')->willThrowException(new RuntimeException('Output unavailable.'));
+        $writer->expects(self::once())->method('write')->willThrowException(
+            new RuntimeException('Output unavailable.'),
+        );
         $error = $this->createMock(OutputInterface::class);
-        $error->expects(self::once())->method('writeln')->with('{"error":"Output unavailable."}', OutputInterface::OUTPUT_RAW);
+        $error->expects(self::once())->method('writeln')->with(
+            '{"error":"Output unavailable."}',
+            OutputInterface::OUTPUT_RAW,
+        );
         $output = $this->createMock(ConsoleOutputInterface::class);
         $output->expects(self::never())->method('writeln');
         $output->expects(self::once())->method('getErrorOutput')->willReturn($error);

@@ -22,7 +22,9 @@ use Random\Randomizer;
 final readonly class RandomIdentifierGenerator implements IdentifierGeneratorInterface
 {
     /** Captures the randomizer without requesting entropy during composition. */
-    public function __construct(private Randomizer $randomizer) {}
+    public function __construct(
+        private Randomizer $randomizer,
+    ) {}
 
     /** Returns a canonical filename carrying 128 bits of independent entropy. */
     public function generate(): string

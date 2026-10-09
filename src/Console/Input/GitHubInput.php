@@ -23,42 +23,61 @@ final class GitHubInput
 {
     #[MapInput]
     public ReleaseInput $release;
+
     #[Option(description: 'Contribution base revision.')]
     public ?string $since = null;
+
     #[Option(description: 'Explicit trusted PR number.')]
     public ?string $pullRequest = null;
+
     #[Option(description: 'Exclusive generated version branch.')]
     public ?string $managedBranch = null;
+
     #[Option(description: 'Trusted generated-commit Bot.')]
     public ?string $automationActor = null;
+
     #[Option(description: 'Current human-granted contribution waiver label.')]
     public ?string $waiverLabel = null;
+
     #[Option(description: 'Current human-granted history-maintenance label.')]
     public ?string $maintenanceLabel = null;
+
     #[Option(description: 'Exact signed PR head.')]
     public ?string $expectedHeadSha = null;
+
     #[Option(description: 'Comma-separated dependency names.')]
     public ?string $dependencyNames = null;
+
     #[Option(description: 'Verified dependency metadata type.')]
     public ?string $dependencyType = null;
+
     #[Option(description: 'Verified dependency ecosystem.')]
     public ?string $ecosystem = null;
+
     #[Option(description: 'JSON array of verified security alert numbers.')]
     public ?string $securityAlertNumbers = null;
+
     #[Option(description: 'Include development dependencies: true or false.')]
     public ?string $includeDev = null;
+
     #[Option(description: 'Include Actions dependencies: true or false.')]
     public ?string $includeActions = null;
+
     #[Option(description: 'Trusted source release-line branch.')]
     public ?string $baseBranch = null;
+
     #[Option(description: 'Generated version PR title.')]
     public ?string $title = null;
+
     #[Option(description: 'Inspect without remote writes: true or false.')]
     public ?string $dryRun = null;
+
     #[Option(description: 'Exact approved publication commit.')]
     public ?string $targetSha = null;
+
     #[Option(description: 'History operation: backfill or format.')]
     public ?string $operation = null;
+
     #[Option(description: 'Report pending historical maintenance: true or false.')]
     public ?string $check = null;
 
@@ -83,6 +102,7 @@ final class GitHubInput
                 $settings[strtolower(preg_replace('/[A-Z]/', '-$0', $name))] = $value;
             }
         }
+
         return $settings;
     }
 }

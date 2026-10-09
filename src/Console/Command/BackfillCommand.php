@@ -21,11 +21,16 @@ use Symfony\Component\Console\Attribute\MapInput;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /** Import missing historical releases without consuming pending fragments. */
-#[AsCommand(name: 'backfill', description: 'Import missing historical releases without consuming pending fragments.')]
+#[AsCommand(
+    name: 'backfill',
+    description: 'Import missing historical releases without consuming pending fragments.',
+)]
 final readonly class BackfillCommand
 {
     /** Captures the transaction runner without planning or applying a release. */
-    public function __construct(private PlanCommandRunnerInterface $runner) {}
+    public function __construct(
+        private PlanCommandRunnerInterface $runner,
+    ) {}
 
     /** Delegates the selected operation through the shared transaction boundary. */
     public function __invoke(#[MapInput] MutationInput $input, OutputInterface $output): int

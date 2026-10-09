@@ -76,7 +76,12 @@ foreach ($paths as $path) {
         $normalizedSummary = strtolower((string) preg_replace('/[^a-z]/i', '', $summary));
 
         if (strlen($summary) < 20 || $normalizedName === $normalizedSummary || str_contains($doc, '{@inheritdoc}')) {
-            $failures[] = sprintf('%s:%d %s() requires an explanatory contract summary.', $path, $method->getStartLine(), $method->name->toString());
+            $failures[] = sprintf(
+                '%s:%d %s() requires an explanatory contract summary.',
+                $path,
+                $method->getStartLine(),
+                $method->name->toString(),
+            );
         }
     }
 }
@@ -90,4 +95,7 @@ if ([] !== $failures) {
     exit(1);
 }
 
-fwrite(STDOUT, sprintf("PHPDoc summaries verified for %d production methods. Review still checks semantic accuracy.\n", $methods));
+fwrite(
+    STDOUT,
+    sprintf("PHPDoc summaries verified for %d production methods. Review still checks semantic accuracy.\n", $methods),
+);

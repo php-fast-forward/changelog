@@ -26,6 +26,9 @@ final class GitHubClientFactoryTest extends TestCase
         $clients = $this->createMock(HttpClientFactoryInterface::class);
         $clients->expects(self::once())->method('create')->willReturn($http);
         $errors = $this->createStub(GitHubExceptionFactoryInterface::class);
-        self::assertInstanceOf(GitHubClient::class, new GitHubClientFactory($clients, $errors)->create('token', 'https://enterprise.test/api/v3'));
+        self::assertInstanceOf(
+            GitHubClient::class,
+            new GitHubClientFactory($clients, $errors)->create('token', 'https://enterprise.test/api/v3'),
+        );
     }
 }

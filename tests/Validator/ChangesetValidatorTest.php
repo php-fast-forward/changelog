@@ -210,7 +210,9 @@ final class ChangesetValidatorTest extends TestCase
         $reports = $this->prophesize(ValidationReportFactoryInterface::class);
         $expected = new ValidationReport([], [], false);
         $reports->create([], [], false)->willReturn($expected)->shouldBeCalledOnce();
-        $validator = new ChangesetValidator($store->reveal(), $this->prophesize(ChangesetParserInterface::class)->reveal(), $reports->reveal());
+        $validator = new ChangesetValidator($store->reveal(), $this->prophesize(
+            ChangesetParserInterface::class,
+        )->reveal(), $reports->reveal());
         self::assertSame($expected, $validator->validate('/repo/.changelog', false, false));
     }
 

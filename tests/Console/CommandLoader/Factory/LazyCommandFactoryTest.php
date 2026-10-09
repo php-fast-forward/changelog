@@ -16,12 +16,16 @@ use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\CommandTester;
 
-#[AsCommand(name: 'fixture', description: 'Fixture callable.')]
+#[AsCommand(
+    name: 'fixture',
+    description: 'Fixture callable.',
+)]
 final readonly class InvokableFixture
 {
     public function __invoke(OutputInterface $output, #[Argument] string $message, #[Option] bool $flag = false): int
     {
         $output->write($message . ($flag ? ' flagged' : ''));
+
         return 0;
     }
 }
@@ -33,8 +37,16 @@ final class LazyCommandFactoryTest extends TestCase
     public function factoryPreservesMetadataAndResolvesPlainInvokableOnlyOnExecution(): void
     {
         $container = $this->createMock(ContainerInterface::class);
-        $container->expects(self::once())->method('get')->with(InvokableFixture::class)->willReturn(new InvokableFixture());
-        $command = new LazyCommandFactory()->create('fixture', [], 'Fixture callable.', InvokableFixture::class, $container);
+        $container->expects(self::once())->method('get')->with(InvokableFixture::class)->willReturn(
+            new InvokableFixture(),
+        );
+        $command = new LazyCommandFactory()->create(
+            'fixture',
+            [],
+            'Fixture callable.',
+            InvokableFixture::class,
+            $container,
+        );
         self::assertSame('fixture', $command->getName());
         self::assertSame('Fixture callable.', $command->getDescription());
         $tester = new CommandTester($command);

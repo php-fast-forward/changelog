@@ -22,7 +22,10 @@ final class GitHubOutputWriterTest extends TestCase
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::never())->method('appendToFile');
         $result = ['status' => 'valid', 'version' => null, 'details' => ['text' => "<info>literal</info> café\nnext"]];
-        self::assertSame(json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), new GitHubOutputWriter($filesystem)->write($result));
+        self::assertSame(
+            json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            new GitHubOutputWriter($filesystem)->write($result),
+        );
     }
 
     /** One locked append preserves declared names, booleans, counts and the complete stable result. */
@@ -91,7 +94,9 @@ final class GitHubOutputWriterTest extends TestCase
     public function testAppendFailureIsObservable(): void
     {
         $filesystem = $this->createMock(Filesystem::class);
-        $filesystem->expects(self::once())->method('appendToFile')->willThrowException(new RuntimeException('Output unavailable.'));
+        $filesystem->expects(self::once())->method('appendToFile')->willThrowException(
+            new RuntimeException('Output unavailable.'),
+        );
         $this->expectException(RuntimeException::class);
         new GitHubOutputWriter($filesystem, '/runner/output')->write(['status' => 'valid']);
     }

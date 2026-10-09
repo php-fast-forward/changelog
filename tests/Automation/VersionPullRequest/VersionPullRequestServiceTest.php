@@ -66,7 +66,10 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertArrayNotHasKey('committer', $commit);
         self::assertArrayNotHasKey('signature', $commit);
         self::assertStringContainsString('Changelog-Plan: ' . str_repeat('c', 64), $commit['message']);
-        self::assertSame(['ref' => 'refs/heads/changelog/version', 'sha' => str_repeat('c', 40)], $this->writes('refs')[0][2]);
+        self::assertSame([
+            'ref' => 'refs/heads/changelog/version', 'sha' => str_repeat('c', 40)],
+            $this->writes('refs')[0][2],
+        );
         self::assertStringContainsString('does not publish', $this->writes('pulls')[0][2]['body']);
     }
 
@@ -92,7 +95,13 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame(str_repeat('c', 40), $result->headSha);
         self::assertCount(1, $this->writes('pulls'));
         self::assertSame('PATCH', $this->writes('pulls')[0][0]);
-        self::assertSame([['GET', '/repos/owner/project/pulls/7', null]], array_values(array_filter($this->calls, static fn(array $call): bool => 'GET' === $call[0] && str_contains($call[1], '/pulls/'))));
+        self::assertSame(
+            [['GET', '/repos/owner/project/pulls/7', null]],
+            array_values(array_filter(
+                $this->calls,
+                static fn(array $call): bool => 'GET' === $call[0] && str_contains($call[1], '/pulls/'),
+            )),
+        );
         self::assertSame(['GET', '/repos/owner/project/pulls/7', null], array_last($this->calls));
     }
 
@@ -118,7 +127,13 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertStringNotContainsString('super-secret', implode(' ', $result->diagnostics));
         self::assertCount(1, $this->writes('pulls'));
         self::assertSame('PATCH', $this->writes('pulls')[0][0]);
-        self::assertSame([['GET', '/repos/owner/project/pulls/7', null]], array_values(array_filter($this->calls, static fn(array $call): bool => 'GET' === $call[0] && str_contains($call[1], '/pulls/'))));
+        self::assertSame(
+            [['GET', '/repos/owner/project/pulls/7', null]],
+            array_values(array_filter(
+                $this->calls,
+                static fn(array $call): bool => 'GET' === $call[0] && str_contains($call[1], '/pulls/'),
+            )),
+        );
     }
 
     #[Test]
@@ -260,7 +275,19 @@ final class VersionPullRequestServiceTest extends TestCase
     public function invalidOrUntrustedInputsFailBeforeMutation(string $case): void
     {
         $settings = [$case => true];
-        if (in_array($case, ['unowned', 'wrong_bot_creator', 'missing_bot_account', 'wrong_bot_account', 'unexpected_pr', 'pr_head_mismatch', 'duplicate_pr'], true)) {
+        if (in_array(
+            $case,
+            [
+                'unowned',
+                'wrong_bot_creator',
+                'missing_bot_account',
+                'wrong_bot_account',
+                'unexpected_pr',
+                'pr_head_mismatch',
+                'duplicate_pr',
+            ],
+            true,
+        )) {
             $settings['existing'] = true;
         }
         $result = $this->synchronizeFixture($settings);
@@ -310,9 +337,15 @@ final class VersionPullRequestServiceTest extends TestCase
     #[TestWith([null, null, 'unavailable', 'unavailable'])]
     #[TestWith(['true', 'synthetic-super-secret', 'unavailable', 'unavailable'])]
     #[TestWith([1, ['synthetic-super-secret'], 'unavailable', 'unavailable'])]
-    public function rejectedGeneratedCommitDiagnosticPreservesItsShaWithoutLeakingResponse(mixed $verified, mixed $reason, string $expectedVerified, string $expectedReason): void
-    {
-        $result = $this->synchronizeFixture(['unsigned_new_commit' => true, 'commit_verification' => ['verified' => $verified, 'reason' => $reason, 'signature' => 'synthetic-super-secret', 'payload' => 'synthetic-super-secret']]);
+    public function rejectedGeneratedCommitDiagnosticPreservesItsShaWithoutLeakingResponse(
+        mixed $verified,
+        mixed $reason,
+        string $expectedVerified,
+        string $expectedReason,
+    ): void {
+        $result = $this->synchronizeFixture(
+            ['unsigned_new_commit' => true, 'commit_verification' => ['verified' => $verified, 'reason' => $reason, 'signature' => 'synthetic-super-secret', 'payload' => 'synthetic-super-secret']],
+        );
         self::assertSame('conflict', $result->status);
         self::assertStringContainsString('generated-sha=' . str_repeat('c', 40), $result->diagnostics[0]);
         self::assertStringContainsString('create-verification=' . $expectedVerified, $result->diagnostics[0]);
@@ -336,22 +369,51 @@ final class VersionPullRequestServiceTest extends TestCase
 
     private function writes(string $suffix = ''): array
     {
-        return array_values(array_filter($this->calls, static fn(array $call): bool => 'GET' !== $call[0] && str_contains($call[1], $suffix)));
+        return array_values(
+            array_filter($this->calls, static fn(array $call): bool => 'GET' !== $call[0] && str_contains(
+                $call[1],
+                $suffix,
+            )),
+        );
     }
 
-    private function synchronizeFixture(array $settings = [], ?VersionPullRequestInput $input = null): VersionPullRequestResult
-    {
+    private function synchronizeFixture(
+        array $settings = [],
+        ?VersionPullRequestInput $input = null,
+    ): VersionPullRequestResult {
         $input ??= new VersionPullRequestInput();
-        $options = new ReleaseOptions('/consumer', repository: isset($settings['missing_repo']) ? null : 'owner/project');
+        $options = new ReleaseOptions(
+            '/consumer',
+            repository: isset($settings['missing_repo']) ? null : 'owner/project',
+        );
         $base = str_repeat('b', 40);
-        $head = isset($settings['base_existing']) ? $base : (isset($settings['existing']) || isset($settings['orphan']) ? str_repeat('a', 40) : (isset($settings['base_orphan']) ? $base : null));
+        $head = isset($settings['base_existing']) ? $base : (isset($settings['existing']) || isset($settings['orphan']) ? str_repeat(
+            'a',
+            40,
+        ) : (isset($settings['base_orphan']) ? $base : null));
         $original = isset($settings['pending']) ? 'new' : 'old';
         $originalReceipt = isset($settings['pending']) || isset($settings['prepared_resume']) ? 'receipt' : null;
         $next = isset($settings['none']) || isset($settings['maintenance']) ? null : '1.0.1';
-        $plan = new ReleasePlan($options, str_repeat('c', 64), isset($settings['stale_plan']) || isset($settings['pending']) ? str_repeat('f', 40) : $base, '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash('sha256', 'fragment')], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']) || isset($settings['prepared_resume']));
-        $data = ['id' => isset($settings['wrong_receipt_id']) ? 'wrong' : $plan->id, 'base_sha' => $base, 'consumed' => isset($settings['scope_mismatch']) || [] === $plan->consumed ? [] : ['.changelog/feature.md' => hash('sha256', 'fragment')]];
+        $plan = new ReleasePlan($options, str_repeat(
+            'c',
+            64,
+        ), isset($settings['stale_plan']) || isset($settings['pending']) ? str_repeat(
+            'f',
+            40,
+        ) : $base, '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash(
+            'sha256',
+            'fragment',
+        )], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']) || isset($settings['prepared_resume']));
+        $data = ['id' => isset($settings['wrong_receipt_id']) ? 'wrong' : $plan->id, 'base_sha' => $base, 'consumed' => isset($settings['scope_mismatch']) || [] === $plan->consumed ? [] : ['.changelog/feature.md' => hash(
+            'sha256',
+            'fragment',
+        )]];
         $oldData = ['id' => isset($settings['same_plan']) ? $plan->id : str_repeat('d', 64)];
-        $pr = isset($settings['existing']) || isset($settings['base_existing']) ? $this->pr('github-actions[bot]', 'Bot', 'changelog/version') : null;
+        $pr = isset($settings['existing']) || isset($settings['base_existing']) ? $this->pr(
+            'github-actions[bot]',
+            'Bot',
+            'changelog/version',
+        ) : null;
         if (null !== $pr) {
             $pr['html_url'] = 'https://github.com/owner/project/pull/7';
             $pr['head']['sha'] = $head;
@@ -370,25 +432,43 @@ final class VersionPullRequestServiceTest extends TestCase
         $github->method('paginate')->willReturnCallback(static function (string $path) use (&$pr, $settings): array {
             return null === $pr ? [] : (isset($settings['duplicate_pr']) ? [$pr, $pr] : [$pr]);
         });
-        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (&$head, &$pr, &$baseReads, &$headReads, $base, $settings, $input, $oldData): ?array {
+        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (
+            &$head,
+            &$pr,
+            &$baseReads,
+            &$headReads,
+            $base,
+            $settings,
+            $input,
+            $oldData
+        ): ?array {
             $this->calls[] = [$method, $path, $body];
             if (isset($settings['read_failure'])) {
                 throw new RuntimeException('super-secret');
             }
             if ('GET' === $method && str_starts_with($path, '/users/')) {
-                return isset($settings['missing_bot_account']) ? null : $this->account($input->automationActor, 'Bot', isset($settings['wrong_bot_account']) ? 999 : 101);
+                return isset($settings['missing_bot_account']) ? null : $this->account(
+                    $input->automationActor,
+                    'Bot',
+                    isset($settings['wrong_bot_account']) ? 999 : 101,
+                );
             }
             if (str_ends_with($path, '/git/ref/heads/main')) {
                 ++$baseReads;
                 if (isset($settings['missing_base'])) {
                     return null;
                 }
-                $sha = (isset($settings['base_race']) && $baseReads >= 2) || (isset($settings['late_base_race']) && $baseReads >= 3) || (isset($settings['post_update_race']) && $baseReads >= 4) ? str_repeat('f', 40) : $base;
+                $sha = (isset($settings['base_race']) && $baseReads >= 2) || (isset($settings['late_base_race']) && $baseReads >= 3) || (isset($settings['post_update_race']) && $baseReads >= 4) ? str_repeat(
+                    'f',
+                    40,
+                ) : $base;
+
                 return ['object' => ['type' => isset($settings['bad_ref']) ? 'tag' : 'commit', 'sha' => $sha]];
             }
             if (str_ends_with($path, '/git/ref/heads/changelog%2Fversion')) {
                 ++$headReads;
                 $sha = isset($settings['head_race']) && $headReads >= 2 ? str_repeat('f', 40) : $head;
+
                 return null === $sha ? null : ['object' => ['type' => 'commit', 'sha' => $sha]];
             }
             if ('GET' === $method && str_contains($path, '/commits/') && ! str_contains($path, '/git/')) {
@@ -404,10 +484,17 @@ final class VersionPullRequestServiceTest extends TestCase
                 if (isset($settings['tree_failure'])) {
                     throw new RuntimeException('super-secret');
                 }
-                return isset($settings['bad_tree_response']) ? null : ['sha' => str_repeat(isset($settings['empty_tree']) ? 'd' : 'e', 40)];
+
+                return isset($settings['bad_tree_response']) ? null : ['sha' => str_repeat(
+                    isset($settings['empty_tree']) ? 'd' : 'e',
+                    40,
+                )];
             }
             if ('POST' === $method && str_ends_with($path, '/git/commits')) {
-                return isset($settings['bad_commit_response']) ? null : ['sha' => str_repeat('c', 40), 'verification' => $settings['commit_verification'] ?? null, 'author' => ['email' => 'synthetic-super-secret']];
+                return isset($settings['bad_commit_response']) ? null : ['sha' => str_repeat(
+                    'c',
+                    40,
+                ), 'verification' => $settings['commit_verification'] ?? null, 'author' => ['email' => 'synthetic-super-secret']];
             }
             if ('GET' !== $method && str_contains($path, '/git/refs')) {
                 if (! isset($settings['ref_lost_unconfirmed']) && ! isset($settings['ref_success_unconfirmed'])) {
@@ -416,6 +503,7 @@ final class VersionPullRequestServiceTest extends TestCase
                 if (isset($settings['ref_lost_confirmed']) || isset($settings['ref_lost_unconfirmed'])) {
                     throw new RuntimeException('super-secret');
                 }
+
                 return ['object' => ['type' => 'commit', 'sha' => $head]];
             }
             if (str_contains($path, '/pulls')) {
@@ -424,36 +512,46 @@ final class VersionPullRequestServiceTest extends TestCase
                     switch ($settings['pr_confirmation'] ?? null) {
                         case 'stale_head':
                             $confirmation['head']['sha'] = str_repeat('a', 40);
+
                             break;
                         case 'wrong_head':
                             $confirmation['head']['sha'] = str_repeat('f', 40);
+
                             break;
                         case 'foreign_creator':
                             $confirmation['user'] = $this->account('contributor', 'User', 202);
+
                             break;
                         case 'foreign_creator_id':
                             $confirmation['user']['id'] = 999;
+
                             break;
                         case 'wrong_number':
                             $confirmation['number'] = 8;
+
                             break;
                         case 'wrong_repository':
                             $confirmation['head']['repo'] = ['id' => 2, 'full_name' => 'fork/project'];
+
                             break;
                         case 'wrong_branch':
                             $confirmation['head']['ref'] = 'other';
+
                             break;
                         case 'wrong_base_branch':
                             $confirmation['base']['ref'] = 'other';
+
                             break;
                         case 'closed':
                             $confirmation['state'] = 'closed';
+
                             break;
                         case 'missing':
                             return null;
                         case 'read_failure':
                             throw new RuntimeException('synthetic-super-secret');
                     }
+
                     return $confirmation;
                 }
                 $pr = $this->pr($input->automationActor, 'Bot', $input->managedBranch);
@@ -466,35 +564,56 @@ final class VersionPullRequestServiceTest extends TestCase
                 if (isset($settings['stale_patch_response']) && 'PATCH' === $method) {
                     $response['head']['sha'] = str_repeat('a', 40);
                 }
+
                 return isset($settings['pr_bad_response']) ? null : $response;
             }
+
             return null;
         });
         $git = $this->createStub(GitRepositoryInterface::class);
-        $git->method('repositoryRoot')->willReturn(isset($settings['nested_project']) ? '/another/root' : $options->workingDirectory);
+        $git->method('repositoryRoot')->willReturn(
+            isset($settings['nested_project']) ? '/another/root' : $options->workingDirectory,
+        );
         $git->method('resolveRef')->willReturnCallback(static function () use (&$localReads, $base, $settings): string {
             ++$localReads;
-            return isset($settings['stale_local']) || (isset($settings['local_race']) && $localReads >= 2) ? str_repeat('f', 40) : $base;
+
+            return isset($settings['stale_local']) || (isset($settings['local_race']) && $localReads >= 2) ? str_repeat(
+                'f',
+                40,
+            ) : $base;
         });
-        $git->method('readFileAt')->willReturnCallback(static fn(string $directory, string $sha, string $path): ?string => match ($path) {
-            'CHANGELOG.md' => isset($settings['dirty_document']) || isset($settings['dirty_receipt']) ? 'dirty' : $original,
-            '.changelog/release-plan.json' => isset($settings['dirty_receipt']) ? 'dirty' : $originalReceipt,
-            default => isset($settings['missing_fragment']) || isset($settings['pending_absent']) ? null : (isset($settings['changed_recovery_fragment']) ? 'changed' : 'fragment'),
-        });
+        $git->method('readFileAt')->willReturnCallback(
+            static fn(string $directory, string $sha, string $path): ?string => match ($path) {
+                'CHANGELOG.md' => isset($settings['dirty_document']) || isset($settings['dirty_receipt']) ? 'dirty' : $original,
+                '.changelog/release-plan.json' => isset($settings['dirty_receipt']) ? 'dirty' : $originalReceipt,
+                default => isset($settings['missing_fragment']) || isset($settings['pending_absent']) ? null : (isset($settings['changed_recovery_fragment']) ? 'changed' : 'fragment'),
+            },
+        );
         $planner = $this->createStub(ReleasePlannerInterface::class);
-        $planner->method('plan')->willReturnCallback(function (ReleaseOptions $received, string $operation) use ($plan): ReleasePlan {
+        $planner->method('plan')->willReturnCallback(function (ReleaseOptions $received, string $operation) use (
+            $plan
+        ): ReleasePlan {
             $this->plannerCalls[] = $operation;
+
             return $plan;
         });
         $receipts = $this->createStub(ReceiptCodecInterface::class);
-        $receipts->method('decode')->willReturnCallback(static fn(string $raw): ReleaseReceipt => new ReleaseReceipt('old receipt' === $raw ? $oldData : $data));
+        $receipts->method('decode')->willReturnCallback(
+            static fn(string $raw): ReleaseReceipt => new ReleaseReceipt('old receipt' === $raw ? $oldData : $data),
+        );
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('relativePath')->willReturn('.changelog/feature.md');
         $policy = $this->createMock(PullRequestPolicyInterface::class);
         $policy->expects(self::never())->method('inspect');
-        $policy->method('inspectHead')->willReturnCallback(function (ReleaseOptions $received, string $sha) use ($settings): bool {
+        $policy->method('inspectHead')->willReturnCallback(function (ReleaseOptions $received, string $sha) use (
+            $settings
+        ): bool {
             $this->policyCalls[] = ['inspectHead', $sha];
-            return ! isset($settings['unowned']) && ! (isset($settings['unsigned_new_commit']) && str_repeat('c', 40) === $sha);
+
+            return ! isset($settings['unowned']) && ! (isset($settings['unsigned_new_commit']) && str_repeat(
+                'c',
+                40,
+            ) === $sha);
         });
         $inputs = $this->createStub(VersionPullRequestInputFactoryInterface::class);
         if (isset($settings['input_failure'])) {
@@ -503,17 +622,48 @@ final class VersionPullRequestServiceTest extends TestCase
             $inputs->method('create')->willReturn($input);
         }
         $results = $this->createStub(VersionPullRequestResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(static fn(string $status, ?int $number = null, ?string $url = null, ?string $sha = null, ?string $id = null, ?string $version = null, bool $maintenance = false, array $diagnostics = []): VersionPullRequestResult => new VersionPullRequestResult($status, $number, $url, $sha, $id, $version, $maintenance, $diagnostics));
+        $results->method('create')->willReturnCallback(
+            static fn(string $status, ?int $number = null, ?string $url = null, ?string $sha = null, ?string $id = null, ?string $version = null, bool $maintenance = false, array $diagnostics = []): VersionPullRequestResult => new VersionPullRequestResult(
+                $status,
+                $number,
+                $url,
+                $sha,
+                $id,
+                $version,
+                $maintenance,
+                $diagnostics,
+            ),
+        );
         $exceptions = $this->createStub(VersionPullRequestExceptionFactoryInterface::class);
-        $exceptions->method('create')->willReturnCallback(static fn(string $message): VersionPullRequestException => new VersionPullRequestException($message));
+        $exceptions->method('create')->willReturnCallback(
+            static fn(string $message): VersionPullRequestException => new VersionPullRequestException($message),
+        );
         $inputEvidence = $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
-        $inputEvidence->method('validate')->willReturnCallback(function (ReleasePlan $received) use ($plan, $settings): void {
+        $inputEvidence->method('validate')->willReturnCallback(function (ReleasePlan $received) use (
+            $plan,
+            $settings
+        ): void {
             self::assertSame($plan, $received);
             self::assertSame([], $this->writes(), 'Source proof must run before any GitHub mutation.');
             if (isset($settings['missing_fragment']) || isset($settings['input_evidence_failure'])) {
                 throw new RuntimeException('Uncommitted source evidence; synthetic-super-secret');
             }
         });
-        return new VersionPullRequestService($github, $git, $planner, $receipts, $paths, $policy, $inputs, $results, $exceptions, $inputEvidence)->synchronize($options, $input);
+
+        return new VersionPullRequestService(
+            $github,
+            $git,
+            $planner,
+            $receipts,
+            $paths,
+            $policy,
+            $inputs,
+            $results,
+            $exceptions,
+            $inputEvidence,
+        )->synchronize(
+            $options,
+            $input,
+        );
     }
 }

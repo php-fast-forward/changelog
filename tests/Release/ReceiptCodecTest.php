@@ -34,7 +34,10 @@ final class ReceiptCodecTest extends TestCase
         $receipt = $codec->decode($encoded);
         self::assertSame(['id', ...array_keys($evidence)], array_keys($receipt->data));
         self::assertSame($evidence['notes'], $receipt->data['notes']);
-        self::assertSame(hash('sha256', json_encode($evidence, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $receipt->data['id']);
+        self::assertSame(
+            hash('sha256', json_encode($evidence, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+            $receipt->data['id'],
+        );
         self::assertSame("\n", substr($encoded, -1));
     }
 
@@ -60,7 +63,11 @@ final class ReceiptCodecTest extends TestCase
     /** Existing stable tags can retain build metadata while newly resolved releases use their numeric version. */
     public function testStableBuildMetadataIsRetainedForCurrentAndHistoricalVersions(): void
     {
-        $evidence = array_replace(self::evidence(), ['current_version' => '1.0.0+build.001', 'historical_versions' => ['0.1.0+legacy.docs']]);
+        $evidence = array_replace(
+            self::evidence(),
+            ['current_version' => '1.0.0+build.001',
+                'historical_versions' => ['0.1.0+legacy.docs'],
+            ]);
         $codec = $this->codec();
         $receipt = $codec->decode($codec->encode($evidence));
         self::assertSame('1.0.0+build.001', $receipt->data['current_version']);
@@ -145,7 +152,16 @@ final class ReceiptCodecTest extends TestCase
         yield [['historical_versions' => ['0.1.0', '0.1.0']]];
         yield [['consumed' => null]];
         yield [['consumed' => ['some-value']]];
-        foreach (['.changelog/nested/a.md', '.changelog/.hidden.md', '.changelog/AGENTS.md', '.changelog/../escape.md', '/outside/a.md', '.changelog/A.md', '.changelog/a', '.changelog\\a.md'] as $path) {
+        foreach ([
+            '.changelog/nested/a.md',
+            '.changelog/.hidden.md',
+            '.changelog/AGENTS.md',
+            '.changelog/../escape.md',
+            '/outside/a.md',
+            '.changelog/A.md',
+            '.changelog/a',
+            '.changelog\\a.md',
+        ] as $path) {
             yield [['consumed' => [$path => str_repeat('a', 64)]]];
         }
         yield [['consumed' => [0 => str_repeat('a', 64)]]];
@@ -198,9 +214,17 @@ final class ReceiptCodecTest extends TestCase
     private function codec(): ReceiptCodec
     {
         $receipts = $this->createStub(ReleaseReceiptFactoryInterface::class);
-        $receipts->method('create')->willReturnCallback(static fn(array $data): ReleaseReceipt => new ReleaseReceipt($data));
+        $receipts->method('create')->willReturnCallback(
+            static fn(array $data): ReleaseReceipt => new ReleaseReceipt($data),
+        );
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException($message, previous: $previous));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException(
+                $message,
+                previous: $previous,
+            ),
+        );
+
         return new ReceiptCodec($receipts, $exceptions);
     }
 }

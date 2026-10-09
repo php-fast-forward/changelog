@@ -164,6 +164,8 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
      */
     private function parts(string $path, string $root): array
     {
-        return array_values(array_filter(explode('/', substr($path, \strlen($root))), static fn(string $part): bool => '' !== $part));
+        return array_values(
+            array_filter(explode('/', substr($path, \strlen($root))), static fn(string $part): bool => '' !== $part),
+        );
     }
 }

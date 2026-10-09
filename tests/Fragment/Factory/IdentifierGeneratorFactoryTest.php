@@ -30,6 +30,9 @@ final class IdentifierGeneratorFactoryTest extends TestCase
     {
         $engine = $this->prophesize(Engine::class);
         $engine->generate()->willReturn(str_repeat('b', 8))->shouldBeCalledTimes(2);
-        self::assertSame('change-' . str_repeat('62', 16) . '.md', new IdentifierGeneratorFactory()->create($engine->reveal())->generate());
+        self::assertSame(
+            'change-' . str_repeat('62', 16) . '.md',
+            new IdentifierGeneratorFactory()->create($engine->reveal())->generate(),
+        );
     }
 }

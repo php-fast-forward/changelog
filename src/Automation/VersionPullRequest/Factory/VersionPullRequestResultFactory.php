@@ -21,8 +21,25 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestResult
 final class VersionPullRequestResultFactory implements VersionPullRequestResultFactoryInterface
 {
     /** Retains explicitly validated data without inspecting host or GitHub state. */
-    public function create(string $status, ?int $prNumber = null, ?string $url = null, ?string $headSha = null, ?string $planId = null, ?string $version = null, bool $maintenance = false, array $diagnostics = []): VersionPullRequestResult
-    {
-        return new VersionPullRequestResult($status, $prNumber, $url, $headSha, $planId, $version, $maintenance, $diagnostics);
+    public function create(
+        string $status,
+        ?int $prNumber = null,
+        ?string $url = null,
+        ?string $headSha = null,
+        ?string $planId = null,
+        ?string $version = null,
+        bool $maintenance = false,
+        array $diagnostics = [],
+    ): VersionPullRequestResult {
+        return new VersionPullRequestResult(
+            $status,
+            $prNumber,
+            $url,
+            $headSha,
+            $planId,
+            $version,
+            $maintenance,
+            $diagnostics,
+        );
     }
 }

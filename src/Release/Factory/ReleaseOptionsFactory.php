@@ -32,7 +32,10 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
     ];
 
     /** Injects consumer paths and a read-only Git boundary without consulting configuration or host state. */
-    public function __construct(private PackagePathResolverInterface $paths, private GitRepositoryInterface $git) {}
+    public function __construct(
+        private PackagePathResolverInterface $paths,
+        private GitRepositoryInterface $git,
+    ) {}
 
     /** Applies explicit values to defaults; paths to managed files MUST stay in the project. */
     public function create(array $values = []): ReleaseOptions
@@ -54,7 +57,9 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
             $path = str_replace('\\', '/', $settings[$name]);
             if ($this->paths->isAbsolute($path) || [] !== array_intersect(explode('/', $path), ['', '.', '..'])
                 || '.' === $path || str_starts_with($path, '-')) {
-                throw new InvalidArgumentException('Setting ' . $name . ' must be a relative project path without traversal.');
+                throw new InvalidArgumentException(
+                    'Setting ' . $name . ' must be a relative project path without traversal.',
+                );
             }
             $settings[$name] = $path;
         }
@@ -62,7 +67,9 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         $fragmentNamespace = strtolower($settings['fragmentDirectory']);
         if ($changelogNamespace === $fragmentNamespace
             || str_starts_with($changelogNamespace, $fragmentNamespace . '/')) {
-            throw new InvalidArgumentException('The central changelog must be outside the fragment directory and its release journal.');
+            throw new InvalidArgumentException(
+                'The central changelog must be outside the fragment directory and its release journal.',
+            );
         }
         if (! in_array($settings['locale'], ['en', 'pt-BR'], true)) {
             throw new InvalidArgumentException('Locale must be en or pt-BR.');
@@ -73,30 +80,43 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         if ('keep-a-changelog' !== $settings['template']) {
             $template = str_replace('\\', '/', $settings['template']);
             if (! str_ends_with($template, '.php') || $this->paths->isAbsolute($template)
-                || [] !== array_intersect(explode('/', $template), ['', '.', '..']) || str_starts_with($template, '-')) {
+                || [] !== array_intersect(explode('/', $template), ['', '.', '..']) || str_starts_with(
+                    $template,
+                    '-',
+                )) {
                 throw new InvalidArgumentException('Template must be keep-a-changelog or a relative project PHP file.');
             }
             $settings['template'] = $template;
         }
         if (! $this->isValidTagPrefix($settings['tagPrefix'])) {
-            throw new InvalidArgumentException('Tag prefix must use supported characters and form a valid Git tag reference.');
+            throw new InvalidArgumentException(
+                'Tag prefix must use supported characters and form a valid Git tag reference.',
+            );
         }
         if (str_starts_with($settings['baseRef'], '-') || preg_match('/[\r\n]/', $settings['baseRef'])) {
             throw new InvalidArgumentException('Base reference must be a Git revision, not an option.');
         }
-        if (null !== $settings['repository'] && 1 !== preg_match('~^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$~D', $settings['repository'])) {
+        if (null !== $settings['repository'] && 1 !== preg_match(
+            '~^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$~D',
+            $settings['repository'],
+        )) {
             throw new InvalidArgumentException('Repository must use owner/name.');
         }
         $settings['workingDirectory'] = $this->paths->absolutePath($settings['workingDirectory']);
         if (null === $settings['repository'] && $this->git->isRepository($settings['workingDirectory'])) {
             $origin = $this->git->originUrl($settings['workingDirectory']);
-            if (null !== $origin && 1 === preg_match('~\A(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?\z~iD', $origin, $matches)) {
+            if (null !== $origin && 1 === preg_match(
+                '~\A(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?\z~iD',
+                $origin,
+                $matches,
+            )) {
                 $settings['repository'] = $matches[1] . '/' . $matches[2];
                 if ('auto' === $settings['source']) {
                     $settings['source'] = 'tags';
                 }
             }
         }
+
         return new ReleaseOptions(...$settings);
     }
 

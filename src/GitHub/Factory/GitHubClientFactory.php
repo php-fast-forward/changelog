@@ -22,7 +22,10 @@ use FastForward\Changelog\GitHub\GitHubClientInterface;
 final readonly class GitHubClientFactory implements GitHubClientFactoryInterface
 {
     /** Injects transport and diagnostic construction without reading host credentials. */
-    public function __construct(private HttpClientFactoryInterface $clients, private GitHubExceptionFactoryInterface $exceptions) {}
+    public function __construct(
+        private HttpClientFactoryInterface $clients,
+        private GitHubExceptionFactoryInterface $exceptions,
+    ) {}
 
     /** Builds an adapter from caller-selected credentials and API origin. */
     public function create(string $token = '', string $apiUrl = 'https://api.github.com'): GitHubClientInterface

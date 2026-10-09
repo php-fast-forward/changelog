@@ -1,0 +1,62 @@
+name: Prepare Docker base image cache
+description: Use the public Docker Hub cache on disposable Ubuntu runners.
+
+inputs:
+  dockerfile:
+    description: Trusted runtime Dockerfile whose public base images are preloaded.
+    required: false
+    default: Dockerfile
+
+runs:
+  using: composite
+  steps:
+    - name: Configure the runner-local Docker Hub cache
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [[ "${RUNNER_ENVIRONMENT:-}" != github-hosted || "${RUNNER_OS:-}" != Linux ]]; then
+          echo "::error::Docker cache setup is limited to disposable GitHub-hosted Linux runners."
+          exit 1
+        fi
+
+        FF_DOCKER_CONFIG="$(sudo cat /etc/docker/daemon.json 2>/dev/null || printf '{}')"
+        printf '%s\n' "$FF_DOCKER_CONFIG" \
+          | jq '
+              ."registry-mirrors" = (
+                (."registry-mirrors" // [])
+                | if index("https://mirror.gcr.io") == null
+                  then . + ["https://mirror.gcr.io"]
+                  else .
+                  end
+              )
+            ' \
+          | sudo tee /etc/docker/daemon.json > /dev/null
+
+        sudo systemctl restart docker
+
+    - name: Preload the Dockerfile base images through the configured cache
+      shell: bash
+      env:
+        FF_DOCKERFILE: ${{ inputs.dockerfile }}
+      run: |
+        set -euo pipefail
+
+        mapfile -t FF_BASE_IMAGES < <(
+          awk '
+            $1 == "FROM" { print $2 }
+            $1 == "COPY" && $2 ~ /^--from=.*:/ {
+              sub(/^--from=/, "", $2)
+              print $2
+            }
+          ' "$FF_DOCKERFILE" | sort -u
+        )
+
+        if [[ "${#FF_BASE_IMAGES[@]}" == 0 ]]; then
+          echo "::error::The trusted Dockerfile must declare public base images."
+          exit 1
+        fi
+
+        for FF_IMAGE in "${FF_BASE_IMAGES[@]}"; do
+          docker pull "$FF_IMAGE"
+        done

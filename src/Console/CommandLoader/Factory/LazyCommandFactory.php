@@ -23,13 +23,22 @@ use Symfony\Component\Console\Command\LazyCommand;
 final readonly class LazyCommandFactory implements LazyCommandFactoryInterface
 {
     /** Creates a metadata-complete wrapper while deferring all dependency resolution. */
-    public function create(string $name, array $aliases, string $description, string $serviceId, ContainerInterface $container): Command
-    {
-        return new LazyCommand($name, $aliases, $description, false, static function () use ($container, $serviceId): Command {
+    public function create(
+        string $name,
+        array $aliases,
+        string $description,
+        string $serviceId,
+        ContainerInterface $container,
+    ): Command {
+        return new LazyCommand($name, $aliases, $description, false, static function () use (
+            $container,
+            $serviceId
+        ): Command {
             $handler = $container->get($serviceId);
             if (! is_callable($handler)) {
                 throw new LogicException('The command service must be invokable: ' . $serviceId);
             }
+
             return new Command(null, $handler);
         });
     }

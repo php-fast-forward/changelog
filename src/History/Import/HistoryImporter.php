@@ -41,14 +41,21 @@ final readonly class HistoryImporter implements HistoryImporterInterface
      * Only tags matching the exact prefix and strict stable SemVer are candidates. GitHub
      * cannot invent a version absent from Git. Existing release objects MUST stay intact.
      */
-    public function import(HistoryDocument $document, ReleaseOptions $options, TemplateInterface $template, array $tags): HistoryImportResult
-    {
+    public function import(
+        HistoryDocument $document,
+        ReleaseOptions $options,
+        TemplateInterface $template,
+        array $tags,
+    ): HistoryImportResult {
         if ('github' === $options->source && null === $options->repository) {
             throw $this->exceptions->invalid('GitHub history source requires an explicit repository.');
         }
         $versions = $this->versions($tags, $options->tagPrefix);
         $current = array_key_first($versions) ?? '0.0.0';
-        $missing = array_filter(array_keys($versions), static fn(string $version): bool => null === $document->getRelease($version));
+        $missing = array_filter(
+            array_keys($versions),
+            static fn(string $version): bool => null === $document->getRelease($version),
+        );
         if ([] === $missing) {
             return $this->results->create($document, [], $current);
         }
@@ -59,7 +66,9 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             }
             foreach ($this->github->paginate('/repos/' . $options->repository . '/releases') as $release) {
                 if (! is_array($release) || ! isset($release['tag_name'], $release['draft'], $release['prerelease'])
-                    || ! is_string($release['tag_name']) || ! is_bool($release['draft']) || ! is_bool($release['prerelease'])
+                    || ! is_string($release['tag_name']) || ! is_bool($release['draft']) || ! is_bool(
+                        $release['prerelease'],
+                    )
                 ) {
                     throw $this->exceptions->invalid('GitHub release history returned an invalid record.');
                 }
@@ -97,12 +106,14 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             foreach ($all as $index => $existing) {
                 if ($this->stable($existing->getVersion()) && $this->compare($version, $existing->getVersion()) > 0) {
                     $position = $index;
+
                     break;
                 }
             }
             array_splice($all, $position, 0, [$new]);
         }
         $history = $this->documents->create($all, $document->getPrefix(), $document->getReferences());
+
         return $this->results->create($history, array_values($missing), $current);
     }
 
@@ -124,7 +135,9 @@ final readonly class HistoryImporter implements HistoryImporterInterface
     {
         $versions = [];
         foreach ($tags as $tag) {
-            if (! is_array($tag) || ! isset($tag['name'], $tag['sha']) || ! is_string($tag['name']) || ! is_string($tag['sha'])
+            if (! is_array($tag) || ! isset($tag['name'], $tag['sha']) || ! is_string($tag['name']) || ! is_string(
+                $tag['sha'],
+            )
                 || ! array_key_exists('date', $tag) || ! array_key_exists('date_source', $tag)
                 || (null !== $tag['date'] && ! is_string($tag['date']))
                 || (null !== $tag['date_source'] && ! is_string($tag['date_source']))
@@ -144,13 +157,17 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             $versions[$version] = $tag;
         }
         uksort($versions, fn(string $left, string $right): int => -$this->compare($left, $right));
+
         return $versions;
     }
 
     /** Accepts strict stable semantic identities, including build metadata but no prereleases. */
     private function stable(string $version): bool
     {
-        return 1 === preg_match('/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $version);
+        return 1 === preg_match(
+            '/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
+            $version,
+        );
     }
 
     /** Compares arbitrary-width numeric components without float conversion or date ordering. */
@@ -167,19 +184,25 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 return $comparison;
             }
         }
+
         return strcmp($left, $right);
     }
 
     /** Validates an explicit ISO timestamp and derives its UTC publication day, never its commit date. */
     private function publicationDate(mixed $timestamp): string
     {
-        if (! is_string($timestamp) || 1 !== preg_match('/\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(Z|[+-](\d{2}):(\d{2}))\z/', $timestamp, $matches)
+        if (! is_string($timestamp) || 1 !== preg_match(
+            '/\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(Z|[+-](\d{2}):(\d{2}))\z/',
+            $timestamp,
+            $matches,
+        )
             || ! checkdate((int) $matches[2], (int) $matches[3], (int) $matches[1])
             || (int) $matches[4] > 23 || (int) $matches[5] > 59 || (int) $matches[6] > 59
             || (isset($matches[8]) && ((int) $matches[8] > 23 || (int) $matches[9] > 59))
         ) {
             throw $this->exceptions->invalid('Published GitHub release dates require a valid explicit ISO timestamp.');
         }
+
         return gmdate('Y-m-d', strtotime($timestamp));
     }
 }

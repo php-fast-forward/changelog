@@ -57,16 +57,22 @@ final class GitHubEvidence
     /** Decodes a complete API file response; directories and truncated/download-only responses fail closed. */
     public static function content(?array $file): ?string
     {
-        if (null === $file || ($file['type'] ?? null) !== 'file' || ($file['encoding'] ?? null) !== 'base64' || ! is_string($file['content'] ?? null)) {
+        if (null === $file || ($file['type'] ?? null) !== 'file' || ($file['encoding'] ?? null) !== 'base64' || ! is_string(
+            $file['content'] ?? null,
+        )) {
             return null;
         }
         $contents = base64_decode($file['content'], true);
+
         return false === $contents ? null : $contents;
     }
 
     /** Encodes each validated relative path segment and pins reads to an immutable commit. */
     public static function contentsPath(string $repository, string $path, string $sha): string
     {
-        return '/repos/' . $repository . '/contents/' . implode('/', array_map(rawurlencode(...), explode('/', $path))) . '?ref=' . $sha;
+        return '/repos/' . $repository . '/contents/' . implode(
+            '/',
+            array_map(rawurlencode(...), explode('/', $path)),
+        ) . '?ref=' . $sha;
     }
 }

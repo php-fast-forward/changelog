@@ -19,5 +19,11 @@ namespace FastForward\Changelog\Automation\VersionPullRequest;
 final readonly class VersionPullRequestInput
 {
     /** Captures the managed branch policy; its factory MUST validate Git refs and presentation limits. */
-    public function __construct(public string $baseBranch = 'main', public string $managedBranch = 'changelog/version', public string $automationActor = 'github-actions[bot]', public string $title = 'chore: update changelog', public bool $dryRun = false) {}
+    public function __construct(
+        public string $baseBranch = 'main',
+        public string $managedBranch = 'changelog/version',
+        public string $automationActor = 'github-actions[bot]',
+        public string $title = 'chore: update changelog',
+        public bool $dryRun = false,
+    ) {}
 }

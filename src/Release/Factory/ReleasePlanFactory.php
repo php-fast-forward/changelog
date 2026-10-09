@@ -25,7 +25,9 @@ use FastForward\Changelog\Release\ReleaseReceipt;
 final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
 {
     /** Shares canonical receipt validation and identity generation with receipt reads. */
-    public function __construct(private ReceiptCodecInterface $codec) {}
+    public function __construct(
+        private ReceiptCodecInterface $codec,
+    ) {}
 
     /**
      * Builds a new immutable transaction from validated exact inputs and output.
@@ -66,6 +68,7 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
         ];
         $receiptContents = $this->codec->encode($evidence);
         $receipt = $this->codec->decode($receiptContents);
+
         return new ReleasePlan(
             $options,
             $receipt->data['id'],
@@ -103,6 +106,7 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
         foreach ($data['consumed'] as $relative => $hash) {
             $consumed[rtrim($options->workingDirectory, '/\\') . '/' . $relative] = $hash;
         }
+
         return new ReleasePlan(
             $options,
             $data['id'],

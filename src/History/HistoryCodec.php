@@ -68,7 +68,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                     }
 
                     if ($lineOffset !== $protectedEnd || self::END_RELEASE !== rtrim($line, "\r\n")) {
-                        throw $this->exceptionFactory->invalid('A release body_length must end exactly at its closing delimiter.');
+                        throw $this->exceptionFactory->invalid(
+                            'A release body_length must end exactly at its closing delimiter.',
+                        );
                     }
 
                     $sections[array_key_last($sections)]['body_end'] = $lineOffset;
@@ -92,12 +94,16 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             if ($legacyClosed && self::END_RELEASE === rtrim($line, "\r\n")) {
-                throw $this->exceptionFactory->invalid('A legacy release has ambiguous closing delimiters; preserve its source before migration.');
+                throw $this->exceptionFactory->invalid(
+                    'A legacy release has ambiguous closing delimiters; preserve its source before migration.',
+                );
             }
 
             if (1 === preg_match('/^<!-- fast-forward-changelog:release (.+) -->\r?\n?\z/', $line, $matches)) {
                 if (null !== $pending) {
-                    throw $this->exceptionFactory->invalid('A release marker must be followed by one level-two heading.');
+                    throw $this->exceptionFactory->invalid(
+                        'A release marker must be followed by one level-two heading.',
+                    );
                 }
 
                 $pending = ['offset' => $lineOffset, 'metadata' => $this->metadata($matches[1])];
@@ -111,7 +117,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 }
 
                 if (! str_starts_with($line, '## ')) {
-                    throw $this->exceptionFactory->invalid('A release marker must be followed by one level-two heading.');
+                    throw $this->exceptionFactory->invalid(
+                        'A release marker must be followed by one level-two heading.',
+                    );
                 }
 
                 $metadata = $pending['metadata'];
@@ -123,7 +131,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 $protected = true;
                 if (null !== $metadata['body_length']) {
                     if ($metadata['body_length'] > strlen($markdown) - $offset) {
-                        throw $this->exceptionFactory->invalid('A release body_length exceeds the available Markdown bytes.');
+                        throw $this->exceptionFactory->invalid(
+                            'A release body_length exceeds the available Markdown bytes.',
+                        );
                     }
 
                     $protectedEnd = $offset + $metadata['body_length'];
@@ -184,7 +194,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         $prefixEnd = $sections[0]['offset'] ?? $footerOffset;
 
-        return $this->documentFactory->create($releases, substr($markdown, 0, $prefixEnd), substr($markdown, $footerOffset));
+        return $this->documentFactory->create(
+            $releases,
+            substr($markdown, 0, $prefixEnd),
+            substr($markdown, $footerOffset),
+        );
     }
 
     /**
@@ -195,8 +209,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * Incremental collection preserves stored sections, adding only boundary
      * whitespace around newly rendered releases so headings remain separate.
      */
-    public function render(HistoryDocument $document, TemplateInterface $template, bool $preservePresentation = false): string
-    {
+    public function render(
+        HistoryDocument $document,
+        TemplateInterface $template,
+        bool $preservePresentation = false,
+    ): string {
         $releases = $document->getReleases();
         $existing = [] !== $releases && null !== $releases[0]->getHeading();
         $output = $preservePresentation && ('' !== $document->getPrefix() || $existing)
@@ -217,9 +234,16 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             $heading = 'unreleased' === $release->getVersion()
-                ? $template->unreleasedHeading() : $template->releaseHeading($release->getVersion(), $release->getDate());
+                ? $template->unreleasedHeading() : $template->releaseHeading(
+                    $release->getVersion(),
+                    $release->getDate(),
+                );
 
-            if (null !== $release->getHeading() && 1 === preg_match('/[ \t]+(\[(?:YANKED|REMOVIDO)\])[ \t]*(?:\r?\n)?\z/', $release->getHeading(), $matches)) {
+            if (null !== $release->getHeading() && 1 === preg_match(
+                '/[ \t]+(\[(?:YANKED|REMOVIDO)\])[ \t]*(?:\r?\n)?\z/',
+                $release->getHeading(),
+                $matches,
+            )) {
                 $heading .= ' ' . $matches[1];
             }
 
@@ -271,7 +295,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     private function outsideFence(string $line, ?array &$fence): bool
     {
         if (null !== $fence) {
-            $pattern = '/^ {0,3}' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/';
+            $pattern = '/^ {0,3}' . preg_quote(
+                $fence['character'],
+                '/',
+            ) . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/';
 
             if (1 === preg_match($pattern, $line)) {
                 $fence = null;
@@ -314,17 +341,31 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                     $pattern = substr_replace($pattern, $capture, $position, strlen($placeholder));
                     $pattern = str_replace($placeholder, '\k<' . $name . '>', $pattern);
                 }
-                if (1 === preg_match('~^' . $pattern . '(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
+                if (1 === preg_match(
+                    '~^' . $pattern . '(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u',
+                    $line,
+                    $matches,
+                )) {
                     return ['version' => $matches['version'], 'date' => $matches['date'] ?? null];
                 }
             }
         }
 
         if (1 === preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\]~u', $line, $matches)) {
-            $unreleased = in_array($matches['version'], ['Unreleased', 'unreleased', 'Não publicado', 'não publicado'], true);
+            $unreleased = in_array(
+                $matches['version'],
+                ['Unreleased', 'unreleased', 'Não publicado', 'não publicado'],
+                true,
+            );
             if ($unreleased || 1 === preg_match('/\A[vV]?[0-9]+\.[^\s]*\z/u', $matches['version'])) {
-                if (1 !== preg_match('~^##[ \t]+\[(?<version>[^\]\r\n]+)\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+(?<date>\d{4}-\d{2}-\d{2}))?(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u', $line, $matches)) {
-                    throw $this->exceptionFactory->invalid('A legacy release heading must use a bracketed version, optional link and optional ISO date.');
+                if (1 !== preg_match(
+                    '~^##[ \t]+\[(?<version>[^\]\r\n]+)\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+(?<date>\d{4}-\d{2}-\d{2}))?(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*(?:\r?\n|\z)~u',
+                    $line,
+                    $matches,
+                )) {
+                    throw $this->exceptionFactory->invalid(
+                        'A legacy release heading must use a bracketed version, optional link and optional ISO date.',
+                    );
                 }
 
                 return ['version' => $unreleased ? 'unreleased' : $matches['version'], 'date' => $matches['date'] ?? null];
@@ -333,7 +374,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         if (1 === preg_match('/^##[ \t]+/', $line)
             && 1 === preg_match('/(?<![0-9])[0-9]++\.[0-9]++\.[0-9]++/u', $line)) {
-            throw $this->exceptionFactory->invalid('An unrecognized level-two heading resembles a release; keep the matching release template or migrate historical release headings before changing templates. For Markdown prose or examples, fence or nest this heading.');
+            throw $this->exceptionFactory->invalid(
+                'An unrecognized level-two heading resembles a release; keep the matching release template or migrate historical release headings before changing templates. For Markdown prose or examples, fence or nest this heading.',
+            );
         }
 
         return null;
@@ -354,7 +397,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
             if (null !== $this->plainHeading($line, $template)
                 || 1 === preg_match('/^<!-- fast-forward-changelog:(?:release |end-release)/', $line)) {
-                throw $this->exceptionFactory->invalid('A plain changelog body cannot contain an unfenced release heading or legacy release delimiter; fence or nest this Markdown example.');
+                throw $this->exceptionFactory->invalid(
+                    'A plain changelog body cannot contain an unfenced release heading or legacy release delimiter; fence or nest this Markdown example.',
+                );
             }
 
             if ('' !== trim($line)) {
@@ -366,7 +411,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             throw $this->exceptionFactory->invalid('An unclosed code fence prevents safe historical reformatting.');
         }
         if ($terminalReference) {
-            throw $this->exceptionFactory->invalid('A plain changelog body cannot end with an unindented reference definition that is ambiguous with the global footer; place it before following prose or inside a nested example.');
+            throw $this->exceptionFactory->invalid(
+                'A plain changelog body cannot end with an unindented reference definition that is ambiguous with the global footer; place it before following prose or inside a nested example.',
+            );
         }
     }
 
@@ -389,7 +436,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             || (array_key_exists('body_length', $data) && (! is_int($data['body_length']) || $data['body_length'] < 0))
             || [] !== array_diff(array_keys($data), ['version', 'date', 'date_source', 'body_length'])
         ) {
-            throw $this->exceptionFactory->invalid('A release marker must contain a version, nullable date metadata and an optional nonnegative integer body_length.');
+            throw $this->exceptionFactory->invalid(
+                'A release marker must contain a version, nullable date metadata and an optional nonnegative integer body_length.',
+            );
         }
 
         return ['version' => $data['version'], 'date' => $data['date'] ?? null,
@@ -401,11 +450,19 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     {
         $introduction = rtrim($template->introduction(), "\r\n") . "\n\n";
 
-        if (1 === preg_match('/\A<!-- fast-forward-changelog:introduction -->\R.*?\R<!-- \/fast-forward-changelog:introduction -->\R*/s', $prefix, $matches)) {
+        if (1 === preg_match(
+            '/\A<!-- fast-forward-changelog:introduction -->\R.*?\R<!-- \/fast-forward-changelog:introduction -->\R*/s',
+            $prefix,
+            $matches,
+        )) {
             return $introduction . substr($prefix, strlen($matches[0]));
         }
 
-        if (1 === preg_match('/\A# Changelog\R\R(?:All notable changes[^\r\n]+|Todas as mudanças[^\r\n]+)\R\R(?:The format[^\r\n]+\Rand this[^\r\n]+|O formato[^\r\n]+\Re o projeto[^\r\n]+)\R*/u', $prefix, $matches)) {
+        if (1 === preg_match(
+            '/\A# Changelog\R\R(?:All notable changes[^\r\n]+|Todas as mudanças[^\r\n]+)\R\R(?:The format[^\r\n]+\Rand this[^\r\n]+|O formato[^\r\n]+\Re o projeto[^\r\n]+)\R*/u',
+            $prefix,
+            $matches,
+        )) {
             return $introduction . substr($prefix, strlen($matches[0]));
         }
 
@@ -429,7 +486,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         foreach ($this->lines($body) as $line) {
             if (null !== $pending && '' !== trim($line) && ! str_starts_with($line, '### ')) {
-                throw $this->exceptionFactory->invalid('A category marker must be followed by one level-three heading.');
+                throw $this->exceptionFactory->invalid(
+                    'A category marker must be followed by one level-three heading.',
+                );
             }
 
             if (! $this->outsideFence($line, $fence)) {
@@ -438,7 +497,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 continue;
             }
 
-            if (1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line, $matches)) {
+            if (1 === preg_match(
+                '/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/',
+                $line,
+                $matches,
+            )) {
                 $pending = $matches[1];
 
                 continue;

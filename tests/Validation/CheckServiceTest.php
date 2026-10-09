@@ -35,7 +35,9 @@ final class CheckServiceTest extends TestCase
     public function localCheckingAcceptsAnEmptyInventoryWithoutReadingGit(): void
     {
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([], [], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([], [], false),
+        )->shouldBeCalledOnce();
         $git = $this->prophesize(GitRepositoryInterface::class);
         $git->changesSince(Argument::any(), Argument::any())->shouldNotBeCalled();
         self::assertTrue($this->checker($validator, $git)->check(new ReleaseOptions('/repo'))->isValid());
@@ -50,10 +52,16 @@ final class CheckServiceTest extends TestCase
         $old = new Changeset('old.md', Category::Fixed, null, null, null, 'Older pending.');
         $new = new Changeset('new.md', Category::Changed, null, null, null, 'New change.');
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([$old, $new], [], false, ['/repo/.changelog/new.md' => hash('sha256', 'accepted')]))->shouldBeCalledOnce();
-        $validator->validatePaths('/repo/.changelog', ['/repo/.changelog/new.md'], false, false)->willReturn(new ValidationReport([$new], [], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([$old, $new], [], false, ['/repo/.changelog/new.md' => hash('sha256', 'accepted')]),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths('/repo/.changelog', ['/repo/.changelog/new.md'], false, false)->willReturn(
+            new ValidationReport([$new], [], false),
+        )->shouldBeCalledOnce();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'origin/main')->willReturn([['status' => $status, 'path' => './.changelog/new.md', 'previous' => $previous]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'origin/main')->willReturn(
+            [['status' => $status, 'path' => './.changelog/new.md', 'previous' => $previous]],
+        )->shouldBeCalledOnce();
         $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'origin/main');
         self::assertTrue($report->isValid());
         self::assertSame([$old, $new], $report->changesets);
@@ -65,8 +73,12 @@ final class CheckServiceTest extends TestCase
     {
         $old = new Changeset('old.md', Category::Fixed, null, null, null, 'Older pending.');
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([$old], [], false))->shouldBeCalledOnce();
-        $validator->validatePaths('/repo/.changelog', [], false, false)->willReturn(new ValidationReport([], [], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([$old], [], false),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths('/repo/.changelog', [], false, false)->willReturn(
+            new ValidationReport([], [], false),
+        )->shouldBeCalledOnce();
         $git = $this->prophesize(GitRepositoryInterface::class);
         $git->changesSince('/repo', 'base')->willReturn([
             ['status' => 'M', 'path' => 'README.md', 'previous' => null],
@@ -75,7 +87,10 @@ final class CheckServiceTest extends TestCase
         ])->shouldBeCalledOnce();
         $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base');
         self::assertFalse($report->isValid());
-        self::assertStringContainsString('existing pending fragments do not satisfy', $report->errors['@contribution'][0]);
+        self::assertStringContainsString(
+            'existing pending fragments do not satisfy',
+            $report->errors['@contribution'][0],
+        );
     }
 
     #[Test]
@@ -85,11 +100,16 @@ final class CheckServiceTest extends TestCase
     #[TestWith(['R100', '.changelog/renamed.md', '.changelog/old.md'])]
     #[TestWith(['R100', 'outside.md', '.changelog/old.md'])]
     #[TestWith(['U', '.changelog/old.md', null])]
-    public function inheritedMutationDeletionAndRenameFailOrdinaryChecks(string $status, string $path, ?string $previous): void
-    {
+    public function inheritedMutationDeletionAndRenameFailOrdinaryChecks(
+        string $status,
+        string $path,
+        ?string $previous,
+    ): void {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => $status, 'path' => $path, 'previous' => $previous]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => $status, 'path' => $path, 'previous' => $previous]],
+        )->shouldBeCalledOnce();
         $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', waiverAuthorized: true);
         self::assertFalse($report->isValid());
         self::assertStringContainsString('status ' . $status, $report->errors[$path][0]);
@@ -106,7 +126,14 @@ final class CheckServiceTest extends TestCase
             ['status' => 'A', 'path' => '.changelog/release-plan.json', 'previous' => null],
             ['status' => 'D', 'path' => '.changelog/consumed.md', 'previous' => null],
         ])->shouldBeCalledOnce();
-        self::assertTrue($this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', centralChangeAuthorized: true, authorizationKind: 'managed-version')->isValid());
+        self::assertTrue(
+            $this->checker($validator, $git)->check(
+                new ReleaseOptions('/repo'),
+                'base',
+                centralChangeAuthorized: true,
+                authorizationKind: 'managed-version',
+            )->isValid(),
+        );
     }
 
     #[Test]
@@ -116,12 +143,19 @@ final class CheckServiceTest extends TestCase
     #[TestWith(['T', '.changelog/release-plan.json', null])]
     #[TestWith(['R100', 'other.json', '.changelog/release-plan.json'])]
     #[TestWith(['R100', '.changelog/release-plan.json', 'other.json'])]
-    public function ordinaryReceiptChangesFailEvenAlongsideAValidNewFragment(string $status, string $path, ?string $previous): void
-    {
+    public function ordinaryReceiptChangesFailEvenAlongsideAValidNewFragment(
+        string $status,
+        string $path,
+        ?string $previous,
+    ): void {
         $fragment = new Changeset('new.md', Category::Fixed, null, null, null, 'A valid contribution.');
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([$fragment], [], false))->shouldBeCalledOnce();
-        $validator->validatePaths('/repo/.changelog', ['/repo/.changelog/new.md'], false, false)->willReturn(new ValidationReport([$fragment], [], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([$fragment], [], false),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths('/repo/.changelog', ['/repo/.changelog/new.md'], false, false)->willReturn(
+            new ValidationReport([$fragment], [], false),
+        )->shouldBeCalledOnce();
         $git = $this->prophesize(GitRepositoryInterface::class);
         $git->changesSince('/repo', 'base')->willReturn([
             ['status' => $status, 'path' => $path, 'previous' => $previous],
@@ -141,13 +175,24 @@ final class CheckServiceTest extends TestCase
     #[TestWith([true, false, 'ordinary'])]
     #[TestWith([true, false, 'unknown'])]
     #[TestWith([false, true, 'managed-version'])]
-    public function receiptAuthorityCannotComeFromWaiversMaintenanceOrAnUnboundKind(bool $central, bool $waiver, string $kind): void
-    {
+    public function receiptAuthorityCannotComeFromWaiversMaintenanceOrAnUnboundKind(
+        bool $central,
+        bool $waiver,
+        string $kind,
+    ): void {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => 'M', 'path' => '.changelog/release-plan.json', 'previous' => null]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => 'M', 'path' => '.changelog/release-plan.json', 'previous' => null]],
+        )->shouldBeCalledOnce();
 
-        $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', $central, $waiver, $kind);
+        $report = $this->checker($validator, $git)->check(
+            new ReleaseOptions('/repo'),
+            'base',
+            $central,
+            $waiver,
+            $kind,
+        );
 
         self::assertFalse($report->isValid());
         self::assertArrayHasKey('@receipt', $report->errors);
@@ -161,9 +206,18 @@ final class CheckServiceTest extends TestCase
     {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => $status, 'path' => '.changelog/release-plan.json', 'previous' => null]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => $status, 'path' => '.changelog/release-plan.json', 'previous' => null]],
+        )->shouldBeCalledOnce();
 
-        self::assertTrue($this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', centralChangeAuthorized: true, authorizationKind: 'managed-version')->isValid());
+        self::assertTrue(
+            $this->checker($validator, $git)->check(
+                new ReleaseOptions('/repo'),
+                'base',
+                centralChangeAuthorized: true,
+                authorizationKind: 'managed-version',
+            )->isValid(),
+        );
     }
 
     #[Test]
@@ -171,8 +225,11 @@ final class CheckServiceTest extends TestCase
     #[TestWith([true, true, 'maintenance'])]
     #[TestWith([true, false, 'ordinary'])]
     #[TestWith([false, true, 'managed-version'])]
-    public function maintenanceAndWaiversCannotConsumeInheritedPendingFragments(bool $central, bool $waiver, string $kind): void
-    {
+    public function maintenanceAndWaiversCannotConsumeInheritedPendingFragments(
+        bool $central,
+        bool $waiver,
+        string $kind,
+    ): void {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
         $git->changesSince('/repo', 'base')->willReturn([
@@ -180,7 +237,13 @@ final class CheckServiceTest extends TestCase
             ['status' => 'D', 'path' => '.changelog/pending.md', 'previous' => null],
         ])->shouldBeCalledOnce();
 
-        $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', $central, $waiver, $kind);
+        $report = $this->checker($validator, $git)->check(
+            new ReleaseOptions('/repo'),
+            'base',
+            $central,
+            $waiver,
+            $kind,
+        );
 
         self::assertFalse($report->isValid());
         self::assertArrayHasKey('.changelog/pending.md', $report->errors);
@@ -191,21 +254,40 @@ final class CheckServiceTest extends TestCase
     {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => 'M', 'path' => 'CHANGELOG.md', 'previous' => null]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => 'M', 'path' => 'CHANGELOG.md', 'previous' => null]],
+        )->shouldBeCalledOnce();
 
-        self::assertTrue($this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', centralChangeAuthorized: true, authorizationKind: 'maintenance')->isValid());
+        self::assertTrue(
+            $this->checker($validator, $git)->check(
+                new ReleaseOptions('/repo'),
+                'base',
+                centralChangeAuthorized: true,
+                authorizationKind: 'maintenance',
+            )->isValid(),
+        );
     }
 
     #[Test]
     public function receiptProtectionUsesTheConfiguredRepositoryRelativeFragmentRoot(): void
     {
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/packages/lib/.changes', false, false)->willReturn(new ValidationReport([], [], false))->shouldBeCalledOnce();
-        $validator->validatePaths('/repo/packages/lib/.changes', [], false, false)->willReturn(new ValidationReport([], [], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/packages/lib/.changes', false, false)->willReturn(
+            new ValidationReport([], [], false),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths('/repo/packages/lib/.changes', [], false, false)->willReturn(
+            new ValidationReport([], [], false),
+        )->shouldBeCalledOnce();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => 'M', 'path' => '.\\packages\\lib\\.changes\\release-plan.json', 'previous' => null]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => 'M', 'path' => '.\\packages\\lib\\.changes\\release-plan.json', 'previous' => null]],
+        )->shouldBeCalledOnce();
 
-        $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo', fragmentDirectory: 'packages\\lib\\.changes'), 'base', waiverAuthorized: true);
+        $report = $this->checker($validator, $git)->check(
+            new ReleaseOptions('/repo', fragmentDirectory: 'packages\\lib\\.changes'),
+            'base',
+            waiverAuthorized: true,
+        );
 
         self::assertFalse($report->isValid());
         self::assertSame(['@receipt'], array_keys($report->errors));
@@ -218,7 +300,9 @@ final class CheckServiceTest extends TestCase
     {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => 'R100', 'path' => $path, 'previous' => $previous]])->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => 'R100', 'path' => $path, 'previous' => $previous]],
+        )->shouldBeCalledOnce();
         $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', waiverAuthorized: true);
         self::assertFalse($report->isValid());
         self::assertArrayHasKey('@changelog', $report->errors);
@@ -228,8 +312,12 @@ final class CheckServiceTest extends TestCase
     public function invalidNewFragmentsAccumulateDiagnosticsEvenWithAVerifiedWaiver(): void
     {
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([], ['bad.md' => ['empty body']], false))->shouldBeCalledOnce();
-        $validator->validatePaths('/repo/.changelog', ['/repo/.changelog/bad.md'], false, false)->willReturn(new ValidationReport([], ['bad.md' => ['empty body', 'bad category']], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([], ['bad.md' => ['empty body']], false),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths('/repo/.changelog', ['/repo/.changelog/bad.md'], false, false)->willReturn(
+            new ValidationReport([], ['bad.md' => ['empty body', 'bad category']], false),
+        )->shouldBeCalledOnce();
         $git = $this->prophesize(GitRepositoryInterface::class);
         $git->changesSince('/repo', 'base')->willReturn([
             ['status' => 'A', 'path' => '.changelog/bad.md', 'previous' => null],
@@ -246,19 +334,35 @@ final class CheckServiceTest extends TestCase
     {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => 'C100', 'path' => 'notes.md', 'previous' => './.changelog/old.md']])->shouldBeCalledOnce();
-        self::assertTrue($this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', waiverAuthorized: true)->isValid());
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => 'C100', 'path' => 'notes.md', 'previous' => './.changelog/old.md']],
+        )->shouldBeCalledOnce();
+        self::assertTrue(
+            $this->checker($validator, $git)->check(
+                new ReleaseOptions('/repo'),
+                'base',
+                waiverAuthorized: true,
+            )->isValid(),
+        );
     }
 
     #[Test]
     #[TestWith(['.changelog', null])]
     #[TestWith(['outside', '.changelog'])]
-    public function fragmentRootCannotBecomeATrackedFileEvenInAuthorizedCentralOperations(string $path, ?string $previous): void
-    {
+    public function fragmentRootCannotBecomeATrackedFileEvenInAuthorizedCentralOperations(
+        string $path,
+        ?string $previous,
+    ): void {
         $validator = $this->emptyValidator();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'base')->willReturn([['status' => 'R100', 'path' => $path, 'previous' => $previous]])->shouldBeCalledOnce();
-        $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base', centralChangeAuthorized: true);
+        $git->changesSince('/repo', 'base')->willReturn(
+            [['status' => 'R100', 'path' => $path, 'previous' => $previous]],
+        )->shouldBeCalledOnce();
+        $report = $this->checker($validator, $git)->check(
+            new ReleaseOptions('/repo'),
+            'base',
+            centralChangeAuthorized: true,
+        );
         self::assertFalse($report->isValid());
         self::assertArrayHasKey('@directory', $report->errors);
     }
@@ -267,10 +371,19 @@ final class CheckServiceTest extends TestCase
     public function missingGitContextDoesNotDiscardExistingSchemaDiagnostics(): void
     {
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([], ['old.md' => ['bad metadata']], false))->shouldBeCalledOnce();
-        $validator->validatePaths(Argument::any(), Argument::any(), Argument::any(), Argument::any())->shouldNotBeCalled();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([], ['old.md' => ['bad metadata']], false),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths(
+            Argument::any(),
+            Argument::any(),
+            Argument::any(),
+            Argument::any(),
+        )->shouldNotBeCalled();
         $git = $this->prophesize(GitRepositoryInterface::class);
-        $git->changesSince('/repo', 'missing')->willThrow(new RuntimeException('revision missing'))->shouldBeCalledOnce();
+        $git->changesSince('/repo', 'missing')->willThrow(
+            new RuntimeException('revision missing'),
+        )->shouldBeCalledOnce();
         $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'missing');
         self::assertFalse($report->isValid());
         self::assertSame(['bad metadata'], $report->errors['old.md']);
@@ -281,8 +394,13 @@ final class CheckServiceTest extends TestCase
     private function emptyValidator(): ObjectProphecy
     {
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
-        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport([], [], false))->shouldBeCalledOnce();
-        $validator->validatePaths('/repo/.changelog', [], false, false)->willReturn(new ValidationReport([], [], false))->shouldBeCalledOnce();
+        $validator->validate('/repo/.changelog', false, false)->willReturn(
+            new ValidationReport([], [], false),
+        )->shouldBeCalledOnce();
+        $validator->validatePaths('/repo/.changelog', [], false, false)->willReturn(
+            new ValidationReport([], [], false),
+        )->shouldBeCalledOnce();
+
         return $validator;
     }
 
@@ -290,8 +408,16 @@ final class CheckServiceTest extends TestCase
     private function checker(ObjectProphecy $validator, ObjectProphecy $git): CheckService
     {
         $reports = $this->prophesize(ValidationReportFactoryInterface::class);
-        $reports->create(Argument::type('array'), Argument::type('array'), Argument::type('bool'), Argument::type('array'))
-            ->will(static fn(array $arguments): ValidationReport => new ValidationReport(...$arguments))->shouldBeCalledOnce();
+        $reports->create(
+            Argument::type('array'),
+            Argument::type('array'),
+            Argument::type('bool'),
+            Argument::type('array'),
+        )
+            ->will(
+                static fn(array $arguments): ValidationReport => new ValidationReport(...$arguments),
+            )->shouldBeCalledOnce();
+
         return new CheckService($validator->reveal(), $git->reveal(), $reports->reveal());
     }
 }

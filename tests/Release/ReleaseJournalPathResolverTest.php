@@ -19,10 +19,18 @@ final class ReleaseJournalPathResolverTest extends TestCase
     public function testGitRecoveryIsScopedByManagedPathsAndStableAcrossPresentationChanges(): void
     {
         $git = $this->createMock(GitRepositoryInterface::class);
-        $git->expects(self::exactly(3))->method('journalPath')->with('/consumer')->willReturn('/external/git/worktrees/consumer/changelog-release-plan.json');
+        $git->expects(self::exactly(3))->method('journalPath')->with('/consumer')->willReturn(
+            '/external/git/worktrees/consumer/changelog-release-plan.json',
+        );
         $resolver = new ReleaseJournalPathResolver($git, '/synthetic-temp');
         $first = $resolver->resolve(new ReleaseOptions('/consumer'));
-        $second = $resolver->resolve(new ReleaseOptions('/consumer', fragmentDirectory: '.changelog/package-b', changelogFile: 'packages/b/CHANGELOG.md'));
+        $second = $resolver->resolve(
+            new ReleaseOptions(
+                '/consumer',
+                fragmentDirectory: '.changelog/package-b',
+                changelogFile: 'packages/b/CHANGELOG.md',
+            ),
+        );
         $locale = $resolver->resolve(new ReleaseOptions('/consumer', locale: 'pt-BR'));
         self::assertStringStartsWith('/external/git/worktrees/consumer/changelog-release-plan-', $first);
         self::assertNotSame($first, $second);

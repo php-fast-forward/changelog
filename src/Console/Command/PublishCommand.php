@@ -29,19 +29,28 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 /** Publishes approved evidence at a complete resolved commit identity. */
-#[AsCommand(name: 'publish', description: 'Publish the approved release evidence for a selected commit.')]
+#[AsCommand(
+    name: 'publish',
+    description: 'Publish the approved release evidence for a selected commit.',
+)]
 final readonly class PublishCommand
 {
     /** Captures publication and commit resolution without contacting Git or GitHub. */
-    public function __construct(private ReleaseOptionsFactoryInterface $options, private GitRepositoryInterface $git, private PublicationServiceInterface $publication) {}
+    public function __construct(
+        private ReleaseOptionsFactoryInterface $options,
+        private GitRepositoryInterface $git,
+        private PublicationServiceInterface $publication,
+    ) {}
 
     /** Defaults the target to checked-out HEAD and passes a complete SHA to the publication contract. */
     public function __invoke(
         #[MapInput]
         ReleaseInput $settings,
         OutputInterface $output,
+
         #[Option(description: 'Approved commit or revision; defaults to checked-out HEAD.')]
         ?string $targetSha = null,
+
         #[Option(description: 'Inspect publication actions without changing GitHub state.')]
         bool $dryRun = false,
     ): int {
@@ -49,11 +58,16 @@ final readonly class PublishCommand
             $options = $this->options->create($settings->values());
             $sha = $this->git->resolveRef($options->workingDirectory, $targetSha ?? 'HEAD');
             $result = $this->publication->publish($options, $sha, $dryRun);
-            $output->writeln(json_encode($result->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), OutputInterface::OUTPUT_RAW);
+            $output->writeln(
+                json_encode($result->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                OutputInterface::OUTPUT_RAW,
+            );
+
             return Command::SUCCESS;
         } catch (Throwable $exception) {
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $error->writeln('<error>' . OutputFormatter::escape($exception->getMessage()) . '</error>');
+
             return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
     }

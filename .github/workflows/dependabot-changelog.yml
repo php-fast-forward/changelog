@@ -29,6 +29,9 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Collect verified dependency metadata
         id: metadata
         uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2

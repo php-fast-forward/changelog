@@ -21,11 +21,16 @@ use Symfony\Component\Console\Attribute\MapInput;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /** Collect pending fragments into one version transaction. */
-#[AsCommand(name: 'version', description: 'Collect pending fragments into one version transaction.')]
+#[AsCommand(
+    name: 'version',
+    description: 'Collect pending fragments into one version transaction.',
+)]
 final readonly class VersionCommand
 {
     /** Captures the transaction runner without planning or applying a release. */
-    public function __construct(private PlanCommandRunnerInterface $runner) {}
+    public function __construct(
+        private PlanCommandRunnerInterface $runner,
+    ) {}
 
     /** Delegates the selected operation through the shared transaction boundary. */
     public function __invoke(#[MapInput] MutationInput $input, OutputInterface $output): int

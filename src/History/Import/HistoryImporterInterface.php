@@ -26,7 +26,12 @@ interface HistoryImporterInterface
      * Preserves existing sections and returns the highest matching Git version, or 0.0.0.
      * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags explicit Git evidence
      */
-    public function import(HistoryDocument $document, ReleaseOptions $options, TemplateInterface $template, array $tags): HistoryImportResult;
+    public function import(
+        HistoryDocument $document,
+        ReleaseOptions $options,
+        TemplateInterface $template,
+        array $tags,
+    ): HistoryImportResult;
 
     /**
      * Resolves a stable tag baseline with the same import policy, without accessing GitHub.

@@ -21,5 +21,14 @@ use FastForward\Changelog\Automation\Dependabot\DependabotInput;
 interface DependabotInputFactoryInterface
 {
     /** Rejects unsafe names, incomplete object IDs and ambiguous metadata; names/alerts become sorted unique lists. */
-    public function create(int $pullRequest, string $expectedHeadSha, array $packageNames, string $dependencyType, string $ecosystem, array $securityAlertNumbers = [], bool $includeDev = true, bool $includeActions = true): DependabotInput;
+    public function create(
+        int $pullRequest,
+        string $expectedHeadSha,
+        array $packageNames,
+        string $dependencyType,
+        string $ecosystem,
+        array $securityAlertNumbers = [],
+        bool $includeDev = true,
+        bool $includeActions = true,
+    ): DependabotInput;
 }

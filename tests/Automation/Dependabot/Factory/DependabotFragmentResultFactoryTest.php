@@ -18,7 +18,12 @@ final class DependabotFragmentResultFactoryTest extends TestCase
     public function preservesCreatedCommitAndUncertainMutationState(): void
     {
         $factory = new DependabotFragmentResultFactory();
-        $value = $factory->create('conflict', '.changelog/dependabot-7.md', str_repeat('c', 40), ['Review changed branch.']);
+        $value = $factory->create(
+            'conflict',
+            '.changelog/dependabot-7.md',
+            str_repeat('c', 40),
+            ['Review changed branch.'],
+        );
         self::assertSame('conflict', $value->status);
         self::assertSame('.changelog/dependabot-7.md', $value->path);
         self::assertSame(str_repeat('c', 40), $value->commitSha);

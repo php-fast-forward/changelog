@@ -26,6 +26,9 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Create or update the single version PR
         uses: ./.github/actions/version
         with:

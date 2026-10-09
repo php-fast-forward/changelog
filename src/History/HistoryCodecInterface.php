@@ -24,7 +24,11 @@ interface HistoryCodecInterface
     public function parse(string $markdown, ?TemplateInterface $template = null): HistoryDocument;
 
     /** Renders localized structure, or preserves existing presentation for incremental collection. */
-    public function render(HistoryDocument $document, TemplateInterface $template, bool $preservePresentation = false): string;
+    public function render(
+        HistoryDocument $document,
+        TemplateInterface $template,
+        bool $preservePresentation = false,
+    ): string;
 
     /** Returns the named release body without its heading or external reference footer. */
     public function notes(HistoryDocument $document, string $version): string;

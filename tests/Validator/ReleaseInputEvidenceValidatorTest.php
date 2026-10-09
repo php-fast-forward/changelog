@@ -46,7 +46,10 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
     {
         $body = "  descrição\r\n\n";
         $state = [];
-        $validator = $this->validator($state, ['base_overrides' => ['CHANGELOG.md' => null, '.changelog/a.md' => $body]]);
+        $validator = $this->validator(
+            $state,
+            ['base_overrides' => ['CHANGELOG.md' => null, '.changelog/a.md' => $body]],
+        );
         $validator->validate($this->plan(['originalChangelog' => null, 'consumed' => [
             '/consumer/.changelog/b.md' => hash('sha256', 'beta'), '/consumer/.changelog/a.md' => hash('sha256', $body),
         ]]));
@@ -132,7 +135,12 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
     {
         $state = [];
         $validator = $this->validator($state);
-        $plan = $this->plan(['resuming' => true, 'options' => new ReleaseOptions('/consumer', template: 'presentation.php'), 'originalChangelog' => 'after']);
+        $plan = $this->plan(
+            ['resuming' => true, 'options' => new ReleaseOptions(
+                '/consumer',
+                template: 'presentation.php',
+            ), 'originalChangelog' => 'after'],
+        );
         $validator->validate($plan);
         self::assertSame([
             ['tree', 'presentation.php'], ['blob', 'presentation.php'], ['working', '/consumer/presentation.php'],
@@ -143,9 +151,17 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
     public function testRecoveryRejectsChangedCustomTemplateWithoutReadingAlreadyConsumedFragments(): void
     {
         $state = [];
-        $validator = $this->validator($state, ['working_files' => ['/consumer/presentation.php' => 'changed template']]);
+        $validator = $this->validator(
+            $state,
+            ['working_files' => ['/consumer/presentation.php' => 'changed template']],
+        );
         try {
-            $validator->validate($this->plan(['resuming' => true, 'options' => new ReleaseOptions('/consumer', template: 'presentation.php')]));
+            $validator->validate(
+                $this->plan(['resuming' => true, 'options' => new ReleaseOptions(
+                    '/consumer',
+                    template: 'presentation.php',
+                )]),
+            );
             self::fail('Changed recovery template must fail.');
         } catch (RuntimeException $error) {
             self::assertStringContainsString('custom template', $error->getMessage());
@@ -193,7 +209,9 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
     /** Missing/duplicate/wrong paths and symbolic/submodule modes fail exact regular-file identity. */
     public static function nonRegularFiles(): array
     {
-        return [[[]], [[['path' => 'presentation.php', 'mode' => '100644'], ['path' => 'presentation.php/other', 'mode' => '100644']]],
+        return [[[
+        ],
+        ], [[['path' => 'presentation.php', 'mode' => '100644'], ['path' => 'presentation.php/other', 'mode' => '100644']]],
             [[['path' => 'other.php', 'mode' => '100644']]], [[['path' => 'presentation.php', 'mode' => '120000']]],
             [[['path' => 'presentation.php', 'mode' => '160000']]]];
     }
@@ -202,7 +220,10 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
     public function testExecutableRegularModeIsSupported(): void
     {
         $state = [];
-        $validator = $this->validator($state, ['tree_overrides' => ['CHANGELOG.md' => [['path' => 'CHANGELOG.md', 'mode' => '100755']]]]);
+        $validator = $this->validator(
+            $state,
+            ['tree_overrides' => ['CHANGELOG.md' => [['path' => 'CHANGELOG.md', 'mode' => '100755']]]],
+        );
         $validator->validate($this->plan());
         self::assertContains(['tree', 'CHANGELOG.md'], $state['calls']);
     }
@@ -213,7 +234,10 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
         return new ReleasePlan(...array_replace([
             'options' => new ReleaseOptions('/consumer'), 'id' => 'id', 'baseSha' => self::SHA,
             'currentVersion' => '1.0.0', 'nextVersion' => '1.0.1', 'impact' => 'patch',
-            'consumed' => ['/consumer/.changelog/a.md' => hash('sha256', 'alpha'), '/consumer/.changelog/b.md' => hash('sha256', 'beta')],
+            'consumed' => ['/consumer/.changelog/a.md' => hash('sha256', 'alpha'), '/consumer/.changelog/b.md' => hash(
+                'sha256',
+                'beta',
+            )],
             'historicalVersions' => [], 'changelogPath' => '/consumer/CHANGELOG.md', 'originalChangelog' => 'before',
             'changelogContents' => 'after', 'notes' => '', 'receiptPath' => '/consumer/.changelog/release-plan.json',
             'originalReceipt' => null, 'receiptContents' => 'receipt',
@@ -227,21 +251,34 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
         $state = array_replace(['calls' => [], 'tree_overrides' => [], 'extra_entries' => [],
             'working_files' => ['/consumer/presentation.php' => 'trusted PHP']], $changes);
         $state['base'] = array_replace($base, $changes['base_overrides'] ?? []);
-        $entries = array_map(static fn(string $path): array => ['path' => $path, 'mode' => '100644'], array_keys($base));
+        $entries = array_map(
+            static fn(string $path): array => ['path' => $path, 'mode' => '100644'],
+            array_keys($base),
+        );
         $git = $this->createMock(GitRepositoryInterface::class);
-        $git->method('readFileAt')->willReturnCallback(static function (string $directory, string $sha, string $path) use (&$state): ?string {
+        $git->method('readFileAt')->willReturnCallback(static function (string $directory, string $sha, string $path) use (
+            &$state
+        ): ?string {
             self::assertSame('/consumer', $directory);
             self::assertSame(self::SHA, $sha);
             $state['calls'][] = ['blob', $path];
+
             return $state['base'][$path] ?? null;
         });
-        $git->method('filesAt')->willReturnCallback(static function (string $directory, string $sha, string $path) use (&$state, $entries): array {
+        $git->method('filesAt')->willReturnCallback(static function (string $directory, string $sha, string $path) use (
+            &$state,
+            $entries
+        ): array {
             self::assertSame('/consumer', $directory);
             self::assertSame(self::SHA, $sha);
             $state['calls'][] = ['tree', $path];
+
             return $state['tree_overrides'][$path] ?? array_values(array_filter(
                 [...$entries, ...$state['extra_entries']],
-                static fn(array $entry): bool => $entry['path'] === $path || str_starts_with($entry['path'], $path . '/') || ('outside/a.md' === $entry['path'] && '.changelog' === $path),
+                static fn(array $entry): bool => $entry['path'] === $path || str_starts_with(
+                    $entry['path'],
+                    $path . '/',
+                ) || ('outside/a.md' === $entry['path'] && '.changelog' === $path),
             ));
         });
         $git->expects(self::never())->method('changesSince');
@@ -249,14 +286,22 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
         $files = $this->createMock(ManagedFileStoreInterface::class);
         $files->method('read')->willReturnCallback(static function (string $path) use (&$state): ?string {
             $state['calls'][] = ['working', $path];
+
             return $state['working_files'][$path] ?? null;
         });
         $files->expects(self::never())->method('write');
         $paths = $this->createStub(PackagePathResolverInterface::class);
-        $paths->method('relativePath')->willReturnCallback(static fn(string $path, string $directory): string => substr($path, strlen($directory) + 1));
-        $paths->method('absolutePath')->willReturnCallback(static fn(string $path, ?string $directory = null): string => $directory . '/' . $path);
+        $paths->method('relativePath')->willReturnCallback(
+            static fn(string $path, string $directory): string => substr($path, strlen($directory) + 1),
+        );
+        $paths->method('absolutePath')->willReturnCallback(
+            static fn(string $path, ?string $directory = null): string => $directory . '/' . $path,
+        );
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message): RuntimeException => new RuntimeException($message),
+        );
+
         return new ReleaseInputEvidenceValidator($git, $files, $paths, $exceptions);
     }
 }

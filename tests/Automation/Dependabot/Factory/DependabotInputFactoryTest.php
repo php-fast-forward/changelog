@@ -23,7 +23,14 @@ final class DependabotInputFactoryTest extends TestCase
     #[Test]
     public function normalizesTrustedMetadataWithInclusiveDefaults(): void
     {
-        $value = $this->factory()->create(7, str_repeat('a', 40), ['z/package', 'a/package', 'z/package'], 'direct:production', 'composer', [9, 2, 9]);
+        $value = $this->factory()->create(
+            7,
+            str_repeat('a', 40),
+            ['z/package', 'a/package', 'z/package'],
+            'direct:production',
+            'composer',
+            [9, 2, 9],
+        );
         self::assertSame(['a/package', 'z/package'], $value->packageNames);
         self::assertSame([2, 9], $value->securityAlertNumbers);
         self::assertSame(7, $value->pullRequest);
@@ -32,7 +39,16 @@ final class DependabotInputFactoryTest extends TestCase
         self::assertSame('composer', $value->ecosystem);
         self::assertTrue($value->includeDev);
         self::assertTrue($value->includeActions);
-        $filtered = $this->factory()->create(8, str_repeat('a', 40), ['actions/checkout'], 'direct:development', 'github-actions', [], false, false);
+        $filtered = $this->factory()->create(
+            8,
+            str_repeat('a', 40),
+            ['actions/checkout'],
+            'direct:development',
+            'github-actions',
+            [],
+            false,
+            false,
+        );
         self::assertFalse($filtered->includeDev);
         self::assertFalse($filtered->includeActions);
     }
@@ -48,16 +64,32 @@ final class DependabotInputFactoryTest extends TestCase
     #[TestWith([7, 'valid', [3], 'indirect', 'composer', []])]
     #[TestWith([7, 'valid', ['a/b'], 'indirect', 'composer', [0]])]
     #[TestWith([7, 'valid', ['a/b'], 'indirect', 'composer', ['4']])]
-    public function invalidMetadataFailsBeforeAnyExternalEffect(int $number, string $sha, array $packages, string $type, string $ecosystem, array $alerts): void
-    {
+    public function invalidMetadataFailsBeforeAnyExternalEffect(
+        int $number,
+        string $sha,
+        array $packages,
+        string $type,
+        string $ecosystem,
+        array $alerts,
+    ): void {
         $this->expectException(RuntimeException::class);
-        $this->factory()->create($number, 'valid' === $sha ? str_repeat('a', 40) : $sha, $packages, $type, $ecosystem, $alerts);
+        $this->factory()->create(
+            $number,
+            'valid' === $sha ? str_repeat('a', 40) : $sha,
+            $packages,
+            $type,
+            $ecosystem,
+            $alerts,
+        );
     }
 
     private function factory(): DependabotInputFactory
     {
         $errors = $this->createStub(GitHubExceptionFactoryInterface::class);
-        $errors->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
+        $errors->method('failure')->willReturnCallback(
+            static fn(string $message): RuntimeException => new RuntimeException($message),
+        );
+
         return new DependabotInputFactory($errors);
     }
 }

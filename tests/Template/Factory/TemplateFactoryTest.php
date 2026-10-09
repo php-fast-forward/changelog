@@ -44,7 +44,10 @@ final class TemplateFactoryTest extends TestCase
     #[Test]
     public function acceptsExplicitPartialPresentationOverrides(): void
     {
-        $template = new TemplateFactory()->create('en', ['introduction' => '# History', 'category_headings' => ['added' => '### Features'], 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version}: {date}', 'no_notes' => 'No notes']);
+        $template = new TemplateFactory()->create(
+            'en',
+            ['introduction' => '# History', 'category_headings' => ['added' => '### Features'], 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version}: {date}', 'no_notes' => 'No notes'],
+        );
         self::assertSame('# History', $template->introduction());
         self::assertSame('### Features', $template->categoryHeading('added'));
         self::assertSame('### Fixed', $template->categoryHeading('fixed'));
@@ -81,11 +84,28 @@ final class TemplateFactoryTest extends TestCase
     {
         $template = new TemplateFactory()->create('en', ['release_heading_dated' => $heading]);
         $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
-        $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
+        $documents->method('create')->willReturnCallback(
+            static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument(
+                $releases,
+                $prefix,
+                $references,
+            ),
+        );
         $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
-        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease($version, $date, $source, $body, $heading, $ending));
+        $releases->method('create')->willReturnCallback(
+            static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease(
+                $version,
+                $date,
+                $source,
+                $body,
+                $heading,
+                $ending,
+            ),
+        );
         $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
         $codec = new HistoryCodec($documents, $releases, $exceptions);
         $version = '1.2.3-beta.1+build.7';
         $date = '2026-10-03';
@@ -131,12 +151,18 @@ final class TemplateFactoryTest extends TestCase
         $unsafe = new KeepAChangelogTemplate('en', '# History', '## Release {version}', '## Release {version}: {date}', ['added' => '### Added', 'changed' => '### Changed', 'deprecated' => '### Deprecated', 'removed' => '### Removed', 'fixed' => '### Fixed', 'security' => '### Security'], '## Release 1.2.3', 'No notes');
         self::assertSame($unsafe->unreleasedHeading(), $unsafe->releaseHeading('1.2.3', null));
         $codec = $this->codec();
-        $rendered = $codec->render(new HistoryDocument([new HistoryRelease('1.2.3', body: "Concrete release notes.\n")]), $unsafe);
+        $rendered = $codec->render(
+            new HistoryDocument([new HistoryRelease('1.2.3', body: "Concrete release notes.\n")]),
+            $unsafe,
+        );
         self::assertSame('unreleased', $codec->parse($rendered, $unsafe)->getReleases()[0]->getVersion());
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('unreleased heading must not also identify a valid release heading');
-        new TemplateFactory()->create('en', ['release_heading' => '## Release {version}', 'unreleased_heading' => $unsafe->unreleasedHeading()]);
+        new TemplateFactory()->create(
+            'en',
+            ['release_heading' => '## Release {version}', 'unreleased_heading' => $unsafe->unreleasedHeading()],
+        );
     }
 
     #[Test]
@@ -167,7 +193,10 @@ final class TemplateFactoryTest extends TestCase
             new HistoryRelease('1.2.4', body: "Undated release notes.\n"),
         ]), $template);
         $parsed = $codec->parse($markdown, $template);
-        self::assertSame(['unreleased', '1.2.3', '1.2.4'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame([
+            'unreleased', '1.2.3', '1.2.4'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame('2026-10-03', $parsed->getRelease('1.2.3')->getDate());
         self::assertSame("\nPending notes.\n\n", $codec->notes($parsed, 'unreleased'));
         self::assertSame("\nDated release notes.\n\n", $codec->notes($parsed, '1.2.3'));
@@ -202,11 +231,29 @@ final class TemplateFactoryTest extends TestCase
     private function codec(): HistoryCodec
     {
         $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
-        $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
+        $documents->method('create')->willReturnCallback(
+            static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument(
+                $releases,
+                $prefix,
+                $references,
+            ),
+        );
         $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
-        $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease($version, $date, $source, $body, $heading, $ending));
+        $releases->method('create')->willReturnCallback(
+            static fn(string $version, ?string $date, ?string $source, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease(
+                $version,
+                $date,
+                $source,
+                $body,
+                $heading,
+                $ending,
+            ),
+        );
         $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
+
         return new HistoryCodec($documents, $releases, $exceptions);
     }
 
