@@ -24,7 +24,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                os: [ubuntu-latest, windows-latest]
+                os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
 
         steps:
             - name: Check out repository
@@ -61,33 +61,21 @@ jobs:
               run: php bin/changelog list --raw
 
             - name: Build the packaged CLI image
-              if: matrix.os == 'ubuntu-latest'
+              if: startsWith(matrix.os, 'ubuntu-')
               run: docker build --progress=plain -t fast-forward-changelog:ci .
 
             - name: Verify the actual container CLI in disposable consumers
-              if: matrix.os == 'ubuntu-latest'
+              if: startsWith(matrix.os, 'ubuntu-')
               run: php tests/Container/verify.php fast-forward-changelog:ci
 
             - name: Verify the Composer root version build argument
-              if: matrix.os == 'ubuntu-latest'
+              if: startsWith(matrix.os, 'ubuntu-')
               run: |
                   docker build --build-arg COMPOSER_ROOT_VERSION=1.2.3 --tag fast-forward-changelog:version-fixture .
                   php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
 
-            - name: Set up arm64 integration verification
-              if: matrix.os == 'ubuntu-latest'
-              uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-              with:
-                  platforms: arm64
-
-            - name: Verify the arm64 versioned CLI image
-              if: matrix.os == 'ubuntu-latest'
-              run: |
-                  docker build --platform linux/arm64 --build-arg COMPOSER_ROOT_VERSION=1.2.3 --tag fast-forward-changelog:arm64-fixture .
-                  php tests/Container/verify.php fast-forward-changelog:arm64-fixture 1.2.3
-
             - name: Verify Docker action invocation and runner outputs
-              if: matrix.os == 'ubuntu-latest'
+              if: startsWith(matrix.os, 'ubuntu-')
               id: docker-action
               uses: ./.github/actions/history
               with:
@@ -96,7 +84,7 @@ jobs:
                   source: tags
 
             - name: Verify the Docker action output contract
-              if: matrix.os == 'ubuntu-latest'
+              if: startsWith(matrix.os, 'ubuntu-')
               env:
                   FF_ACTION_RESULT: ${{ steps.docker-action.outputs.result }}
                   FF_ACTION_STATUS: ${{ steps.docker-action.outputs.status }}

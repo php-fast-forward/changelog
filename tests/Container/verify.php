@@ -156,5 +156,11 @@ try {
     fwrite(STDOUT, "Container CLI PASS: {$assertions} assertions, {$commands} commands; fixture={$fixtureRoot}\n");
 } catch (Throwable $exception) {
     fwrite(STDERR, $exception->getMessage() . "\nFixture retained: {$fixtureRoot}\n");
+    foreach (['out', 'err'] as $stream) {
+        $log = $fixtureRoot . '/command-' . $commands . '.' . $stream;
+        if (is_file($log)) {
+            fwrite(STDERR, "Last fixture command {$stream}:\n" . substr(file_get_contents($log), 0, 4000) . "\n");
+        }
+    }
     exit(1);
 }

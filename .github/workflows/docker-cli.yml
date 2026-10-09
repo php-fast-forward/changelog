@@ -20,12 +20,16 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux/amd64, linux/arm64]
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
     permissions:
       contents: read
     outputs:
@@ -85,12 +89,6 @@ jobs:
         with:
           php-version: '8.5'
           coverage: none
-
-      - name: Set up arm64 verification
-        if: matrix.platform == 'linux/arm64'
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          platforms: arm64
 
       - name: Build and verify the versioned CLI
         shell: bash

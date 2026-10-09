@@ -106,7 +106,8 @@ works with GITHUB_TOKEN and App tokens
 without also dispatching a duplicate run from a tag-push event.
 
 The validation matrix binds the tag to the checked-out commit and the exact
-approved SHA. It builds and executes each platform variant with the normalized
+approved SHA. It builds and executes each platform variant on a native GitHub
+runner with the normalized
 version, running the actual-image verifier and checking the complete CLI version.
 The publication job
 checks out that validated commit, prepares the multi-platform build, then
