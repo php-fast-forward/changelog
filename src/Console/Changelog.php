@@ -53,6 +53,7 @@ final class Changelog extends Application
 
     /**
      * Converts GitHub command binding/validation failures to the machine contract before services execute.
+     * Add's required-input failures keep human Symfony diagnostics and the existing invalid-input exit status.
      * Other commands retain Symfony errors; successful invocations keep their existing result and exit status.
      */
     protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int
@@ -60,6 +61,13 @@ final class Changelog extends Application
         try {
             return parent::doRunCommand($command, $input, $output);
         } catch (ExceptionInterface $exception) {
+            if ('add' === $command->getName()) {
+                $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
+                $this->renderThrowable($exception, $error);
+
+                return Command::INVALID;
+            }
+
             if ('github' !== $command->getName()) {
                 throw $exception;
             }

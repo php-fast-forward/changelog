@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
 - Adds contextual Dash artwork organizing change fragments into a release history.
 - Runs all GitHub Actions from the self-contained Docker CLI under .github/actions, with direct commands, validated outputs and separate consumer data.
+- Uses Symfony Console Ask for the required add description, retries blank interactive answers without trimming Markdown spaces, and preserves unattended invalid-input handling. Direct AddCommand invocations no longer receive InputInterface.
 - Aligns README sections, examples and verified badges with the Fast Forward package documentation format.
 - Registers ChangelogServiceProvider by class name with lazy defaults and optional Fast Forward Config injection instead of provider constructor arguments.
 - Improves PHP, Dockerfile and workflow readability with separated statement blocks, grouped command attributes and wrapped arguments; keeps the formatting rules in the project quality gate.

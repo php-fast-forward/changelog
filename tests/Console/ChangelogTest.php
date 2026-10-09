@@ -6,10 +6,15 @@ namespace FastForward\Changelog\Tests\Console;
 
 use FastForward\Changelog\Automation\AutomationRunnerInterface;
 use FastForward\Changelog\Console\Changelog;
+use FastForward\Changelog\Console\Command\AddCommand;
 use FastForward\Changelog\Console\Command\GitHubCommand;
 use FastForward\Changelog\Console\GitHubOutputWriterInterface;
 use FastForward\Changelog\Console\Input\GitHubInput;
 use FastForward\Changelog\Console\Input\ReleaseInput;
+use FastForward\Changelog\Console\Normalizer\LineAnswerNormalizer;
+use FastForward\Changelog\Fragment\FragmentWriterInterface;
+use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
+use FastForward\Changelog\Validator\ChangeDescriptionValidator;
 use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -27,6 +32,9 @@ use Symfony\Component\Console\Output\ConsoleOutputInterface;
 #[UsesClass(GitHubCommand::class)]
 #[UsesClass(GitHubInput::class)]
 #[UsesClass(ReleaseInput::class)]
+#[UsesClass(AddCommand::class)]
+#[UsesClass(ChangeDescriptionValidator::class)]
+#[UsesClass(LineAnswerNormalizer::class)]
 final class ChangelogTest extends TestCase
 {
     #[Test]
@@ -110,6 +118,47 @@ final class ChangelogTest extends TestCase
         $input->setInteractive(false);
         $this->expectException(RuntimeException::class);
         $app->doRun($input, new BufferedOutput());
+    }
+
+    /** Native missing-message parsing rejects unattended add before settings or fragment writes, with exit 2. */
+    public function testAddMissingMessageKeepsInvalidExitWithHumanDiagnostics(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::never())->method('create');
+        $writer = $this->createMock(FragmentWriterInterface::class);
+        $writer->expects(self::never())->method('add');
+        $app = $this->application(
+            $this->createStub(AutomationRunnerInterface::class),
+            $this->createStub(GitHubOutputWriterInterface::class),
+        );
+        $app->addCommand(new Command('add', new AddCommand($factory, $writer)));
+        $input = new ArgvInput(['changelog', 'add', '--no-interaction']);
+        $input->setInteractive(false);
+        $output = new BufferedOutput();
+        self::assertSame(2, $app->doRun($input, $output));
+        self::assertStringContainsString('Not enough arguments (missing: "message").', $output->fetch());
+    }
+
+    /** A console's error channel carries required-input diagnostics instead of machine JSON or stdout. */
+    public function testAddMissingMessageUsesStderr(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::never())->method('create');
+        $writer = $this->createMock(FragmentWriterInterface::class);
+        $writer->expects(self::never())->method('add');
+        $app = $this->application(
+            $this->createStub(AutomationRunnerInterface::class),
+            $this->createStub(GitHubOutputWriterInterface::class),
+        );
+        $app->addCommand(new Command('add', new AddCommand($factory, $writer)));
+        $error = new BufferedOutput();
+        $output = $this->createMock(ConsoleOutputInterface::class);
+        $output->expects(self::never())->method('writeln');
+        $output->expects(self::once())->method('getErrorOutput')->willReturn($error);
+        $input = new ArgvInput(['changelog', 'add', '--no-interaction']);
+        $input->setInteractive(false);
+        self::assertSame(2, $app->doRun($input, $output));
+        self::assertStringContainsString('missing: "message"', $error->fetch());
     }
 
     /** Composes only injected service doubles and value objects; doRun avoids host environment configuration. */
