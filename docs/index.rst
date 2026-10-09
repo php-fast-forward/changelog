@@ -69,7 +69,9 @@ PHP composition and verification
 --------------------------------
 
 ``ChangelogServiceProvider`` integrates with ``fast-forward/container`` and
-supplies a Symfony Console lazy command loader. Listing commands and general
+supplies a Symfony Console lazy command loader.
+Register its class name without constructor arguments; optional ``changelog.*``
+settings enter through Fast Forward Config in the same container. Listing and
 help do not construct selected command dependencies; a failure is isolated to
 the command that uses it. Services receive filesystem, Git, HTTP, options,
 factory and PSR-20 clock collaborators through interfaces.

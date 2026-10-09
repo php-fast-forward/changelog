@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Container\ServiceProvider;
 
+use Closure;
 use DateTimeZone;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
 use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface;
@@ -27,10 +28,13 @@ use FastForward\Changelog\GitHub\Factory\HttpClientFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Version\ComposerPackageVersionResolver;
 use FastForward\Clock\SystemClock;
+use FastForward\Config\ArrayConfig;
+use FastForward\Config\ConfigInterface;
 use FastForward\Container\Factory\AliasFactory;
 use Interop\Container\ServiceProviderInterface;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use RuntimeException;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 use Symfony\Component\Lock\PersistingStoreInterface;
 use Symfony\Component\Lock\Store\FlockStore;
@@ -39,26 +43,27 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 /** Declares lazy, consumer-owned composition for the standalone fragment CLI. */
 final readonly class ChangelogServiceProvider implements ServiceProviderInterface
 {
-    /** Captures caller-owned paths and credentials; only the executable boundary may inspect environment. */
-    public function __construct(
-        private string $workingDirectory,
-        private ?string $installedVersion = null,
-        private string $token = '',
-        private string $apiUrl = 'https://api.github.com',
-        private ?string $temporaryDirectory = null,
-        private ?string $githubOutputFile = null,
-    ) {}
+    /** Module-local resolved settings; consumer overrides use config.changelog.* entries. */
+    public const string CONFIG = 'changelog.config';
 
     /** Returns explicit factories and autowiring aliases without instantiating I/O adapters or commands. */
     public function getFactories(): array
     {
         return [
+            self::CONFIG => static fn(ContainerInterface $container): ConfigInterface => new ArrayConfig([
+                'working_directory' => self::configuration($container, 'working_directory', static fn(): string => getcwd() ?: throw new RuntimeException('Could not resolve the changelog working directory.')),
+                'temporary_directory' => self::configuration($container, 'temporary_directory', static fn(): string => realpath(sys_get_temp_dir()) ?: sys_get_temp_dir()),
+                'installed_version' => self::configuration($container, 'installed_version', static fn(): ?string => null),
+                'token' => self::configuration($container, 'token', static fn(): string => ''),
+                'api_url' => self::configuration($container, 'api_url', static fn(): string => 'https://api.github.com'),
+                'github_output_file' => self::configuration($container, 'github_output_file', static fn(): ?string => null),
+            ]),
             \FastForward\Changelog\Console\GitHubOutputWriterInterface::class => new AliasFactory(\FastForward\Changelog\Console\GitHubOutputWriter::class),
-            \FastForward\Changelog\Console\GitHubOutputWriter::class => fn(ContainerInterface $container): \FastForward\Changelog\Console\GitHubOutputWriter
-                => new \FastForward\Changelog\Console\GitHubOutputWriter($container->get(\Symfony\Component\Filesystem\Filesystem::class), $this->githubOutputFile),
+            \FastForward\Changelog\Console\GitHubOutputWriter::class => static fn(ContainerInterface $container): \FastForward\Changelog\Console\GitHubOutputWriter
+                => new \FastForward\Changelog\Console\GitHubOutputWriter($container->get(\Symfony\Component\Filesystem\Filesystem::class), $container->get(self::CONFIG)->get('github_output_file')),
             \FastForward\Changelog\Release\ReleaseJournalPathResolverInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReleaseJournalPathResolver::class),
-            \FastForward\Changelog\Release\ReleaseJournalPathResolver::class => fn(ContainerInterface $container): \FastForward\Changelog\Release\ReleaseJournalPathResolver
-                => new \FastForward\Changelog\Release\ReleaseJournalPathResolver($container->get(\FastForward\Changelog\Git\GitRepositoryInterface::class), $this->temporaryDirectory ?? (realpath(sys_get_temp_dir()) ?: sys_get_temp_dir())),
+            \FastForward\Changelog\Release\ReleaseJournalPathResolver::class => static fn(ContainerInterface $container): \FastForward\Changelog\Release\ReleaseJournalPathResolver
+                => new \FastForward\Changelog\Release\ReleaseJournalPathResolver($container->get(\FastForward\Changelog\Git\GitRepositoryInterface::class), $container->get(self::CONFIG)->get('temporary_directory')),
             \FastForward\Changelog\Automation\AutomationRunnerInterface::class => new AliasFactory(\FastForward\Changelog\Automation\AutomationRunner::class),
             \FastForward\Changelog\Validator\ReleaseDateValidatorInterface::class => new AliasFactory(\FastForward\Changelog\Validator\ReleaseDateValidator::class),
             \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface::class => new AliasFactory(\FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory::class),
@@ -124,19 +129,19 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 => $container->get(IdentifierGeneratorFactoryInterface::class)->create(),
             HttpClientInterface::class => static fn(ContainerInterface $container): HttpClientInterface
                 => $container->get(HttpClientFactoryInterface::class)->create(),
-            GitHubClientInterface::class => fn(ContainerInterface $container): GitHubClientInterface
-                => $container->get(GitHubClientFactoryInterface::class)->create($this->token, $this->apiUrl),
+            GitHubClientInterface::class => static fn(ContainerInterface $container): GitHubClientInterface
+                => $container->get(GitHubClientFactoryInterface::class)->create($container->get(self::CONFIG)->get('token'), $container->get(self::CONFIG)->get('api_url')),
             PersistingStoreInterface::class => new AliasFactory(FlockStore::class),
             ClockInterface::class => new AliasFactory(SystemClock::class),
             DateTimeZone::class => static fn(ContainerInterface $container): DateTimeZone
                 => $container->get(TimezoneFactory::class)->create(),
             SystemClock::class => static fn(ContainerInterface $container): SystemClock
                 => new SystemClock($container->get(DateTimeZone::class)),
-            ComposerPackageVersionResolver::class => fn(): ComposerPackageVersionResolver
-                => new ComposerPackageVersionResolver($this->installedVersion),
-            PackagePathResolver::class => fn(): PackagePathResolver
-                => new PackagePathResolver($this->workingDirectory),
-            ProcessFactory::class => fn(): ProcessFactory => new ProcessFactory($this->workingDirectory),
+            ComposerPackageVersionResolver::class => static fn(ContainerInterface $container): ComposerPackageVersionResolver
+                => new ComposerPackageVersionResolver($container->get(self::CONFIG)->get('installed_version')),
+            PackagePathResolver::class => static fn(ContainerInterface $container): PackagePathResolver
+                => new PackagePathResolver($container->get(self::CONFIG)->get('working_directory')),
+            ProcessFactory::class => static fn(ContainerInterface $container): ProcessFactory => new ProcessFactory($container->get(self::CONFIG)->get('working_directory')),
             CommandLoaderInterface::class => static fn(ContainerInterface $container): ChangelogCommandLoader
                 => new ChangelogCommandLoader($container, $container->get(LazyCommandFactoryInterface::class)),
         ];
@@ -146,5 +151,13 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     public function getExtensions(): array
     {
         return [];
+    }
+
+    /** Reads an optional consumer config entry; evaluates the host default only when that entry is absent. */
+    private static function configuration(ContainerInterface $container, string $key, Closure $default): mixed
+    {
+        $id = 'config.changelog.' . $key;
+
+        return $container->has($id) ? $container->get($id) : $default();
     }
 }

@@ -15,7 +15,10 @@ php tests/Container/verify.php fast-forward-changelog:ci
 ```
 
 The optional first argument is the image name; the default is
-`fast-forward-changelog:ci`. Fixtures are created below the system temporary
+`fast-forward-changelog:ci`. The second argument, when supplied, is the expected
+Composer root version. It checks both installed metadata and the direct CLI
+version after a versioned build. The verifier also checks the `/usr/local` layout
+and executable resolution through PATH. Fixtures are created below the system temporary
 directory with the prefix `changelog-container-`. Git configuration and HOME
 are isolated for child processes. Each container has networking disabled,
 synthetic credentials and a reserved invalid API endpoint. The fixture mounts
