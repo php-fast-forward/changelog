@@ -53,13 +53,25 @@ try {
     $valid = '<coverage lines-valid="1" lines-covered="1"><packages><package><classes><class name="Fixture" line-rate="1"><lines><line number="6" hits="1"/></lines></class></classes></package></packages></coverage>';
     $cases = [
         'complete coverage' => [$valid, '100', 0],
-        'uncovered line below threshold' => [str_replace(['lines-covered="1"', 'line-rate="1"', 'hits="1"'], ['lines-covered="0"', 'line-rate="0"', 'hits="0"'], $valid), '100', 1],
+        'uncovered line below threshold' => [
+            str_replace([
+                'lines-covered="1"', 'line-rate="1"', 'hits="1"'],
+                ['lines-covered="0"', 'line-rate="0"', 'hits="0"'],
+                $valid,
+            ),
+            '100',
+            1,
+        ],
         'empty report' => ['', '100', 1],
         'malformed report' => ['<coverage>', '100', 1],
         'invalid threshold' => [$valid, 'NaN', 1],
         'threshold above 100' => [$valid, '101', 1],
         'invalid report count' => [str_replace('lines-valid="1"', 'lines-valid="invalid"', $valid), '100', 1],
-        'zero denominator' => [str_replace(['lines-valid="1"', 'lines-covered="1"'], ['lines-valid="0"', 'lines-covered="0"'], $valid), '100', 1],
+        'zero denominator' => [
+            str_replace(['lines-valid="1"', 'lines-covered="1"'], ['lines-valid="0"', 'lines-covered="0"'], $valid),
+            '100',
+            1,
+        ],
         'impossible numerator' => [str_replace('lines-covered="1"', 'lines-covered="2"', $valid), '100', 1],
         'uncovered class with full root totals' => [str_replace('line-rate="1"', 'line-rate="0"', $valid), '100', 1],
         'uncovered own line with full rates' => [str_replace('hits="1"', 'hits="0"', $valid), '100', 1],
@@ -70,7 +82,13 @@ try {
         file_put_contents($report, $xml);
         [$exit, $output] = $run([$coverageScript, $report, $threshold]);
         if ($exit !== $expected) {
-            throw new RuntimeException(sprintf('Coverage case "%s" returned %d, expected %d: %s', $label, $exit, $expected, $output));
+            throw new RuntimeException(sprintf(
+                'Coverage case "%s" returned %d, expected %d: %s',
+                $label,
+                $exit,
+                $expected,
+                $output,
+            ));
         }
         ++$checks;
     }

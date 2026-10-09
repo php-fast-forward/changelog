@@ -14,11 +14,16 @@ declare(strict_types=1);
  * @see https://github.com/php-fast-forward/changelog
  */
 
+use PhpCsFixer\Fixer\FunctionNotation\MethodArgumentSpaceFixer;
 use PhpCsFixer\Fixer\Import\NoUnusedImportsFixer;
 use PhpCsFixer\Fixer\Import\OrderedImportsFixer;
 use PhpCsFixer\Fixer\Phpdoc\PhpdocAlignFixer;
 use PhpCsFixer\Fixer\Phpdoc\PhpdocIndentFixer;
 use PhpCsFixer\Fixer\Phpdoc\PhpdocTrimFixer;
+use PhpCsFixer\Fixer\Whitespace\BlankLineBeforeStatementFixer;
+use Symplify\CodingStandard\Fixer\LineLength\LineLengthFixer;
+use Symplify\CodingStandard\Fixer\Spacing\StandaloneLineConstructorParamFixer;
+use Symplify\CodingStandard\Fixer\Spacing\StandaloneLineSymfonyAttributeParamFixer;
 use Symplify\EasyCodingStandard\Config\ECSConfig;
 
 return ECSConfig::configure()
@@ -37,6 +42,20 @@ return ECSConfig::configure()
         PhpdocAlignFixer::class,
         PhpdocIndentFixer::class,
         PhpdocTrimFixer::class,
+        StandaloneLineConstructorParamFixer::class,
+        StandaloneLineSymfonyAttributeParamFixer::class,
+    ])
+    ->withConfiguredRule(BlankLineBeforeStatementFixer::class, [
+        'statements' => ['return', 'throw', 'continue', 'break'],
+    ])
+    ->withConfiguredRule(LineLengthFixer::class, [
+        'line_length' => 120,
+        'break_long_lines' => true,
+        'inline_short_lines' => false,
+    ])
+    ->withConfiguredRule(MethodArgumentSpaceFixer::class, [
+        'on_multiline' => 'ignore',
+        'attribute_placement' => 'standalone',
     ])
     ->withConfiguredRule(OrderedImportsFixer::class, [
         'imports_order' => ['class', 'function', 'const'],

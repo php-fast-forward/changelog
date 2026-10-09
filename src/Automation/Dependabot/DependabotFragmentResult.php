@@ -19,5 +19,10 @@ namespace FastForward\Changelog\Automation\Dependabot;
 final readonly class DependabotFragmentResult
 {
     /** Status is created, unchanged, filtered, refused or conflict; diagnostics contain no raw server details. */
-    public function __construct(public string $status, public string $path, public ?string $commitSha, public array $diagnostics) {}
+    public function __construct(
+        public string $status,
+        public string $path,
+        public ?string $commitSha,
+        public array $diagnostics,
+    ) {}
 }

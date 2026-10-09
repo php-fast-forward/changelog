@@ -46,19 +46,23 @@ jobs:
           FF_EXPECTED_SHA: ${{ inputs.expected-sha || '' }}
         run: |
           set -euo pipefail
+
           if [[ ! "$FF_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "::error::Select an existing semantic release tag such as v1.0.0."
             exit 1
           fi
+
           if [[ ! "$FF_EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::The approved source must be a complete commit SHA."
             exit 1
           fi
+
           FF_VERSION="${FF_TAG#v}"
           if (( ${#FF_VERSION} > 128 )); then
             echo "::error::The version exceeds the container tag limit."
             exit 1
           fi
+
           printf 'tag=%s\nversion=%s\nimage=ghcr.io/%s\n' "$FF_TAG" "$FF_VERSION" "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Check out the release tag
@@ -76,12 +80,14 @@ jobs:
           FF_EXPECTED_SHA: ${{ inputs.expected-sha || '' }}
         run: |
           set -euo pipefail
+
           FF_TAG_SHA="$(git rev-parse --verify "refs/tags/${FF_TAG}^{commit}")"
           FF_SOURCE_SHA="$(git rev-parse HEAD)"
           if [[ "$FF_TAG_SHA" != "$FF_SOURCE_SHA" || "$FF_SOURCE_SHA" != "$FF_EXPECTED_SHA" ]]; then
             echo "::error::The release tag does not match the approved source commit."
             exit 1
           fi
+
           printf 'sha=%s\n' "$FF_SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Set up the integration verifier
@@ -97,7 +103,13 @@ jobs:
           FF_PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          docker build --platform "$FF_PLATFORM" --build-arg "COMPOSER_ROOT_VERSION=$FF_VERSION" --tag fast-forward-changelog:release-check .
+
+          docker build \
+            --platform "$FF_PLATFORM" \
+            --build-arg "COMPOSER_ROOT_VERSION=$FF_VERSION" \
+            --tag fast-forward-changelog:release-check \
+            .
+
           php tests/Container/verify.php fast-forward-changelog:release-check "$FF_VERSION"
 
   publish:
@@ -155,6 +167,7 @@ jobs:
           FF_APPROVED_SHA: ${{ needs.validate.outputs.sha }}
         run: |
           set -euo pipefail
+
           FF_OBJECT="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${FF_TAG}" --jq '[.object.type, .object.sha] | @tsv')"
           IFS=$'\t' read -r FF_TYPE FF_REMOTE_SHA <<< "$FF_OBJECT"
           FF_DEPTH=0
@@ -163,6 +176,7 @@ jobs:
               echo "::error::The remote release tag is not bound to a commit."
               exit 1
             fi
+
             FF_OBJECT="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${FF_REMOTE_SHA}" --jq '[.object.type, .object.sha] | @tsv')"
             IFS=$'\t' read -r FF_TYPE FF_REMOTE_SHA <<< "$FF_OBJECT"
             FF_DEPTH=$((FF_DEPTH + 1))

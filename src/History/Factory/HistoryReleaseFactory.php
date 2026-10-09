@@ -23,11 +23,19 @@ use InvalidArgumentException;
 final readonly class HistoryReleaseFactory implements HistoryReleaseFactoryInterface
 {
     /** Shares the clock-free calendar validator with release preparation and imported history. */
-    public function __construct(private ReleaseDateValidatorInterface $dates) {}
+    public function __construct(
+        private ReleaseDateValidatorInterface $dates,
+    ) {}
 
     /** Creates a release without reading a clock or deriving unknown provenance. */
-    public function create(string $version, ?string $date = null, ?string $dateSource = null, string $body = '', ?string $heading = null, string $ending = ''): HistoryRelease
-    {
+    public function create(
+        string $version,
+        ?string $date = null,
+        ?string $dateSource = null,
+        string $body = '',
+        ?string $heading = null,
+        string $ending = '',
+    ): HistoryRelease {
         $version = preg_replace('/^[vV](?=\d)/', '', $version);
         $identifier = '(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)';
         $pattern = '/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)'

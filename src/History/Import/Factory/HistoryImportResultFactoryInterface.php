@@ -25,5 +25,9 @@ interface HistoryImportResultFactoryInterface
      * Constructs a result from preserved history and a caller-validated stable tag baseline.
      * @param list<string> $missingVersions canonical identities inserted during import
      */
-    public function create(HistoryDocument $document, array $missingVersions, string $currentVersion): HistoryImportResult;
+    public function create(
+        HistoryDocument $document,
+        array $missingVersions,
+        string $currentVersion,
+    ): HistoryImportResult;
 }

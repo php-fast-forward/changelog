@@ -41,14 +41,19 @@ final class FilesystemChangesetStoreTest extends TestCase
         self::assertSame($store->lockResource('/repo/.changelog'), $store->lockResource('/repo//./.changelog/'));
         self::assertNotSame($store->lockResource('/repo/.changelog'), $store->lockResource('/other/.changelog'));
         self::assertSame($store->lockResource('C:/repo/.changelog'), $store->lockResource('c:\repo\.changelog'));
-        self::assertSame($store->lockResource('//server/share/.changelog'), $store->lockResource('\\\\server\\share\\.changelog'));
+        self::assertSame(
+            $store->lockResource('//server/share/.changelog'),
+            $store->lockResource('\\\\server\\share\\.changelog'),
+        );
     }
 
     #[Test]
     public function relativeLockResourcesFailThroughAnInjectedExceptionFactory(): void
     {
         $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create('.changelog')->willReturn(new InvalidArgumentException('absolute required'))->shouldBeCalledOnce();
+        $exceptions->create('.changelog')->willReturn(
+            new InvalidArgumentException('absolute required'),
+        )->shouldBeCalledOnce();
         $store = $this->store($this->filesystem(), exceptions: $exceptions);
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('absolute required');
@@ -109,7 +114,9 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem->readFile(Argument::any())->shouldNotBeCalled();
         $filesystem->remove(Argument::any())->shouldNotBeCalled();
         $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create('C:/consumer/entry.md')->willReturn(new InvalidArgumentException('Symbolic drive root'))->shouldBeCalledOnce();
+        $exceptions->create('C:/consumer/entry.md')->willReturn(
+            new InvalidArgumentException('Symbolic drive root'),
+        )->shouldBeCalledOnce();
         $store = $this->store($filesystem, exceptions: $exceptions);
 
         DirectoryName::withParent('C:/consumer', $parent, static function () use ($store): void {
@@ -153,10 +160,16 @@ final class FilesystemChangesetStoreTest extends TestCase
         $directory = $this->prophesize(SplFileInfo::class);
         $directory->isFile()->willReturn(false)->shouldBeCalledOnce();
         $directory->isLink()->willReturn(false)->shouldBeCalledOnce();
-        $finder->filter(Argument::type('callable'))->will(function (array $arguments) use ($regular, $brokenLink, $directory, $finderObject): Finder {
+        $finder->filter(Argument::type('callable'))->will(function (array $arguments) use (
+            $regular,
+            $brokenLink,
+            $directory,
+            $finderObject
+        ): Finder {
             self::assertTrue($arguments[0]($regular->reveal()));
             self::assertTrue($arguments[0]($brokenLink->reveal()));
             self::assertFalse($arguments[0]($directory->reveal()));
+
             return $finderObject;
         })->shouldBeCalledOnce();
         $finder->ignoreDotFiles(false)->willReturn($finderObject)->shouldBeCalledOnce();
@@ -179,7 +192,15 @@ final class FilesystemChangesetStoreTest extends TestCase
         $factory = $this->prophesize(FinderFactoryInterface::class);
         $factory->create()->willReturn($finderObject)->shouldBeCalledOnce();
 
-        self::assertSame(['/repo/.changelog/.hidden.md', '/repo/.changelog/broken-link.md', '/repo/.changelog/nested/AGENTS.md', '/repo/.changelog/z.md'], $this->store($filesystem, finder: $factory)->paths('/repo/.changelog'));
+        self::assertSame(
+            [
+                '/repo/.changelog/.hidden.md',
+                '/repo/.changelog/broken-link.md',
+                '/repo/.changelog/nested/AGENTS.md',
+                '/repo/.changelog/z.md',
+            ],
+            $this->store($filesystem, finder: $factory)->paths('/repo/.changelog'),
+        );
     }
 
     #[Test]
@@ -198,7 +219,9 @@ final class FilesystemChangesetStoreTest extends TestCase
     public function readFailurePropagatesWithoutMaskingTheIntegrationError(): void
     {
         $filesystem = $this->filesystem();
-        $filesystem->readFile('/repo/.changelog/entry.md')->willThrow(new RuntimeException('read failed'))->shouldBeCalledOnce();
+        $filesystem->readFile('/repo/.changelog/entry.md')->willThrow(
+            new RuntimeException('read failed'),
+        )->shouldBeCalledOnce();
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('read failed');
         $this->store($filesystem)->read('/repo/.changelog/entry.md');
@@ -212,7 +235,10 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem->exists('/repo/.changelog')->willReturn(false)->shouldBeCalledOnce();
         $filesystem->mkdir('/repo/.changelog')->shouldBeCalledOnce();
         $filesystem->dumpFile('/repo/.changelog/entry.md', 'body')->shouldBeCalledOnce();
-        self::assertSame(WriteResult::Created, $this->store($filesystem, locks: $this->locks())->write('/repo/.changelog/entry.md', 'body'));
+        self::assertSame(
+            WriteResult::Created,
+            $this->store($filesystem, locks: $this->locks())->write('/repo/.changelog/entry.md', 'body'),
+        );
     }
 
     #[Test]
@@ -232,7 +258,13 @@ final class FilesystemChangesetStoreTest extends TestCase
     #[Test]
     public function unavailableLockProducesNoFilesystemReadsOrWrites(): void
     {
-        self::assertSame(WriteResult::LockUnavailable, $this->store($this->prophesize(Filesystem::class), locks: $this->locks(acquired: false))->write('/repo/.changelog/entry.md', 'body'));
+        self::assertSame(
+            WriteResult::LockUnavailable,
+            $this->store(
+                $this->prophesize(Filesystem::class),
+                locks: $this->locks(acquired: false),
+            )->write('/repo/.changelog/entry.md', 'body'),
+        );
     }
 
     #[Test]
@@ -244,7 +276,10 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem->exists('/repo/.changelog')->willReturn(false)->shouldBeCalledOnce();
         $filesystem->mkdir('/repo/.changelog')->shouldBeCalledOnce();
         $filesystem->dumpFile(Argument::any(), Argument::any())->shouldNotBeCalled();
-        self::assertSame(WriteResult::UnsafePath, $this->store($filesystem, locks: $this->locks())->write('/repo/.changelog/entry.md', 'body'));
+        self::assertSame(
+            WriteResult::UnsafePath,
+            $this->store($filesystem, locks: $this->locks())->write('/repo/.changelog/entry.md', 'body'),
+        );
     }
 
     #[Test]
@@ -253,7 +288,9 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem = $this->filesystem();
         $filesystem->exists('/repo/.changelog/entry.md')->willReturn(false)->shouldBeCalledOnce();
         $filesystem->exists('/repo/.changelog')->willReturn(true)->shouldBeCalledOnce();
-        $filesystem->dumpFile('/repo/.changelog/entry.md', 'body')->willThrow(new RuntimeException('disk unavailable'))->shouldBeCalledOnce();
+        $filesystem->dumpFile('/repo/.changelog/entry.md', 'body')->willThrow(
+            new RuntimeException('disk unavailable'),
+        )->shouldBeCalledOnce();
         $store = $this->store($filesystem, locks: $this->locks());
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('disk unavailable');
@@ -294,7 +331,9 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem->readlink('/repo/.changelog/link.md')->willReturn('/outside')->shouldBeCalledOnce();
         $filesystem->remove(Argument::any())->shouldNotBeCalled();
         $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create('/repo/.changelog/link.md')->willReturn(new InvalidArgumentException('unsafe'))->shouldBeCalledOnce();
+        $exceptions->create('/repo/.changelog/link.md')->willReturn(
+            new InvalidArgumentException('unsafe'),
+        )->shouldBeCalledOnce();
         $this->expectException(InvalidArgumentException::class);
         $this->store($filesystem, exceptions: $exceptions)->remove(['/repo/.changelog/link.md']);
     }
@@ -304,6 +343,7 @@ final class FilesystemChangesetStoreTest extends TestCase
     {
         $filesystem = $this->prophesize(Filesystem::class);
         $filesystem->readlink(Argument::type('string'))->willReturn(null);
+
         return $filesystem;
     }
 
@@ -312,19 +352,34 @@ final class FilesystemChangesetStoreTest extends TestCase
     {
         $factory = $this->prophesize(LockFactory::class);
         $lock = $this->prophesize(SharedLockInterface::class);
-        $factory->createLock('fast-forward/changelog:' . hash('sha256', '/repo/.changelog'))->willReturn($lock->reveal())->shouldBeCalledTimes($times);
+        $factory->createLock('fast-forward/changelog:' . hash('sha256', '/repo/.changelog'))->willReturn(
+            $lock->reveal(),
+        )->shouldBeCalledTimes(
+            $times,
+        );
         $lock->acquire(true)->willReturn($acquired)->shouldBeCalledTimes($times);
         if ($acquired) {
             $lock->release()->shouldBeCalledTimes($times);
         } else {
             $lock->release()->shouldNotBeCalled();
         }
+
         return $factory;
     }
 
     /** Builds the real store with only mocked collaborator boundaries. */
-    private function store(ObjectProphecy $filesystem, ?ObjectProphecy $finder = null, ?ObjectProphecy $locks = null, ?ObjectProphecy $exceptions = null): FilesystemChangesetStore
-    {
-        return new FilesystemChangesetStore($filesystem->reveal(), ($finder ?? $this->prophesize(FinderFactoryInterface::class))->reveal(), ($locks ?? $this->prophesize(LockFactory::class))->reveal(), ($exceptions ?? $this->prophesize(PathExceptionFactoryInterface::class))->reveal());
+    private function store(
+        ObjectProphecy $filesystem,
+        ?ObjectProphecy $finder = null,
+        ?ObjectProphecy $locks = null,
+        ?ObjectProphecy $exceptions = null,
+    ): FilesystemChangesetStore {
+        return new FilesystemChangesetStore($filesystem->reveal(), ($finder ?? $this->prophesize(
+            FinderFactoryInterface::class,
+        ))->reveal(), ($locks ?? $this->prophesize(
+            LockFactory::class,
+        ))->reveal(), ($exceptions ?? $this->prophesize(
+            PathExceptionFactoryInterface::class,
+        ))->reveal());
     }
 }

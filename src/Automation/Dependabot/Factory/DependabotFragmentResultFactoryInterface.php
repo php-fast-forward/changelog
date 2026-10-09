@@ -21,5 +21,10 @@ use FastForward\Changelog\Automation\Dependabot\DependabotFragmentResult;
 interface DependabotFragmentResultFactoryInterface
 {
     /** Preserves whether a mutation occurred and any safe actionable diagnostic. */
-    public function create(string $status, string $path, ?string $commitSha = null, array $diagnostics = []): DependabotFragmentResult;
+    public function create(
+        string $status,
+        string $path,
+        ?string $commitSha = null,
+        array $diagnostics = [],
+    ): DependabotFragmentResult;
 }

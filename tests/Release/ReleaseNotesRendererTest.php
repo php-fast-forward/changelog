@@ -37,10 +37,20 @@ final class ReleaseNotesRendererTest extends TestCase
     public function testCategoriesAndIdsHaveStableOrderAndTrustedReferences(): void
     {
         $template = $this->createStub(TemplateInterface::class);
-        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => '### custom ' . $category);
+        $template->method('categoryHeading')->willReturnCallback(
+            static fn(string $category): string => '### custom ' . $category,
+        );
         $changes = [
             new Changeset('z.md', Category::Fixed, null, null, null, 'Fix z.'),
-            new Changeset('b.md', Category::Added, 12, 42, 'someone[bot]', "Feature **b**.\n\n```php\nreturn true;\n```", VersionImpact::Patch),
+            new Changeset(
+                'b.md',
+                Category::Added,
+                12,
+                42,
+                'someone[bot]',
+                "Feature **b**.\n\n```php\nreturn true;\n```",
+                VersionImpact::Patch,
+            ),
             new Changeset('a.md', Category::Added, null, null, null, 'Feature a.'),
         ];
         $notes = new ReleaseNotesRenderer()->render($changes, $template, 'owner/project');
@@ -49,7 +59,10 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertLessThan(strpos($notes, 'Feature **b**.'), strpos($notes, 'Feature a.'));
         self::assertLessThan(strpos($notes, '### custom fixed'), strpos($notes, '### custom added'));
         self::assertStringNotContainsString('b.md', $notes);
-        self::assertStringContainsString("-\n  Feature **b**.\n  \n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])", $notes);
+        self::assertStringContainsString(
+            "-\n  Feature **b**.\n  \n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])",
+            $notes,
+        );
         self::assertStringEndsWith("\n", $notes);
     }
 
@@ -58,7 +71,10 @@ final class ReleaseNotesRendererTest extends TestCase
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Changed');
-        $notes = new ReleaseNotesRenderer()->render([new Changeset('one.md', Category::Changed, 7, 8, null, 'Keep two spaces.  ')], $template);
+        $notes = new ReleaseNotesRenderer()->render(
+            [new Changeset('one.md', Category::Changed, 7, 8, null, 'Keep two spaces.  ')],
+            $template,
+        );
         self::assertStringContainsString('- Keep two spaces.   (#8, #7)', $notes);
     }
 
@@ -66,13 +82,18 @@ final class ReleaseNotesRendererTest extends TestCase
     public function testSimpleEntriesHaveNoBlankLinesBetweenChanges(): void
     {
         $template = $this->createStub(TemplateInterface::class);
-        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => '### ' . $category);
+        $template->method('categoryHeading')->willReturnCallback(
+            static fn(string $category): string => '### ' . $category,
+        );
         $changes = [
             new Changeset('b.md', Category::Added, null, null, null, 'Second.'),
             new Changeset('a.md', Category::Added, null, null, null, 'First.'),
             new Changeset('c.md', Category::Fixed, null, null, null, 'Correction.'),
         ];
-        self::assertSame("### added\n\n- First.\n- Second.\n\n### fixed\n\n- Correction.\n", new ReleaseNotesRenderer()->render($changes, $template));
+        self::assertSame(
+            "### added\n\n- First.\n- Second.\n\n### fixed\n\n- Correction.\n",
+            new ReleaseNotesRenderer()->render($changes, $template),
+        );
     }
 
     /** Internal author paragraphs remain within their item without spreading blank separators to adjacent items. */
@@ -85,7 +106,10 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('b.md', Category::Fixed, null, null, null, "First paragraph.\n\nSecond paragraph."),
             new Changeset('c.md', Category::Fixed, null, null, null, 'After.'),
         ];
-        self::assertSame("### Fixed\n\n- Before.\n-\n  First paragraph.\n  \n  Second paragraph.\n- After.\n", new ReleaseNotesRenderer()->render($changes, $template));
+        self::assertSame(
+            "### Fixed\n\n- Before.\n-\n  First paragraph.\n  \n  Second paragraph.\n- After.\n",
+            new ReleaseNotesRenderer()->render($changes, $template),
+        );
     }
 
     /** Standalone fenced descriptions remain fenced after list indentation. */
@@ -93,7 +117,13 @@ final class ReleaseNotesRendererTest extends TestCase
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Fixed');
-        $notes = new ReleaseNotesRenderer()->render([new Changeset('code.md', Category::Fixed, null, null, 'human', "```php\nreturn 1;\n```")], $template);
-        self::assertStringContainsString("-\n  ```php\n  return 1;\n  ```\n\n  ([@human](https://github.com/human))", $notes);
+        $notes = new ReleaseNotesRenderer()->render(
+            [new Changeset('code.md', Category::Fixed, null, null, 'human', "```php\nreturn 1;\n```")],
+            $template,
+        );
+        self::assertStringContainsString(
+            "-\n  ```php\n  return 1;\n  ```\n\n  ([@human](https://github.com/human))",
+            $notes,
+        );
     }
 }

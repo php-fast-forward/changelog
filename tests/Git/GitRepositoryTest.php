@@ -26,31 +26,49 @@ final class GitRepositoryTest extends TestCase
             [['remote', 'get-url', 'origin'], "git@github.com:owner/project.git\r\n"],
         ])->originUrl('/consumer'));
         self::assertNull($this->repository([[['remote', 'get-url', 'origin'], '']])->originUrl('/consumer'));
-        self::assertNull($this->repository([[['remote', 'get-url', 'origin'], '', false, '', 2]])->originUrl('/consumer'));
+        self::assertNull(
+            $this->repository([[['remote', 'get-url', 'origin'], '', false, '', 2]])->originUrl('/consumer'),
+        );
     }
 
     /** A broken local configuration cannot silently masquerade as an origin-less project. */
     public function testOriginConfigurationFailureIsDiagnostic(): void
     {
         $this->expectExceptionMessage('Cannot read the repository-local Git origin: configuration unavailable');
-        $this->repository([[['remote', 'get-url', 'origin'], '', false, 'configuration unavailable', 128]])->originUrl('/consumer');
+        $this->repository([[['remote', 'get-url', 'origin'], '', false, 'configuration unavailable', 128]])->originUrl(
+            '/consumer',
+        );
     }
 
     /** Root evidence is normalized and cannot silently become an empty GitHub file scope. */
     public function testRepositoryRootUsesExplicitGitRootEvidence(): void
     {
-        self::assertSame('/consumer', $this->repository([[['rev-parse', '--show-toplevel'], "/consumer/\n"]])->repositoryRoot('/consumer'));
-        self::assertSame('C:/consumer', $this->repository([[['rev-parse', '--show-toplevel'], "C:\\consumer\\\n"]])->repositoryRoot('/consumer'));
+        self::assertSame(
+            '/consumer',
+            $this->repository([[['rev-parse', '--show-toplevel'], "/consumer/\n"]])->repositoryRoot('/consumer'),
+        );
+        self::assertSame(
+            'C:/consumer',
+            $this->repository([[['rev-parse', '--show-toplevel'], "C:\\consumer\\\n"]])->repositoryRoot('/consumer'),
+        );
         $this->expectExceptionMessage('Git did not return a repository root.');
         $this->repository([[['rev-parse', '--show-toplevel'], "\n"]])->repositoryRoot('/consumer');
     }
 
     public function testRepositoryProbesAreOptionalButRealGitFailuresAreDiagnostic(): void
     {
-        self::assertTrue($this->repository([[['rev-parse', '--is-inside-work-tree'], "true\n"]])->isRepository('/consumer'));
-        self::assertFalse($this->repository([[['rev-parse', '--is-inside-work-tree'], '', false]])->isRepository('/consumer'));
+        self::assertTrue(
+            $this->repository([[['rev-parse', '--is-inside-work-tree'], "true\n"]])->isRepository('/consumer'),
+        );
+        self::assertFalse(
+            $this->repository([[['rev-parse', '--is-inside-work-tree'], '', false]])->isRepository('/consumer'),
+        );
         $this->expectExceptionMessage('Git failed: permission denied');
-        $this->repository([[['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], '', false, 'permission denied']])->resolveRef('/consumer');
+        $this->repository(
+            [[['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], '', false, 'permission denied']],
+        )->resolveRef(
+            '/consumer',
+        );
     }
 
     public function testResolveRefVerifiesTheExactCommitAndStripsTransportNewlines(): void
@@ -73,19 +91,49 @@ final class GitRepositoryTest extends TestCase
     public function testMalformedCommitIdentityFailsClosed(): void
     {
         $this->expectExceptionMessage('Git returned an invalid commit identity.');
-        $this->repository([[['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], 'bad']])->resolveRef('/consumer');
+        $this->repository([[['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], 'bad']])->resolveRef(
+            '/consumer',
+        );
     }
 
     public function testAncestryIsVerifiedAgainstResolvedCommits(): void
     {
-        self::assertTrue($this->repository([$this->referenceResponse(), $this->referenceResponse(), [['merge-base', '--is-ancestor', self::SHA, self::SHA], '']])->isAncestor('/consumer', 'HEAD'));
-        self::assertFalse($this->repository([$this->referenceResponse(), $this->referenceResponse(), [['merge-base', '--is-ancestor', self::SHA, self::SHA], '', false, '', 1]])->isAncestor('/consumer', 'HEAD'));
+        self::assertTrue(
+            $this->repository(
+                [$this->referenceResponse(), $this->referenceResponse(), [[
+                    'merge-base', '--is-ancestor', self::SHA, self::SHA],
+                    '',
+                ]],
+            )->isAncestor('/consumer', 'HEAD'),
+        );
+        self::assertFalse(
+            $this->repository(
+                [$this->referenceResponse(), $this->referenceResponse(), [[
+                    'merge-base', '--is-ancestor', self::SHA, self::SHA],
+                    '',
+                    false,
+                    '',
+                    1,
+                ]],
+            )->isAncestor('/consumer', 'HEAD'),
+        );
     }
 
     public function testAncestryCommandFailureIsNotMistakenForUnrelatedHistory(): void
     {
         $this->expectExceptionMessage('Git ancestry verification failed: unavailable');
-        $this->repository([$this->referenceResponse(), $this->referenceResponse(), [['merge-base', '--is-ancestor', self::SHA, self::SHA], '', false, 'unavailable', 128]])->isAncestor('/consumer', 'HEAD');
+        $this->repository(
+            [$this->referenceResponse(), $this->referenceResponse(), [[
+                'merge-base', '--is-ancestor', self::SHA, self::SHA],
+                '',
+                false,
+                'unavailable',
+                128,
+            ]],
+        )->isAncestor(
+            '/consumer',
+            'HEAD',
+        );
     }
 
     public function testTagDatesBelongToAnnotatedTagsAndLightweightDatesStayAbsent(): void
@@ -125,32 +173,83 @@ final class GitRepositoryTest extends TestCase
     public function testNestedAnnotatedTagUsesGitRecursiveCommitPeeling(): void
     {
         $raw = "v1.0.0\0tag\0" . "2026-09-01T12:00:00+00:00\0object\0another-tag\0tag\n";
-        $tags = $this->repository([[$this->tagsArguments(), $raw], [['rev-parse', '--verify', '--end-of-options', 'refs/tags/v1.0.0^{commit}'], self::SHA]])->tags('/consumer');
-        self::assertSame([['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => '2026-09-01', 'date_source' => 'annotated-tag']], $tags);
+        $tags = $this->repository(
+            [[$this->tagsArguments(), $raw], [[
+                'rev-parse', '--verify', '--end-of-options', 'refs/tags/v1.0.0^{commit}'],
+                self::SHA,
+            ]],
+        )->tags(
+            '/consumer',
+        );
+        self::assertSame(
+            [['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => '2026-09-01', 'date_source' => 'annotated-tag']],
+            $tags,
+        );
     }
 
     public function testNulPathsAndRenamesAreKeptAsDistinctRecords(): void
     {
         $raw = "A\0.changelog/new.md\0M\0space\nfile\0R100\0old.md\0new.md\0C75\0source\0copy\0D\0deleted\0";
-        $result = $this->repository([$this->referenceResponse(), [['diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', self::SHA . '...HEAD', '--'], $raw]])->changesSince('/consumer', 'HEAD');
+        $result = $this->repository(
+            [$this->referenceResponse(), [[
+                'diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', self::SHA . '...HEAD', '--'],
+                $raw,
+            ]],
+        )->changesSince(
+            '/consumer',
+            'HEAD',
+        );
         self::assertSame(['status' => 'A', 'path' => '.changelog/new.md', 'previous' => null], $result[0]);
         self::assertSame("space\nfile", $result[1]['path']);
         self::assertSame(['status' => 'R100', 'path' => 'new.md', 'previous' => 'old.md'], $result[2]);
         self::assertSame(['status' => 'C75', 'path' => 'copy', 'previous' => 'source'], $result[3]);
         self::assertSame('D', $result[4]['status']);
-        self::assertSame([], $this->repository([$this->referenceResponse(), [['diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', self::SHA . '...HEAD', '--'], '']])->changesSince('/consumer', 'HEAD'));
+        self::assertSame([
+        ],
+            $this->repository(
+                [$this->referenceResponse(), [[
+                    'diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', self::SHA . '...HEAD', '--'],
+                    '',
+                ]],
+            )->changesSince('/consumer', 'HEAD'),
+        );
     }
 
     public function testIncompleteDiffRecordsCannotPretendToBeAdditions(): void
     {
         $this->expectExceptionMessage('Git returned a malformed changed-path record.');
-        $this->repository([$this->referenceResponse(), [['diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', self::SHA . '...HEAD', '--'], "A\0"]])->changesSince('/consumer', 'HEAD');
+        $this->repository(
+            [$this->referenceResponse(), [[
+                'diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', self::SHA . '...HEAD', '--'],
+                "A\0",
+            ]],
+        )->changesSince(
+            '/consumer',
+            'HEAD',
+        );
     }
 
     public function testBaselineReadsDistinguishMissingFilesFromMissingRevisions(): void
     {
-        self::assertNull($this->repository([$this->referenceResponse(), [['ls-tree', '--name-only', self::SHA, '--', 'CHANGELOG.md'], '']])->readFileAt('/consumer', 'HEAD', 'CHANGELOG.md'));
-        self::assertSame('original', $this->repository([$this->referenceResponse(), [['ls-tree', '--name-only', self::SHA, '--', 'CHANGELOG.md'], "CHANGELOG.md\n"], [['show', self::SHA . ':./CHANGELOG.md'], 'original']])->readFileAt('/consumer', 'HEAD', 'CHANGELOG.md'));
+        self::assertNull(
+            $this->repository(
+                [$this->referenceResponse(), [['ls-tree', '--name-only', self::SHA, '--', 'CHANGELOG.md'], '']],
+            )->readFileAt('/consumer', 'HEAD', 'CHANGELOG.md'),
+        );
+        self::assertSame(
+            'original',
+            $this->repository(
+                [$this->referenceResponse(), [[
+                    'ls-tree', '--name-only', self::SHA, '--', 'CHANGELOG.md'],
+                    "CHANGELOG.md\n",
+                ], [[
+                    'show',
+                    self::SHA . ':./CHANGELOG.md',
+                ],
+                    'original',
+                ]],
+            )->readFileAt('/consumer', 'HEAD', 'CHANGELOG.md'),
+        );
     }
 
     #[DataProvider('invalidPaths')]
@@ -175,8 +274,19 @@ final class GitRepositoryTest extends TestCase
             ['path' => '.changelog/new.md', 'mode' => '100644'],
             ['path' => '.changelog/linked.md', 'mode' => '120000'],
             ['path' => ".changelog/nested/space\nfile.md", 'mode' => '100755'],
-        ], $this->repository([$this->referenceResponse(), [['ls-tree', '-r', '-z', self::SHA, '--', '.changelog'], $raw]])->filesAt('/consumer', 'HEAD', '.changelog'));
-        self::assertSame([], $this->repository([$this->referenceResponse(), [['ls-tree', '-r', '-z', self::SHA, '--', '.changelog'], '']])->filesAt('/consumer', 'HEAD', '.changelog'));
+        ], $this->repository(
+            [$this->referenceResponse(), [['ls-tree', '-r', '-z', self::SHA, '--', '.changelog'], $raw]],
+        )->filesAt(
+            '/consumer',
+            'HEAD',
+            '.changelog',
+        ));
+        self::assertSame([
+        ],
+            $this->repository(
+                [$this->referenceResponse(), [['ls-tree', '-r', '-z', self::SHA, '--', '.changelog'], '']],
+            )->filesAt('/consumer', 'HEAD', '.changelog'),
+        );
     }
 
     /** Unexpected malformed or out-of-scope tree paths cannot attest an approved plan. */
@@ -184,13 +294,23 @@ final class GitRepositoryTest extends TestCase
     public function testMalformedCommittedInventoryIsRejected(string $raw): void
     {
         $this->expectExceptionMessage('Git returned a malformed committed-path record.');
-        $this->repository([$this->referenceResponse(), [['ls-tree', '-r', '-z', self::SHA, '--', '.changelog'], $raw]])->filesAt('/consumer', 'HEAD', '.changelog');
+        $this->repository(
+            [$this->referenceResponse(), [['ls-tree', '-r', '-z', self::SHA, '--', '.changelog'], $raw]],
+        )->filesAt(
+            '/consumer',
+            'HEAD',
+            '.changelog',
+        );
     }
 
     /** Supplies incomplete identities and a well-formed record outside the requested boundary. */
     public static function badTreeRecords(): array
     {
-        return [['bad'], ['100644 blob short' . "\t.changelog/a.md\0"], ['100644 blob ' . self::SHA . "\telsewhere/a.md\0"]];
+        return [[
+            'bad'],
+            ['100644 blob short' . "\t.changelog/a.md\0"],
+            ['100644 blob ' . self::SHA . "\telsewhere/a.md\0"],
+        ];
     }
 
     public function testOnlyTheGeneratedFragmentIsAddedAndCommitted(): void
@@ -228,8 +348,14 @@ final class GitRepositoryTest extends TestCase
     /** Each worktree gets a private journal path without touching the tracked project or real host files. */
     public function testJournalUsesAbsolutePrivateGitDirectoryAndNonGitHasNoJournal(): void
     {
-        self::assertNull($this->repository([[['rev-parse', '--is-inside-work-tree'], '', false]])->journalPath('/consumer'));
-        foreach (['/repository/.git/worktrees/consumer', 'C:\\repository\\.git\\worktrees\\consumer\\', '//server/share/repository/.git'] as $path) {
+        self::assertNull(
+            $this->repository([[['rev-parse', '--is-inside-work-tree'], '', false]])->journalPath('/consumer'),
+        );
+        foreach ([
+            '/repository/.git/worktrees/consumer',
+            'C:\\repository\\.git\\worktrees\\consumer\\',
+            '//server/share/repository/.git',
+        ] as $path) {
             $normalized = rtrim(str_replace('\\', '/', $path), '/');
             self::assertSame($normalized . '/changelog-release-plan.json', $this->repository([
                 [['rev-parse', '--is-inside-work-tree'], "true\n"],
@@ -261,20 +387,28 @@ final class GitRepositoryTest extends TestCase
     public function testReleaseMetadataUsesExactDirectCommitTrailersAndCanonicalFieldOrder(): void
     {
         $message = implode("\r\n", array_reverse(explode("\n", $this->metadataMessage())));
-        self::assertSame($this->metadataValues(), $this->repository($this->metadataResponses($message))->releaseMetadata('/consumer', 'HEAD'));
+        self::assertSame(
+            $this->metadataValues(),
+            $this->repository($this->metadataResponses($message))->releaseMetadata('/consumer', 'HEAD'),
+        );
     }
 
     /** A direct trailer set cannot silently authorize another output, even if a merge ancestor matches. */
     public function testDirectMetadataRejectsAnOutputMismatch(): void
     {
         $this->expectExceptionMessage('differs from its approved changelog blob');
-        $this->repository($this->metadataResponses($this->metadataMessage('different')))->releaseMetadata('/consumer', 'HEAD');
+        $this->repository($this->metadataResponses($this->metadataMessage('different')))->releaseMetadata(
+            '/consumer',
+            'HEAD',
+        );
     }
 
     /** Missing central history and ordinary nonmerge commits do not invent release metadata. */
     public function testNoHistoryOrOrdinaryCommitReturnsNoMetadata(): void
     {
-        self::assertNull($this->repository($this->metadataResponses('ordinary', null))->releaseMetadata('/consumer', 'HEAD'));
+        self::assertNull(
+            $this->repository($this->metadataResponses('ordinary', null))->releaseMetadata('/consumer', 'HEAD'),
+        );
         foreach (['', str_repeat('b', 40)] as $parents) {
             self::assertNull($this->repository([
                 ...$this->metadataResponses('ordinary'),
@@ -318,7 +452,10 @@ final class GitRepositoryTest extends TestCase
             [['show', '-s', '--format=%P', self::SHA, '--'], $first . ' ' . $matching],
             [['show', '-s', '--format=%B', $first, '--'], 'ordinary base'],
             [['show', '-s', '--format=%B', $matching, '--'], 'ordinary branch head'],
-            [['rev-list', '--topo-order', '--max-count=101', $first . '..' . self::SHA, '--'], self::SHA . "\n" . $matching . "\n" . $older . "\n" . $duplicate],
+            [[
+                'rev-list', '--topo-order', '--max-count=101', $first . '..' . self::SHA, '--'],
+                self::SHA . "\n" . $matching . "\n" . $older . "\n" . $duplicate,
+            ],
             [['show', '-s', '--format=%B', self::SHA, '--'], 'merge'],
             [['show', '-s', '--format=%B', $matching, '--'], $this->metadataMessage()],
             [['show', '-s', '--format=%B', $older, '--'], $this->metadataMessage('older output')],
@@ -338,9 +475,18 @@ final class GitRepositoryTest extends TestCase
             [['show', '-s', '--format=%P', self::SHA, '--'], $first . ' ' . $matching],
             [['show', '-s', '--format=%B', $first, '--'], 'ordinary base'],
             [['show', '-s', '--format=%B', $matching, '--'], 'ordinary branch head'],
-            [['rev-list', '--topo-order', '--max-count=101', $first . '..' . self::SHA, '--'], $matching . "\n" . $other],
+            [[
+                'rev-list', '--topo-order', '--max-count=101', $first . '..' . self::SHA, '--'],
+                $matching . "\n" . $other,
+            ],
             [['show', '-s', '--format=%B', $matching, '--'], $this->metadataMessage()],
-            [['show', '-s', '--format=%B', $other, '--'], str_replace('Changelog-Plan: ' . str_repeat('c', 64), 'Changelog-Plan: ' . str_repeat('d', 64), $this->metadataMessage())],
+            [
+                ['show', '-s', '--format=%B', $other, '--'],
+                str_replace('Changelog-Plan: ' . str_repeat('c', 64), 'Changelog-Plan: ' . str_repeat(
+                    'd',
+                    64,
+                ), $this->metadataMessage()),
+            ],
         ])->releaseMetadata('/consumer', 'HEAD');
     }
 
@@ -366,14 +512,20 @@ final class GitRepositoryTest extends TestCase
 
     /** Malformed graph identities and an over-limit merge scan fail before unbounded message reads. */
     #[DataProvider('invalidMergeInventories')]
-    public function testMergedMetadataRejectsMalformedOrTruncatedGraph(string $parents, ?string $inventory, string $diagnostic): void
-    {
+    public function testMergedMetadataRejectsMalformedOrTruncatedGraph(
+        string $parents,
+        ?string $inventory,
+        string $diagnostic,
+    ): void {
         $responses = [...$this->metadataResponses('merge'), [['show', '-s', '--format=%P', self::SHA, '--'], $parents]];
         if (null !== $inventory) {
             foreach (explode(' ', $parents) as $parent) {
                 $responses[] = [['show', '-s', '--format=%B', $parent, '--'], 'ordinary parent'];
             }
-            $responses[] = [['rev-list', '--topo-order', '--max-count=101', explode(' ', $parents)[0] . '..' . self::SHA, '--'], $inventory];
+            $responses[] = [[
+                'rev-list', '--topo-order', '--max-count=101', explode(' ', $parents)[0] . '..' . self::SHA, '--'],
+                $inventory,
+            ];
         }
         $this->expectExceptionMessage($diagnostic);
         $this->repository($responses)->releaseMetadata('/consumer', 'HEAD');
@@ -393,8 +545,16 @@ final class GitRepositoryTest extends TestCase
     {
         $base = str_repeat('b', 40);
         $latest = str_repeat('c', 40);
-        $newMessage = str_replace('Changelog-Base: ' . $base, 'Changelog-Base: ' . str_repeat('f', 40), $this->metadataMessage());
-        $newMessage = str_replace('Changelog-Plan: ' . str_repeat('c', 64), 'Changelog-Plan: ' . str_repeat('f', 64), $newMessage);
+        $newMessage = str_replace(
+            'Changelog-Base: ' . $base,
+            'Changelog-Base: ' . str_repeat('f', 40),
+            $this->metadataMessage(),
+        );
+        $newMessage = str_replace(
+            'Changelog-Plan: ' . str_repeat('c', 64),
+            'Changelog-Plan: ' . str_repeat('f', 64),
+            $newMessage,
+        );
         $expected = $this->metadataValues();
         $expected['base_sha'] = str_repeat('f', 40);
         $expected['plan_id'] = str_repeat('f', 64);
@@ -419,7 +579,11 @@ final class GitRepositoryTest extends TestCase
             [['show', '-s', '--format=%B', $second, '--'], $this->metadataMessage()],
         ];
         self::assertSame($this->metadataValues(), $this->repository($responses)->releaseMetadata('/consumer', 'HEAD'));
-        $responses[array_key_last($responses)][1] = str_replace('Changelog-Base: ' . str_repeat('b', 40), 'Changelog-Base: ' . str_repeat('f', 40), $this->metadataMessage());
+        $responses[array_key_last($responses)][1] = str_replace(
+            'Changelog-Base: ' . str_repeat('b', 40),
+            'Changelog-Base: ' . str_repeat('f', 40),
+            $this->metadataMessage(),
+        );
         $this->expectExceptionMessage('conflicting matching direct-parent');
         $this->repository($responses)->releaseMetadata('/consumer', 'HEAD');
     }
@@ -436,6 +600,7 @@ final class GitRepositoryTest extends TestCase
         if (null !== $central) {
             $responses[] = [['show', self::SHA . ':./CHANGELOG.md'], $central];
         }
+
         return $responses;
     }
 
@@ -450,13 +615,18 @@ final class GitRepositoryTest extends TestCase
     private function metadataMessage(string $central = 'exact'): string
     {
         $values = $this->metadataValues($central);
+
         return "chore: release\n\nChangelog-Base: " . $values['base_sha'] . "\nChangelog-Plan: " . $values['plan_id']
             . "\nChangelog-Output: " . $values['output_sha256'] . "\nChangelog-Options: " . $values['options_sha256'];
     }
 
     private function tagsArguments(): array
     {
-        return ['for-each-ref', '--format=%(refname:strip=2)%00%(objecttype)%00%(taggerdate:iso-strict)%00%(objectname)%00%(*objectname)%00%(*objecttype)', 'refs/tags/'];
+        return [
+            'for-each-ref',
+            '--format=%(refname:strip=2)%00%(objecttype)%00%(taggerdate:iso-strict)%00%(objectname)%00%(*objectname)%00%(*objecttype)',
+            'refs/tags/',
+        ];
     }
 
     private function referenceResponse(): array
@@ -468,21 +638,29 @@ final class GitRepositoryTest extends TestCase
     {
         $factory = $this->createMock(ProcessFactoryInterface::class);
         $index = 0;
-        $factory->expects(self::exactly(count($responses)))->method('create')->willReturnCallback(function (array $argv) use ($responses, &$index): Process {
-            $response = $responses[$index++];
-            self::assertSame(['git', '-C', '/consumer', ...$response[0]], $argv);
-            $process = $this->createMock(Process::class);
-            $success = $response[2] ?? true;
-            $process->expects(self::once())->method('run')->willReturn($success ? 0 : 1);
-            $process->expects(self::once())->method('isSuccessful')->willReturn($success);
-            $process->method('getOutput')->willReturn($response[1]);
-            $process->method('getErrorOutput')->willReturn($response[3] ?? '');
-            $process->method('getExitCode')->willReturn($response[4] ?? ($success ? 0 : 1));
-            return $process;
-        });
+        $factory->expects(self::exactly(count($responses)))->method('create')->willReturnCallback(
+            function (array $argv) use ($responses, &$index): Process {
+                $response = $responses[$index++];
+                self::assertSame(['git', '-C', '/consumer', ...$response[0]], $argv);
+                $process = $this->createMock(Process::class);
+                $success = $response[2] ?? true;
+                $process->expects(self::once())->method('run')->willReturn($success ? 0 : 1);
+                $process->expects(self::once())->method('isSuccessful')->willReturn($success);
+                $process->method('getOutput')->willReturn($response[1]);
+                $process->method('getErrorOutput')->willReturn($response[3] ?? '');
+                $process->method('getExitCode')->willReturn($response[4] ?? ($success ? 0 : 1));
+
+                return $process;
+            },
+        );
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message): RuntimeException => new RuntimeException($message),
+        );
+
         return new GitRepository($factory, $exceptions);
     }
 }

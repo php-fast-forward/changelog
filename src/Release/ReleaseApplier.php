@@ -48,12 +48,15 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         $directory = $this->directory($plan);
         $lock = $this->locks->createLock($this->fragments->lockResource($directory));
         if (! $lock->acquire(true)) {
-            throw $this->exceptions->failure('Cannot acquire release lock for ' . $directory . '. No managed files were changed.');
+            throw $this->exceptions->failure(
+                'Cannot acquire release lock for ' . $directory . '. No managed files were changed.',
+            );
         }
         try {
             $state = $this->preflight($plan);
             if ($state['complete']) {
                 $this->files->remove($plan->receiptPath);
+
                 return false;
             }
             $this->inputs->validate($plan);
@@ -69,6 +72,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
                 $this->fragments->remove($state['remaining']);
             }
             $this->files->remove($plan->receiptPath);
+
             return true;
         } catch (Throwable $error) {
             throw $this->exceptions->failure('Cannot apply release ' . $plan->id . ': ' . $error->getMessage()
@@ -87,7 +91,10 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
     /** Resolves the caller's configured fragment directory without reading cwd. */
     private function directory(ReleasePlan $plan): string
     {
-        return rtrim(str_replace('\\', '/', $plan->options->workingDirectory), '/') . '/' . $plan->options->fragmentDirectory;
+        return rtrim(
+            str_replace('\\', '/', $plan->options->workingDirectory),
+            '/',
+        ) . '/' . $plan->options->fragmentDirectory;
     }
 
     /** Checks approved schema, options, exact paths and every immutable plan field before I/O. */
@@ -108,17 +115,25 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
             || $data['notes'] !== $plan->notes || $consumed !== $planned
             || $data['changelog_contents'] !== $plan->changelogContents
             || $data['after_changelog_sha256'] !== hash('sha256', $plan->changelogContents)
-            || (! $plan->resuming && $data['before_changelog_sha256'] !== (null === $plan->originalChangelog ? null : hash('sha256', $plan->originalChangelog)))
+            || (! $plan->resuming && $data['before_changelog_sha256'] !== (null === $plan->originalChangelog ? null : hash(
+                'sha256',
+                $plan->originalChangelog,
+            )))
             || $plan->changelogPath !== $root . '/' . $options->changelogFile
             || $plan->receiptPath !== $this->journals->resolve($options)) {
-            throw $this->exceptions->invalid('Release plan does not match its approved receipt evidence or managed paths.');
+            throw $this->exceptions->invalid(
+                'Release plan does not match its approved receipt evidence or managed paths.',
+            );
         }
         foreach (['fragment_directory' => 'fragmentDirectory', 'changelog_file' => 'changelogFile', 'locale' => 'locale',
             'template' => 'template', 'tag_prefix' => 'tagPrefix', 'repository' => 'repository'] as $key => $property) {
             if ($data[$key] !== $options->$property) {
-                throw $this->exceptions->invalid('Release plan setting ' . $key . ' differs from its approved receipt.');
+                throw $this->exceptions->invalid(
+                    'Release plan setting ' . $key . ' differs from its approved receipt.',
+                );
             }
         }
+
         return $data;
     }
 
@@ -135,7 +150,9 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
                 ? $this->git->isAncestor($plan->options->workingDirectory, $plan->baseSha, 'HEAD')
                 : $this->git->resolveRef($plan->options->workingDirectory, 'HEAD') === $plan->baseSha;
             if (! $validBase) {
-                throw $this->exceptions->failure('Repository HEAD no longer matches or descends from the approved release base.');
+                throw $this->exceptions->failure(
+                    'Repository HEAD no longer matches or descends from the approved release base.',
+                );
             }
         }
         $central = $this->files->read($plan->changelogPath);
@@ -174,6 +191,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
                 throw $this->exceptions->failure('Approved fragment is unsafe or changed: ' . $path);
             }
         }
+
         return ['central' => $central, 'receipt' => $receipt, 'remaining' => $paths,
             'complete' => $afterCentral && [] === $paths];
     }

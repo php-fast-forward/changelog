@@ -23,12 +23,16 @@ use Symfony\Component\Filesystem\Filesystem;
 final readonly class ManagedFileStore implements ManagedFileStoreInterface
 {
     /** Injects I/O and diagnostic construction; construction performs no path access. */
-    public function __construct(private Filesystem $filesystem, private ReleaseExceptionFactoryInterface $exceptions) {}
+    public function __construct(
+        private Filesystem $filesystem,
+        private ReleaseExceptionFactoryInterface $exceptions,
+    ) {}
 
     /** Reads exact contents while treating an absent regular target as null. */
     public function read(string $path): ?string
     {
         $path = $this->guard($path);
+
         return $this->filesystem->exists($path) ? $this->filesystem->readFile($path) : null;
     }
 
@@ -87,6 +91,7 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
             }
             $ancestor = $parent;
         } while (true);
+
         return $normalized;
     }
 }

@@ -1,82 +1,105 @@
 name: Fast Forward Changelog dependabot
 description: "Create one deterministic fragment from verified Dependabot metadata."
+
 inputs:
   working-directory:
     description: "Consumer project directory; never the package installation root."
     required: false
     default: "."
+
   fragment-directory:
     description: "Project-relative pending fragment directory."
     required: false
     default: ".changelog"
+
   changelog-file:
     description: "Project-relative central changelog file."
     required: false
     default: "CHANGELOG.md"
+
   locale:
     description: "Structural language; en or pt-BR."
     required: false
     default: "en"
+
   template:
     description: "keep-a-changelog or an explicitly trusted project PHP template."
     required: false
     default: "keep-a-changelog"
+
   base-ref:
     description: "Git revision used by the shared release planner."
     required: false
     default: "HEAD"
+
   tag-prefix:
     description: "Prefix for stable release tags."
     required: false
     default: "v"
+
   repository:
     description: "GitHub owner/name of the consumer repository."
     required: false
     default: "${{ github.repository }}"
+
   source:
     description: "Historical source: auto, github or tags."
     required: false
     default: "auto"
+
   token:
     description: "GitHub token with the minimum permissions required by this operation."
     required: false
     default: "${{ github.token }}"
+
   pull-request:
     description: "Dependabot PR number."
     required: true
+
   expected-head-sha:
     description: "Immutable PR head inspected by the trusted caller."
     required: true
+
   dependency-names:
     description: "Comma-separated package names from verified Dependabot metadata."
     required: true
+
   dependency-type:
     description: "Verified direct:production, direct:development or indirect metadata."
     required: true
+
   ecosystem:
     description: "Verified package ecosystem."
     required: true
+
   security-alert-numbers:
     description: "JSON array of associated current security alert IDs supplied by a trusted collector."
     required: false
     default: "[]"
+
   include-dev:
     description: "Include direct development dependency updates."
     required: false
     default: "true"
+
   include-actions:
     description: "Include GitHub Actions dependency updates."
     required: false
     default: "true"
+
 outputs:
   result:
     description: Complete stable JSON result.
+
   status:
     description: "Operation status; empty when unavailable."
+
   path:
     description: "Operation path; empty when unavailable."
+
   head-sha:
     description: "Operation head-sha; empty when unavailable."
+
 runs:
   using: docker
   image: "../../../Dockerfile"

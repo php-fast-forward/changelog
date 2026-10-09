@@ -83,7 +83,12 @@ final class ChangelogTest extends TestCase
     public function testValidGitHubInvocationKeepsTheCommandResult(): void
     {
         $runner = $this->createMock(AutomationRunnerInterface::class);
-        $runner->expects(self::once())->method('run')->with('check', new GitHubInput()->values() + ['since' => 'base'])->willReturn(['status' => 'valid']);
+        $runner->expects(self::once())->method('run')->with(
+            'check',
+            new GitHubInput()->values() + ['since' => 'base'],
+        )->willReturn(
+            ['status' => 'valid'],
+        );
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
         $writer->expects(self::once())->method('write')->with(['status' => 'valid'])->willReturn('{"status":"valid"}');
         $input = new ArgvInput(['changelog', 'github', 'check', '--since=base']);
@@ -96,7 +101,10 @@ final class ChangelogTest extends TestCase
     /** Other command parser errors retain Symfony's existing presentation and exception behavior. */
     public function testOrdinaryParserErrorsAreNotConvertedToGitHubJson(): void
     {
-        $app = $this->application($this->createStub(AutomationRunnerInterface::class), $this->createStub(GitHubOutputWriterInterface::class));
+        $app = $this->application(
+            $this->createStub(AutomationRunnerInterface::class),
+            $this->createStub(GitHubOutputWriterInterface::class),
+        );
         $app->addCommand(new Command('ordinary'));
         $input = new ArgvInput(['changelog', 'ordinary', '--unknown-option']);
         $input->setInteractive(false);
@@ -111,6 +119,7 @@ final class ChangelogTest extends TestCase
         $version->method('resolve')->willReturn('test');
         $app = new Changelog($this->createStub(CommandLoaderInterface::class), $version);
         $app->addCommand(new Command('github', new GitHubCommand($runner, $writer)));
+
         return $app;
     }
 }

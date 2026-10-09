@@ -29,16 +29,29 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 /** Exposes the existing trusted automation services through the ordinary packaged CLI. */
-#[AsCommand(name: 'github', description: 'Run an explicit GitHub check, Dependabot, version, publish or history operation.')]
+#[AsCommand(
+    name: 'github',
+    description: 'Run an explicit GitHub check, Dependabot, version, publish or history operation.',
+)]
 final readonly class GitHubCommand
 {
     /** Injects orchestration and output boundaries without executing an operation. */
-    public function __construct(private AutomationRunnerInterface $runner, private GitHubOutputWriterInterface $writer) {}
+    public function __construct(
+        private AutomationRunnerInterface $runner,
+        private GitHubOutputWriterInterface $writer,
+    ) {}
 
     /** Returns JSON on stdout; validation and operational failures use JSON diagnostics and distinct exit statuses. */
     public function __invoke(
-        #[Argument(description: 'Operation: check, dependabot, version, publish or history.', suggestedValues: ['check', 'dependabot', 'version', 'publish', 'history'])]
+        #[Argument(description: 'Operation: check, dependabot, version, publish or history.', suggestedValues: [
+            'check',
+            'dependabot',
+            'version',
+            'publish',
+            'history',
+        ])]
         string $operation,
+
         #[MapInput]
         GitHubInput $input,
         OutputInterface $output,
@@ -46,10 +59,18 @@ final readonly class GitHubCommand
         try {
             $result = $this->runner->run($operation, $input->values());
             $output->writeln($this->writer->write($result), OutputInterface::OUTPUT_RAW);
+
             return Command::SUCCESS;
         } catch (Throwable $exception) {
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
-            $error->writeln(json_encode(['error' => $exception->getMessage()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), OutputInterface::OUTPUT_RAW);
+            $error->writeln(
+                json_encode(
+                    ['error' => $exception->getMessage()],
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE,
+                ),
+                OutputInterface::OUTPUT_RAW,
+            );
+
             return $exception instanceof InvalidArgumentException || $exception instanceof JsonException ? Command::INVALID : Command::FAILURE;
         }
     }

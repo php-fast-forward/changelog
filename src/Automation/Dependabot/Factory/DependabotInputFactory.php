@@ -23,19 +23,34 @@ use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
 final readonly class DependabotInputFactory implements DependabotInputFactoryInterface
 {
     /** Injects diagnostic construction, without loading environment, filesystem or GitHub state. */
-    public function __construct(private GitHubExceptionFactoryInterface $exceptions) {}
+    public function __construct(
+        private GitHubExceptionFactoryInterface $exceptions,
+    ) {}
 
     /** Rejects unsafe or unsupported shapes before returning normalized deterministic metadata. */
-    public function create(int $pullRequest, string $expectedHeadSha, array $packageNames, string $dependencyType, string $ecosystem, array $securityAlertNumbers = [], bool $includeDev = true, bool $includeActions = true): DependabotInput
-    {
+    public function create(
+        int $pullRequest,
+        string $expectedHeadSha,
+        array $packageNames,
+        string $dependencyType,
+        string $ecosystem,
+        array $securityAlertNumbers = [],
+        bool $includeDev = true,
+        bool $includeActions = true,
+    ): DependabotInput {
         if ($pullRequest < 1 || ! GitHubEvidence::sha($expectedHeadSha) || [] === $packageNames
             || ! in_array($dependencyType, ['direct:production', 'direct:development', 'indirect'], true)
             || 1 !== preg_match('/\A[a-z][a-z0-9-]*\z/', $ecosystem)
         ) {
-            throw $this->exceptions->failure('Dependabot metadata requires a positive PR, full head SHA and supported dependency scope/ecosystem.');
+            throw $this->exceptions->failure(
+                'Dependabot metadata requires a positive PR, full head SHA and supported dependency scope/ecosystem.',
+            );
         }
         foreach ($packageNames as $name) {
-            if (! is_string($name) || 1 !== preg_match('/\A[A-Za-z0-9@_][A-Za-z0-9@_\/.+-]*\z/', $name) || str_contains($name, '..')) {
+            if (! is_string($name) || 1 !== preg_match('/\A[A-Za-z0-9@_][A-Za-z0-9@_\/.+-]*\z/', $name) || str_contains(
+                $name,
+                '..',
+            )) {
                 throw $this->exceptions->failure('Dependabot package names must be safe explicit package identifiers.');
             }
         }
@@ -48,6 +63,16 @@ final readonly class DependabotInputFactory implements DependabotInputFactoryInt
         sort($packageNames, SORT_STRING);
         $securityAlertNumbers = array_values(array_unique($securityAlertNumbers));
         sort($securityAlertNumbers, SORT_NUMERIC);
-        return new DependabotInput($pullRequest, $expectedHeadSha, $packageNames, $dependencyType, $ecosystem, $securityAlertNumbers, $includeDev, $includeActions);
+
+        return new DependabotInput(
+            $pullRequest,
+            $expectedHeadSha,
+            $packageNames,
+            $dependencyType,
+            $ecosystem,
+            $securityAlertNumbers,
+            $includeDev,
+            $includeActions,
+        );
     }
 }

@@ -38,6 +38,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
     {
         if ($plan->resuming) {
             $this->validateTemplate($plan->options, $plan->baseSha);
+
             return;
         }
         if (null === $plan->baseSha || null === $plan->nextVersion) {
@@ -46,14 +47,20 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
         $options = $plan->options;
         $central = $this->git->readFileAt($options->workingDirectory, $plan->baseSha, $options->changelogFile);
         if ($central !== $plan->originalChangelog) {
-            throw $this->exceptions->failure('Commit the central changelog before applying a release: it differs from the approved base.');
+            throw $this->exceptions->failure(
+                'Commit the central changelog before applying a release: it differs from the approved base.',
+            );
         }
         if (null !== $central) {
             $this->regularFile($options, $plan->baseSha, $options->changelogFile);
         }
         $prefix = $options->fragmentDirectory . '/';
         $selected = [];
-        foreach ($this->git->filesAt($options->workingDirectory, $plan->baseSha, $options->fragmentDirectory) as $entry) {
+        foreach ($this->git->filesAt(
+            $options->workingDirectory,
+            $plan->baseSha,
+            $options->fragmentDirectory,
+        ) as $entry) {
             $path = $entry['path'];
             if (! str_ends_with($path, '.md') || $path === $prefix . 'AGENTS.md') {
                 continue;
@@ -61,7 +68,9 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
             if (! str_starts_with($path, $prefix)
                 || 1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, substr($path, strlen($prefix)))
                 || ! in_array($entry['mode'], ['100644', '100755'], true)) {
-                throw $this->exceptions->failure('The release base contains an unsafe or noncanonical fragment: ' . $path);
+                throw $this->exceptions->failure(
+                    'The release base contains an unsafe or noncanonical fragment: ' . $path,
+                );
             }
             $selected[] = $path;
         }
@@ -72,12 +81,16 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
         }
         ksort($consumed, SORT_STRING);
         if ($selected !== array_keys($consumed)) {
-            throw $this->exceptions->failure('Commit the complete pending fragment set before applying a release: it differs from the approved base.');
+            throw $this->exceptions->failure(
+                'Commit the complete pending fragment set before applying a release: it differs from the approved base.',
+            );
         }
         foreach ($consumed as $path => $hash) {
             $contents = $this->git->readFileAt($options->workingDirectory, $plan->baseSha, $path);
             if (null === $contents || ! hash_equals($hash, hash('sha256', $contents))) {
-                throw $this->exceptions->failure('Commit the accepted fragment bytes before applying a release: ' . $path);
+                throw $this->exceptions->failure(
+                    'Commit the accepted fragment bytes before applying a release: ' . $path,
+                );
             }
         }
         $this->validateTemplate($options, $plan->baseSha);
@@ -91,8 +104,12 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
         }
         $this->regularFile($options, $baseSha, $options->template);
         $committed = $this->git->readFileAt($options->workingDirectory, $baseSha, $options->template);
-        if (null === $committed || $this->files->read($this->paths->absolutePath($options->template, $options->workingDirectory)) !== $committed) {
-            throw $this->exceptions->failure('Commit the selected custom template before applying a release: it differs from the approved base.');
+        if (null === $committed || $this->files->read(
+            $this->paths->absolutePath($options->template, $options->workingDirectory),
+        ) !== $committed) {
+            throw $this->exceptions->failure(
+                'Commit the selected custom template before applying a release: it differs from the approved base.',
+            );
         }
     }
 
@@ -100,7 +117,11 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
     private function regularFile(ReleaseOptions $options, string $sha, string $path): void
     {
         $entries = $this->git->filesAt($options->workingDirectory, $sha, $path);
-        if (1 !== count($entries) || $entries[0]['path'] !== $path || ! in_array($entries[0]['mode'], ['100644', '100755'], true)) {
+        if (1 !== count($entries) || $entries[0]['path'] !== $path || ! in_array(
+            $entries[0]['mode'],
+            ['100644', '100755'],
+            true,
+        )) {
             throw $this->exceptions->failure('The release base requires an exact regular committed file: ' . $path);
         }
     }

@@ -143,19 +143,32 @@ jobs:
           FF_PR_NUMBER: ${{ inputs.pull-request }}
         run: |
           set -euo pipefail
+
           if [[ -z "$FF_RUNTIME_REPOSITORY" || ! "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::The called workflow identity is unavailable; a trusted immutable runtime is required."
             exit 1
           fi
-          if [[ -z "$FF_WORKING_DIRECTORY" || "$FF_WORKING_DIRECTORY" == /* || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) ]]; then
+
+          if [[ -z "$FF_WORKING_DIRECTORY" \
+              || "$FF_WORKING_DIRECTORY" == /* \
+              || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) \
+          ]]; then
             echo "::error::working-directory must stay below the consumer project checkout."
             exit 1
           fi
+
           if [[ "$FF_WORKING_DIRECTORY" != . ]]; then
             echo "::error::GitHub PR operations require working-directory '.'. Prefix fragment-directory and changelog-file with the package path in monorepos."
             exit 1
           fi
-          if [[ "$FF_EVENT_NAME" != pull_request_target || "$FF_EVENT_ACTION" != closed || "$FF_EVENT_MERGED" != true || "$FF_PR_NUMBER" != "$FF_EVENT_PR" || "$FF_HEAD_SHA" != "$FF_EVENT_HEAD" || "$FF_TARGET_SHA" != "$FF_EVENT_TARGET" ]]; then
+
+          if [[ "$FF_EVENT_NAME" != pull_request_target \
+              || "$FF_EVENT_ACTION" != closed \
+              || "$FF_EVENT_MERGED" != true \
+              || "$FF_PR_NUMBER" != "$FF_EVENT_PR" \
+              || "$FF_HEAD_SHA" != "$FF_EVENT_HEAD" \
+              || "$FF_TARGET_SHA" != "$FF_EVENT_TARGET" \
+          ]]; then
             echo "::error::Publication requires the exact closed merged PR event, original head and merge target."
             exit 1
           fi

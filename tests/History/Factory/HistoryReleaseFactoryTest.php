@@ -54,7 +54,9 @@ final class HistoryReleaseFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $dates = $this->createMock(ReleaseDateValidatorInterface::class);
-        $dates->expects(self::once())->method('validate')->with($date)->willThrowException(new InvalidArgumentException('Invalid calendar date.'));
+        $dates->expects(self::once())->method('validate')->with($date)->willThrowException(
+            new InvalidArgumentException('Invalid calendar date.'),
+        );
         new HistoryReleaseFactory($dates)->create('1.0.0', $date);
     }
 }

@@ -38,7 +38,10 @@ final class PublicationServiceTest extends TestCase
         $writes = $this->writes($state);
         self::assertSame([
             ['POST', '/repos/owner/repo/git/refs', ['ref' => 'refs/tags/v1.0.1', 'sha' => str_repeat('b', 40)]],
-            ['POST', '/repos/owner/repo/releases', ['tag_name' => 'v1.0.1', 'target_commitish' => str_repeat('b', 40), 'name' => 'v1.0.1', 'body' => "Exact  notes\n", 'draft' => false, 'prerelease' => false, 'generate_release_notes' => false]],
+            ['POST', '/repos/owner/repo/releases', ['tag_name' => 'v1.0.1', 'target_commitish' => str_repeat(
+                'b',
+                40,
+            ), 'name' => 'v1.0.1', 'body' => "Exact  notes\n", 'draft' => false, 'prerelease' => false, 'generate_release_notes' => false]],
         ], $writes);
         $again = $service->publish(new ReleaseOptions('/consumer', repository: 'owner/repo'), str_repeat('b', 40));
         self::assertSame('unchanged', $again->state);
@@ -48,8 +51,11 @@ final class PublicationServiceTest extends TestCase
 
     /** Read-only planning MUST report exactly the missing objects without any POST/PATCH/DELETE. */
     #[DataProvider('dryRunStates')]
-    public function testDryRunReadsRemoteStateAndReturnsOnlyProposedActions(bool $tagExists, bool $releaseExists, array $actions): void
-    {
+    public function testDryRunReadsRemoteStateAndReturnsOnlyProposedActions(
+        bool $tagExists,
+        bool $releaseExists,
+        array $actions,
+    ): void {
         $state = $this->state();
         if ($tagExists) {
             $state['tag'] = $this->tag();
@@ -57,7 +63,11 @@ final class PublicationServiceTest extends TestCase
         if ($releaseExists) {
             $state['release'] = $this->release();
         }
-        $result = $this->service($state)->publish(new ReleaseOptions('/consumer', repository: 'owner/repo'), str_repeat('b', 40), true);
+        $result = $this->service($state)->publish(
+            new ReleaseOptions('/consumer', repository: 'owner/repo'),
+            str_repeat('b', 40),
+            true,
+        );
         self::assertSame('dry-run', $result->state);
         self::assertSame($actions, $result->actions);
         self::assertSame([], $this->writes($state));
@@ -118,8 +128,13 @@ final class PublicationServiceTest extends TestCase
     public function testAnnotatedTagsAreDereferencedThroughBoundedRelativeEndpoints(): void
     {
         $object = str_repeat('a', 40);
-        $state = $this->state(['tag' => ['ref' => 'refs/tags/v1.0.1', 'object' => ['type' => 'tag', 'sha' => $object, 'url' => 'https://untrusted.invalid']],
-            'annotated' => [$object => ['sha' => $object, 'object' => ['type' => 'commit', 'sha' => str_repeat('b', 40)]]], 'release' => $this->release()]);
+        $state = $this->state(
+            ['tag' => ['ref' => 'refs/tags/v1.0.1', 'object' => ['type' => 'tag', 'sha' => $object, 'url' => 'https://untrusted.invalid']],
+                'annotated' => [$object => ['sha' => $object, 'object' => ['type' => 'commit', 'sha' => str_repeat(
+                    'b',
+                    40,
+                )]]], 'release' => $this->release()],
+        );
         $result = $this->service($state)->publish(new ReleaseOptions('/consumer'), str_repeat('b', 40));
         self::assertSame('unchanged', $result->state);
         self::assertSame([], $this->writes($state));
@@ -155,9 +170,15 @@ final class PublicationServiceTest extends TestCase
         $chain = [];
         for ($index = 1; $index <= 9; ++$index) {
             $oid = str_repeat((string) $index, 40);
-            $chain[$oid] = ['sha' => $oid, 'object' => ['type' => 'tag', 'sha' => str_repeat((string) ($index + 1), 40)]];
+            $chain[$oid] = ['sha' => $oid, 'object' => ['type' => 'tag', 'sha' => str_repeat(
+                (string) ($index + 1),
+                40,
+            )]];
         }
-        yield [['ref' => 'refs/tags/v1.0.1', 'object' => ['type' => 'tag', 'sha' => str_repeat('1', 40)]], $chain, 'excessive nesting'];
+        yield [['ref' => 'refs/tags/v1.0.1', 'object' => ['type' => 'tag', 'sha' => str_repeat(
+            '1',
+            40,
+        )]], $chain, 'excessive nesting'];
     }
 
     /** Existing published releases MUST preserve exact notes, tag identity and stable state. */
@@ -221,8 +242,12 @@ final class PublicationServiceTest extends TestCase
 
     /** External tag changes between reads MUST fail without any force/update/delete request. */
     #[DataProvider('tagRaces')]
-    public function testRemoteTagDivergenceDuringPublicationIsNeverRewritten(bool $existingTag, bool $existingRelease, int $moveAt, string $message): void
-    {
+    public function testRemoteTagDivergenceDuringPublicationIsNeverRewritten(
+        bool $existingTag,
+        bool $existingRelease,
+        int $moveAt,
+        string $message,
+    ): void {
         $state = $this->state(['move_at' => $moveAt]);
         if ($existingTag) {
             $state['tag'] = $this->tag();
@@ -247,9 +272,12 @@ final class PublicationServiceTest extends TestCase
     /** Returns an isolated recording remote state; no real token, filesystem or network is consulted. */
     private function state(array $changes = []): array
     {
-        return array_replace(['tag' => null, 'release' => null, 'annotated' => [], 'calls' => [], 'tag_reads' => 0, 'move_at' => null,
+        return array_replace([
+            'tag' => null, 'release' => null, 'annotated' => [], 'calls' => [], 'tag_reads' => 0, 'move_at' => null,
             'maintenance' => false, 'invalid_evidence' => false, 'fail_tag' => false, 'fail_release' => false,
-            'lost_tag_response' => false, 'lost_release_response' => false], $changes);
+            'lost_tag_response' => false, 'lost_release_response' => false],
+            $changes,
+        );
     }
 
     /** Provides a canonical remote lightweight tag response. */
@@ -278,6 +306,7 @@ final class PublicationServiceTest extends TestCase
             self::fail('Publication divergence must fail.');
         } catch (RuntimeException $error) {
             self::assertStringContainsString($message, $error->getMessage());
+
             return $error;
         }
     }
@@ -286,21 +315,33 @@ final class PublicationServiceTest extends TestCase
     private function service(array &$state): PublicationService
     {
         $evidence = $this->createStub(PublicationEvidenceValidatorInterface::class);
-        $evidence->method('validate')->willReturnCallback(static function (ReleaseOptions $options, string $sha) use (&$state): PublicationEvidence {
+        $evidence->method('validate')->willReturnCallback(static function (ReleaseOptions $options, string $sha) use (
+            &$state
+        ): PublicationEvidence {
             self::assertSame(str_repeat('b', 40), $sha);
             if ($state['invalid_evidence']) {
                 throw new InvalidArgumentException('invalid local evidence');
             }
-            return new PublicationEvidence($sha, $state['maintenance'] ? null : '1.0.1', $state['maintenance'] ? null : 'v1.0.1', "Exact  notes\n", 'owner/repo');
+
+            return new PublicationEvidence(
+                $sha,
+                $state['maintenance'] ? null : '1.0.1',
+                $state['maintenance'] ? null : 'v1.0.1',
+                "Exact  notes\n",
+                'owner/repo',
+            );
         });
         $github = $this->createStub(GitHubClientInterface::class);
-        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (&$state): ?array {
+        $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (
+            &$state
+        ): ?array {
             $state['calls'][] = [$method, $path, $body];
             if ('GET' === $method && str_contains($path, '/git/ref/tags/')) {
                 ++$state['tag_reads'];
                 if ($state['tag_reads'] === $state['move_at']) {
                     $state['tag'] = $this->tag(str_repeat('c', 40));
                 }
+
                 return $state['tag'];
             }
             if ('GET' === $method && str_contains($path, '/git/tags/')) {
@@ -317,6 +358,7 @@ final class PublicationServiceTest extends TestCase
                 if ($state['lost_tag_response']) {
                     throw new RuntimeException('lost tag response');
                 }
+
                 return $state['tag'];
             }
             if ('POST' === $method && str_ends_with($path, '/releases')) {
@@ -327,14 +369,30 @@ final class PublicationServiceTest extends TestCase
                 if ($state['lost_release_response']) {
                     throw new RuntimeException('lost release response');
                 }
+
                 return $state['release'];
             }
             self::fail('Unexpected HTTP operation: ' . $method . ' ' . $path);
         });
         $results = $this->createStub(PublicationResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(static fn(string $state, ?string $version, ?string $tag, string $sha, ?string $url, array $actions): PublicationResult => new PublicationResult($state, $version, $tag, $sha, $url, $actions));
+        $results->method('create')->willReturnCallback(
+            static fn(string $state, ?string $version, ?string $tag, string $sha, ?string $url, array $actions): PublicationResult => new PublicationResult(
+                $state,
+                $version,
+                $tag,
+                $sha,
+                $url,
+                $actions,
+            ),
+        );
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException($message, previous: $previous));
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException(
+                $message,
+                previous: $previous,
+            ),
+        );
+
         return new PublicationService($evidence, $github, $results, $exceptions);
     }
 }

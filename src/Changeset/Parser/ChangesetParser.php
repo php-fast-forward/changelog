@@ -32,7 +32,15 @@ use FastForward\Changelog\Changeset\VersionImpact;
 final readonly class ChangesetParser implements ChangesetParserInterface
 {
     /** @var list<string> Supported canonical and migration-only metadata keys. */
-    private const array ALLOWED_KEYS = ['category', 'type', 'issue', 'pull_request', 'author', 'version', 'pull-request'];
+    private const array ALLOWED_KEYS = [
+        'category',
+        'type',
+        'issue',
+        'pull_request',
+        'author',
+        'version',
+        'pull-request',
+    ];
 
     /**
      * Injects construction boundaries so parsing remains independent of I/O.
@@ -143,7 +151,9 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         $type = null;
 
         foreach (['type', 'version'] as $impactKey) {
-            if (array_key_exists($impactKey, $metadata) && ! VersionImpact::tryFrom($metadata[$impactKey]) instanceof VersionImpact) {
+            if (array_key_exists($impactKey, $metadata) && ! VersionImpact::tryFrom(
+                $metadata[$impactKey],
+            ) instanceof VersionImpact) {
                 $errors[] = sprintf('%s must be one of major, minor, patch.', ucfirst($impactKey));
             }
         }
@@ -182,7 +192,15 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             return $this->resultFactory->invalid($id, $errors);
         }
 
-        $changeset = $this->changesetFactory->create($id, $category, $issue, $pullRequest, $author, $description, $type);
+        $changeset = $this->changesetFactory->create(
+            $id,
+            $category,
+            $issue,
+            $pullRequest,
+            $author,
+            $description,
+            $type,
+        );
 
         return $this->resultFactory->valid($changeset);
     }

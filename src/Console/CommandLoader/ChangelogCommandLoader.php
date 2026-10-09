@@ -42,8 +42,10 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
     private array $commands = [];
 
     /** Reflects attribute metadata without constructing services or querying the container. */
-    public function __construct(private readonly ContainerInterface $container, private readonly LazyCommandFactoryInterface $factory)
-    {
+    public function __construct(
+        private readonly ContainerInterface $container,
+        private readonly LazyCommandFactoryInterface $factory,
+    ) {
         foreach (self::SERVICES as $service) {
             $metadata = new ReflectionClass($service)->getAttributes(AsCommand::class)[0]->newInstance();
             $this->definitions[$metadata->name] = ['service' => $service, 'metadata' => $metadata];
@@ -57,7 +59,14 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
             throw new CommandNotFoundException(sprintf('Command "%s" is not defined.', $name));
         }
         $definition = $this->definitions[$name];
-        return $this->commands[$name] ??= $this->factory->create($name, [], $definition['metadata']->description, $definition['service'], $this->container);
+
+        return $this->commands[$name] ??= $this->factory->create(
+            $name,
+            [],
+            $definition['metadata']->description,
+            $definition['service'],
+            $this->container,
+        );
     }
 
     /** Looks up public names locally without resolving dependencies. */

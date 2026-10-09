@@ -36,5 +36,10 @@ interface ChangesetValidatorInterface
      *
      * @param list<string> $paths exact added Markdown candidates
      */
-    public function validatePaths(string $directory, array $paths, bool $waived = false, bool $requireFragment = true): ValidationReport;
+    public function validatePaths(
+        string $directory,
+        array $paths,
+        bool $waived = false,
+        bool $requireFragment = true,
+    ): ValidationReport;
 }

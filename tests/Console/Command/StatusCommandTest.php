@@ -39,7 +39,10 @@ final class StatusCommandTest extends TestCase
         $planner = $this->createMock(ReleasePlannerInterface::class);
         $planner->expects(self::once())->method('plan')->with($options)->willReturn($plan);
         $output = $this->createMock(OutputInterface::class);
-        $output->expects(self::once())->method('writeln')->with(json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), OutputInterface::OUTPUT_RAW);
+        $output->expects(self::once())->method('writeln')->with(
+            json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            OutputInterface::OUTPUT_RAW,
+        );
         self::assertSame(0, new StatusCommand($factory, $planner)($settings, $output, true));
     }
 
@@ -47,13 +50,18 @@ final class StatusCommandTest extends TestCase
     public function invalidOptionsProduceExitTwoOnErrorChannel(): void
     {
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
-        $factory->expects(self::once())->method('create')->willThrowException(new InvalidArgumentException('invalid locale'));
+        $factory->expects(self::once())->method('create')->willThrowException(
+            new InvalidArgumentException('invalid locale'),
+        );
         $output = $this->createMock(ConsoleOutputInterface::class);
         $error = $this->createMock(OutputInterface::class);
         $output->expects(self::once())->method('getErrorOutput')->willReturn($error);
         $output->expects(self::never())->method('writeln');
         $error->expects(self::once())->method('writeln')->with('<error>invalid locale</error>');
-        self::assertSame(2, new StatusCommand($factory, $this->createStub(ReleasePlannerInterface::class))($this->settings(), $output));
+        self::assertSame(
+            2,
+            new StatusCommand($factory, $this->createStub(ReleasePlannerInterface::class))($this->settings(), $output),
+        );
     }
 
     #[Test]
@@ -63,6 +71,9 @@ final class StatusCommandTest extends TestCase
         $factory->expects(self::once())->method('create')->willThrowException(new RuntimeException('Git unavailable'));
         $output = $this->createMock(OutputInterface::class);
         $output->expects(self::once())->method('writeln')->with('<error>Git unavailable</error>');
-        self::assertSame(1, new StatusCommand($factory, $this->createStub(ReleasePlannerInterface::class))($this->settings(), $output));
+        self::assertSame(
+            1,
+            new StatusCommand($factory, $this->createStub(ReleasePlannerInterface::class))($this->settings(), $output),
+        );
     }
 }

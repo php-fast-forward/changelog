@@ -25,20 +25,41 @@ use Throwable;
 final readonly class PullRequestPolicy implements PullRequestPolicyInterface
 {
     /** Injects API, result construction and value boundaries; construction has no external effects. */
-    public function __construct(private GitHubClientInterface $github, private PullRequestAuthorizationFactoryInterface $results) {}
+    public function __construct(
+        private GitHubClientInterface $github,
+        private PullRequestAuthorizationFactoryInterface $results,
+    ) {}
 
     /** Returns controlled diagnostics on inaccessible or inconsistent evidence, without exposing API secrets. */
-    public function inspect(ReleaseOptions $options, int $prNumber, string $managedBranch = 'changelog/version', string $automationActor = 'github-actions[bot]', string $waiverLabel = 'changelog-not-required', string $maintenanceLabel = 'changelog-maintenance'): PullRequestAuthorization
-    {
+    public function inspect(
+        ReleaseOptions $options,
+        int $prNumber,
+        string $managedBranch = 'changelog/version',
+        string $automationActor = 'github-actions[bot]',
+        string $waiverLabel = 'changelog-not-required',
+        string $maintenanceLabel = 'changelog-maintenance',
+    ): PullRequestAuthorization {
         $sha = null;
         try {
-            if (! GitHubEvidence::repository($options->repository) || $prNumber < 1 || '' === $waiverLabel || '' === $maintenanceLabel || $waiverLabel === $maintenanceLabel) {
-                return $this->results->create(false, false, 'ordinary', ['PR policy requires an explicit repository, positive PR and distinct exception labels.']);
+            if (! GitHubEvidence::repository(
+                $options->repository,
+            ) || $prNumber < 1 || '' === $waiverLabel || '' === $maintenanceLabel || $waiverLabel === $maintenanceLabel) {
+                return $this->results->create(
+                    false,
+                    false,
+                    'ordinary',
+                    ['PR policy requires an explicit repository, positive PR and distinct exception labels.'],
+                );
             }
             $repo = $options->repository;
             $pr = $this->github->request('GET', '/repos/' . $repo . '/pulls/' . $prNumber);
             if (! GitHubEvidence::pullRequest($pr, $repo, $prNumber, false)) {
-                return $this->results->create(false, false, 'ordinary', ['An open PR targeting the configured repository with a complete head snapshot is required.']);
+                return $this->results->create(
+                    false,
+                    false,
+                    'ordinary',
+                    ['An open PR targeting the configured repository with a complete head snapshot is required.'],
+                );
             }
             $sha = $pr['head']['sha'];
             $diagnostics = [];
@@ -61,16 +82,31 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 }
             }
             $managed = false;
-            if (GitHubEvidence::pullRequest($pr, $repo, $prNumber) && $pr['head']['ref'] === $managedBranch && GitHubEvidence::identity($pr['user'] ?? null, $automationActor, 'Bot')) {
+            if (GitHubEvidence::pullRequest(
+                $pr,
+                $repo,
+                $prNumber,
+            ) && $pr['head']['ref'] === $managedBranch && GitHubEvidence::identity(
+                $pr['user'] ?? null,
+                $automationActor,
+                'Bot',
+            )) {
                 $managed = $this->managedProof($options, $pr, $automationActor);
                 if (! $managed) {
                     $diagnostics[] = 'Managed version PR requires a fresh source base, signed Bot commit and validated file scope; resynchronize it before merge.';
                 }
             }
             $kind = $managed ? 'managed-version' : ($maintenance ? 'maintenance' : ($waiver ? 'waiver' : 'ordinary'));
+
             return $this->results->create($waiver, $maintenance || $managed, $kind, $diagnostics, $sha);
         } catch (Throwable) {
-            return $this->results->create(false, false, 'ordinary', ['GitHub PR authority could not be verified; response details were withheld.'], $sha);
+            return $this->results->create(
+                false,
+                false,
+                'ordinary',
+                ['GitHub PR authority could not be verified; response details were withheld.'],
+                $sha,
+            );
         }
     }
 
@@ -79,7 +115,11 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
     {
         $latest = null;
         foreach ($timeline as $event) {
-            if (! is_array($event) || ($event['label']['name'] ?? null) !== $label || ! in_array($event['event'] ?? null, ['labeled', 'unlabeled'], true)) {
+            if (! is_array($event) || ($event['label']['name'] ?? null) !== $label || ! in_array(
+                $event['event'] ?? null,
+                ['labeled', 'unlabeled'],
+                true,
+            )) {
                 continue;
             }
             if (! is_int($event['id'] ?? null) || ! is_string($event['created_at'] ?? null)
@@ -99,8 +139,17 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             return false;
         }
         $actor = $latest['actor'];
-        $permission = $this->github->request('GET', '/repos/' . $repository . '/collaborators/' . rawurlencode($actor['login']) . '/permission');
-        return null !== $permission && GitHubEvidence::identity($permission['user'] ?? null, $actor['login'], 'User', $actor['id'])
+        $permission = $this->github->request(
+            'GET',
+            '/repos/' . $repository . '/collaborators/' . rawurlencode($actor['login']) . '/permission',
+        );
+
+        return null !== $permission && GitHubEvidence::identity(
+            $permission['user'] ?? null,
+            $actor['login'],
+            'User',
+            $actor['id'],
+        )
             && (('maintain' === ($permission['role_name'] ?? null) && 'write' === ($permission['permission'] ?? null))
                 || ('admin' === ($permission['role_name'] ?? null) && 'admin' === ($permission['permission'] ?? null)));
     }
@@ -111,6 +160,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
         $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
         $commit = $this->github->request('GET', '/repos/' . $options->repository . '/commits/' . $pr['head']['sha']);
         $message = $commit['commit']['message'] ?? null;
+
         return is_string($message)
             && 1 === preg_match_all('/^Changelog-Base: ((?:[a-f0-9]{40}|[a-f0-9]{64}))$/m', $message, $matches)
             && $matches[1][0] === $pr['base']['sha']
@@ -123,10 +173,18 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
      * Every changed file MUST belong to the generated transaction; unknown files, renames and truncated
      * comparison scope fail closed. Raw commit emails, plan IDs and PR prose never prove identity.
      */
-    public function inspectHead(ReleaseOptions $options, string $headSha, string $automationActor = 'github-actions[bot]', ?string $baseSha = null): bool
-    {
+    public function inspectHead(
+        ReleaseOptions $options,
+        string $headSha,
+        string $automationActor = 'github-actions[bot]',
+        ?string $baseSha = null,
+    ): bool {
         try {
-            if (! GitHubEvidence::repository($options->repository) || ! GitHubEvidence::sha($headSha) || (null !== $baseSha && ! GitHubEvidence::sha($baseSha))) {
+            if (! GitHubEvidence::repository($options->repository) || ! GitHubEvidence::sha(
+                $headSha,
+            ) || (null !== $baseSha && ! GitHubEvidence::sha(
+                $baseSha,
+            ))) {
                 return false;
             }
             $repository = $options->repository;
@@ -139,7 +197,13 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 || ! GitHubEvidence::identity($commit['author'] ?? null, $automationActor, 'Bot', $account['id'])
                 || true !== ($commit['commit']['verification']['verified'] ?? null)
                 || 'valid' !== ($commit['commit']['verification']['reason'] ?? null)
-                || ! $this->trustedCommitter($repository, $headSha, $commit['committer'] ?? null, $automationActor, $account['id'])
+                || ! $this->trustedCommitter(
+                    $repository,
+                    $headSha,
+                    $commit['committer'] ?? null,
+                    $automationActor,
+                    $account['id'],
+                )
             ) {
                 return false;
             }
@@ -151,7 +215,10 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             foreach (['Base' => 'base_sha', 'Plan' => 'id', 'Output' => 'after_changelog_sha256', 'Options' => 'options_sha256'] as $trailer => $key) {
                 if (1 !== preg_match_all('/^Changelog-' . $trailer . ':.*$/m', $message)
                     || 1 !== preg_match_all('/^Changelog-' . $trailer . ': (.*)$/m', $message, $matches)
-                    || 1 !== preg_match('Base' === $trailer ? '/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/D' : '/^[a-f0-9]{64}$/D', $matches[1][0])) {
+                    || 1 !== preg_match(
+                        'Base' === $trailer ? '/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/D' : '/^[a-f0-9]{64}$/D',
+                        $matches[1][0],
+                    )) {
                     return false;
                 }
                 $data[$key] = $matches[1][0];
@@ -160,7 +227,13 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 || $data['options_sha256'] !== $options->evidenceHash()) {
                 return false;
             }
-            $central = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($repository, $options->changelogFile, $headSha)));
+            $central = GitHubEvidence::content(
+                $this->github->request('GET', GitHubEvidence::contentsPath(
+                    $repository,
+                    $options->changelogFile,
+                    $headSha,
+                )),
+            );
             if (null === $central || hash('sha256', $central) !== $data['after_changelog_sha256']) {
                 return false;
             }
@@ -169,7 +242,10 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 if ($data['base_sha'] === $descendant) {
                     continue;
                 }
-                $comparison = $this->github->request('GET', '/repos/' . $repository . '/compare/' . $data['base_sha'] . '...' . $descendant);
+                $comparison = $this->github->request(
+                    'GET',
+                    '/repos/' . $repository . '/compare/' . $data['base_sha'] . '...' . $descendant,
+                );
                 if (null === $comparison || ($comparison['merge_base_commit']['sha'] ?? null) !== $data['base_sha']
                     || ! in_array($comparison['status'] ?? null, ['ahead', 'identical'], true)
                 ) {
@@ -179,6 +255,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                     $scope = $comparison['files'] ?? null;
                 }
             }
+
             return $this->managedScope($options, $headSha, $data, $scope);
         } catch (Throwable) {
             return false;
@@ -191,13 +268,23 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
      * requires an immutable GraphQL commit proof and independently corroborated web-flow identity.
      * @see https://docs.github.com/en/graphql/reference/git#gitsignature
      */
-    private function trustedCommitter(string $repository, string $headSha, mixed $committer, string $automationActor, int $actorId): bool
-    {
+    private function trustedCommitter(
+        string $repository,
+        string $headSha,
+        mixed $committer,
+        string $automationActor,
+        int $actorId,
+    ): bool {
         if (GitHubEvidence::identity($committer, $automationActor, 'Bot', $actorId)) {
             return true;
         }
         if (! GitHubEvidence::identity($committer, 'web-flow', 'User', 19864447)
-            || ! GitHubEvidence::identity($this->github->request('GET', '/users/web-flow'), 'web-flow', 'User', 19864447)
+            || ! GitHubEvidence::identity(
+                $this->github->request('GET', '/users/web-flow'),
+                'web-flow',
+                'User',
+                19864447,
+            )
         ) {
             return false;
         }
@@ -210,6 +297,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             return false;
         }
         $object = $proof['data']['repository']['object'] ?? null;
+
         return is_array($object) && ($object['oid'] ?? null) === $headSha
             && true === ($object['signature']['isValid'] ?? null)
             && 'VALID' === ($object['signature']['state'] ?? null)
@@ -234,6 +322,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 if (! in_array($file['status'] ?? null, ['added', 'modified'], true)) {
                     return false;
                 }
+
                 continue;
             }
             $prefix = $options->fragmentDirectory . '/';
@@ -242,7 +331,13 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 || 'removed' !== ($file['status'] ?? null)) {
                 return false;
             }
-            $before = GitHubEvidence::content($this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $path, $data['base_sha'])));
+            $before = GitHubEvidence::content(
+                $this->github->request('GET', GitHubEvidence::contentsPath(
+                    $options->repository,
+                    $path,
+                    $data['base_sha'],
+                )),
+            );
             $after = $this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $path, $headSha));
             if (null === $before || null !== $after) {
                 return false;
@@ -252,7 +347,10 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
         if (! isset($seen[$options->changelogFile])) {
             return false;
         }
-        $entries = $this->github->request('GET', GitHubEvidence::contentsPath($options->repository, $options->fragmentDirectory, $data['base_sha']));
+        $entries = $this->github->request(
+            'GET',
+            GitHubEvidence::contentsPath($options->repository, $options->fragmentDirectory, $data['base_sha']),
+        );
         if (null === $entries) {
             return [] === $removed;
         }
@@ -277,6 +375,7 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
         }
         sort($pending, SORT_STRING);
         sort($removed, SORT_STRING);
+
         return $pending === $removed;
     }
 }

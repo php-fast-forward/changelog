@@ -73,10 +73,25 @@ final class AutomationRunnerTest extends TestCase
     {
         $inputs = ['working-directory' => '/consumer', 'fragment-directory' => '.changes', 'changelog-file' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'base-ref' => 'main', 'tag-prefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags'];
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
-        $factory->expects(self::once())->method('create')->with(['workingDirectory' => '/consumer', 'fragmentDirectory' => '.changes', 'changelogFile' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'baseRef' => 'main', 'tagPrefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags'])->willReturn($this->options());
+        $factory->expects(self::once())->method('create')->with(
+            ['workingDirectory' => '/consumer', 'fragmentDirectory' => '.changes', 'changelogFile' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'baseRef' => 'main', 'tagPrefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags'],
+        )->willReturn(
+            $this->options(),
+        );
         $checks = $this->createMock(CheckServiceInterface::class);
-        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', false, false, 'ordinary')->willReturn(new ValidationReport([], [], false));
-        self::assertSame(['status' => 'valid', 'fragments' => 0, 'waived' => false, 'kind' => 'ordinary', 'diagnostics' => []], $this->runner(['options' => $factory, 'checks' => $checks])->run('check', [...$inputs, 'since' => 'BASE']));
+        $checks->expects(self::once())->method('check')->with(
+            $this->options(),
+            'BASE',
+            false,
+            false,
+            'ordinary',
+        )->willReturn(
+            new ValidationReport([], [], false),
+        );
+        self::assertSame([
+            'status' => 'valid', 'fragments' => 0, 'waived' => false, 'kind' => 'ordinary', 'diagnostics' => []],
+            $this->runner(['options' => $factory, 'checks' => $checks])->run('check', [...$inputs, 'since' => 'BASE']),
+        );
     }
 
     #[Test]
@@ -97,8 +112,10 @@ final class AutomationRunnerTest extends TestCase
     #[TestWith(['version', []])]
     #[TestWith(['check', ['since' => 'BASE', 'pull-request' => '7']])]
     #[TestWith(['publish', ['pull-request' => '7']])]
-    public function githubOperationsRejectNestedWorkingDirectoryBeforeRemoteServices(string $operation, array $inputs): void
-    {
+    public function githubOperationsRejectNestedWorkingDirectoryBeforeRemoteServices(
+        string $operation,
+        array $inputs,
+    ): void {
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('repositoryRoot')->with('/consumer')->willReturn('/parent');
         $git->expects(self::never())->method('resolveRef');
@@ -133,13 +150,40 @@ final class AutomationRunnerTest extends TestCase
     public function policyPermissionsAreBoundToExactCheckoutAndForwardAllDiagnostics(): void
     {
         $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspect')->with($this->options(), 7, 'managed', 'app[bot]', 'waiver', 'maintenance')->willReturn(new PullRequestAuthorization(true, true, 'maintenance', ['trusted grant'], $this->sha()));
+        $policy->expects(self::once())->method('inspect')->with(
+            $this->options(),
+            7,
+            'managed',
+            'app[bot]',
+            'waiver',
+            'maintenance',
+        )->willReturn(
+            new PullRequestAuthorization(true, true, 'maintenance', ['trusted grant'], $this->sha()),
+        );
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('repositoryRoot')->with('/consumer')->willReturn('/consumer');
         $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($this->sha());
         $checks = $this->createMock(CheckServiceInterface::class);
-        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', true, true, 'maintenance')->willReturn(new ValidationReport(['fixture'], [], true));
-        self::assertSame(['status' => 'valid', 'fragments' => 1, 'waived' => true, 'kind' => 'maintenance', 'diagnostics' => ['trusted grant']], $this->runner(compact('policy', 'git', 'checks'))->run('check', ['since' => 'BASE', 'pull-request' => '7', 'managed-branch' => 'managed', 'automation-actor' => 'app[bot]', 'waiver-label' => 'waiver', 'maintenance-label' => 'maintenance']));
+        $checks->expects(self::once())->method('check')->with(
+            $this->options(),
+            'BASE',
+            true,
+            true,
+            'maintenance',
+        )->willReturn(
+            new ValidationReport(['fixture'], [], true),
+        );
+        self::assertSame([
+            'status' => 'valid', 'fragments' => 1, 'waived' => true, 'kind' => 'maintenance', 'diagnostics' => [
+                'trusted grant',
+            ]],
+            $this->runner(
+                compact('policy', 'git', 'checks'),
+            )->run(
+                'check',
+                ['since' => 'BASE', 'pull-request' => '7', 'managed-branch' => 'managed', 'automation-actor' => 'app[bot]', 'waiver-label' => 'waiver', 'maintenance-label' => 'maintenance'],
+            ),
+        );
     }
 
     #[Test]
@@ -160,16 +204,43 @@ final class AutomationRunnerTest extends TestCase
         ?string $error,
     ): void {
         $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspect')->with($this->options(), 7, 'changelog/version', 'github-actions[bot]', 'changelog-not-required', 'changelog-maintenance')->willReturn(new PullRequestAuthorization($waiver, $central, $kind, [], $this->sha()));
+        $policy->expects(self::once())->method('inspect')->with(
+            $this->options(),
+            7,
+            'changelog/version',
+            'github-actions[bot]',
+            'changelog-not-required',
+            'changelog-maintenance',
+        )->willReturn(
+            new PullRequestAuthorization($waiver, $central, $kind, [], $this->sha()),
+        );
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('repositoryRoot')->with('/consumer')->willReturn('/consumer');
         $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($this->sha());
-        $git->expects(self::once())->method('changesSince')->with('/consumer', 'BASE')->willReturn([['status' => $status, 'path' => $path, 'previous' => null]]);
+        $git->expects(self::once())->method('changesSince')->with('/consumer', 'BASE')->willReturn(
+            [['status' => $status, 'path' => $path, 'previous' => null]],
+        );
         $validator = $this->createMock(ChangesetValidatorInterface::class);
-        $validator->expects(self::once())->method('validate')->with('/consumer/.changelog', false, false)->willReturn(new ValidationReport([], [], false));
-        $validator->expects(self::once())->method('validatePaths')->with('/consumer/.changelog', [], false, false)->willReturn(new ValidationReport([], [], false));
+        $validator->expects(self::once())->method('validate')->with('/consumer/.changelog', false, false)->willReturn(
+            new ValidationReport([], [], false),
+        );
+        $validator->expects(self::once())->method('validatePaths')->with(
+            '/consumer/.changelog',
+            [],
+            false,
+            false,
+        )->willReturn(
+            new ValidationReport([], [], false),
+        );
         $reports = $this->createMock(ValidationReportFactoryInterface::class);
-        $reports->expects(self::once())->method('create')->willReturnCallback(static fn(array $changesets, array $errors, bool $waived, array $hashes): ValidationReport => new ValidationReport($changesets, $errors, $waived, $hashes));
+        $reports->expects(self::once())->method('create')->willReturnCallback(
+            static fn(array $changesets, array $errors, bool $waived, array $hashes): ValidationReport => new ValidationReport(
+                $changesets,
+                $errors,
+                $waived,
+                $hashes,
+            ),
+        );
         $checks = new CheckService($validator, $git, $reports);
 
         if (null !== $error) {
@@ -177,9 +248,15 @@ final class AutomationRunnerTest extends TestCase
             $this->expectExceptionMessage('"' . $error . '"');
         }
 
-        $result = $this->runner(compact('policy', 'git', 'checks'))->run('check', ['since' => 'BASE', 'pull-request' => '7']);
+        $result = $this->runner(compact('policy', 'git', 'checks'))->run(
+            'check',
+            ['since' => 'BASE', 'pull-request' => '7'],
+        );
 
-        self::assertSame(['status' => 'valid', 'fragments' => 0, 'waived' => $waiver, 'kind' => $kind, 'diagnostics' => []], $result);
+        self::assertSame([
+            'status' => 'valid', 'fragments' => 0, 'waived' => $waiver, 'kind' => $kind, 'diagnostics' => []],
+            $result,
+        );
     }
 
     #[Test]
@@ -188,7 +265,16 @@ final class AutomationRunnerTest extends TestCase
     public function absentOrDifferentPolicyHeadCannotAuthorizeValidation(?string $head): void
     {
         $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspect')->with($this->options(), 7, 'changelog/version', 'github-actions[bot]', 'changelog-not-required', 'changelog-maintenance')->willReturn(new PullRequestAuthorization(true, true, 'waiver', [], $head));
+        $policy->expects(self::once())->method('inspect')->with(
+            $this->options(),
+            7,
+            'changelog/version',
+            'github-actions[bot]',
+            'changelog-not-required',
+            'changelog-maintenance',
+        )->willReturn(
+            new PullRequestAuthorization(true, true, 'waiver', [], $head),
+        );
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('repositoryRoot')->with('/consumer')->willReturn('/consumer');
         $git->expects(null === $head ? self::never() : self::once())->method('resolveRef')->willReturn($this->sha());
@@ -201,7 +287,15 @@ final class AutomationRunnerTest extends TestCase
     public function invalidReportReturnsAllKeyedDiagnosticsAsWorkflowFailure(): void
     {
         $checks = $this->createMock(CheckServiceInterface::class);
-        $checks->expects(self::once())->method('check')->with($this->options(), 'BASE', false, false, 'ordinary')->willReturn(new ValidationReport([], ['one.md' => ['unknown type'], 'two.md' => ['empty message']], false));
+        $checks->expects(self::once())->method('check')->with(
+            $this->options(),
+            'BASE',
+            false,
+            false,
+            'ordinary',
+        )->willReturn(
+            new ValidationReport([], ['one.md' => ['unknown type'], 'two.md' => ['empty message']], false),
+        );
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Changelog check failed: {"one.md":["unknown type"],"two.md":["empty message"]}');
         $this->runner(compact('checks'))->run('check', ['since' => 'BASE']);
@@ -211,19 +305,45 @@ final class AutomationRunnerTest extends TestCase
     #[TestWith(['created', 'false', 'true', false, true])]
     #[TestWith(['filtered', true, false, true, false])]
     #[TestWith(['unchanged', null, null, true, true])]
-    public function dependabotParsesOnlyExplicitTrustedMetadata(string $status, mixed $dev, mixed $actions, bool $expectedDev, bool $expectedActions): void
-    {
-        $input = new DependabotInput(7, $this->sha(), ['vendor/one', 'vendor/two'], 'direct:production', 'composer', [2, 3], $expectedDev, $expectedActions);
+    public function dependabotParsesOnlyExplicitTrustedMetadata(
+        string $status,
+        mixed $dev,
+        mixed $actions,
+        bool $expectedDev,
+        bool $expectedActions,
+    ): void {
+        $input = new DependabotInput(7, $this->sha(), ['vendor/one', 'vendor/two'], 'direct:production', 'composer', [
+            2,
+            3,
+        ], $expectedDev, $expectedActions);
         $dependabotInputs = $this->createMock(DependabotInputFactoryInterface::class);
-        $dependabotInputs->expects(self::once())->method('create')->with(7, $this->sha(), ['vendor/one', 'vendor/two'], 'direct:production', 'composer', [2, 3], $expectedDev, $expectedActions)->willReturn($input);
+        $dependabotInputs->expects(self::once())->method('create')->with(
+            7,
+            $this->sha(),
+            ['vendor/one', 'vendor/two'],
+            'direct:production',
+            'composer',
+            [2, 3],
+            $expectedDev,
+            $expectedActions,
+        )->willReturn(
+            $input,
+        );
         $dependabot = $this->createMock(DependabotFragmentServiceInterface::class);
-        $dependabot->expects(self::once())->method('synchronize')->with($this->options(), $input)->willReturn(new DependabotFragmentResult($status, '.changelog/dependabot-7.md', $this->sha(), ['safe detail']));
+        $dependabot->expects(self::once())->method('synchronize')->with($this->options(), $input)->willReturn(
+            new DependabotFragmentResult($status, '.changelog/dependabot-7.md', $this->sha(), ['safe detail']),
+        );
         $inputs = ['pull-request' => '7', 'expected-head-sha' => $this->sha(), 'dependency-names' => ' vendor/one, vendor/two ', 'dependency-type' => 'direct:production', 'ecosystem' => 'composer', 'security-alert-numbers' => '[2,3]'];
         if (null !== $dev) {
             $inputs['include-dev'] = $dev;
             $inputs['include-actions'] = $actions;
         }
-        self::assertSame(['status' => $status, 'path' => '.changelog/dependabot-7.md', 'head_sha' => $this->sha(), 'diagnostics' => ['safe detail']], $this->runner(compact('dependabotInputs', 'dependabot'))->run('dependabot', $inputs));
+        self::assertSame([
+            'status' => $status, 'path' => '.changelog/dependabot-7.md', 'head_sha' => $this->sha(), 'diagnostics' => [
+                'safe detail',
+            ]],
+            $this->runner(compact('dependabotInputs', 'dependabot'))->run('dependabot', $inputs),
+        );
     }
 
     #[Test]
@@ -251,9 +371,19 @@ final class AutomationRunnerTest extends TestCase
     {
         $input = new VersionPullRequestInput();
         $versionInputs = $this->createMock(VersionPullRequestInputFactoryInterface::class);
-        $versionInputs->expects(self::once())->method('create')->with('main', 'changelog/version', 'github-actions[bot]', 'chore: update changelog', false)->willReturn($input);
+        $versionInputs->expects(self::once())->method('create')->with(
+            'main',
+            'changelog/version',
+            'github-actions[bot]',
+            'chore: update changelog',
+            false,
+        )->willReturn(
+            $input,
+        );
         $versions = $this->createMock(VersionPullRequestServiceInterface::class);
-        $versions->expects(self::once())->method('synchronize')->with($this->options(), $input)->willReturn(new VersionPullRequestResult($status, diagnostics: ['head changed']));
+        $versions->expects(self::once())->method('synchronize')->with($this->options(), $input)->willReturn(
+            new VersionPullRequestResult($status, diagnostics: ['head changed']),
+        );
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Automation ' . $status . ': head changed');
         $this->runner(compact('versionInputs', 'versions'))->run('version', []);
@@ -266,12 +396,40 @@ final class AutomationRunnerTest extends TestCase
     #[TestWith(['false'])]
     public function versionUsesSharedServiceAndPreservesTransactionSummary(mixed $dry): void
     {
-        $input = new VersionPullRequestInput('stable', 'managed', 'app[bot]', 'Version packages', true === $dry || 'true' === $dry);
+        $input = new VersionPullRequestInput(
+            'stable',
+            'managed',
+            'app[bot]',
+            'Version packages',
+            true === $dry || 'true' === $dry,
+        );
         $versionInputs = $this->createMock(VersionPullRequestInputFactoryInterface::class);
-        $versionInputs->expects(self::once())->method('create')->with('stable', 'managed', 'app[bot]', 'Version packages', $input->dryRun)->willReturn($input);
+        $versionInputs->expects(self::once())->method('create')->with(
+            'stable',
+            'managed',
+            'app[bot]',
+            'Version packages',
+            $input->dryRun,
+        )->willReturn(
+            $input,
+        );
         $versions = $this->createMock(VersionPullRequestServiceInterface::class);
-        $versions->expects(self::once())->method('synchronize')->with($this->options(), $input)->willReturn(new VersionPullRequestResult('updated', 7, 'https://example.test/7', $this->sha(), 'plan', '1.2.3', true, ['maintenance']));
-        self::assertSame(['status' => 'updated', 'pull_request' => 7, 'url' => 'https://example.test/7', 'head_sha' => $this->sha(), 'plan_id' => 'plan', 'version' => '1.2.3', 'maintenance' => true, 'diagnostics' => ['maintenance']], $this->runner(compact('versionInputs', 'versions'))->run('version', ['base-branch' => 'stable', 'managed-branch' => 'managed', 'automation-actor' => 'app[bot]', 'title' => 'Version packages', 'dry-run' => $dry]));
+        $versions->expects(self::once())->method('synchronize')->with($this->options(), $input)->willReturn(
+            new VersionPullRequestResult('updated', 7, 'https://example.test/7', $this->sha(), 'plan', '1.2.3', true, [
+                'maintenance',
+            ]),
+        );
+        self::assertSame([
+            'status' => 'updated', 'pull_request' => 7, 'url' => 'https://example.test/7', 'head_sha' => $this->sha(), 'plan_id' => 'plan', 'version' => '1.2.3', 'maintenance' => true, 'diagnostics' => [
+                'maintenance',
+            ]],
+            $this->runner(
+                compact('versionInputs', 'versions'),
+            )->run(
+                'version',
+                ['base-branch' => 'stable', 'managed-branch' => 'managed', 'automation-actor' => 'app[bot]', 'title' => 'Version packages', 'dry-run' => $dry],
+            ),
+        );
     }
 
     #[Test]
@@ -309,29 +467,54 @@ final class AutomationRunnerTest extends TestCase
     #[Test]
     public function directPublicationDelegatesApprovedIdentityAndPreviewWithoutGithubRequests(): void
     {
-        $result = new PublicationResult('dry-run', '1.2.3', 'v1.2.3', $this->sha(), null, ['create_tag', 'create_release']);
+        $result = new PublicationResult('dry-run', '1.2.3', 'v1.2.3', $this->sha(), null, [
+            'create_tag',
+            'create_release',
+        ]);
         $publication = $this->createMock(PublicationServiceInterface::class);
-        $publication->expects(self::once())->method('publish')->with($this->options(), $this->sha(), true)->willReturn($result);
-        self::assertSame($result->summary(), $this->runner(compact('publication'))->run('publish', ['target-sha' => $this->sha(), 'dry-run' => 'true']));
+        $publication->expects(self::once())->method('publish')->with($this->options(), $this->sha(), true)->willReturn(
+            $result,
+        );
+        self::assertSame(
+            $result->summary(),
+            $this->runner(compact('publication'))->run('publish', ['target-sha' => $this->sha(), 'dry-run' => 'true']),
+        );
     }
 
     #[Test]
     public function mergedPublicationRequiresAccountIdentityAndSignedHeadBoundToMerge(): void
     {
         $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::exactly(2))->method('request')->willReturnCallback(function (string $method, string $path): array {
-            self::assertSame('GET', $method);
-            return match ($path) {
-                '/repos/owner/project/pulls/7' => $this->mergedPr(),
-                '/users/app%5Bbot%5D' => $this->mergedPr()['user'],
-            };
-        });
+        $github->expects(self::exactly(2))->method('request')->willReturnCallback(
+            function (string $method, string $path): array {
+                self::assertSame('GET', $method);
+
+                return match ($path) {
+                    '/repos/owner/project/pulls/7' => $this->mergedPr(),
+                    '/users/app%5Bbot%5D' => $this->mergedPr()['user'],
+                };
+            },
+        );
         $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspectHead')->with($this->options(), $this->sha('b'), 'app[bot]', $this->sha())->willReturn(true);
+        $policy->expects(self::once())->method('inspectHead')->with(
+            $this->options(),
+            $this->sha('b'),
+            'app[bot]',
+            $this->sha(),
+        )->willReturn(
+            true,
+        );
         $publication = $this->createMock(PublicationServiceInterface::class);
-        $result = new PublicationResult('published', '1.2.3', 'v1.2.3', $this->sha(), 'https://example.test/release', ['create_release']);
-        $publication->expects(self::once())->method('publish')->with($this->options(), $this->sha(), false)->willReturn($result);
-        self::assertSame($result->summary(), $this->runner(compact('github', 'policy', 'publication'))->run('publish', $this->publishInputs()));
+        $result = new PublicationResult('published', '1.2.3', 'v1.2.3', $this->sha(), 'https://example.test/release', [
+            'create_release',
+        ]);
+        $publication->expects(self::once())->method('publish')->with($this->options(), $this->sha(), false)->willReturn(
+            $result,
+        );
+        self::assertSame(
+            $result->summary(),
+            $this->runner(compact('github', 'policy', 'publication'))->run('publish', $this->publishInputs()),
+        );
     }
 
     #[Test]
@@ -339,7 +522,9 @@ final class AutomationRunnerTest extends TestCase
     public function incompleteOrChangedMergeEvidenceStopsPublication(array $replacement): void
     {
         $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::once())->method('request')->with('GET', '/repos/owner/project/pulls/7')->willReturn(array_replace_recursive($this->mergedPr(), $replacement));
+        $github->expects(self::once())->method('request')->with('GET', '/repos/owner/project/pulls/7')->willReturn(
+            array_replace_recursive($this->mergedPr(), $replacement),
+        );
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('immutable head/merge identities');
         $this->runner(compact('github'))->run('publish', $this->publishInputs());
@@ -365,7 +550,10 @@ final class AutomationRunnerTest extends TestCase
     public function missingOrDifferentCurrentAccountCannotOwnMergedPr(?array $account): void
     {
         $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::exactly(2))->method('request')->willReturnOnConsecutiveCalls($this->mergedPr(), $account);
+        $github->expects(self::exactly(2))->method('request')->willReturnOnConsecutiveCalls(
+            $this->mergedPr(),
+            $account,
+        );
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('signed automation ownership');
         $this->runner(compact('github'))->run('publish', $this->publishInputs());
@@ -375,9 +563,19 @@ final class AutomationRunnerTest extends TestCase
     public function unsignedHeadFailsEvenAfterExactMergeAndAccountEvidence(): void
     {
         $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::exactly(2))->method('request')->willReturnOnConsecutiveCalls($this->mergedPr(), $this->mergedPr()['user']);
+        $github->expects(self::exactly(2))->method('request')->willReturnOnConsecutiveCalls(
+            $this->mergedPr(),
+            $this->mergedPr()['user'],
+        );
         $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspectHead')->with($this->options(), $this->sha('b'), 'app[bot]', $this->sha())->willReturn(false);
+        $policy->expects(self::once())->method('inspectHead')->with(
+            $this->options(),
+            $this->sha('b'),
+            'app[bot]',
+            $this->sha(),
+        )->willReturn(
+            false,
+        );
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('signed automation ownership');
         $this->runner(compact('github', 'policy'))->run('publish', $this->publishInputs());
@@ -397,15 +595,33 @@ final class AutomationRunnerTest extends TestCase
     #[TestWith(['format', 'false', 'true', false, 'verified'])]
     #[TestWith(['backfill', 'false', 'false', true, 'applied'])]
     #[TestWith(['format', 'false', 'false', false, 'unchanged'])]
-    public function historyUsesOnePlanAndKeepsPreviewAndCheckReadOnly(string $operation, string $dry, string $check, bool $applied, string $status): void
-    {
+    public function historyUsesOnePlanAndKeepsPreviewAndCheckReadOnly(
+        string $operation,
+        string $dry,
+        string $check,
+        bool $applied,
+        string $status,
+    ): void {
         $plan = $this->plan();
         $planner = $this->createMock(ReleasePlannerInterface::class);
         $planner->expects(self::once())->method('plan')->with($this->options(), $operation)->willReturn($plan);
         $applier = $this->createMock(ReleaseApplierInterface::class);
-        $applier->expects('true' === $check ? self::once() : self::never())->method('isApplied')->with($plan)->willReturn(true);
-        $applier->expects('false' === $dry && 'false' === $check ? self::once() : self::never())->method('apply')->with($plan)->willReturn($applied);
-        self::assertSame([...$plan->summary(), 'status' => $status], $this->runner(compact('planner', 'applier'))->run('history', ['operation' => $operation, 'dry-run' => $dry, 'check' => $check]));
+        $applier->expects('true' === $check ? self::once() : self::never())->method('isApplied')->with(
+            $plan,
+        )->willReturn(
+            true,
+        );
+        $applier->expects('false' === $dry && 'false' === $check ? self::once() : self::never())->method('apply')->with(
+            $plan,
+        )->willReturn(
+            $applied,
+        );
+        self::assertSame(
+            [...$plan->summary(), 'status' => $status],
+            $this->runner(
+                compact('planner', 'applier'),
+            )->run('history', ['operation' => $operation, 'dry-run' => $dry, 'check' => $check]),
+        );
     }
 
     #[Test]
@@ -436,11 +652,18 @@ final class AutomationRunnerTest extends TestCase
     {
         $options = $services['options'] ?? $this->createMock(ReleaseOptionsFactoryInterface::class);
         if (! isset($services['options'])) {
-            $options->expects($createOptions ? self::once() : self::never())->method('create')->with([])->willReturn($this->options());
+            $options->expects($createOptions ? self::once() : self::never())->method('create')->with([])->willReturn(
+                $this->options(),
+            );
         }
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message): RuntimeException => new RuntimeException($message),
+        );
+
         return new AutomationRunner(
             $options,
             $services['git'] ?? $this->noCalls(GitRepositoryInterface::class),
@@ -464,10 +687,12 @@ final class AutomationRunnerTest extends TestCase
         foreach (new ReflectionClass($interface)->getMethods() as $method) {
             if (GitRepositoryInterface::class === $interface && 'repositoryRoot' === $method->getName()) {
                 $mock->method('repositoryRoot')->willReturn('/consumer');
+
                 continue;
             }
             $mock->expects(self::never())->method($method->getName());
         }
+
         return $mock;
     }
 
@@ -483,16 +708,36 @@ final class AutomationRunnerTest extends TestCase
 
     private function mergedPr(): array
     {
-        return ['number' => 7, 'state' => 'closed', 'merged' => true, 'merge_commit_sha' => $this->sha(), 'head' => ['sha' => $this->sha('b'), 'ref' => 'managed', 'repo' => ['full_name' => 'owner/project']], 'base' => ['ref' => 'stable', 'repo' => ['full_name' => 'owner/project']], 'user' => ['id' => 101, 'login' => 'app[bot]', 'type' => 'Bot']];
+        return ['number' => 7, 'state' => 'closed', 'merged' => true, 'merge_commit_sha' => $this->sha(), 'head' => ['sha' => $this->sha(
+            'b',
+        ), 'ref' => 'managed', 'repo' => ['full_name' => 'owner/project']], 'base' => ['ref' => 'stable', 'repo' => ['full_name' => 'owner/project']], 'user' => ['id' => 101, 'login' => 'app[bot]', 'type' => 'Bot']];
     }
 
     private function publishInputs(): array
     {
-        return ['target-sha' => $this->sha(), 'pull-request' => '7', 'expected-head-sha' => $this->sha('b'), 'managed-branch' => 'managed', 'base-branch' => 'stable', 'automation-actor' => 'app[bot]'];
+        return ['target-sha' => $this->sha(), 'pull-request' => '7', 'expected-head-sha' => $this->sha(
+            'b',
+        ), 'managed-branch' => 'managed', 'base-branch' => 'stable', 'automation-actor' => 'app[bot]'];
     }
 
     private function plan(): ReleasePlan
     {
-        return new ReleasePlan($this->options(), 'plan-id', $this->sha(), '1.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'original', 'changed', 'exact notes', '/consumer/.changelog/release-plan.json', null, '{}');
+        return new ReleasePlan(
+            $this->options(),
+            'plan-id',
+            $this->sha(),
+            '1.0.0',
+            null,
+            null,
+            [],
+            [],
+            '/consumer/CHANGELOG.md',
+            'original',
+            'changed',
+            'exact notes',
+            '/consumer/.changelog/release-plan.json',
+            null,
+            '{}',
+        );
     }
 }

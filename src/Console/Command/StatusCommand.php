@@ -28,22 +28,35 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 /** Reports the immutable plan summary as machine-readable JSON without progress output. */
-#[AsCommand(name: 'status', description: 'Show the current release plan as JSON without writing files.')]
+#[AsCommand(
+    name: 'status',
+    description: 'Show the current release plan as JSON without writing files.',
+)]
 final readonly class StatusCommand
 {
     /** Captures planning contracts without accessing files, Git or the network. */
-    public function __construct(private ReleaseOptionsFactoryInterface $options, private ReleasePlannerInterface $planner) {}
+    public function __construct(
+        private ReleaseOptionsFactoryInterface $options,
+        private ReleasePlannerInterface $planner,
+    ) {}
 
     /** Prints only the shared summary; --json is accepted for explicit machine consumers. */
-    public function __invoke(#[MapInput] ReleaseInput $settings, OutputInterface $output, #[Option(description: 'Explicitly select the machine-readable JSON output.')] bool $json = false): int
+    public function __invoke(#[MapInput] ReleaseInput $settings, OutputInterface $output, #[Option(
+        description: 'Explicitly select the machine-readable JSON output.',
+    )] bool $json = false): int
     {
         try {
             $plan = $this->planner->plan($this->options->create($settings->values()));
-            $output->writeln(json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), OutputInterface::OUTPUT_RAW);
+            $output->writeln(
+                json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                OutputInterface::OUTPUT_RAW,
+            );
+
             return Command::SUCCESS;
         } catch (Throwable $exception) {
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $error->writeln('<error>' . OutputFormatter::escape($exception->getMessage()) . '</error>');
+
             return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
     }

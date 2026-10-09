@@ -35,6 +35,10 @@ final class MutationCommandsTest extends TestCase
 
     public static function commands(): array
     {
-        return [[VersionCommand::class, 'version'], [BackfillCommand::class, 'backfill'], [FormatCommand::class, 'format']];
+        return [[
+            VersionCommand::class, 'version'],
+            [BackfillCommand::class, 'backfill'],
+            [FormatCommand::class, 'format'],
+        ];
     }
 }

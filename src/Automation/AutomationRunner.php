@@ -41,9 +41,26 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
 
     private const array OPERATION_INPUTS = [
         'check' => ['since', 'pull-request', 'managed-branch', 'automation-actor', 'waiver-label', 'maintenance-label'],
-        'dependabot' => ['pull-request', 'expected-head-sha', 'dependency-names', 'dependency-type', 'ecosystem', 'security-alert-numbers', 'include-dev', 'include-actions'],
+        'dependabot' => [
+            'pull-request',
+            'expected-head-sha',
+            'dependency-names',
+            'dependency-type',
+            'ecosystem',
+            'security-alert-numbers',
+            'include-dev',
+            'include-actions',
+        ],
         'version' => ['base-branch', 'managed-branch', 'automation-actor', 'title', 'dry-run'],
-        'publish' => ['target-sha', 'pull-request', 'expected-head-sha', 'base-branch', 'managed-branch', 'automation-actor', 'dry-run'],
+        'publish' => [
+            'target-sha',
+            'pull-request',
+            'expected-head-sha',
+            'base-branch',
+            'managed-branch',
+            'automation-actor',
+            'dry-run',
+        ],
         'history' => ['operation', 'dry-run', 'check'],
     ];
 
@@ -70,7 +87,11 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         if (! isset(self::OPERATION_INPUTS[$operation])) {
             throw $this->exceptions->invalid('Unknown automation operation.');
         }
-        $unknown = array_diff(array_keys($inputs), [...array_keys(self::SETTINGS), ...self::OPERATION_INPUTS[$operation]]);
+        $unknown = array_diff(
+            array_keys($inputs),
+            [...array_keys(self::SETTINGS),
+                ...self::OPERATION_INPUTS[$operation],
+            ]);
         if ([] !== $unknown) {
             throw $this->exceptions->invalid('Unknown Action inputs: ' . implode(', ', $unknown));
         }
@@ -85,9 +106,12 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
             || (in_array($operation, ['check', 'publish'], true) && '' !== $this->text($inputs, 'pull-request'))) {
             $root = $this->git->repositoryRoot($options->workingDirectory);
             if (rtrim(str_replace('\\', '/', $options->workingDirectory), '/') !== $root) {
-                throw $this->exceptions->invalid('GitHub automation requires the repository root as working-directory; select nested projects using repository-relative fragment-directory/changelog-file/template inputs.');
+                throw $this->exceptions->invalid(
+                    'GitHub automation requires the repository root as working-directory; select nested projects using repository-relative fragment-directory/changelog-file/template inputs.',
+                );
             }
         }
+
         return match ($operation) {
             'check' => $this->check($options, $inputs),
             'dependabot' => $this->dependabot($options, $inputs),
@@ -117,7 +141,9 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
                 $this->text($inputs, 'waiver-label', 'changelog-not-required'),
                 $this->text($inputs, 'maintenance-label', 'changelog-maintenance'),
             );
-            if (null === $authorization->headSha || $authorization->headSha !== $this->git->resolveRef($options->workingDirectory)) {
+            if (null === $authorization->headSha || $authorization->headSha !== $this->git->resolveRef(
+                $options->workingDirectory,
+            )) {
                 throw $this->exceptions->failure('PR authorization is unavailable or belongs to a different checkout.');
             }
             $central = $authorization->centralChangeAuthorized;
@@ -127,9 +153,17 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         }
         $report = $this->checks->check($options, $since, $central, $waiver, $kind);
         if (! $report->isValid()) {
-            throw $this->exceptions->failure('Changelog check failed: ' . json_encode($report->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            throw $this->exceptions->failure(
+                'Changelog check failed: ' . json_encode(
+                    $report->errors,
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+                ),
+            );
         }
-        return ['status' => 'valid', 'fragments' => count($report->changesets), 'waived' => $report->waived, 'kind' => $kind, 'diagnostics' => $diagnostics];
+
+        return ['status' => 'valid', 'fragments' => count(
+            $report->changesets,
+        ), 'waived' => $report->waived, 'kind' => $kind, 'diagnostics' => $diagnostics];
     }
 
     /** Passes only validated, caller-supplied Dependabot metadata to the create-only service. */
@@ -151,6 +185,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         );
         $result = $this->dependabot->synchronize($options, $input);
         $this->assertStatus($result->status, $result->diagnostics);
+
         return ['status' => $result->status, 'path' => $result->path, 'head_sha' => $result->commitSha, 'diagnostics' => $result->diagnostics];
     }
 
@@ -166,6 +201,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         );
         $result = $this->versions->synchronize($options, $input);
         $this->assertStatus($result->status, $result->diagnostics);
+
         return ['status' => $result->status, 'pull_request' => $result->prNumber, 'url' => $result->url,
             'head_sha' => $result->headSha, 'plan_id' => $result->planId, 'version' => $result->version,
             'maintenance' => $result->maintenance, 'diagnostics' => $result->diagnostics];
@@ -193,7 +229,9 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
                 || ($pr['base']['ref'] ?? null) !== $this->text($inputs, 'base-branch', 'main')
                 || ! GitHubEvidence::identity($pr['user'] ?? null, $actor, 'Bot')
             ) {
-                throw $this->exceptions->failure('Publication requires the merged configured version PR and its immutable head/merge identities.');
+                throw $this->exceptions->failure(
+                    'Publication requires the merged configured version PR and its immutable head/merge identities.',
+                );
             }
             $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
             if (! GitHubEvidence::identity($account, $actor, 'Bot', $pr['user']['id'])
@@ -203,6 +241,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         } elseif ('' !== $this->text($inputs, 'expected-head-sha')) {
             throw $this->exceptions->invalid('expected-head-sha requires pull-request.');
         }
+
         return $this->publication->publish($options, $target, $this->boolean($inputs, 'dry-run'))->summary();
     }
 
@@ -213,13 +252,16 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         $dryRun = $this->boolean($inputs, 'dry-run');
         $check = $this->boolean($inputs, 'check');
         if (! in_array($operation, ['backfill', 'format'], true) || ($dryRun && $check)) {
-            throw $this->exceptions->invalid('History requires backfill or format and mutually exclusive dry-run/check.');
+            throw $this->exceptions->invalid(
+                'History requires backfill or format and mutually exclusive dry-run/check.',
+            );
         }
         $plan = $this->planner->plan($options, $operation);
         if ($check && ! $this->applier->isApplied($plan)) {
             throw $this->exceptions->failure('Historical maintenance differs from the expected applied plan.');
         }
         $applied = ! $dryRun && ! $check && $this->applier->apply($plan);
+
         return [...$plan->summary(), 'status' => $dryRun ? 'dry-run' : ($check ? 'verified' : ($applied ? 'applied' : 'unchanged'))];
     }
 
@@ -230,6 +272,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         if (! is_string($value) || str_contains($value, "\0")) {
             throw $this->exceptions->invalid('Action input ' . $key . ' must be a string without NUL.');
         }
+
         return $value;
     }
 
@@ -240,6 +283,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         if (! in_array($value, [true, false, 'true', 'false'], true)) {
             throw $this->exceptions->invalid('Action input ' . $key . ' must be true or false.');
         }
+
         return true === $value || 'true' === $value;
     }
 
@@ -251,6 +295,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         if (1 !== preg_match('/\A[1-9][0-9]*\z/', $raw) || false === $number) {
             throw $this->exceptions->invalid('Action input ' . $key . ' must be a positive integer.');
         }
+
         return $number;
     }
 

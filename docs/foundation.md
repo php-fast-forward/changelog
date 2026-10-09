@@ -24,7 +24,7 @@ dependencies. Do not invent empty classes or artificial tests for coverage.
 The Changelog-specific choices are Symfony Console, Filesystem and Process
 `^8.1`, Fast Forward Container and Clock, their service-provider/PSR contracts,
 Composer runtime metadata and Safe. Container and Clock are focused packages;
-`fast-forward/config` currently arrives transitively through Container. They do
+`fast-forward/config` is also a direct dependency for optional consumer settings. They do
 not depend on DevTools. A different library chooses its own runtime boundaries.
 None of these packages is mandatory for every future library.
 
@@ -33,8 +33,19 @@ uses its verified installed API `withPhpVersion(PHP_85)` and
 `withPhpSets(php85: true)` so an upgrade cannot silently opt into PHP 8.6 syntax.
 The initial quality, dead code and type declaration levels are deliberately
 incremental. Raise a level in a reviewed change and retest public API, doubles
-and coverage. ECS enforces PER Coding Style, alphabetic imports and PHPDoc
-alignment/indentation/trim without deleting semantic descriptions.
+and coverage. ECS uses the existing PER prepared set, alphabetic imports and
+PHPDoc alignment/indentation/trim without deleting semantic descriptions.
+
+Readability rules add a blank line before `return`, `throw`, `continue` and
+`break` when another statement precedes them. Constructor parameters use separate
+lines; long argument lists wrap around 120 columns while intentional multiline
+layouts stay multiline. Keep a blank line before each new attributed command
+parameter or input property, with its attribute directly attached to that
+parameter/property. Multiline argument spacing preserves these groups.
+Dockerfile stages, installation flags and runtime layout use separate logical
+blocks. Workflow shell guards and long commands use continuation lines without
+changing their arguments or expressions. Opaque strings, class names and pinned
+references may exceed the wrapping target when splitting would harm clarity.
 
 The full local gate is `composer check`. Composer plugins are disabled and
 installation runs with `--no-plugins --no-scripts`. Production coverage includes
@@ -47,11 +58,10 @@ malformed Cobertura and invalid counts, including a zero denominator.
 `composer quality:verify` separately tests the gates' success and rejection
 paths in temporary fixtures, then removes only the fixtures it created.
 
-This library intentionally omits a version field and does not track its local
-`composer.lock`. CI resolves the published constraints on each run; dependency
-versions therefore vary and are recorded by the installation output. A future
-template may track a lock for reproducible development if its policy requires
-it. Consumer releases obtain identity from VCS tags.
+This library intentionally omits a version field and tracks `composer.lock` for
+development and Docker builds. Composer consumers resolve the declared runtime
+constraints through their own locks. A future template chooses its own lockfile
+policy. Consumer releases obtain identity from VCS tags.
 
 Before extracting the reference, replace repository links, docs URLs, badges,
 sponsor links and author/license data with verified values. Never copy

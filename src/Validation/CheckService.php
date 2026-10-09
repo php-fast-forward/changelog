@@ -109,7 +109,10 @@ final readonly class CheckService implements CheckServiceInterface
                 continue;
             }
 
-            $errors[$path][] = sprintf('Inherited fragments must not be modified, deleted, renamed or changed in type (status %s).', $change['status']);
+            $errors[$path][] = sprintf(
+                'Inherited fragments must not be modified, deleted, renamed or changed in type (status %s).',
+                $change['status'],
+            );
         }
 
         $added = array_values(array_unique($added));

@@ -102,11 +102,16 @@ jobs:
           FF_WORKING_DIRECTORY: ${{ inputs.working-directory }}
         run: |
           set -euo pipefail
+
           if [[ -z "$FF_RUNTIME_REPOSITORY" || ! "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::The called workflow identity is unavailable; a trusted immutable runtime is required."
             exit 1
           fi
-          if [[ -z "$FF_WORKING_DIRECTORY" || "$FF_WORKING_DIRECTORY" == /* || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) ]]; then
+
+          if [[ -z "$FF_WORKING_DIRECTORY" \
+              || "$FF_WORKING_DIRECTORY" == /* \
+              || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) \
+          ]]; then
             echo "::error::working-directory must stay below the consumer project checkout."
             exit 1
           fi

@@ -52,6 +52,7 @@ final readonly class ReleasePlan
         if ($this->resuming) {
             return 'maintenance';
         }
+
         return (null === $this->originalChangelog && '' === $this->changelogContents)
             || $this->originalChangelog === $this->changelogContents ? 'none' : 'maintenance';
     }
@@ -62,6 +63,7 @@ final readonly class ReleasePlan
         if ('none' === $this->mode()) {
             return [];
         }
+
         return [$this->changelogPath, ...array_keys($this->consumed)];
     }
 

@@ -201,6 +201,7 @@ final class ReleaseOptionsFactoryTest extends TestCase
         $git = $this->createStub(GitRepositoryInterface::class);
         $git->method('isRepository')->willReturn($repository || null !== $origin);
         $git->method('originUrl')->willReturn($origin);
+
         return new ReleaseOptionsFactory($paths, $git);
     }
 }

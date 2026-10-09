@@ -128,22 +128,34 @@ jobs:
           FF_EVENT_PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+
           if [[ -z "$FF_RUNTIME_REPOSITORY" || ! "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::The called workflow identity is unavailable; a trusted immutable runtime is required."
             exit 1
           fi
-          if [[ -z "$FF_WORKING_DIRECTORY" || "$FF_WORKING_DIRECTORY" == /* || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) ]]; then
+
+          if [[ -z "$FF_WORKING_DIRECTORY" \
+              || "$FF_WORKING_DIRECTORY" == /* \
+              || "$FF_WORKING_DIRECTORY" =~ (^|/)\.\.(/|$) \
+          ]]; then
             echo "::error::working-directory must stay below the consumer project checkout."
             exit 1
           fi
+
           if [[ "$FF_WORKING_DIRECTORY" != . ]]; then
             echo "::error::GitHub PR operations require working-directory '.'. Prefix fragment-directory and changelog-file with the package path in monorepos."
             exit 1
           fi
-          if [[ "$FF_EVENT_NAME" != pull_request || "$FF_PR_NUMBER" != "$FF_EVENT_PR" || "$FF_HEAD_SHA" != "$FF_EVENT_HEAD" || "$FF_BASE_SHA" != "$FF_EVENT_BASE" ]]; then
+
+          if [[ "$FF_EVENT_NAME" != pull_request \
+              || "$FF_PR_NUMBER" != "$FF_EVENT_PR" \
+              || "$FF_HEAD_SHA" != "$FF_EVENT_HEAD" \
+              || "$FF_BASE_SHA" != "$FF_EVENT_BASE" \
+          ]]; then
             echo "::error::Check requires the exact PR/head/base snapshot from a read-only pull_request event."
             exit 1
           fi
+
           if [[ "$FF_TEMPLATE" != keep-a-changelog ]]; then
             echo "::error::PR checks accept the built-in template only; PHP templates are not executed."
             exit 1

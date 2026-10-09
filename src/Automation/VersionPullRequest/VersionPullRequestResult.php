@@ -19,5 +19,14 @@ namespace FastForward\Changelog\Automation\VersionPullRequest;
 final readonly class VersionPullRequestResult
 {
     /** Does not imply a tag/release was published; conflict requires remote inspection before retrying. */
-    public function __construct(public string $status, public ?int $prNumber = null, public ?string $url = null, public ?string $headSha = null, public ?string $planId = null, public ?string $version = null, public bool $maintenance = false, public array $diagnostics = []) {}
+    public function __construct(
+        public string $status,
+        public ?int $prNumber = null,
+        public ?string $url = null,
+        public ?string $headSha = null,
+        public ?string $planId = null,
+        public ?string $version = null,
+        public bool $maintenance = false,
+        public array $diagnostics = [],
+    ) {}
 }

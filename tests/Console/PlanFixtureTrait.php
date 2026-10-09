@@ -15,6 +15,7 @@ trait PlanFixtureTrait
     {
         $input = new ReleaseInput();
         $input->workingDirectory = '/consumer';
+
         return $input;
     }
 
@@ -24,6 +25,7 @@ trait PlanFixtureTrait
         $input->release = $this->settings();
         $input->dryRun = $dry;
         $input->check = $check;
+
         return $input;
     }
 

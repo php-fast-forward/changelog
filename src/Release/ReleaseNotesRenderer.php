@@ -47,6 +47,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                 $sections[] = $template->categoryHeading($category->value) . "\n\n" . implode("\n", $entries);
             }
         }
+
         return [] === $sections ? '' : implode("\n\n", $sections) . "\n";
     }
 
@@ -64,6 +65,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
             $references[] = str_ends_with($change->author, '[bot]') ? '@' . $change->author
                 : '[@' . $change->author . '](https://github.com/' . rawurlencode($change->author) . ')';
         }
+
         return implode(', ', $references);
     }
 }

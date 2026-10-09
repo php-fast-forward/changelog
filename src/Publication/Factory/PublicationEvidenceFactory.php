@@ -22,8 +22,13 @@ use FastForward\Changelog\Publication\PublicationEvidence;
 final readonly class PublicationEvidenceFactory implements PublicationEvidenceFactoryInterface
 {
     /** Captures exact approved commit and note bytes without I/O. */
-    public function create(string $sha, ?string $version, ?string $tag, string $notes, ?string $repository): PublicationEvidence
-    {
+    public function create(
+        string $sha,
+        ?string $version,
+        ?string $tag,
+        string $notes,
+        ?string $repository,
+    ): PublicationEvidence {
         return new PublicationEvidence($sha, $version, $tag, $notes, $repository);
     }
 }

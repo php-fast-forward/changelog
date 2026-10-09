@@ -30,7 +30,11 @@ interface GitRepositoryInterface
      * Missing metadata returns null; malformed, truncated or ambiguous evidence MUST fail closed.
      * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null
      */
-    public function releaseMetadata(string $directory, string $reference, string $changelogFile = 'CHANGELOG.md'): ?array;
+    public function releaseMetadata(
+        string $directory,
+        string $reference,
+        string $changelogFile = 'CHANGELOG.md',
+    ): ?array;
 
     /** Resolves the first origin fetch URL and rewrites without network access; returns null only when origin is absent. */
     public function originUrl(string $directory): ?string;

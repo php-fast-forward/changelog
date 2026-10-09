@@ -77,21 +77,28 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         }
 
         $input = implode("\n", ['---', ...$metadata, '---', '', $message]);
-        $directory = rtrim(str_replace('\\', '/', $options->workingDirectory), '/') . '/' . trim(str_replace('\\', '/', $options->fragmentDirectory), '/');
+        $directory = rtrim(str_replace('\\', '/', $options->workingDirectory), '/') . '/' . trim(
+            str_replace('\\', '/', $options->fragmentDirectory),
+            '/',
+        );
         $attempts = null === $name ? 5 : 1;
 
         for ($attempt = 0; $attempt < $attempts; ++$attempt) {
             $id = $name ?? $this->identifiers->generate();
 
             if (1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, $id)) {
-                throw $this->exceptions->invalid(sprintf('Invalid fragment name "%s": use lowercase dash segments and .md.', $id));
+                throw $this->exceptions->invalid(
+                    sprintf('Invalid fragment name "%s": use lowercase dash segments and .md.', $id),
+                );
             }
 
             $path = $directory . '/' . $id;
             $parsed = $this->parser->parse($path, $input);
 
             if (! $parsed->isValid()) {
-                throw $this->exceptions->invalid(sprintf('Invalid fragment "%s": %s', $path, implode(' ', $parsed->errors)));
+                throw $this->exceptions->invalid(
+                    sprintf('Invalid fragment "%s": %s', $path, implode(' ', $parsed->errors)),
+                );
             }
 
             $contents = $this->renderer->render($parsed->changeset);
@@ -99,7 +106,10 @@ final readonly class FragmentWriter implements FragmentWriterInterface
             try {
                 $result = $this->store->write($path, $contents);
             } catch (Throwable $failure) {
-                throw $this->exceptions->failure(sprintf('Cannot create fragment "%s": %s', $path, $failure->getMessage()), $failure);
+                throw $this->exceptions->failure(
+                    sprintf('Cannot create fragment "%s": %s', $path, $failure->getMessage()),
+                    $failure,
+                );
             }
 
             if (WriteResult::Existing === $result && null === $name) {
@@ -116,13 +126,25 @@ final readonly class FragmentWriter implements FragmentWriterInterface
                 try {
                     $this->git->commitFragment($options->workingDirectory, $relative, $commitMessage);
                 } catch (Throwable $failure) {
-                    throw $this->exceptions->failure(sprintf('Created fragment "%s", but its commit failed: %s. The fragment is preserved for recovery.', $path, $failure->getMessage()), $failure);
+                    throw $this->exceptions->failure(
+                        sprintf(
+                            'Created fragment "%s", but its commit failed: %s. The fragment is preserved for recovery.',
+                            $path,
+                            $failure->getMessage(),
+                        ),
+                        $failure,
+                    );
                 }
             }
 
             return $path;
         }
 
-        throw $this->exceptions->failure(sprintf('Cannot create a fragment in "%s": five generated identifiers already exist; no fragment was overwritten.', $directory));
+        throw $this->exceptions->failure(
+            sprintf(
+                'Cannot create a fragment in "%s": five generated identifiers already exist; no fragment was overwritten.',
+                $directory,
+            ),
+        );
     }
 }
