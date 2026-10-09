@@ -99,15 +99,20 @@ adopting this layout.
 ## Versioned GHCR publication
 
 [Publish Docker CLI](../.github/workflows/docker-cli.yml) accepts an existing
-semantic release tag. A tag push can trigger it directly; workflow_dispatch
-can select an existing tag. The repository publication workflow also calls it
-explicitly after approved release publication, so a tag made by GITHUB_TOKEN
-does not depend on a separate push event triggering another workflow.
+semantic release tag. The repository publication workflow calls it explicitly
+after approved release publication, supplying its exact approved SHA. Failed
+image jobs can be rerun from that publication run. This single launch path
+works with GITHUB_TOKEN and App tokens
+without also dispatching a duplicate run from a tag-push event.
 
-The validation job binds the tag to the checked-out commit and, for the release
-workflow call, the exact approved SHA. It builds with the normalized version,
-runs the actual-image verifier and checks the CLI version. The publication job
-checks out that validated commit and pushes linux/amd64 and linux/arm64 images
+The validation matrix binds the tag to the checked-out commit and the exact
+approved SHA. It builds and executes each platform variant with the normalized
+version, running the actual-image verifier and checking the complete CLI version.
+The publication job
+checks out that validated commit, prepares the multi-platform build, then
+rechecks the remote tag's exact commit immediately before the cached registry
+publication. Missing, moved or invalid tags fail before that push. It publishes
+linux/amd64 and linux/arm64 images
 to `ghcr.io/php-fast-forward/changelog:<version>` with provenance, SBOM and
 repository/version/commit labels. Only the publication job receives
 `packages: write`. Image tags use the full version, without moving aliases.

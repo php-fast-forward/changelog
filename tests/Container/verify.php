@@ -90,7 +90,7 @@ try {
     verify($runtime['src'], 'Source code must be installed under /usr/local/src.');
     if (null !== $expectedVersion) {
         verify($expectedVersion === $runtime['version'], 'The build argument must match the installed package version.');
-        verify(str_contains($cli(['--version'])['stdout'], $expectedVersion), 'The direct CLI must report the selected build version.');
+        verify(1 === preg_match('/(?<![0-9A-Za-z.+-])' . preg_quote($expectedVersion, '/') . '(?![0-9A-Za-z.+-])/', $cli(['--version'])['stdout']), 'The direct CLI must report the complete selected build version.');
     }
     $pathCommand = $docker(['run', '--rm', '--network=none', '--entrypoint', 'changelog', $image, '--version'])['stdout'];
     verify(str_contains($pathCommand, 'Fast Forward Changelog'), 'The installed executable must resolve through PATH.');

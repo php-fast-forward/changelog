@@ -74,6 +74,18 @@ jobs:
                   docker build --build-arg COMPOSER_ROOT_VERSION=1.2.3 --tag fast-forward-changelog:version-fixture .
                   php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
 
+            - name: Set up arm64 integration verification
+              if: matrix.os == 'ubuntu-latest'
+              uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+              with:
+                  platforms: arm64
+
+            - name: Verify the arm64 versioned CLI image
+              if: matrix.os == 'ubuntu-latest'
+              run: |
+                  docker build --platform linux/arm64 --build-arg COMPOSER_ROOT_VERSION=1.2.3 --tag fast-forward-changelog:arm64-fixture .
+                  php tests/Container/verify.php fast-forward-changelog:arm64-fixture 1.2.3
+
             - name: Verify Docker action invocation and runner outputs
               if: matrix.os == 'ubuntu-latest'
               id: docker-action

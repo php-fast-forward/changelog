@@ -25,7 +25,7 @@ maintenance operation, separate from the ordinary contribution flow.
 | [`dependabot-changelog`](../.github/workflows/dependabot-changelog.yml) | Dependabot PR to `main` | Collect verified dependency metadata from the base context and create one deterministic fragment. |
 | [`release-changelog`](../.github/workflows/release-changelog.yml) | Push to `main` | Plan from the fresh base and create or update `changelog/version`. |
 | [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, reconcile the approved tag/release, then call the versioned GHCR build. |
-| [`docker-cli`](../.github/workflows/docker-cli.yml) | Existing release tag push, selected existing tag, or verified publication call | Validate the exact release commit and CLI version, then publish the versioned multi-platform image. |
+| [`docker-cli`](../.github/workflows/docker-cli.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
 
 The workflows call `./.github/actions/...` from the selected trusted checkout.
 Every Action uses the shared root Dockerfile, whose image includes PHP 8.5,
