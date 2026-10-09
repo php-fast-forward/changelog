@@ -36,6 +36,7 @@ return ECSConfig::configure()
         __DIR__ . '/ecs.php',
     ])
     ->withCache(__DIR__ . '/.build/ecs')
+    ->withSpacing(lineEnding: "\n")
     ->withPreparedSets(perCs: true)
     ->withRules([
         NoUnusedImportsFixer::class,
