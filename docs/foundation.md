@@ -46,6 +46,8 @@ Dockerfile stages, installation flags and runtime layout use separate logical
 blocks. Workflow shell guards and long commands use continuation lines without
 changing their arguments or expressions. Opaque strings, class names and pinned
 references may exceed the wrapping target when splitting would harm clarity.
+Git attributes keep PHP and the CLI executable in LF on every checkout, including
+Windows, matching `.editorconfig` and keeping formatter results consistent.
 
 The full local gate is `composer check`. Composer plugins are disabled and
 installation runs with `--no-plugins --no-scripts`. Production coverage includes
