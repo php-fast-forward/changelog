@@ -105,15 +105,20 @@ remain useful before committing the release inputs.
 
 ### GitHub automation
 
-Use the composite actions or reusable workflows at a reviewed immutable commit:
+Use the Docker actions or reusable workflows at a reviewed immutable commit:
 
 | Action | Reusable workflow | Responsibility |
 | --- | --- | --- |
-| `actions/check` | `changelog-check.yml` | Contribution checks and verified PR policy |
-| `actions/dependabot` | `changelog-dependabot.yml` | One dependency-update fragment |
-| `actions/version` | `changelog-version.yml` | One reviewable version PR |
-| `actions/publish` | `changelog-publish.yml` | Publication from an approved consolidation SHA |
-| `actions/history` | `changelog-history.yml` | Reviewed backfill/format maintenance |
+| `.github/actions/check` | `changelog-check.yml` | Contribution checks and verified PR policy |
+| `.github/actions/dependabot` | `changelog-dependabot.yml` | One dependency-update fragment |
+| `.github/actions/version` | `changelog-version.yml` | One reviewable version PR |
+| `.github/actions/publish` | `changelog-publish.yml` | Publication from an approved consolidation SHA |
+| `.github/actions/history` | `changelog-history.yml` | Reviewed backfill/format maintenance |
+
+Actions live in [`.github/actions/`](.github/actions/) and share the root
+[Dockerfile](Dockerfile). The image contains PHP 8.5, Git and the installed CLI;
+each Action calls `changelog github <operation>` directly on a Linux runner.
+See [container usage](docs/docker.md) for builds, mounted data and direct commands.
 
 Reusable workflows live in [`.github/workflows/`](.github/workflows/).
 Ordinary PR checks use read-only credentials. Write operations execute trusted

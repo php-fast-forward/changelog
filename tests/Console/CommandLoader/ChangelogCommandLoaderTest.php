@@ -42,7 +42,7 @@ final class ChangelogCommandLoaderTest extends TestCase
         $command = $this->createStub(Command::class);
         $factory->expects(self::once())->method('create')->with('add', [], 'Create one changelog fragment with optional release metadata.', AddCommand::class, $container)->willReturn($command);
         $loader = new ChangelogCommandLoader($container, $factory);
-        self::assertSame(['add','check','status','version','notes','publish','backfill','format'], $loader->getNames());
+        self::assertSame(['add','check','status','version','notes','publish','backfill','format','github'], $loader->getNames());
         self::assertTrue($loader->has('add'));
         self::assertFalse($loader->has('changelog:entry'));
         self::assertFalse($loader->has('unknown'));

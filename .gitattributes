@@ -1,5 +1,6 @@
 *                       text=auto
-/.github/               export-ignore
+/.github/workflows/     export-ignore
+/.github/skills/         export-ignore
 /docs/                  export-ignore
 /tests/                 export-ignore
 /.editorconfig          export-ignore

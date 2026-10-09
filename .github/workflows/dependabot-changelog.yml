@@ -39,9 +39,9 @@ jobs:
           skip-verification: 'false'
           skip-commit-verification: 'false'
       - name: Add one deterministic Dependabot fragment
-        uses: ./actions/dependabot
+        uses: ./.github/actions/dependabot
         with:
-          working-directory: ${{ github.workspace }}
+          working-directory: '.'
           repository: ${{ github.repository }}
           token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
           pull-request: ${{ github.event.pull_request.number }}

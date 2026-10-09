@@ -10,6 +10,11 @@ and have no child `AGENTS.md` files.
 
 ```text
 AGENTS.md                              repository development and authority
+Dockerfile                             packaged CLI image, no action script
+.github/actions/*/action.yml           thin Docker metadata invoking the CLI
+docs/docker.md                        image inputs, invocation and boundaries
+tests/Container/verify.php             isolated actual-image verification
+tests/Container/verify.md              fixture operation and recovery guide
 CLAUDE.md                              Claude adapter to the root and skill
 .github/copilot-instructions.md        Copilot adapter to the root and skill
 .github/skills/changelog/SKILL.md       real canonical consumer procedure
@@ -41,10 +46,14 @@ need additional instruction contracts.
 | Retain | [Adoption guide](adoption.md) | Explain consumer runtime and workflow adoption, with explicit installation and release boundaries. |
 | Retain | [Skill distribution guide](skills.md) | Record layout, discovery and validation evidence without claiming native host activation. |
 | Retain | [skills-sync.md](../scripts/skills-sync.md) | Explain the helper's inputs, bounded links, drift checks and recovery. |
+| Create | [Docker runtime guide](docker.md) | Explain image construction, direct CLI operations and mounted consumer data; image publication remains separately authorized. |
+| Create | [Container fixture guide](../tests/Container/verify.md) | Verify the real packaged image using disposable repositories and synthetic credentials, without real GitHub writes. |
+| Relocate | `.github/actions/` | Keep five action metadata entrypoints with one shared Dockerfile and the existing repository authority. |
+| Retire | `scripts/automation.php` | The native `github` command owns input mapping, output and exit status; domain services retain behavior. |
 | Do not create | Procedural `AGENTS.md` files in ordinary folders or the skill package | Keep common development rules at the root and package procedures in `SKILL.md`. |
 
-The root Child DOX Index links the canonical skill and the three durable guides
-above. Each entry states its responsibility, output and material limit. The
+The root Child DOX Index links the canonical skill and durable adoption,
+distribution, link, Docker and container-fixture guides above. Each entry states its responsibility, output and material limit. The
 guides are operational navigation, not additional scoped instruction contracts;
 host links do not receive separate child-index entries.
 
@@ -83,6 +92,12 @@ fallbacks are reported as unmaterialized. Format validation and disposable
 fixtures establish package structure and link/discovery behavior; native host
 activation remains separate evidence recorded in [skills.md](skills.md).
 
-Rollback restores the affected instruction files, index, package resources and
-host links as one reviewed Git diff. No external installation or host
+The Docker migration preserves the root development contract and adds no
+child AGENTS.md. Metadata moves from `actions/` to `.github/actions/`; the CLI
+replaces the old action script. Read root AGENTS.md before Dockerfile, metadata,
+workflows, source, docs and tests. Verify the native gates, actual container
+fixture, action outputs and package archive paths before merging.
+
+Rollback restores the affected instruction files, index, package resources,
+metadata paths, CLI adapter and Docker/workflow contracts as one reviewed Git diff. No external installation or host
 configuration forms part of this migration.

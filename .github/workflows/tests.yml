@@ -60,6 +60,33 @@ jobs:
             - name: Smoke test the CLI
               run: php bin/changelog list --raw
 
+            - name: Build the packaged CLI image
+              if: matrix.os == 'ubuntu-latest'
+              run: docker build --progress=plain -t fast-forward-changelog:ci .
+
+            - name: Verify the actual container CLI in disposable consumers
+              if: matrix.os == 'ubuntu-latest'
+              run: php tests/Container/verify.php fast-forward-changelog:ci
+
+            - name: Verify Docker action invocation and runner outputs
+              if: matrix.os == 'ubuntu-latest'
+              id: docker-action
+              uses: ./.github/actions/history
+              with:
+                  operation: format
+                  dry-run: 'true'
+                  source: tags
+
+            - name: Verify the Docker action output contract
+              if: matrix.os == 'ubuntu-latest'
+              env:
+                  FF_ACTION_RESULT: ${{ steps.docker-action.outputs.result }}
+                  FF_ACTION_STATUS: ${{ steps.docker-action.outputs.status }}
+              run: |
+                  # PHP evaluates these variables; shell quoting is intentional.
+                  # shellcheck disable=SC2016
+                  php -r '$result = json_decode(getenv("FF_ACTION_RESULT"), true, 512, JSON_THROW_ON_ERROR); if ($result["status"] !== "dry-run" || getenv("FF_ACTION_STATUS") !== "dry-run") { exit(1); }'
+
             - name: Upload native line coverage from this run
               if: >-
                   ${{ success() && matrix.os == 'ubuntu-latest' &&

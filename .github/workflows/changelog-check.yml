@@ -167,9 +167,9 @@ jobs:
           persist-credentials: false
       - name: Run the shared check action
         id: operation
-        uses: ./.changelog-runtime/actions/check
+        uses: ./.changelog-runtime/.github/actions/check
         with:
-          working-directory: ${{ github.workspace }}/project/${{ inputs.working-directory }}
+          working-directory: project/${{ inputs.working-directory }}
           fragment-directory: ${{ inputs.fragment-directory }}
           changelog-file: ${{ inputs.changelog-file }}
           locale: ${{ inputs.locale }}

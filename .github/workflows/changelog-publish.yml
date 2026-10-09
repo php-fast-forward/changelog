@@ -178,9 +178,9 @@ jobs:
           persist-credentials: false
       - name: Run the shared publish action
         id: operation
-        uses: ./.changelog-runtime/actions/publish
+        uses: ./.changelog-runtime/.github/actions/publish
         with:
-          working-directory: ${{ github.workspace }}/project/${{ inputs.working-directory }}
+          working-directory: project/${{ inputs.working-directory }}
           fragment-directory: ${{ inputs.fragment-directory }}
           changelog-file: ${{ inputs.changelog-file }}
           locale: ${{ inputs.locale }}
