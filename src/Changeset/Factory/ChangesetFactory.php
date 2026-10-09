@@ -18,7 +18,7 @@ namespace FastForward\Changelog\Changeset\Factory;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 
 /**
  * Provides the sole construction boundary for changeset values.

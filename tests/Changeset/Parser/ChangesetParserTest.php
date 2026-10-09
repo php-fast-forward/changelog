@@ -10,7 +10,7 @@ use FastForward\Changelog\Changeset\ChangesetParseResult;
 use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
 use FastForward\Changelog\Changeset\Factory\ChangesetParseResultFactoryInterface;
 use FastForward\Changelog\Changeset\Parser\ChangesetParser;
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace FastForward\Changelog\Tests\Git\Factory;
+namespace FastForward\Changelog\Tests\Process\Factory;
 
-use FastForward\Changelog\Git\Factory\ProcessFactory;
+use FastForward\Changelog\Process\Factory\ProcessFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;

@@ -6,8 +6,8 @@ namespace FastForward\Changelog\Tests\GitHub\Factory;
 
 use FastForward\Changelog\GitHub\Factory\GitHubClientFactory;
 use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
-use FastForward\Changelog\GitHub\Factory\HttpClientFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClient;
+use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;

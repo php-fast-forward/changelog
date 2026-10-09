@@ -13,7 +13,7 @@ declare(strict_types=1);
  * @see https://datatracker.ietf.org/doc/html/rfc2119
  */
 
-namespace FastForward\Changelog\Console;
+namespace FastForward\Changelog\Automation\Output;
 
 use InvalidArgumentException;
 use Symfony\Component\Filesystem\Filesystem;

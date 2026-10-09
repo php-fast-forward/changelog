@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace FastForward\Changelog\Tests\GitHub\Factory;
+namespace FastForward\Changelog\Tests\Http\Factory;
 
-use FastForward\Changelog\GitHub\Factory\HttpClientFactory;
+use FastForward\Changelog\Http\Factory\HttpClientFactory;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;

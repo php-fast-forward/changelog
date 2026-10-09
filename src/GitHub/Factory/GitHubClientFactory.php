@@ -17,6 +17,7 @@ namespace FastForward\Changelog\GitHub\Factory;
 
 use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
 
 /** Centralizes concrete adapter construction while retaining mocked transport boundaries. */
 final readonly class GitHubClientFactory implements GitHubClientFactoryInterface

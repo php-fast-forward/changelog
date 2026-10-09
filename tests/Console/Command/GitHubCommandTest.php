@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Console\Command;
 
 use FastForward\Changelog\Automation\AutomationRunnerInterface;
+use FastForward\Changelog\Automation\Output\GitHubOutputWriterInterface;
 use FastForward\Changelog\Console\Command\GitHubCommand;
-use FastForward\Changelog\Console\GitHubOutputWriterInterface;
 use FastForward\Changelog\Console\Input\GitHubInput;
 use FastForward\Changelog\Console\Input\ReleaseInput;
 use InvalidArgumentException;

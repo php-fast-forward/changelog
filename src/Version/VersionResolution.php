@@ -16,8 +16,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Version;
 
-use FastForward\Changelog\Changeset\VersionImpact;
-
 /**
  * Reports a resolved next version or deterministic validation diagnostics.
  */

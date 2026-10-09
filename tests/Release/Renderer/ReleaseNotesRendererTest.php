@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace FastForward\Changelog\Tests\Release;
+namespace FastForward\Changelog\Tests\Release\Renderer;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
-use FastForward\Changelog\Changeset\VersionImpact;
-use FastForward\Changelog\Release\ReleaseNotesRenderer;
+use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
+use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;

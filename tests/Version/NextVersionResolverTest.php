@@ -6,9 +6,9 @@ namespace FastForward\Changelog\Tests\Version;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
-use FastForward\Changelog\Changeset\VersionImpact;
 use FastForward\Changelog\Version\Factory\VersionResolutionFactoryInterface;
 use FastForward\Changelog\Version\NextVersionResolver;
+use FastForward\Changelog\Version\VersionImpact;
 use FastForward\Changelog\Version\VersionImpactResolverInterface;
 use FastForward\Changelog\Version\VersionResolution;
 use PHPUnit\Framework\Attributes\CoversClass;

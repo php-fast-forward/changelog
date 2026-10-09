@@ -38,6 +38,15 @@ The product retains this minimal hierarchy. New domain, GitHub and automation
 directories do not introduce different development authority, so they do not
 need additional instruction contracts.
 
+The source namespace audit moves generic HTTP/process factories to `src/Http`
+and `src/Process`, semantic impact to `src/Version`, Action output to
+`src/Automation/Output`, and note rendering to `src/Release/Renderer`. All source
+and corresponding unit tests retain the same root reading chain and authority.
+The [namespace map](source-layout.md), [dependency assessment](integration-dependencies.md)
+and [development scripts guide](../scripts/README.md) document these ordinary
+responsibilities without creating child AGENTS.md files. Rollback restores the
+imports, paths, container keys and this navigation together.
+
 | Decision | Entrypoint | Responsibility and boundary |
 | --- | --- | --- |
 | Retain and update | [AGENTS.md](../AGENTS.md) | Own repository development and the durable reading index; retain quality, isolation and authority boundaries. |

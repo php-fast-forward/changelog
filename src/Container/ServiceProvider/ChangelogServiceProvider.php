@@ -22,10 +22,10 @@ use FastForward\Changelog\Date\Factory\TimezoneFactory;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactoryInterface;
 use FastForward\Changelog\Fragment\IdentifierGeneratorInterface;
-use FastForward\Changelog\Git\Factory\ProcessFactory;
 use FastForward\Changelog\GitHub\Factory\GitHubClientFactoryInterface;
-use FastForward\Changelog\GitHub\Factory\HttpClientFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
+use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Version\ComposerPackageVersionResolver;
 use FastForward\Clock\SystemClock;
 use FastForward\Config\ArrayConfig;
@@ -80,13 +80,13 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                     static fn(): ?string => null,
                 ),
             ]),
-            \FastForward\Changelog\Console\GitHubOutputWriterInterface::class => new AliasFactory(
-                \FastForward\Changelog\Console\GitHubOutputWriter::class,
+            \FastForward\Changelog\Automation\Output\GitHubOutputWriterInterface::class => new AliasFactory(
+                \FastForward\Changelog\Automation\Output\GitHubOutputWriter::class,
             ),
-            \FastForward\Changelog\Console\GitHubOutputWriter::class => static fn(
+            \FastForward\Changelog\Automation\Output\GitHubOutputWriter::class => static fn(
                 ContainerInterface $container,
-            ): \FastForward\Changelog\Console\GitHubOutputWriter
-                => new \FastForward\Changelog\Console\GitHubOutputWriter(
+            ): \FastForward\Changelog\Automation\Output\GitHubOutputWriter
+                => new \FastForward\Changelog\Automation\Output\GitHubOutputWriter(
                     $container->get(\Symfony\Component\Filesystem\Filesystem::class),
                     $container->get(self::CONFIG)->get('github_output_file'),
                 ),
@@ -184,14 +184,14 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             \FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface::class => new AliasFactory(
                 \FastForward\Changelog\GitHub\Factory\GitHubExceptionFactory::class,
             ),
-            \FastForward\Changelog\GitHub\Factory\HttpClientFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\GitHub\Factory\HttpClientFactory::class,
+            \FastForward\Changelog\Http\Factory\HttpClientFactoryInterface::class => new AliasFactory(
+                \FastForward\Changelog\Http\Factory\HttpClientFactory::class,
             ),
             \FastForward\Changelog\Git\GitRepositoryInterface::class => new AliasFactory(
                 \FastForward\Changelog\Git\GitRepository::class,
             ),
-            \FastForward\Changelog\Git\Factory\ProcessFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Git\Factory\ProcessFactory::class,
+            \FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class => new AliasFactory(
+                \FastForward\Changelog\Process\Factory\ProcessFactory::class,
             ),
             \FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface::class => new AliasFactory(
                 \FastForward\Changelog\History\Factory\HistoryDocumentFactory::class,
@@ -241,8 +241,8 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             \FastForward\Changelog\Release\ReleaseApplierInterface::class => new AliasFactory(
                 \FastForward\Changelog\Release\ReleaseApplier::class,
             ),
-            \FastForward\Changelog\Release\ReleaseNotesRendererInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\ReleaseNotesRenderer::class,
+            \FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface::class => new AliasFactory(
+                \FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer::class,
             ),
             \FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface::class => new AliasFactory(
                 \FastForward\Changelog\Release\ReleaseHistoryConsolidator::class,

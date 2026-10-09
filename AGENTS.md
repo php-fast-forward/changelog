@@ -13,6 +13,7 @@ used across Fast Forward PHP packages.
 - Exact release transactions: [`src/Release/`](src/Release/)
 - Approved-commit publication: [`src/Publication/`](src/Publication/)
 - Filesystem, Git and GitHub boundaries: [`src/Filesystem/`](src/Filesystem/), [`src/Git/`](src/Git/), [`src/GitHub/`](src/GitHub/)
+- Generic transport construction: [`src/Http/`](src/Http/), [`src/Process/`](src/Process/)
 - Trusted automation and Docker actions: [`src/Automation/`](src/Automation/), [`.github/actions/`](.github/actions/)
 - Packaged CLI image: [`Dockerfile`](Dockerfile), [runtime guide](docs/docker.md)
 - Tests: [`tests/`](tests/)
@@ -65,6 +66,9 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 
 ## Child DOX Index
 
+- [Source namespaces](docs/source-layout.md): domain and transport ownership, canonical PHP imports and the major namespace migration; ordinary folders share the root contract.
+- [Integration dependencies](docs/integration-dependencies.md): records verified Git/GitHub candidate versions and adoption criteria without claiming SDK installation or behavioral equivalence.
+- [Development scripts](scripts/README.md): maps each used quality/skill helper and its development prerequisites; production CLI and images do not invoke them.
 - [Changelog skill](.github/skills/changelog/SKILL.md): portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.

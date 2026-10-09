@@ -6,6 +6,9 @@
 /.github/skills/         export-ignore
 /docs/                  export-ignore
 /tests/                 export-ignore
+/scripts/               export-ignore
+/ecs.php                export-ignore
+/rector.php             export-ignore
 /.editorconfig          export-ignore
 /.gitattributes         export-ignore
 /.gitignore             export-ignore
