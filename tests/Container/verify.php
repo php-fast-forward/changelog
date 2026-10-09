@@ -117,6 +117,9 @@ try {
     verify($before === snapshot($fixtureRoot . '/project'), 'Check or history preview changed consumer bytes.');
 
     foreach ([
+        ['github', '--cwd=project'],
+        ['github', 'check', '--unknown-option', '--cwd=project'],
+        ['github', 'check', '--cwd=project', '--since'],
         ['github', 'unknown', '--cwd=project'],
         ['github', 'history', '--cwd=project', '--operation=format', '--dry-run=invalid'],
         ['github', 'check', '--cwd=project', '--since=' . $base, '--dry-run=true'],
