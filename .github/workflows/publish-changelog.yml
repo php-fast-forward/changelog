@@ -23,6 +23,10 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    outputs:
+      version: ${{ steps.publication.outputs.version }}
+      tag: ${{ steps.publication.outputs.tag }}
+      sha: ${{ steps.publication.outputs.sha }}
     steps:
       - name: Check out the approved merge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -32,6 +36,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Publish the verified consolidation
+        id: publication
         uses: ./.github/actions/publish
         with:
           working-directory: '.'
@@ -43,3 +48,14 @@ jobs:
           pull-request: ${{ github.event.pull_request.number }}
           expected-head-sha: ${{ github.event.pull_request.head.sha }}
           target-sha: ${{ github.event.pull_request.merge_commit_sha }}
+
+  image:
+    needs: publish
+    if: needs.publish.result == 'success' && needs.publish.outputs.version != ''
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-cli.yml
+    with:
+      tag: ${{ needs.publish.outputs.tag }}
+      expected-sha: ${{ needs.publish.outputs.sha }}

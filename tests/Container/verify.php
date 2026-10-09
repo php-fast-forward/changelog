@@ -5,6 +5,7 @@ declare(strict_types=1);
 /** Executes the actual packaged image with synthetic credentials, isolated Git and a local-only Docker endpoint. */
 
 $image = $argv[1] ?? 'fast-forward-changelog:ci';
+$expectedVersion = $argv[2] ?? null;
 $fixtureRoot = sys_get_temp_dir() . '/changelog-container-' . bin2hex(random_bytes(8));
 mkdir($fixtureRoot, 0700, true);
 mkdir($fixtureRoot . '/home', 0700);
@@ -81,11 +82,18 @@ try {
     $git = static fn(array $args): string => execute(['git', '-C', $fixtureRoot . '/project', ...$args], $environment)['stdout'];
 
     $config = json_decode($docker(['image', 'inspect', $image])['stdout'], true, 512, JSON_THROW_ON_ERROR)[0];
-    verify(['/opt/changelog/bin/changelog'] === $config['Config']['Entrypoint'], 'The image must execute the packaged CLI directly.');
+    verify(['/usr/local/bin/changelog'] === $config['Config']['Entrypoint'], 'The image must execute the packaged CLI directly from PATH.');
     $runtime = $docker(['run', '--rm', '--network=none', '--entrypoint', 'php', $image, '-r',
-        'require "/opt/changelog/vendor/autoload.php"; echo json_encode(["php" => PHP_VERSION, "dev" => Composer\\InstalledVersions::isInstalled("phpunit/phpunit"), "composer" => is_file("/usr/local/bin/composer"), "script" => is_file("/opt/changelog/scripts/automation.php")]);']);
+        'require "/usr/local/vendor/autoload.php"; echo json_encode(["php" => PHP_VERSION, "version" => Composer\\InstalledVersions::getPrettyVersion("fast-forward/changelog"), "src" => is_file("/usr/local/src/Console/Changelog.php"), "dev" => Composer\\InstalledVersions::isInstalled("phpunit/phpunit"), "composer" => is_file("/usr/local/bin/composer"), "script" => is_file("/usr/local/scripts/automation.php")]);']);
     $runtime = json_decode($runtime['stdout'], true, 512, JSON_THROW_ON_ERROR);
     verify(str_starts_with($runtime['php'], '8.5.'), 'The runtime must remain PHP 8.5.');
+    verify($runtime['src'], 'Source code must be installed under /usr/local/src.');
+    if (null !== $expectedVersion) {
+        verify($expectedVersion === $runtime['version'], 'The build argument must match the installed package version.');
+        verify(1 === preg_match('/(?<![0-9A-Za-z.+-])' . preg_quote($expectedVersion, '/') . '(?![0-9A-Za-z.+-])/', $cli(['--version'])['stdout']), 'The direct CLI must report the complete selected build version.');
+    }
+    $pathCommand = $docker(['run', '--rm', '--network=none', '--entrypoint', 'changelog', $image, '--version'])['stdout'];
+    verify(str_contains($pathCommand, 'Fast Forward Changelog'), 'The installed executable must resolve through PATH.');
     verify(!$runtime['dev'] && !$runtime['composer'] && !$runtime['script'], 'The image must contain installed production dependencies without test tools, Composer or an action script.');
     $listing = $cli(['list', '--raw'])['stdout'];
     foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $name) {
@@ -148,5 +156,11 @@ try {
     fwrite(STDOUT, "Container CLI PASS: {$assertions} assertions, {$commands} commands; fixture={$fixtureRoot}\n");
 } catch (Throwable $exception) {
     fwrite(STDERR, $exception->getMessage() . "\nFixture retained: {$fixtureRoot}\n");
+    foreach (['out', 'err'] as $stream) {
+        $log = $fixtureRoot . '/command-' . $commands . '.' . $stream;
+        if (is_file($log)) {
+            fwrite(STDERR, "Last fixture command {$stream}:\n" . substr(file_get_contents($log), 0, 4000) . "\n");
+        }
+    }
     exit(1);
 }

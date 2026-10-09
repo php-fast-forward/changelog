@@ -310,7 +310,7 @@ function exercise(string $installation, string $consumer, array $environment): v
     $approved = trim($git(['rev-parse', 'HEAD'])['stdout']);
     $proofCode = <<<'PHP'
 require $argv[1];
-$container = \FastForward\Container\container(new \FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider(workingDirectory: getcwd(), temporaryDirectory: $argv[3]));
+$container = \FastForward\Container\container(\FastForward\Config\config(['changelog' => ['temporary_directory' => $argv[3]]]), \FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider::class);
 $options = $container->get(\FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface::class)->create(['source' => 'tags']);
 $evidence = $container->get(\FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class)->validate($options, $argv[2]);
 fwrite(STDOUT, json_encode(['version' => $evidence->version, 'tag' => $evidence->tag, 'notes' => $evidence->notes], JSON_THROW_ON_ERROR));

@@ -1,0 +1,204 @@
+name: Publish Docker CLI
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Verified existing release tag.'
+        type: string
+        required: true
+      expected-sha:
+        description: 'Exact approved release commit.'
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: docker-cli-${{ github.repository }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      image: ${{ steps.release.outputs.image }}
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Validate the release selector
+        id: release
+        shell: bash
+        env:
+          FF_TAG: ${{ inputs.tag || github.ref_name }}
+          FF_EXPECTED_SHA: ${{ inputs.expected-sha || '' }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$FF_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::Select an existing semantic release tag such as v1.0.0."
+            exit 1
+          fi
+          if [[ ! "$FF_EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::The approved source must be a complete commit SHA."
+            exit 1
+          fi
+          FF_VERSION="${FF_TAG#v}"
+          if (( ${#FF_VERSION} > 128 )); then
+            echo "::error::The version exceeds the container tag limit."
+            exit 1
+          fi
+          printf 'tag=%s\nversion=%s\nimage=ghcr.io/%s\n' "$FF_TAG" "$FF_VERSION" "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind the tag to the checked-out release commit
+        id: source
+        shell: bash
+        env:
+          FF_TAG: ${{ steps.release.outputs.tag }}
+          FF_EXPECTED_SHA: ${{ inputs.expected-sha || '' }}
+        run: |
+          set -euo pipefail
+          FF_TAG_SHA="$(git rev-parse --verify "refs/tags/${FF_TAG}^{commit}")"
+          FF_SOURCE_SHA="$(git rev-parse HEAD)"
+          if [[ "$FF_TAG_SHA" != "$FF_SOURCE_SHA" || "$FF_SOURCE_SHA" != "$FF_EXPECTED_SHA" ]]; then
+            echo "::error::The release tag does not match the approved source commit."
+            exit 1
+          fi
+          printf 'sha=%s\n' "$FF_SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up the integration verifier
+        uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4 # 2.36.0
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      - name: Build and verify the versioned CLI
+        shell: bash
+        env:
+          FF_VERSION: ${{ steps.release.outputs.version }}
+          FF_PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          docker build --platform "$FF_PLATFORM" --build-arg "COMPOSER_ROOT_VERSION=$FF_VERSION" --tag fast-forward-changelog:release-check .
+          php tests/Container/verify.php fast-forward-changelog:release-check "$FF_VERSION"
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the validated release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Prepare the multi-platform release image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: ${{ needs.validate.outputs.image }}:${{ needs.validate.outputs.version }}
+          build-args: |
+            COMPOSER_ROOT_VERSION=${{ needs.validate.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.validate.outputs.sha }}
+            org.opencontainers.image.licenses=MIT
+          provenance: true
+          sbom: true
+          cache-from: type=gha,scope=changelog-release-image
+
+      - name: Revalidate the remote release tag before publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FF_TAG: ${{ needs.validate.outputs.tag }}
+          FF_APPROVED_SHA: ${{ needs.validate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          FF_OBJECT="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${FF_TAG}" --jq '[.object.type, .object.sha] | @tsv')"
+          IFS=$'\t' read -r FF_TYPE FF_REMOTE_SHA <<< "$FF_OBJECT"
+          FF_DEPTH=0
+          while [[ "$FF_TYPE" != 'commit' && "$FF_DEPTH" -lt 16 ]]; do
+            if [[ "$FF_TYPE" != 'tag' || ! "$FF_REMOTE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo "::error::The remote release tag is not bound to a commit."
+              exit 1
+            fi
+            FF_OBJECT="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${FF_REMOTE_SHA}" --jq '[.object.type, .object.sha] | @tsv')"
+            IFS=$'\t' read -r FF_TYPE FF_REMOTE_SHA <<< "$FF_OBJECT"
+            FF_DEPTH=$((FF_DEPTH + 1))
+          done
+          if [[ "$FF_TYPE" != 'commit' || "$FF_REMOTE_SHA" != "$FF_APPROVED_SHA" ]]; then
+            echo "::error::The remote release tag changed after validation."
+            exit 1
+          fi
+
+      - name: Publish the prepared release image
+        id: image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ needs.validate.outputs.image }}:${{ needs.validate.outputs.version }}
+          build-args: |
+            COMPOSER_ROOT_VERSION=${{ needs.validate.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.validate.outputs.sha }}
+            org.opencontainers.image.licenses=MIT
+          provenance: true
+          sbom: true
+          cache-from: type=gha,scope=changelog-release-image
+          cache-to: type=gha,mode=max,scope=changelog-release-image
+
+      - name: Record the published image
+        shell: bash
+        env:
+          FF_IMAGE: ${{ needs.validate.outputs.image }}
+          FF_VERSION: ${{ needs.validate.outputs.version }}
+          FF_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          # Markdown backticks are literal summary text.
+          # shellcheck disable=SC2016
+          printf 'Published `%s:%s`\n\nDigest: `%s`\n' "$FF_IMAGE" "$FF_VERSION" "$FF_DIGEST" >> "$GITHUB_STEP_SUMMARY"

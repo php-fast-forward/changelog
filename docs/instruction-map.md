@@ -10,7 +10,8 @@ and have no child `AGENTS.md` files.
 
 ```text
 AGENTS.md                              repository development and authority
-Dockerfile                             packaged CLI image, no action script
+Dockerfile                             version-argument CLI image under /usr/local
+.github/workflows/docker-cli.yml       exact-release validation and GHCR publication
 .github/actions/*/action.yml           thin Docker metadata invoking the CLI
 docs/docker.md                        image inputs, invocation and boundaries
 tests/Container/verify.php             isolated actual-image verification

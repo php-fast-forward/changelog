@@ -12,7 +12,9 @@ installation. Composer consumers resolve the version constraints in `require`
 with their own lock; the library's lock does not pin a consumer's dependency graph.
 The shared Dockerfile installs its trusted runtime with `--no-dev --no-scripts
 --no-plugins` at build time. Actions execute the included CLI; consumer
-dependencies are not installed by an Action.
+dependencies are not installed by an Action. Docker bases use explicit full
+version tags; external Action code remains SHA-bound with readable version
+comments. Release image builds pass COMPOSER_ROOT_VERSION as a build argument.
 
 PHPUnit, Prophecy, Rector, ECS, PHP Parser and coverage tooling are development
 requirements. Running the CLI needs none of them and does not load DevTools.
