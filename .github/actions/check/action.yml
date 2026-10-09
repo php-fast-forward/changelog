@@ -67,33 +67,31 @@ inputs:
 outputs:
   result:
     description: Complete stable JSON result.
-    value: ${{ steps.operation.outputs.result }}
   status:
     description: "Operation status; empty when unavailable."
-    value: ${{ steps.operation.outputs.status }}
   fragments:
     description: "Operation fragments; empty when unavailable."
-    value: ${{ steps.operation.outputs.fragments }}
 runs:
-  using: composite
-  steps:
-    - name: Set up package runtime
-      # setup-php 2.36.0
-      uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
-      with:
-        php-version: '8.5'
-        coverage: none
-        tools: composer:v2
-    - name: Install only the trusted Action package
-      shell: bash
-      env:
-        FF_RUNTIME_ROOT: ${{ github.action_path }}/../..
-      run: |
-        env -u GITHUB_TOKEN -u GH_TOKEN -u FF_CHANGELOG_INPUTS composer install --working-dir="$FF_RUNTIME_ROOT" --no-dev --no-plugins --no-scripts --prefer-dist --no-interaction --no-progress
-    - name: Run shared Changelog service
-      id: operation
-      shell: bash
-      env:
-        FF_RUNTIME_ROOT: ${{ github.action_path }}/../..
-        FF_CHANGELOG_INPUTS: ${{ toJSON(inputs) }}
-      run: php "$FF_RUNTIME_ROOT/scripts/automation.php" check
+  using: docker
+  image: "../../../Dockerfile"
+  env:
+    FF_CHANGELOG_TOKEN: ${{ inputs.token }}
+  args:
+    - "github"
+    - "check"
+    - "--no-interaction"
+    - "--cwd=${{ inputs.working-directory }}"
+    - "--fragment-directory=${{ inputs.fragment-directory }}"
+    - "--changelog-file=${{ inputs.changelog-file }}"
+    - "--locale=${{ inputs.locale }}"
+    - "--template=${{ inputs.template }}"
+    - "--base-ref=${{ inputs.base-ref }}"
+    - "--tag-prefix=${{ inputs.tag-prefix }}"
+    - "--repository=${{ inputs.repository }}"
+    - "--source=${{ inputs.source }}"
+    - "--since=${{ inputs.since }}"
+    - "--pull-request=${{ inputs.pull-request }}"
+    - "--managed-branch=${{ inputs.managed-branch }}"
+    - "--automation-actor=${{ inputs.automation-actor }}"
+    - "--waiver-label=${{ inputs.waiver-label }}"
+    - "--maintenance-label=${{ inputs.maintenance-label }}"

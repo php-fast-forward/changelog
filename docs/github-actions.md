@@ -13,6 +13,15 @@ The caller's `github` context still identifies the consumer. This follows
 and [caller context rules](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
 A platform lacking those runtime identity fields fails before checkout.
 
+Actions live under `.github/actions/` and run the packaged CLI from one shared
+Dockerfile. Docker actions require a Linux runner. Reusable workflows pass
+`project/<working-directory>` inside the mounted workspace, rather than a host
+filesystem path. The runtime is installed at `/opt/changelog`; consumer data
+is mounted under `/github/workspace`. Tokens are environment inputs, and the
+CLI writes its declared outputs to `GITHUB_OUTPUT`. The image is built from the
+trusted runtime checkout and installs locked production dependencies at build
+time. See [the image and direct CLI contract](docker.md).
+
 ## Shared configuration
 
 | Input | Default | Meaning |

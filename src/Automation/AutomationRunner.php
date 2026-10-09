@@ -233,7 +233,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         return $value;
     }
 
-    /** Accepts only the explicit booleans serialized by composite Actions and workflow_call. */
+    /** Accepts only explicit booleans from the CLI, Docker Actions and workflow_call. */
     private function boolean(array $inputs, string $key, bool $default = false): bool
     {
         $value = array_key_exists($key, $inputs) ? $inputs[$key] : $default;

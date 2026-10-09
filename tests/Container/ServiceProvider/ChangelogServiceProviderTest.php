@@ -13,6 +13,7 @@ use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullReque
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServiceInterface;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
 use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface;
+use FastForward\Changelog\Console\GitHubOutputWriter;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\Date\Factory\TimezoneFactory;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
@@ -37,6 +38,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[CoversClass(ChangelogServiceProvider::class)]
@@ -47,6 +49,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 #[UsesClass(TimezoneFactory::class)]
 #[UsesClass(ReleaseJournalPathResolver::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[UsesClass(GitHubOutputWriter::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     #[Test]
@@ -109,6 +112,17 @@ final class ChangelogServiceProviderTest extends TestCase
         self::assertSame($identifier, $factories[IdentifierGeneratorInterface::class]($container));
         self::assertSame('UTC', $factories[DateTimeZone::class]($container)->getName());
         self::assertInstanceOf(SystemClock::class, $factories[SystemClock::class]($container));
-        self::assertSame(['add','check','status','version','notes','publish','backfill','format'], $factories[CommandLoaderInterface::class]($container)->getNames());
+        self::assertSame(['add','check','status','version','notes','publish','backfill','format','github'], $factories[CommandLoaderInterface::class]($container)->getNames());
+    }
+
+    /** The output factory captures only the caller-supplied path and injected filesystem. */
+    public function testGitHubOutputFactoryRetainsExplicitRunnerPath(): void
+    {
+        $factories = new ChangelogServiceProvider('/consumer', githubOutputFile: '/runner/output')->getFactories();
+        $filesystem = $this->createMock(Filesystem::class);
+        $filesystem->expects(self::once())->method('appendToFile')->with('/runner/output', "result={\"status\":\"valid\"}\nstatus=valid\n", true);
+        $container = $this->createMock(ContainerInterface::class);
+        $container->expects(self::once())->method('get')->with(Filesystem::class)->willReturn($filesystem);
+        self::assertSame('{"status":"valid"}', $factories[GitHubOutputWriter::class]($container)->write(['status' => 'valid']));
     }
 }

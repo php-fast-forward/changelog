@@ -1,0 +1,11 @@
+# Only the packaged runtime can enter the build context.
+**
+!Dockerfile
+!.dockerignore
+!composer.json
+!composer.lock
+!LICENSE
+!bin/
+!bin/changelog
+!src/
+!src/**

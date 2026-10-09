@@ -167,9 +167,9 @@ jobs:
           skip-commit-verification: 'false'
       - name: Run the shared dependabot action
         id: operation
-        uses: ./.changelog-runtime/actions/dependabot
+        uses: ./.changelog-runtime/.github/actions/dependabot
         with:
-          working-directory: ${{ github.workspace }}/project/${{ inputs.working-directory }}
+          working-directory: project/${{ inputs.working-directory }}
           fragment-directory: ${{ inputs.fragment-directory }}
           changelog-file: ${{ inputs.changelog-file }}
           locale: ${{ inputs.locale }}

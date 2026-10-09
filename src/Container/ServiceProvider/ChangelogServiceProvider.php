@@ -46,12 +46,16 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
         private string $token = '',
         private string $apiUrl = 'https://api.github.com',
         private ?string $temporaryDirectory = null,
+        private ?string $githubOutputFile = null,
     ) {}
 
     /** Returns explicit factories and autowiring aliases without instantiating I/O adapters or commands. */
     public function getFactories(): array
     {
         return [
+            \FastForward\Changelog\Console\GitHubOutputWriterInterface::class => new AliasFactory(\FastForward\Changelog\Console\GitHubOutputWriter::class),
+            \FastForward\Changelog\Console\GitHubOutputWriter::class => fn(ContainerInterface $container): \FastForward\Changelog\Console\GitHubOutputWriter
+                => new \FastForward\Changelog\Console\GitHubOutputWriter($container->get(\Symfony\Component\Filesystem\Filesystem::class), $this->githubOutputFile),
             \FastForward\Changelog\Release\ReleaseJournalPathResolverInterface::class => new AliasFactory(\FastForward\Changelog\Release\ReleaseJournalPathResolver::class),
             \FastForward\Changelog\Release\ReleaseJournalPathResolver::class => fn(ContainerInterface $container): \FastForward\Changelog\Release\ReleaseJournalPathResolver
                 => new \FastForward\Changelog\Release\ReleaseJournalPathResolver($container->get(\FastForward\Changelog\Git\GitRepositoryInterface::class), $this->temporaryDirectory ?? (realpath(sys_get_temp_dir()) ?: sys_get_temp_dir())),
