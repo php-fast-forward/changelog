@@ -11,7 +11,6 @@ use FastForward\Changelog\Fragment\FragmentWriterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Tests\Console\PlanFixtureTrait;
-use FastForward\Changelog\Validator\ChangeDescriptionValidator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -26,7 +25,6 @@ use Symfony\Component\Console\Tester\CommandTester;
 #[CoversClass(AddCommand::class)]
 #[UsesClass(ReleaseInput::class)]
 #[UsesClass(ReleaseOptions::class)]
-#[UsesClass(ChangeDescriptionValidator::class)]
 #[UsesClass(LineAnswerNormalizer::class)]
 final class AddCommandTest extends TestCase
 {
@@ -104,10 +102,24 @@ final class AddCommandTest extends TestCase
             '/consumer/.changelog/generated.md',
         );
         $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
-        $tester->setInputs(['', '   ', '  Typed message  ']);
+        $tester->setInputs(['', '   ', "\t", '  Typed message  ']);
         $status = $tester->execute([], ['interactive' => true]);
         self::assertSame(0, $status, $tester->getDisplay(true));
         self::assertStringContainsString('meaningful text', $tester->getDisplay(true));
+    }
+
+    /** A zero description is meaningful text and survives native constraint validation unchanged. */
+    public function testNativeConstraintAcceptsZeroText(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::once())->method('create')->willReturn($this->options());
+        $writer = $this->createMock(FragmentWriterInterface::class);
+        $writer->expects(self::once())->method('add')->with($this->options(), '0')
+            ->willReturn('/consumer/.changelog/zero.md');
+        $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
+        $tester->setInputs(['0']);
+        self::assertSame(0, $tester->execute([], ['interactive' => true]));
+        self::assertStringNotContainsString('meaningful text', $tester->getDisplay(true));
     }
 
     /** Supplied arguments bypass interactive questions and reach the writer unchanged. */

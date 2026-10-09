@@ -54,6 +54,7 @@
         "symfony/http-client": "^8.1",
         "symfony/lock": "^8.1",
         "symfony/process": "^8.1",
+        "symfony/validator": "^8.1",
         "thecodingmachine/safe": "^3.4"
     },
     "require-dev": {
