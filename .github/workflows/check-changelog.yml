@@ -17,7 +17,7 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@e0fb81d2b1c503400b6601ccc07410dd7755bb73
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@7d32bc2c2f8cd04ec15d229e8e208bde893d49ee
     with:
       working-directory: '.'
       repository: ${{ github.repository }}
