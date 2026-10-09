@@ -40,7 +40,7 @@ final class GitHubCommandTest extends TestCase
         self::assertSame(0, $tester->execute(['operation' => 'version', '--base-branch' => 'stable',
             '--managed-branch' => 'release/stable', '--automation-actor' => 'app[bot]',
             '--title' => 'Release <info>literal</info>', '--dry-run' => 'true'], ['interactive' => false, 'decorated' => true]));
-        self::assertSame("{\"status\":\"<info>literal</info>\"}\n", $tester->getDisplay());
+        self::assertSame("{\"status\":\"<info>literal</info>\"}\n", $tester->getDisplay(true));
     }
 
     /** A history option named operation is distinct from the top-level automation argument. */
