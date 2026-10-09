@@ -14,7 +14,6 @@ use FastForward\Changelog\Console\Input\ReleaseInput;
 use FastForward\Changelog\Console\Normalizer\LineAnswerNormalizer;
 use FastForward\Changelog\Fragment\FragmentWriterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
-use FastForward\Changelog\Validator\ChangeDescriptionValidator;
 use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -33,7 +32,6 @@ use Symfony\Component\Console\Output\ConsoleOutputInterface;
 #[UsesClass(GitHubInput::class)]
 #[UsesClass(ReleaseInput::class)]
 #[UsesClass(AddCommand::class)]
-#[UsesClass(ChangeDescriptionValidator::class)]
 #[UsesClass(LineAnswerNormalizer::class)]
 final class ChangelogTest extends TestCase
 {

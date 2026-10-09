@@ -18,7 +18,6 @@ use FastForward\Changelog\Console\Input\ReleaseInput;
 use FastForward\Changelog\Console\Normalizer\LineAnswerNormalizer;
 use FastForward\Changelog\Fragment\FragmentWriterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
-use FastForward\Changelog\Validator\ChangeDescriptionValidator;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -27,6 +26,7 @@ use Symfony\Component\Console\Attribute\MapInput;
 use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Validator\Constraints\NotBlank;
 use Throwable;
 
 /** Creates one independently validated contribution, optionally committing only that fragment. */
@@ -44,16 +44,20 @@ final readonly class AddCommand
 
     /** Declares the required description's native prompt and delegates validated input to the writer. */
     public function __invoke(
+        SymfonyStyle $io,
+
         #[MapInput]
         ReleaseInput $settings,
-        SymfonyStyle $io,
 
         #[Argument(description: 'The Markdown change description.')]
         #[Ask(
             question: 'Change description',
             trimmable: false,
             normalizer: new LineAnswerNormalizer(),
-            validator: new ChangeDescriptionValidator(),
+            constraints: [new NotBlank(
+                message: 'The change description must contain meaningful text.',
+                normalizer: 'trim',
+            )],
         )]
         string $message,
 
