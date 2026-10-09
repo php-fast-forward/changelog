@@ -202,6 +202,35 @@ through the package's container service provider, or inject these interfaces int
 the consumer's own PSR-11 container. Constructors perform no filesystem, Git,
 network, clock or credential observation. Factories construct values/collaborators.
 
+Register the provider by class name; it has no constructor arguments:
+
+```php
+use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
+use function FastForward\Config\config;
+use function FastForward\Container\container;
+
+$container = container(ChangelogServiceProvider::class);
+
+// Optional consumer configuration; either initializer order is supported.
+$container = container(
+    config(['changelog' => ['working_directory' => '/path/to/project']]),
+    ChangelogServiceProvider::class,
+);
+```
+
+The provider captures settings lazily in the shared `changelog.config` entry.
+Optional `changelog.*` keys are `working_directory` (current process directory),
+`temporary_directory` (canonical system temporary directory), `installed_version`
+(`null`, the resolver's development fallback), `token` (empty), `api_url`
+(`https://api.github.com`) and `github_output_file` (`null`, no runner output).
+Explicit configuration entries, including empty tokens and nullable values,
+override defaults. An unavailable process directory fails with a diagnostic.
+Defaults do not read environment credentials or execute a local config file.
+The executable captures Composer metadata and GitHub environment values and
+injects them through Fast Forward Config. The provider resolves configured
+paths and credentials only through the container; service constructors retain
+their existing injected contracts.
+
 | Interface | Contract |
 | --- | --- |
 | `ReleaseOptionsFactoryInterface` | `create(array $values = []): ReleaseOptions`; defaults then explicit values, unknown settings rejected |

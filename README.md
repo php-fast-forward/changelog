@@ -150,10 +150,27 @@ use Symfony\Component\Console\Application;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 use function FastForward\Container\container;
 
-$container = container(new ChangelogServiceProvider(workingDirectory: '/path/to/project'));
+$container = container(ChangelogServiceProvider::class);
 $application = new Application('My Tooling');
 $application->setCommandLoader($container->get(CommandLoaderInterface::class));
 ```
+
+The provider needs no constructor arguments and defaults to the current working
+directory. To override settings, inject Fast Forward Config into the container:
+
+```php
+use function FastForward\Config\config;
+
+$container = container(
+    config(['changelog' => ['working_directory' => '/path/to/project']]),
+    ChangelogServiceProvider::class,
+);
+```
+
+Optional `changelog` settings are `working_directory`, `temporary_directory`,
+`installed_version`, `token`, `api_url` and `github_output_file`. Credentials and
+runner output paths are supplied explicitly; the CLI reads its environment and
+injects these values through the same configuration mechanism.
 
 Help and command listing do not construct command services. A broken selected
 dependency retains its diagnostic and leaves unrelated commands available.

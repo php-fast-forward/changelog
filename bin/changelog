@@ -22,6 +22,7 @@ use Composer\InstalledVersions;
 use FastForward\Changelog\Console\Changelog;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 
+use function FastForward\Config\config;
 use function FastForward\Container\container;
 
 // The native Composer proxy supplies the correct local/global consumer autoloader.
@@ -36,16 +37,14 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
         require $autoloadCandidate;
 
         $automationToken = getenv('FF_CHANGELOG_TOKEN');
-        $serviceProvider = new ChangelogServiceProvider(
-            workingDirectory: getcwd() ?: '.',
-            temporaryDirectory: realpath(sys_get_temp_dir()) ?: sys_get_temp_dir(),
-            installedVersion: InstalledVersions::isInstalled('fast-forward/changelog') ? InstalledVersions::getPrettyVersion('fast-forward/changelog') : null,
-            token: false === $automationToken ? (getenv('GITHUB_TOKEN') ?: '') : $automationToken,
-            apiUrl: getenv('GITHUB_API_URL') ?: 'https://api.github.com',
-            githubOutputFile: getenv('GITHUB_OUTPUT') ?: null,
-        );
+        $config = config(['changelog' => [
+            'installed_version' => InstalledVersions::isInstalled('fast-forward/changelog') ? InstalledVersions::getPrettyVersion('fast-forward/changelog') : null,
+            'token' => false === $automationToken ? (getenv('GITHUB_TOKEN') ?: '') : $automationToken,
+            'api_url' => getenv('GITHUB_API_URL') ?: 'https://api.github.com',
+            'github_output_file' => getenv('GITHUB_OUTPUT') ?: null,
+        ]]);
 
-        exit(container($serviceProvider)->get(Changelog::class)->run());
+        exit(container($config, ChangelogServiceProvider::class)->get(Changelog::class)->run());
     }
 }
 

@@ -24,13 +24,14 @@ maintenance operation, separate from the ordinary contribution flow.
 | [`check-changelog`](../.github/workflows/check-changelog.yml) | PR to `main`, including label changes | Check the exact contribution head with read permissions. |
 | [`dependabot-changelog`](../.github/workflows/dependabot-changelog.yml) | Dependabot PR to `main` | Collect verified dependency metadata from the base context and create one deterministic fragment. |
 | [`release-changelog`](../.github/workflows/release-changelog.yml) | Push to `main` | Plan from the fresh base and create or update `changelog/version`. |
-| [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, then reconcile the approved tag and GitHub Release. |
+| [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, reconcile the approved tag/release, then call the versioned GHCR build. |
+| [`docker-cli`](../.github/workflows/docker-cli.yml) | Existing release tag push, selected existing tag, or verified publication call | Validate the exact release commit and CLI version, then publish the versioned multi-platform image. |
 
 The workflows call `./.github/actions/...` from the selected trusted checkout.
 Every Action uses the shared root Dockerfile, whose image includes PHP 8.5,
 Git, this package and its locked production dependencies. The container runs
 `bin/changelog github <operation>` directly. The installed package stays at
-`/opt/changelog`, separate from the mounted consumer checkout. Action outputs
+`/usr/local`, separate from the mounted consumer checkout. Action outputs
 come from the CLI through `GITHUB_OUTPUT`. See [the Docker runtime guide](docker.md).
 The contribution job checks out the exact PR head; its token has read permissions
 and checkout credentials are not persisted. The write jobs execute the trusted
