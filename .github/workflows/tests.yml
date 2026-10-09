@@ -65,7 +65,12 @@ jobs:
             - name: Smoke test the CLI
               run: php bin/changelog list --raw
 
+            - name: Prepare the runner-local base image cache
+              if: startsWith(matrix.os, 'ubuntu-')
+              uses: ./.github/actions/setup-docker
+
             - name: Build the packaged CLI image
+              # Base images are preloaded by the preceding runner-local cache step.
               if: startsWith(matrix.os, 'ubuntu-')
               run: docker build --progress=plain -t fast-forward-changelog:ci .
 

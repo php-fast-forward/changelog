@@ -176,6 +176,11 @@ jobs:
           compat-lookup: 'false'
           skip-verification: 'false'
           skip-commit-verification: 'false'
+      - name: Prepare the trusted runtime base image cache
+        uses: ./.changelog-runtime/.github/actions/setup-docker
+        with:
+          dockerfile: .changelog-runtime/Dockerfile
+
       - name: Run the shared dependabot action
         id: operation
         uses: ./.changelog-runtime/.github/actions/dependabot

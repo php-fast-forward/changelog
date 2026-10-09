@@ -96,6 +96,9 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Build and verify the versioned CLI
         shell: bash
         env:
@@ -126,6 +129,9 @@ jobs:
           ref: ${{ needs.validate.outputs.sha }}
           persist-credentials: false
 
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
@@ -133,6 +139,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0

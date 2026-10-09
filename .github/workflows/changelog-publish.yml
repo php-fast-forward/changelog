@@ -189,6 +189,11 @@ jobs:
           path: .changelog-runtime
           fetch-depth: 1
           persist-credentials: false
+      - name: Prepare the trusted runtime base image cache
+        uses: ./.changelog-runtime/.github/actions/setup-docker
+        with:
+          dockerfile: .changelog-runtime/Dockerfile
+
       - name: Run the shared publish action
         id: operation
         uses: ./.changelog-runtime/.github/actions/publish
