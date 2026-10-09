@@ -35,12 +35,14 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
     if (is_file($autoloadCandidate)) {
         require $autoloadCandidate;
 
+        $automationToken = getenv('FF_CHANGELOG_TOKEN');
         $serviceProvider = new ChangelogServiceProvider(
             workingDirectory: getcwd() ?: '.',
             temporaryDirectory: realpath(sys_get_temp_dir()) ?: sys_get_temp_dir(),
             installedVersion: InstalledVersions::isInstalled('fast-forward/changelog') ? InstalledVersions::getPrettyVersion('fast-forward/changelog') : null,
-            token: getenv('GITHUB_TOKEN') ?: '',
+            token: false === $automationToken ? (getenv('GITHUB_TOKEN') ?: '') : $automationToken,
             apiUrl: getenv('GITHUB_API_URL') ?: 'https://api.github.com',
+            githubOutputFile: getenv('GITHUB_OUTPUT') ?: null,
         );
 
         exit(container($serviceProvider)->get(Changelog::class)->run());

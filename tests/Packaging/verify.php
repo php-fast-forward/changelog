@@ -64,7 +64,7 @@ function environment(string $fixtureRoot, string $composerHome): array
 {
     global $cacheDirectory;
     $values = getenv();
-    foreach (['GITHUB_TOKEN', 'GH_TOKEN', 'FF_CHANGELOG_INPUTS', 'COMPOSER', 'COMPOSER_AUTH', 'COMPOSER_BIN_DIR', 'COMPOSER_VENDOR_DIR', 'COMPOSER_ROOT_VERSION', 'COMPOSER_DISABLE_NETWORK', 'GIT_ASKPASS', 'SSH_ASKPASS', 'SSH_AUTH_SOCK', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG', 'GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_DIR', 'GIT_WORK_TREE'] as $key) {
+    foreach (['GITHUB_TOKEN', 'GH_TOKEN', 'FF_CHANGELOG_TOKEN', 'GITHUB_OUTPUT', 'FF_CHANGELOG_INPUTS', 'COMPOSER', 'COMPOSER_AUTH', 'COMPOSER_BIN_DIR', 'COMPOSER_VENDOR_DIR', 'COMPOSER_ROOT_VERSION', 'COMPOSER_DISABLE_NETWORK', 'GIT_ASKPASS', 'SSH_ASKPASS', 'SSH_AUTH_SOCK', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG', 'GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_DIR', 'GIT_WORK_TREE'] as $key) {
         unset($values[$key]);
     }
     return [...$values, 'HOME' => $fixtureRoot . '/home', 'COMPOSER_HOME' => $composerHome,
@@ -166,13 +166,13 @@ function exercise(string $installation, string $consumer, array $environment): v
         rmdir($installed . '/vendor');
     }
     $listing = cli($binary, $consumer, $environment, ['list', '--raw']);
-    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format'] as $command) {
+    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $command) {
         verify(1 === preg_match('/^' . $command . '\s/m', $listing['stdout']), 'Missing public command: ' . $command);
         verify(!str_contains($listing['stdout'], 'changelog:' . $command), 'A legacy prefixed alias leaked.');
     }
     verify(str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], 'dev-main'), 'The binary did not use native installed package metadata.');
     cli($binary, $consumer, $environment, ['--help']);
-    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format'] as $command) {
+    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $command) {
         cli($binary, $consumer, $environment, ['help', $command]);
     }
 

@@ -7,11 +7,12 @@ Client implements the GitHub boundary. Fast Forward Container, Clock and Config
 provide composition, UTC time and explicitly selected PHP presentation settings.
 Config is not required to initialize a consumer project.
 
-`composer.lock` pins this repository's own development and composite Action
+`composer.lock` pins this repository's development and Docker image
 installation. Composer consumers resolve the version constraints in `require`
 with their own lock; the library's lock does not pin a consumer's dependency graph.
-Actions install only their checked-out package with `--no-dev --no-scripts
---no-plugins`, never a PR head's consumer dependencies.
+The shared Dockerfile installs its trusted runtime with `--no-dev --no-scripts
+--no-plugins` at build time. Actions execute the included CLI; consumer
+dependencies are not installed by an Action.
 
 PHPUnit, Prophecy, Rector, ECS, PHP Parser and coverage tooling are development
 requirements. Running the CLI needs none of them and does not load DevTools.

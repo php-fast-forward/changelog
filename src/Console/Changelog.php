@@ -21,7 +21,12 @@ namespace FastForward\Changelog\Console;
 
 use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use Symfony\Component\Console\Exception\ExceptionInterface;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Provides the standalone Symfony Console application for changelog commands.
@@ -44,5 +49,23 @@ final class Changelog extends Application
         parent::__construct('Fast Forward Changelog', $versionResolver->resolve());
 
         $this->setCommandLoader($commandLoader);
+    }
+
+    /**
+     * Converts GitHub command binding/validation failures to the machine contract before services execute.
+     * Other commands retain Symfony errors; successful invocations keep their existing result and exit status.
+     */
+    protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int
+    {
+        try {
+            return parent::doRunCommand($command, $input, $output);
+        } catch (ExceptionInterface $exception) {
+            if ('github' !== $command->getName()) {
+                throw $exception;
+            }
+            $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
+            $error->writeln(json_encode(['error' => $exception->getMessage()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), OutputInterface::OUTPUT_RAW);
+            return Command::INVALID;
+        }
     }
 }

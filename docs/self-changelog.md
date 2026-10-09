@@ -1,6 +1,6 @@
 # Changelog in this repository
 
-This package uses its own CLI and local composite Actions. Ordinary changes add
+This package uses its own CLI and local Docker Actions. Ordinary changes add
 one pending fragment; the managed version PR updates `CHANGELOG.md` after those
 changes reach `main`. Contributors do not maintain a central `Unreleased` list.
 
@@ -26,8 +26,12 @@ maintenance operation, separate from the ordinary contribution flow.
 | [`release-changelog`](../.github/workflows/release-changelog.yml) | Push to `main` | Plan from the fresh base and create or update `changelog/version`. |
 | [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, then reconcile the approved tag and GitHub Release. |
 
-The workflows call `./actions/...` from the selected checkout. Each Action sets
-up PHP 8.5 and installs this package with `--no-dev --no-scripts --no-plugins`.
+The workflows call `./.github/actions/...` from the selected trusted checkout.
+Every Action uses the shared root Dockerfile, whose image includes PHP 8.5,
+Git, this package and its locked production dependencies. The container runs
+`bin/changelog github <operation>` directly. The installed package stays at
+`/opt/changelog`, separate from the mounted consumer checkout. Action outputs
+come from the CLI through `GITHUB_OUTPUT`. See [the Docker runtime guide](docker.md).
 The contribution job checks out the exact PR head; its token has read permissions
 and checkout credentials are not persisted. The write jobs execute the trusted
 base or the approved merge, never a pending PR head. Version and publication

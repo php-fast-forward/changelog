@@ -27,9 +27,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Create or update the single version PR
-        uses: ./actions/version
+        uses: ./.github/actions/version
         with:
-          working-directory: ${{ github.workspace }}
+          working-directory: '.'
           repository: ${{ github.repository }}
           token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
           base-branch: main

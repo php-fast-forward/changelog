@@ -13,7 +13,8 @@ used across Fast Forward PHP packages.
 - Exact release transactions: [`src/Release/`](src/Release/)
 - Approved-commit publication: [`src/Publication/`](src/Publication/)
 - Filesystem, Git and GitHub boundaries: [`src/Filesystem/`](src/Filesystem/), [`src/Git/`](src/Git/), [`src/GitHub/`](src/GitHub/)
-- Trusted automation and composite actions: [`src/Automation/`](src/Automation/), [`actions/`](actions/)
+- Trusted automation and Docker actions: [`src/Automation/`](src/Automation/), [`.github/actions/`](.github/actions/)
+- Packaged CLI image: [`Dockerfile`](Dockerfile), [runtime guide](docs/docker.md)
 - Tests: [`tests/`](tests/)
 - Docs: [`docs/`](docs/)
 - Published history: [`CHANGELOG.md`](CHANGELOG.md)
@@ -68,3 +69,5 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
 - [Skill link verifier](scripts/skills-sync.md): verifies the real canonical package and two bounded host links; preserves unrelated files and reports unmaterialized Windows checkouts.
+- [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
+- [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

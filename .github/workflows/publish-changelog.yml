@@ -32,9 +32,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Publish the verified consolidation
-        uses: ./actions/publish
+        uses: ./.github/actions/publish
         with:
-          working-directory: ${{ github.workspace }}
+          working-directory: '.'
           repository: ${{ github.repository }}
           token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
           base-branch: main

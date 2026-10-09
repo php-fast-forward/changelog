@@ -174,11 +174,11 @@ Reuse the shipped entrypoints at a reviewed immutable repository commit:
 
 | Composite action | Reusable workflow | Responsibility |
 | --- | --- | --- |
-| `actions/check` | `.github/workflows/changelog-check.yml` | Contribution and trusted-policy check |
-| `actions/dependabot` | `.github/workflows/changelog-dependabot.yml` | Author one dependency-update fragment |
-| `actions/version` | `.github/workflows/changelog-version.yml` | Prepare a reviewable version PR |
-| `actions/publish` | `.github/workflows/changelog-publish.yml` | Publish an approved consolidation SHA |
-| `actions/history` | `.github/workflows/changelog-history.yml` | Prepare historical backfill/format maintenance |
+| `.github/actions/check` | `.github/workflows/changelog-check.yml` | Contribution and trusted-policy check |
+| `.github/actions/dependabot` | `.github/workflows/changelog-dependabot.yml` | Author one dependency-update fragment |
+| `.github/actions/version` | `.github/workflows/changelog-version.yml` | Prepare a reviewable version PR |
+| `.github/actions/publish` | `.github/workflows/changelog-publish.yml` | Publish an approved consolidation SHA |
+| `.github/actions/history` | `.github/workflows/changelog-history.yml` | Prepare historical backfill/format maintenance |
 
 Read the selected action/workflow's inputs and permission contract before wiring
 it. Keep ordinary PR checks unprivileged; use trusted base code for operations
