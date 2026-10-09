@@ -6,10 +6,12 @@ namespace FastForward\Changelog\Tests\Console\Command;
 
 use FastForward\Changelog\Console\Command\AddCommand;
 use FastForward\Changelog\Console\Input\ReleaseInput;
+use FastForward\Changelog\Console\Normalizer\LineAnswerNormalizer;
 use FastForward\Changelog\Fragment\FragmentWriterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Tests\Console\PlanFixtureTrait;
+use FastForward\Changelog\Validator\ChangeDescriptionValidator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -17,13 +19,15 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Exception\RuntimeException as ConsoleRuntimeException;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Tester\CommandTester;
 
 #[CoversClass(AddCommand::class)]
 #[UsesClass(ReleaseInput::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[UsesClass(ChangeDescriptionValidator::class)]
+#[UsesClass(LineAnswerNormalizer::class)]
 final class AddCommandTest extends TestCase
 {
     use PlanFixtureTrait;
@@ -53,7 +57,6 @@ final class AddCommandTest extends TestCase
         $io->expects(self::once())->method('success')->with('Created fragment: /consumer/.changelog/one.md');
         self::assertSame(0, new AddCommand($factory, $writer)(
             $settings,
-            $this->createStub(InputInterface::class),
             $io,
             'Exact **Markdown**',
             'fixed',
@@ -75,19 +78,20 @@ final class AddCommandTest extends TestCase
         $writer = $this->createMock(FragmentWriterInterface::class);
         $writer->expects(self::never())->method('add');
         $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
-        self::assertSame(2, $tester->execute([], ['interactive' => false]));
-        self::assertStringContainsString('Provide a change message argument', $tester->getDisplay(true));
+        $this->expectException(ConsoleRuntimeException::class);
+        $this->expectExceptionMessage('Not enough arguments (missing: "message").');
+        $tester->execute([], ['interactive' => false]);
     }
 
     #[Test]
-    public function interactiveMessageUsesSymfonyStyleValidation(): void
+    public function nativeAskRetriesBlankAnswersAndPreservesMarkdownSpaces(): void
     {
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->willReturn($this->options());
         $writer = $this->createMock(FragmentWriterInterface::class);
         $writer->expects(self::once())->method('add')->with(
             $this->options(),
-            'Typed message',
+            '  Typed message  ',
             'changed',
             null,
             null,
@@ -100,9 +104,36 @@ final class AddCommandTest extends TestCase
             '/consumer/.changelog/generated.md',
         );
         $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
-        $tester->setInputs(['', 'Typed message']);
-        self::assertSame(0, $tester->execute([], ['interactive' => true]));
+        $tester->setInputs(['', '   ', '  Typed message  ']);
+        $status = $tester->execute([], ['interactive' => true]);
+        self::assertSame(0, $status, $tester->getDisplay(true));
         self::assertStringContainsString('meaningful text', $tester->getDisplay(true));
+    }
+
+    /** Supplied arguments bypass interactive questions and reach the writer unchanged. */
+    public function testExplicitMessageDoesNotPrompt(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::once())->method('create')->willReturn($this->options());
+        $writer = $this->createMock(FragmentWriterInterface::class);
+        $writer->expects(self::once())->method('add')->with($this->options(), '  Explicit **Markdown**  ')
+            ->willReturn('/consumer/.changelog/explicit.md');
+        $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
+        self::assertSame(0, $tester->execute(['message' => '  Explicit **Markdown**  '], ['interactive' => true]));
+        self::assertStringNotContainsString('Change description', $tester->getDisplay(true));
+    }
+
+    /** Ending an interactive input stream without a description never resolves options or calls the writer. */
+    public function testMissingInteractiveAnswerCannotWrite(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::never())->method('create');
+        $writer = $this->createMock(FragmentWriterInterface::class);
+        $writer->expects(self::never())->method('add');
+        $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
+        $tester->setInputs([]);
+        $this->expectException(\Symfony\Component\Console\Exception\MissingInputException::class);
+        $tester->execute([], ['interactive' => true]);
     }
 
     #[Test]
@@ -118,9 +149,7 @@ final class AddCommandTest extends TestCase
         $io->expects(self::once())->method('error');
         self::assertSame(
             2,
-            new AddCommand($factory, $writer)($this->settings(), $this->createStub(
-                InputInterface::class,
-            ), $io, 'Message', issue: $reference),
+            new AddCommand($factory, $writer)($this->settings(), $io, 'Message', issue: $reference),
         );
     }
 
@@ -143,9 +172,7 @@ final class AddCommandTest extends TestCase
         $io->expects(self::once())->method('error')->with('exclusive write failed');
         self::assertSame(
             1,
-            new AddCommand($factory, $writer)($this->settings(), $this->createStub(
-                InputInterface::class,
-            ), $io, 'Message'),
+            new AddCommand($factory, $writer)($this->settings(), $io, 'Message'),
         );
     }
 }

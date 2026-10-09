@@ -15,15 +15,17 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Console\Command;
 
 use FastForward\Changelog\Console\Input\ReleaseInput;
+use FastForward\Changelog\Console\Normalizer\LineAnswerNormalizer;
 use FastForward\Changelog\Fragment\FragmentWriterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
+use FastForward\Changelog\Validator\ChangeDescriptionValidator;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Attribute\Ask;
 use Symfony\Component\Console\Attribute\MapInput;
 use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
@@ -40,15 +42,20 @@ final readonly class AddCommand
         private FragmentWriterInterface $writer,
     ) {}
 
-    /** Requests missing text only during interaction and delegates exact user metadata to the writer. */
+    /** Declares the required description's native prompt and delegates validated input to the writer. */
     public function __invoke(
         #[MapInput]
         ReleaseInput $settings,
-        InputInterface $input,
         SymfonyStyle $io,
 
         #[Argument(description: 'The Markdown change description.')]
-        ?string $message = null,
+        #[Ask(
+            question: 'Change description',
+            trimmable: false,
+            normalizer: new LineAnswerNormalizer(),
+            validator: new ChangeDescriptionValidator(),
+        )]
+        string $message,
 
         #[Option(description: 'added, changed, deprecated, removed, fixed or security.')]
         string $category = 'changed',
@@ -75,20 +82,6 @@ final readonly class AddCommand
         string $commitMessage = 'chore: record changelog fragment',
     ): int {
         try {
-            if (null === $message || '' === trim($message)) {
-                if (! $input->isInteractive()) {
-                    throw new InvalidArgumentException(
-                        'Provide a change message argument when using --no-interaction.',
-                    );
-                }
-                $message = $io->ask('Change description', null, static function (?string $value): string {
-                    if (null === $value || '' === trim($value)) {
-                        throw new InvalidArgumentException('The change description must contain meaningful text.');
-                    }
-
-                    return $value;
-                });
-            }
             $path = $this->writer->add(
                 $this->options->create($settings->values()),
                 $message,

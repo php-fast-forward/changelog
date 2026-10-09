@@ -91,6 +91,12 @@ that same fragment instead of creating a duplicate.
 | `format` | `format --dry-run --locale=pt-BR` | Previews presentation changes while preserving descriptions/history |
 | `publish` | `publish --target-sha=<approved-full-sha> --repository=owner/repo --dry-run` | Proves committed evidence and reads remote state before creating missing objects |
 
+`add` declares its required message with Symfony Console's `Ask` attribute.
+Interactive execution asks for an absent message and retries blank answers.
+The prompt preserves Markdown spaces and removes only the terminal's Enter
+delimiter. Explicit message arguments bypass the prompt; existing domain
+validation still rejects invalid descriptions before creating a fragment.
+
 `--no-interaction` disables prompts. A message argument is required for unattended
 `add`. All commands accept the shared settings below; their use does not imply
 every setting affects every operation.

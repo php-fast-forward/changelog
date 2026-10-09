@@ -154,6 +154,17 @@ try {
         'Automation help must expose exact authority and preview flags.',
     );
 
+    $beforeMissingMessage = snapshot($fixtureRoot . '/project');
+    $missingMessage = $cli(['add', '--cwd=project', '--no-interaction'], 2);
+    verify(
+        str_contains($missingMessage['stderr'], 'Not enough arguments (missing: "message").'),
+        'Required add input must be rejected on stderr with the invalid-input status.',
+    );
+    verify(
+        $beforeMissingMessage === snapshot($fixtureRoot . '/project'),
+        'Missing add input must not create consumer files.',
+    );
+
     $git(['init', '--initial-branch=main']);
     file_put_contents(
         $fixtureRoot . '/project/CHANGELOG.md',

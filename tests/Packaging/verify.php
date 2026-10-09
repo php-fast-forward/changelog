@@ -222,6 +222,15 @@ function exercise(string $installation, string $consumer, array $environment): v
     $binary = $installation . '/vendor/bin/changelog';
     $installed = $installation . '/vendor/fast-forward/changelog';
     verify(is_file($binary), 'Composer did not expose vendor/bin/changelog.');
+
+    $beforeMissingMessage = snapshot($consumer);
+    $missingMessage = cli($binary, $consumer, $environment, ['add'], 2);
+    verify(
+        str_contains($missingMessage['stderr'], 'Not enough arguments (missing: "message").'),
+        'Unattended add must keep its invalid-input status and human stderr diagnostic.',
+    );
+    verify($beforeMissingMessage === snapshot($consumer), 'Missing add input must not create consumer files.');
+
     if ('Windows' !== PHP_OS_FAMILY) {
         execute([$binary, 'list', '--raw', '--no-interaction', '--no-ansi'], $consumer, $environment);
     }
