@@ -44,9 +44,10 @@ final readonly class AddCommand
 
     /** Declares the required description's native prompt and delegates validated input to the writer. */
     public function __invoke(
+        SymfonyStyle $io,
+
         #[MapInput]
         ReleaseInput $settings,
-        SymfonyStyle $io,
 
         #[Argument(description: 'The Markdown change description.')]
         #[Ask(

@@ -45,9 +45,10 @@ final readonly class CheckCommand
 
     /** Verifies policy belongs to this checkout before exposing its authorization to schema validation. */
     public function __invoke(
+        SymfonyStyle $io,
+
         #[MapInput]
         ReleaseInput $settings,
-        SymfonyStyle $io,
 
         #[Option(description: 'Git baseline for the contribution delta.')]
         ?string $since = null,

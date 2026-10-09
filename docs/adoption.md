@@ -99,6 +99,9 @@ The prompt preserves Markdown spaces and removes only the terminal's Enter
 delimiter. Explicit message arguments bypass the prompt; existing domain
 validation still rejects invalid descriptions before creating a fragment.
 
+Commands that receive `SymfonyStyle` declare it first in `__invoke()`, followed
+by a blank line before the attributed input parameters.
+
 `--no-interaction` disables prompts. A message argument is required for unattended
 `add`. All commands accept the shared settings below; their use does not imply
 every setting affects every operation.

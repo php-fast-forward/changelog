@@ -41,7 +41,7 @@ final class CheckCommandTest extends TestCase
         $policy->expects(self::never())->method('inspect');
         $git->expects(self::never())->method('resolveRef');
         $io->expects(self::once())->method('success')->with('Validated 0 pending fragments.');
-        self::assertSame(0, $command($this->settings(), $io));
+        self::assertSame(0, $command($io, $this->settings()));
     }
 
     #[Test]
@@ -57,7 +57,7 @@ final class CheckCommandTest extends TestCase
         $checks->expects(self::once())->method('check')->with($this->options(), 'main', true, true)->willReturn(
             new ValidationReport([], [], true),
         );
-        self::assertSame(0, $command($this->settings(), $io, 'main', '21'));
+        self::assertSame(0, $command($io, $this->settings(), 'main', '21'));
     }
 
     #[Test]
@@ -76,7 +76,7 @@ final class CheckCommandTest extends TestCase
         $io->expects(self::once())->method('error')->with(
             null === $head ? 'Pull-request policy could not establish an inspected head identity.' : 'Check out the inspected pull-request head before applying its authorization.',
         );
-        self::assertSame(1, $command($this->settings(), $io, 'main', '21'));
+        self::assertSame(1, $command($io, $this->settings(), 'main', '21'));
     }
 
     public static function invalidHead(): array
@@ -93,7 +93,7 @@ final class CheckCommandTest extends TestCase
         $checks->expects(self::never())->method('check');
         $git->expects(self::never())->method('resolveRef');
         $io->expects(self::once())->method('error');
-        self::assertSame(2, $command($this->settings(), $io, $since, $number));
+        self::assertSame(2, $command($io, $this->settings(), $since, $number));
     }
 
     public static function invalidInputs(): array
@@ -111,7 +111,7 @@ final class CheckCommandTest extends TestCase
             new ValidationReport([], ['bad.md' => ['Invalid category','Missing description']], false),
         );
         $io->expects(self::once())->method('error')->with('{"bad.md":["Invalid category","Missing description"]}');
-        self::assertSame(1, $command($this->settings(), $io, 'main'));
+        self::assertSame(1, $command($io, $this->settings(), 'main'));
     }
 
     #[Test]
@@ -122,7 +122,7 @@ final class CheckCommandTest extends TestCase
         $git->expects(self::never())->method('resolveRef');
         $checks->expects(self::once())->method('check')->willThrowException(new RuntimeException('Git failed'));
         $io->expects(self::once())->method('error')->with('Git failed');
-        self::assertSame(1, $command($this->settings(), $io));
+        self::assertSame(1, $command($io, $this->settings()));
     }
 
     private function compose(): array
