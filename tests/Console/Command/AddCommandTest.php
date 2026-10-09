@@ -36,7 +36,18 @@ final class AddCommandTest extends TestCase
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->with($settings->values())->willReturn($options);
         $writer = $this->createMock(FragmentWriterInterface::class);
-        $writer->expects(self::once())->method('add')->with($options, 'Exact **Markdown**', 'fixed', 'major', 'one.md', 21, 34, 'alice', true, 'record one')
+        $writer->expects(self::once())->method('add')->with(
+            $options,
+            'Exact **Markdown**',
+            'fixed',
+            'major',
+            'one.md',
+            21,
+            34,
+            'alice',
+            true,
+            'record one',
+        )
             ->willReturn('/consumer/.changelog/one.md');
         $io = $this->createMock(SymfonyStyle::class);
         $io->expects(self::once())->method('success')->with('Created fragment: /consumer/.changelog/one.md');
@@ -74,7 +85,20 @@ final class AddCommandTest extends TestCase
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->willReturn($this->options());
         $writer = $this->createMock(FragmentWriterInterface::class);
-        $writer->expects(self::once())->method('add')->with($this->options(), 'Typed message', 'changed', null, null, null, null, null, false, 'chore: record changelog fragment')->willReturn('/consumer/.changelog/generated.md');
+        $writer->expects(self::once())->method('add')->with(
+            $this->options(),
+            'Typed message',
+            'changed',
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            'chore: record changelog fragment',
+        )->willReturn(
+            '/consumer/.changelog/generated.md',
+        );
         $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
         $tester->setInputs(['', 'Typed message']);
         self::assertSame(0, $tester->execute([], ['interactive' => true]));
@@ -92,7 +116,12 @@ final class AddCommandTest extends TestCase
         $io = $this->createMock(SymfonyStyle::class);
         $io->method('getErrorStyle')->willReturn($io);
         $io->expects(self::once())->method('error');
-        self::assertSame(2, new AddCommand($factory, $writer)($this->settings(), $this->createStub(InputInterface::class), $io, 'Message', issue: $reference));
+        self::assertSame(
+            2,
+            new AddCommand($factory, $writer)($this->settings(), $this->createStub(
+                InputInterface::class,
+            ), $io, 'Message', issue: $reference),
+        );
     }
 
     public static function invalidReferences(): array
@@ -106,10 +135,17 @@ final class AddCommandTest extends TestCase
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->willReturn($this->options());
         $writer = $this->createMock(FragmentWriterInterface::class);
-        $writer->expects(self::once())->method('add')->willThrowException(new RuntimeException('exclusive write failed'));
+        $writer->expects(self::once())->method('add')->willThrowException(
+            new RuntimeException('exclusive write failed'),
+        );
         $io = $this->createMock(SymfonyStyle::class);
         $io->method('getErrorStyle')->willReturn($io);
         $io->expects(self::once())->method('error')->with('exclusive write failed');
-        self::assertSame(1, new AddCommand($factory, $writer)($this->settings(), $this->createStub(InputInterface::class), $io, 'Message'));
+        self::assertSame(
+            1,
+            new AddCommand($factory, $writer)($this->settings(), $this->createStub(
+                InputInterface::class,
+            ), $io, 'Message'),
+        );
     }
 }

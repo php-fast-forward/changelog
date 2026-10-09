@@ -35,7 +35,9 @@ final class CheckCommandTest extends TestCase
     public function localCheckNeverQueriesPolicyOrGit(): void
     {
         [$command, $checks, $policy, $git, $io] = $this->compose();
-        $checks->expects(self::once())->method('check')->with($this->options(), null, false, false)->willReturn(new ValidationReport([], [], false));
+        $checks->expects(self::once())->method('check')->with($this->options(), null, false, false)->willReturn(
+            new ValidationReport([], [], false),
+        );
         $policy->expects(self::never())->method('inspect');
         $git->expects(self::never())->method('resolveRef');
         $io->expects(self::once())->method('success')->with('Validated 0 pending fragments.');
@@ -47,10 +49,14 @@ final class CheckCommandTest extends TestCase
     {
         [$command, $checks, $policy, $git, $io] = $this->compose();
         $sha = str_repeat('a', 40);
-        $policy->expects(self::once())->method('inspect')->with($this->options(), 21)->willReturn(new PullRequestAuthorization(true, true, 'maintenance', ['human grant verified'], $sha));
+        $policy->expects(self::once())->method('inspect')->with($this->options(), 21)->willReturn(
+            new PullRequestAuthorization(true, true, 'maintenance', ['human grant verified'], $sha),
+        );
         $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($sha);
         $io->expects(self::once())->method('note')->with('human grant verified');
-        $checks->expects(self::once())->method('check')->with($this->options(), 'main', true, true)->willReturn(new ValidationReport([], [], true));
+        $checks->expects(self::once())->method('check')->with($this->options(), 'main', true, true)->willReturn(
+            new ValidationReport([], [], true),
+        );
         self::assertSame(0, $command($this->settings(), $io, 'main', '21'));
     }
 
@@ -59,11 +65,17 @@ final class CheckCommandTest extends TestCase
     public function unknownOrDifferentCheckoutNeverReceivesAuthorization(?string $head): void
     {
         [$command, $checks, $policy, $git, $io] = $this->compose();
-        $policy->expects(self::once())->method('inspect')->willReturn(new PullRequestAuthorization(true, true, 'waiver', ['authority requires matching evidence'], $head));
-        $git->expects(null === $head ? self::never() : self::once())->method('resolveRef')->willReturn(str_repeat('a', 40));
+        $policy->expects(self::once())->method('inspect')->willReturn(
+            new PullRequestAuthorization(true, true, 'waiver', ['authority requires matching evidence'], $head),
+        );
+        $git->expects(null === $head ? self::never() : self::once())->method('resolveRef')->willReturn(
+            str_repeat('a', 40),
+        );
         $checks->expects(self::never())->method('check');
         $io->expects(self::once())->method('note')->with('authority requires matching evidence');
-        $io->expects(self::once())->method('error')->with(null === $head ? 'Pull-request policy could not establish an inspected head identity.' : 'Check out the inspected pull-request head before applying its authorization.');
+        $io->expects(self::once())->method('error')->with(
+            null === $head ? 'Pull-request policy could not establish an inspected head identity.' : 'Check out the inspected pull-request head before applying its authorization.',
+        );
         self::assertSame(1, $command($this->settings(), $io, 'main', '21'));
     }
 
@@ -95,7 +107,9 @@ final class CheckCommandTest extends TestCase
         [$command, $checks, $policy, $git, $io] = $this->compose();
         $policy->expects(self::never())->method('inspect');
         $git->expects(self::never())->method('resolveRef');
-        $checks->expects(self::once())->method('check')->willReturn(new ValidationReport([], ['bad.md' => ['Invalid category','Missing description']], false));
+        $checks->expects(self::once())->method('check')->willReturn(
+            new ValidationReport([], ['bad.md' => ['Invalid category','Missing description']], false),
+        );
         $io->expects(self::once())->method('error')->with('{"bad.md":["Invalid category","Missing description"]}');
         self::assertSame(1, $command($this->settings(), $io, 'main'));
     }
@@ -120,6 +134,7 @@ final class CheckCommandTest extends TestCase
         $git = $this->createMock(GitRepositoryInterface::class);
         $io = $this->createMock(SymfonyStyle::class);
         $io->method('getErrorStyle')->willReturn($io);
+
         return [new CheckCommand($factory, $checks, $policy, $git),$checks,$policy,$git,$io];
     }
 }

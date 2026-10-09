@@ -38,7 +38,10 @@ use Symfony\Component\Lock\LockFactory;
 use Throwable;
 
 /** Returns the exact maintained release body selected by explicit or observed version evidence. */
-#[AsCommand(name: 'notes', description: 'Read exact release notes from the maintained changelog.')]
+#[AsCommand(
+    name: 'notes',
+    description: 'Read exact release notes from the maintained changelog.',
+)]
 final readonly class NotesCommand
 {
     /** Injects every source of version evidence and file access without performing I/O. */
@@ -59,14 +62,20 @@ final readonly class NotesCommand
         #[MapInput]
         ReleaseInput $settings,
         OutputInterface $output,
-        #[Argument(description: 'Version to read; defaults to the highest maintained stable version or current stable Git tag.')]
+
+        #[Argument(
+            description: 'Version to read; defaults to the highest maintained stable version or current stable Git tag.',
+        )]
         ?string $version = null,
+
         #[Option(description: 'Optional project-relative managed output file.', name: 'output')]
         ?string $outputFile = null,
     ): int {
         try {
             $options = $this->options->create($settings->values());
-            $contents = $this->files->read($this->paths->absolutePath($options->changelogFile, $options->workingDirectory));
+            $contents = $this->files->read(
+                $this->paths->absolutePath($options->changelogFile, $options->workingDirectory),
+            );
             if (null === $contents) {
                 throw new InvalidArgumentException('The maintained changelog does not exist.');
             }
@@ -80,7 +89,11 @@ final readonly class NotesCommand
                         $head = $this->git->resolveRef($options->workingDirectory, 'HEAD');
                         $tags = array_values(array_filter(
                             $this->git->tags($options->workingDirectory),
-                            fn(array $tag): bool => $this->git->isAncestor($options->workingDirectory, $tag['sha'], $head),
+                            fn(array $tag): bool => $this->git->isAncestor(
+                                $options->workingDirectory,
+                                $tag['sha'],
+                                $head,
+                            ),
                         ));
                     }
                     $version = $this->importer->currentVersion($tags, $options->tagPrefix);
@@ -95,33 +108,56 @@ final readonly class NotesCommand
                 $segments = explode('/', str_replace('\\', '/', $outputFile));
                 if ('' === trim($outputFile) || str_contains($outputFile, "\0") || $this->paths->isAbsolute($outputFile)
                     || array_intersect(['', '.', '..'], $segments)) {
-                    throw new InvalidArgumentException('--output must identify a canonical relative project file without traversal.');
+                    throw new InvalidArgumentException(
+                        '--output must identify a canonical relative project file without traversal.',
+                    );
                 }
                 $target = $this->paths->absolutePath($outputFile, $options->workingDirectory);
                 $comparableTarget = strtolower(str_replace('\\', '/', $target));
-                $central = strtolower(str_replace('\\', '/', $this->paths->absolutePath($options->changelogFile, $options->workingDirectory)));
-                $directory = strtolower(str_replace('\\', '/', $this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory)));
-                if ($comparableTarget === $central || $comparableTarget === $directory || str_starts_with($comparableTarget, $directory . '/')) {
-                    throw new InvalidArgumentException('--output must be outside the maintained changelog and fragment directory.');
+                $central = strtolower(
+                    str_replace('\\', '/', $this->paths->absolutePath(
+                        $options->changelogFile,
+                        $options->workingDirectory,
+                    )),
+                );
+                $directory = strtolower(
+                    str_replace('\\', '/', $this->paths->absolutePath(
+                        $options->fragmentDirectory,
+                        $options->workingDirectory,
+                    )),
+                );
+                if ($comparableTarget === $central || $comparableTarget === $directory || str_starts_with(
+                    $comparableTarget,
+                    $directory . '/',
+                )) {
+                    throw new InvalidArgumentException(
+                        '--output must be outside the maintained changelog and fragment directory.',
+                    );
                 }
-                $resource = $this->fragments->lockResource($this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory));
+                $resource = $this->fragments->lockResource(
+                    $this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory),
+                );
                 $lock = $this->locks->createLock($resource);
                 if (! $lock->acquire()) {
                     throw new RuntimeException('Unable to acquire the managed-file lock for notes output.');
                 }
                 try {
                     if (null !== $this->files->read($target)) {
-                        throw new InvalidArgumentException('--output must identify a new file; existing files cannot be overwritten.');
+                        throw new InvalidArgumentException(
+                            '--output must identify a new file; existing files cannot be overwritten.',
+                        );
                     }
                     $this->files->write($target, $notes);
                 } finally {
                     $lock->release();
                 }
             }
+
             return Command::SUCCESS;
         } catch (Throwable $exception) {
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $error->writeln('<error>' . OutputFormatter::escape($exception->getMessage()) . '</error>');
+
             return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
     }
@@ -132,13 +168,17 @@ final readonly class NotesCommand
         $latest = null;
         foreach ($document->getReleases() as $release) {
             $candidate = $release->getVersion();
-            if (1 !== preg_match('/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/', $candidate)) {
+            if (1 !== preg_match(
+                '/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
+                $candidate,
+            )) {
                 continue;
             }
             if (null === $latest || $this->compareStableVersions($candidate, $latest) > 0) {
                 $latest = $candidate;
             }
         }
+
         return $latest;
     }
 
@@ -156,6 +196,7 @@ final readonly class NotesCommand
                 return $comparison;
             }
         }
+
         return strcmp($left, $right);
     }
 

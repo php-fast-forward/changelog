@@ -22,5 +22,11 @@ use FastForward\Changelog\Template\TemplateInterface;
 interface ReleaseHistoryConsolidatorInterface
 {
     /** Promotes legacy pending notes and new fragments into one version, retaining prior releases and references. */
-    public function promote(HistoryDocument $document, string $version, ?string $date, string $notes, TemplateInterface $template): HistoryDocument;
+    public function promote(
+        HistoryDocument $document,
+        string $version,
+        ?string $date,
+        string $notes,
+        TemplateInterface $template,
+    ): HistoryDocument;
 }

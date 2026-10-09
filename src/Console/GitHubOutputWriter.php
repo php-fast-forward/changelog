@@ -25,7 +25,10 @@ final readonly class GitHubOutputWriter implements GitHubOutputWriterInterface
         'fragments', 'maintenance', 'path', 'tag', 'sha'];
 
     /** Captures the filesystem and explicit output path; construction reads no environment or host state. */
-    public function __construct(private Filesystem $filesystem, private ?string $outputFile = null) {}
+    public function __construct(
+        private Filesystem $filesystem,
+        private ?string $outputFile = null,
+    ) {}
 
     /** Validates the entire payload before one append; null output paths produce stdout-only results. */
     public function write(array $result): string
@@ -52,6 +55,7 @@ final readonly class GitHubOutputWriter implements GitHubOutputWriterInterface
             }
             $this->filesystem->appendToFile($this->outputFile, implode("\n", $lines) . "\n", true);
         }
+
         return $json;
     }
 }

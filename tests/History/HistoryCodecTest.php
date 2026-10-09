@@ -38,7 +38,10 @@ final class HistoryCodecTest extends TestCase
         $markdown = "# Changelog\n\n## [Unreleased]\n\n" . $inline . "\n\n## [1.0.0]\n\n### Fixed\n\n- Published note.\n";
         $codec = $this->codec();
         $parsed = $codec->parse($markdown, $this->template('en'));
-        self::assertSame(['unreleased', '1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame(
+            ['unreleased', '1.0.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertStringContainsString($inline, $parsed->getRelease('unreleased')->getBody());
         self::assertSame($markdown, $codec->render($parsed, $this->template('en'), true));
     }
@@ -56,12 +59,26 @@ final class HistoryCodecTest extends TestCase
         $codec = $this->codec();
         $existing = $codec->parse($prefix . $pending . $old, $this->template('en'));
         $releases = $existing->getReleases();
-        array_splice($releases, 1, 0, [new HistoryRelease('1.0.0', '2026-10-05', 'release-plan', "### Fixed\n\n- First.\n- Second.\n")]);
+        array_splice(
+            $releases,
+            1,
+            0,
+            [new HistoryRelease('1.0.0', '2026-10-05', 'release-plan', "### Fixed\n\n- First.\n- Second.\n")],
+        );
         $output = $codec->render($existing->withReleases($releases), $this->template('en'), true);
 
-        self::assertSame($prefix . $pending . ($existingGap ? '' : $newline) . "## [1.0.0] - 2026-10-05\n\n### Fixed\n\n- First.\n- Second.\n\n" . $old, $output);
-        self::assertSame($output, $codec->render($codec->parse($output, $this->template('en')), $this->template('en'), true));
-        self::assertSame("\n### Fixed\n\n- First.\n- Second.\n\n", $codec->notes($codec->parse($output, $this->template('en')), '1.0.0'));
+        self::assertSame(
+            $prefix . $pending . ($existingGap ? '' : $newline) . "## [1.0.0] - 2026-10-05\n\n### Fixed\n\n- First.\n- Second.\n\n" . $old,
+            $output,
+        );
+        self::assertSame(
+            $output,
+            $codec->render($codec->parse($output, $this->template('en')), $this->template('en'), true),
+        );
+        self::assertSame(
+            "\n### Fixed\n\n- First.\n- Second.\n\n",
+            $codec->notes($codec->parse($output, $this->template('en')), '1.0.0'),
+        );
     }
 
     /** Existing leading body separators are retained, rather than accumulating another blank line on each format. */
@@ -72,7 +89,11 @@ final class HistoryCodecTest extends TestCase
     {
         $body = $newline . '### Fixed' . $newline . $newline . '- Exact.' . $newline;
         $codec = $this->codec();
-        $output = $codec->render(new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]), $this->template('en'), true);
+        $output = $codec->render(
+            new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]),
+            $this->template('en'),
+            true,
+        );
         self::assertStringContainsString("## [1.0.0]\n" . $body, $output);
         self::assertSame($body, $codec->notes($codec->parse($output, $this->template('en')), '1.0.0'));
     }
@@ -102,8 +123,10 @@ final class HistoryCodecTest extends TestCase
     #[TestWith(["\r\n", 'guide'])]
     #[TestWith(["\n", '1.0.0'])]
     #[TestWith(["\r\n", '1.0.0'])]
-    public function keepsInBodyReferenceDefinitionsAndFollowingProseWithinTheFinalLegacyRelease(string $ending, string $label): void
-    {
+    public function keepsInBodyReferenceDefinitionsAndFollowingProseWithinTheFinalLegacyRelease(
+        string $ending,
+        string $label,
+    ): void {
         $body = $ending . '## [Migration guide](migration.md)' . $ending . $ending
             . 'Read the [migration][' . $label . '] before upgrading.' . $ending
             . '[' . $label . ']: https://example.test/migration "Migration title"' . $ending . $ending
@@ -131,8 +154,10 @@ final class HistoryCodecTest extends TestCase
     #[TestWith(["\n", "\n"])]
     #[TestWith(["\r\n", ''])]
     #[TestWith(["\r\n", "\r\n"])]
-    public function separatesOnlyTheTrueTrailingReferenceBlockFromEarlierBodyDefinitions(string $ending, string $finalEnding): void
-    {
+    public function separatesOnlyTheTrueTrailingReferenceBlockFromEarlierBodyDefinitions(
+        string $ending,
+        string $finalEnding,
+    ): void {
         $body = $ending . 'See the [guide][migration].' . $ending
             . '[migration]: https://example.test/migration' . $ending . $ending
             . 'More release prose follows the in-body definition.' . $ending . $ending
@@ -207,7 +232,10 @@ final class HistoryCodecTest extends TestCase
         $codec = $this->codec();
         $document = $codec->parse($markdown);
 
-        self::assertSame(['unreleased', '1.2.3'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $document->getReleases()));
+        self::assertSame(
+            ['unreleased', '1.2.3'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $document->getReleases()),
+        );
         self::assertSame($prefix, $document->getPrefix());
         self::assertSame($pending, $codec->notes($document, 'unreleased'));
         self::assertSame($body, $codec->notes($document, '1.2.3'));
@@ -280,7 +308,9 @@ final class HistoryCodecTest extends TestCase
         $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
         $releases->expects(self::once())->method('create')
             ->with($version, $date, null, "Exact notes.\n", $heading, '')
-            ->willThrowException(new InvalidArgumentException('The release factory rejected this version or calendar date.'));
+            ->willThrowException(
+                new InvalidArgumentException('The release factory rejected this version or calendar date.'),
+            );
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The release factory rejected this version or calendar date.');
@@ -327,7 +357,9 @@ final class HistoryCodecTest extends TestCase
     public function selectedCustomBracketedHeadingTakesPriorityOverTheStandardGrammar(?string $date): void
     {
         $template = $this->createStub(TemplateInterface::class);
-        $template->method('releaseHeading')->willReturnCallback(static fn(string $version, ?string $date): string => '## [' . $version . ']' . (null === $date ? ' (archived)' : ' released on ' . $date));
+        $template->method('releaseHeading')->willReturnCallback(
+            static fn(string $version, ?string $date): string => '## [' . $version . ']' . (null === $date ? ' (archived)' : ' released on ' . $date),
+        );
         $markdown = $template->releaseHeading('1.2.3', $date) . "\nExact notes.\n";
         $codec = $this->codec();
         $release = $codec->parse($markdown, $template)->getRelease('1.2.3');
@@ -339,7 +371,9 @@ final class HistoryCodecTest extends TestCase
     public function customRepeatedPlaceholdersRequireMatchingVersionAndDate(): void
     {
         $template = $this->createStub(TemplateInterface::class);
-        $template->method('releaseHeading')->willReturnCallback(static fn(string $version, ?string $date): string => '## ' . $version . ' / ' . $version . (null === $date ? '' : ': ' . $date . ' / ' . $date));
+        $template->method('releaseHeading')->willReturnCallback(
+            static fn(string $version, ?string $date): string => '## ' . $version . ' / ' . $version . (null === $date ? '' : ': ' . $date . ' / ' . $date),
+        );
         $codec = $this->codec();
         $dated = "## 1.2.3 / 1.2.3: 2026-10-03 / 2026-10-03\nExact notes.\n";
         $document = $codec->parse($dated, $template);
@@ -351,10 +385,14 @@ final class HistoryCodecTest extends TestCase
     #[Test]
     #[TestWith(['/ 1.2.3:', '/ 2.0.0:'])]
     #[TestWith(['/ 2026-10-03', '/ 2026-10-04'])]
-    public function refusesDivergentRepeatedPlaceholdersInsteadOfHidingTheRelease(string $original, string $replacement): void
-    {
+    public function refusesDivergentRepeatedPlaceholdersInsteadOfHidingTheRelease(
+        string $original,
+        string $replacement,
+    ): void {
         $template = $this->createStub(TemplateInterface::class);
-        $template->method('releaseHeading')->willReturnCallback(static fn(string $version, ?string $date): string => '## ' . $version . ' / ' . $version . (null === $date ? '' : ': ' . $date . ' / ' . $date));
+        $template->method('releaseHeading')->willReturnCallback(
+            static fn(string $version, ?string $date): string => '## ' . $version . ' / ' . $version . (null === $date ? '' : ': ' . $date . ' / ' . $date),
+        );
         $markdown = "## 1.2.3 / 1.2.3: 2026-10-03 / 2026-10-03\nExact notes.\n";
 
         $this->expectException(InvalidArgumentException::class);
@@ -369,14 +407,20 @@ final class HistoryCodecTest extends TestCase
     #[TestWith(['custom'])]
     public function refusesChangingTemplatesBeforeMigratingExistingCustomHistory(?string $locale): void
     {
-        $previous = new TemplateFactory()->create('en', ['introduction' => '# Project history', 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}']);
+        $previous = new TemplateFactory()->create(
+            'en',
+            ['introduction' => '# Project history', 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}'],
+        );
         $codec = $this->codec();
         $markdown = $codec->render(new HistoryDocument([
             new HistoryRelease('1.2.3', '2026-10-03', body: "Maintained release notes.\n"),
             new HistoryRelease('1.1.0', body: "Earlier release notes.\n"),
         ]), $previous);
         $parsed = $codec->parse($markdown, $previous);
-        self::assertSame(['1.2.3', '1.1.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame([
+            '1.2.3', '1.1.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame("\nMaintained release notes.\n\n", $codec->notes($parsed, '1.2.3'));
         self::assertSame($markdown, $codec->render($parsed, $previous, true));
 
@@ -390,13 +434,19 @@ final class HistoryCodecTest extends TestCase
     #[Test]
     public function recognizesReviewedHeadingMigrationWithoutDuplicatingCustomHistory(): void
     {
-        $previous = new TemplateFactory()->create('en', ['release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}']);
+        $previous = new TemplateFactory()->create(
+            'en',
+            ['release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}'],
+        );
         $markdown = "# Project history\n\n## Release 1.2.3 on 2026-10-03\nMaintained notes.\n\n## Release 1.1.0\nEarlier notes.\n";
         $codec = $this->codec();
         $migrated = $codec->render($codec->parse($markdown, $previous), $this->template('en'));
         $parsed = $codec->parse($migrated, $this->template('en'));
 
-        self::assertSame(['1.2.3', '1.1.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame(
+            ['1.2.3', '1.1.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame("\nMaintained notes.\n\n", $codec->notes($parsed, '1.2.3'));
         self::assertSame("\nEarlier notes.\n", $codec->notes($parsed, '1.1.0'));
         self::assertSame(1, substr_count($migrated, '## [1.2.3]'));
@@ -420,7 +470,10 @@ final class HistoryCodecTest extends TestCase
         $releases->expects(self::never())->method('create');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('For Markdown prose or examples, fence or nest this heading.');
-        $this->codec($releases)->parse("## [2.0.0]\nKnown notes.\n" . $heading . "\nOld notes stay available in the source.\n", $this->template('en'));
+        $this->codec($releases)->parse(
+            "## [2.0.0]\nKnown notes.\n" . $heading . "\nOld notes stay available in the source.\n",
+            $this->template('en'),
+        );
     }
 
     #[Test]
@@ -433,10 +486,16 @@ final class HistoryCodecTest extends TestCase
     {
         $previous = new TemplateFactory()->create('en', ['release_heading' => $heading]);
         $codec = $this->codec();
-        $markdown = $codec->render(new HistoryDocument([new HistoryRelease('1.2.3', body: "Exact compact release notes.\n")]), $previous);
+        $markdown = $codec->render(
+            new HistoryDocument([new HistoryRelease('1.2.3', body: "Exact compact release notes.\n")]),
+            $previous,
+        );
         $parsed = $codec->parse($markdown, $previous);
 
-        self::assertSame(['1.2.3'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame([
+            '1.2.3'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame("\nExact compact release notes.\n", $codec->notes($parsed, '1.2.3'));
         self::assertSame($markdown, $codec->render($parsed, $previous, true));
 
@@ -464,7 +523,12 @@ final class HistoryCodecTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('An unrecognized level-two heading resembles a release');
-        $this->codec()->render(new HistoryDocument([new HistoryRelease('2.0.0', body: "Description.\n## Release1.2.3\nHistorical example.\n")]), $this->template('en'));
+        $this->codec()->render(
+            new HistoryDocument([
+                new HistoryRelease('2.0.0', body: "Description.\n## Release1.2.3\nHistorical example.\n"),
+            ]),
+            $this->template('en'),
+        );
     }
 
     #[Test]
@@ -481,7 +545,10 @@ final class HistoryCodecTest extends TestCase
         $codec = $this->codec();
         $parsed = $codec->parse($markdown, $this->template('en'));
 
-        self::assertSame(['1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame(
+            ['1.0.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame($prefix, $parsed->getPrefix());
         self::assertSame($body, $codec->notes($parsed, '1.0.0'));
         self::assertSame($markdown, $codec->render($parsed, $this->template('en'), true));
@@ -494,7 +561,9 @@ final class HistoryCodecTest extends TestCase
     public function convertsLocalizedStructureBackToEnglishWithoutChangingDescriptions(): void
     {
         $codec = $this->codec();
-        $document = $codec->parse("# Custom prose stays\n\n## [Não publicado]\n\n### Adicionado\n- descrição permanece\n\n## [1.0.0] - 2026-10-03 [REMOVIDO]\n\n### Corrigido\n- correction\n### Unknown\nProse remains.\n");
+        $document = $codec->parse(
+            "# Custom prose stays\n\n## [Não publicado]\n\n### Adicionado\n- descrição permanece\n\n## [1.0.0] - 2026-10-03 [REMOVIDO]\n\n### Corrigido\n- correction\n### Unknown\nProse remains.\n",
+        );
         $output = $codec->render($document, $this->template('en'));
 
         self::assertStringStartsWith('# Custom prose stays', $output);
@@ -542,7 +611,10 @@ final class HistoryCodecTest extends TestCase
         $codec = $this->codec();
         $parsed = $codec->parse($markdown);
 
-        self::assertSame(['1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame(
+            ['1.0.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame($body, $codec->notes($parsed, '1.0.0'));
         self::assertSame('', $parsed->getReferences());
         self::assertSame($markdown, $codec->render($parsed, $this->template('en'), true));
@@ -561,7 +633,11 @@ final class HistoryCodecTest extends TestCase
         $codec = $this->codec();
         $expected = '' === $body || str_ends_with($body, "\n") ? $body : $body . "\n";
         $expected = '' === $expected ? '' : "\n" . $expected;
-        $output = $codec->render(new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]), $this->template('en'), true);
+        $output = $codec->render(
+            new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]),
+            $this->template('en'),
+            true,
+        );
         self::assertStringNotContainsString('fast-forward-changelog:', $output);
         self::assertSame($expected, $codec->notes($codec->parse($output), '1.0.0'));
     }
@@ -591,7 +667,9 @@ final class HistoryCodecTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('body_length');
-        $this->codec()->parse("<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"body_length\":5} -->\n## [1.0.0]\ntext\n");
+        $this->codec()->parse(
+            "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"body_length\":5} -->\n## [1.0.0]\ntext\n",
+        );
     }
 
     #[Test]
@@ -630,7 +708,10 @@ final class HistoryCodecTest extends TestCase
             . "<!-- fast-forward-changelog:end-release -->\n";
         $codec = $this->codec();
         $parsed = $codec->parse($markdown);
-        self::assertSame(['1.0.0', '2.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()));
+        self::assertSame(
+            ['1.0.0', '2.0.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
         self::assertSame("Legacy body.\n", $codec->notes($parsed, '1.0.0'));
         self::assertSame($body, $codec->notes($parsed, '2.0.0'));
     }
@@ -646,14 +727,28 @@ final class HistoryCodecTest extends TestCase
     }
 
     #[Test]
-    #[TestWith(["<!-- fast-forward-changelog:release {} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n"])]
-    #[TestWith(["<!-- fast-forward-changelog:release 42 -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n"])]
-    #[TestWith(["<!-- fast-forward-changelog:release invalid-json -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n"])]
-    #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"date\":42} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n"])]
-    #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"date_source\":42} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n"])]
-    #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"unknown\":true} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n"])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release {} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n",
+    ])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release 42 -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n",
+    ])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release invalid-json -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n",
+    ])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"date\":42} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n",
+    ])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"date_source\":42} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n",
+    ])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"unknown\":true} -->\n## Custom\n<!-- fast-forward-changelog:end-release -->\n",
+    ])]
     #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\"} -->\ntext\n"])]
-    #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\"} -->\n<!-- fast-forward-changelog:release {\"version\":\"2.0.0\"} -->\n"])]
+    #[TestWith([
+        "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\"} -->\n<!-- fast-forward-changelog:release {\"version\":\"2.0.0\"} -->\n",
+    ])]
     #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\"} -->\n"])]
     #[TestWith(["<!-- fast-forward-changelog:release {\"version\":\"1.0.0\"} -->\n\n## Custom\nbody\n"])]
     public function rejectsMalformedOrUnterminatedReleaseMarkers(string $markdown): void
@@ -672,7 +767,10 @@ final class HistoryCodecTest extends TestCase
     public function refusesAmbiguousReformattingBeforeAnyIo(string $body): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->codec()->render(new HistoryDocument([new HistoryRelease('1.0.0', null, null, $body)]), $this->template('custom'));
+        $this->codec()->render(
+            new HistoryDocument([new HistoryRelease('1.0.0', null, null, $body)]),
+            $this->template('custom'),
+        );
     }
 
     #[Test]
@@ -682,7 +780,10 @@ final class HistoryCodecTest extends TestCase
             . "<!-- fast-forward-changelog:fragment {\"id\":\"one.md\",\"category\":\"added\"} -->\n- Keep this **description**.\n"
             . "<!-- project-specific comment -->\n"
             . "```md\n<!-- fast-forward-changelog:fragment {\"id\":\"example.md\"} -->\n```\n";
-        $metadata = json_encode(['version' => '1.0.0', 'date' => '2026-10-03', 'date_source' => 'manual', 'body_length' => strlen($body)], JSON_THROW_ON_ERROR);
+        $metadata = json_encode([
+            'version' => '1.0.0', 'date' => '2026-10-03', 'date_source' => 'manual', 'body_length' => strlen($body)],
+            JSON_THROW_ON_ERROR,
+        );
         $prefix = "<!-- fast-forward-changelog:introduction -->\nOld introduction.\n<!-- /fast-forward-changelog:introduction -->\n\nCustom project prose.\n\n";
         $markdown = $prefix . '<!-- fast-forward-changelog:release ' . $metadata . " -->\n## Release 1.0.0\n"
             . $body . "<!-- fast-forward-changelog:end-release -->\n\n[1.0.0]: https://example.test/v1.0.0\n";
@@ -699,7 +800,10 @@ final class HistoryCodecTest extends TestCase
         self::assertStringNotContainsString('fast-forward-changelog:category', $migrated);
         self::assertStringNotContainsString('fast-forward-changelog:introduction', $migrated);
         self::assertStringNotContainsString('"id":"one.md"', $migrated);
-        self::assertStringContainsString("```md\n<!-- fast-forward-changelog:fragment {\"id\":\"example.md\"} -->\n```", $migrated);
+        self::assertStringContainsString(
+            "```md\n<!-- fast-forward-changelog:fragment {\"id\":\"example.md\"} -->\n```",
+            $migrated,
+        );
         self::assertStringEndsWith("[1.0.0]: https://example.test/v1.0.0\n", $migrated);
         self::assertSame($migrated, $codec->render($codec->parse($migrated), $this->template('en'), true));
     }
@@ -715,13 +819,34 @@ final class HistoryCodecTest extends TestCase
     private function codec(?HistoryReleaseFactoryInterface $releases = null): HistoryCodec
     {
         $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
-        $documents->method('create')->willReturnCallback(static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument($releases, $prefix, $references));
+        $documents->method('create')->willReturnCallback(
+            static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument(
+                $releases,
+                $prefix,
+                $references,
+            ),
+        );
         if (null === $releases) {
             $releases = $this->createStub(HistoryReleaseFactoryInterface::class);
-            $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $dateSource, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease(preg_replace('/^[vV](?=\d)/', '', $version), $date, $dateSource, $body, $heading, $ending));
+            $releases->method('create')->willReturnCallback(
+                static fn(string $version, ?string $date, ?string $dateSource, string $body, ?string $heading, string $ending): HistoryRelease => new HistoryRelease(
+                    preg_replace(
+                        '/^[vV](?=\d)/',
+                        '',
+                        $version,
+                    ),
+                    $date,
+                    $dateSource,
+                    $body,
+                    $heading,
+                    $ending,
+                ),
+            );
         }
         $errors = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $errors->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        $errors->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
 
         return new HistoryCodec($documents, $releases, $errors);
     }
@@ -732,13 +857,19 @@ final class HistoryCodecTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('getLocale')->willReturn($locale);
         $template->method('introduction')->willReturn('Intro ' . $locale);
-        $template->method('unreleasedHeading')->willReturn('custom' === $locale ? '## Pending updates' : ('en' === $locale ? '## [Unreleased]' : '## [Não publicado]'));
-        $template->method('releaseHeading')->willReturnCallback(static fn(string $version, ?string $date): string => 'custom' === $locale ? '## Release ' . $version . (null === $date ? '' : ': ' . $date) : '## [' . $version . ']' . (null === $date ? '' : ' - ' . $date));
-        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => match ($locale) {
-            'custom' => '### Custom ' . $category,
-            'en' => '### ' . ucfirst($category),
-            default => '### ' . ['added' => 'Adicionado', 'fixed' => 'Corrigido', 'changed' => 'Modificado', 'deprecated' => 'Obsoleto', 'removed' => 'Removido', 'security' => 'Segurança'][$category],
-        });
+        $template->method('unreleasedHeading')->willReturn(
+            'custom' === $locale ? '## Pending updates' : ('en' === $locale ? '## [Unreleased]' : '## [Não publicado]'),
+        );
+        $template->method('releaseHeading')->willReturnCallback(
+            static fn(string $version, ?string $date): string => 'custom' === $locale ? '## Release ' . $version . (null === $date ? '' : ': ' . $date) : '## [' . $version . ']' . (null === $date ? '' : ' - ' . $date),
+        );
+        $template->method('categoryHeading')->willReturnCallback(
+            static fn(string $category): string => match ($locale) {
+                'custom' => '### Custom ' . $category,
+                'en' => '### ' . ucfirst($category),
+                default => '### ' . ['added' => 'Adicionado', 'fixed' => 'Corrigido', 'changed' => 'Modificado', 'deprecated' => 'Obsoleto', 'removed' => 'Removido', 'security' => 'Segurança'][$category],
+            },
+        );
 
         return $template;
     }

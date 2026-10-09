@@ -45,7 +45,12 @@ jobs:
               run: composer validate --strict
 
             - name: Install development dependencies
-              run: composer install --no-interaction --prefer-dist --no-plugins --no-scripts
+              run: >-
+                  composer install
+                  --no-interaction
+                  --prefer-dist
+                  --no-plugins
+                  --no-scripts
 
             - name: Run the package quality and unit coverage gates
               run: composer check
@@ -60,7 +65,12 @@ jobs:
             - name: Smoke test the CLI
               run: php bin/changelog list --raw
 
+            - name: Prepare the runner-local base image cache
+              if: startsWith(matrix.os, 'ubuntu-')
+              uses: ./.github/actions/setup-docker
+
             - name: Build the packaged CLI image
+              # Base images are preloaded by the preceding runner-local cache step.
               if: startsWith(matrix.os, 'ubuntu-')
               run: docker build --progress=plain -t fast-forward-changelog:ci .
 
@@ -71,7 +81,11 @@ jobs:
             - name: Verify the Composer root version build argument
               if: startsWith(matrix.os, 'ubuntu-')
               run: |
-                  docker build --build-arg COMPOSER_ROOT_VERSION=1.2.3 --tag fast-forward-changelog:version-fixture .
+                  docker build \
+                    --build-arg COMPOSER_ROOT_VERSION=1.2.3 \
+                    --tag fast-forward-changelog:version-fixture \
+                    .
+
                   php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
 
             - name: Verify Docker action invocation and runner outputs
@@ -91,7 +105,21 @@ jobs:
               run: |
                   # PHP evaluates these variables; shell quoting is intentional.
                   # shellcheck disable=SC2016
-                  php -r '$result = json_decode(getenv("FF_ACTION_RESULT"), true, 512, JSON_THROW_ON_ERROR); if ($result["status"] !== "dry-run" || getenv("FF_ACTION_STATUS") !== "dry-run") { exit(1); }'
+                  php -r '
+                      $result = json_decode(
+                          getenv("FF_ACTION_RESULT"),
+                          true,
+                          512,
+                          JSON_THROW_ON_ERROR,
+                      );
+
+                      if (
+                          $result["status"] !== "dry-run"
+                          || getenv("FF_ACTION_STATUS") !== "dry-run"
+                      ) {
+                          exit(1);
+                      }
+                  '
 
             - name: Upload native line coverage from this run
               if: >-

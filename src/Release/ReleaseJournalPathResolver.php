@@ -22,7 +22,10 @@ use FastForward\Changelog\Git\GitRepositoryInterface;
 final readonly class ReleaseJournalPathResolver implements ReleaseJournalPathResolverInterface
 {
     /** Injects Git discovery and caller-owned temporary storage; construction performs no I/O. */
-    public function __construct(private GitRepositoryInterface $git, private string $temporaryDirectory) {}
+    public function __construct(
+        private GitRepositoryInterface $git,
+        private string $temporaryDirectory,
+    ) {}
 
     /** Isolates non-Git recovery by normalized consumer root and removes journal paths from Git diffs. */
     public function resolve(ReleaseOptions $options): string
@@ -32,8 +35,12 @@ final readonly class ReleaseJournalPathResolver implements ReleaseJournalPathRes
             $options->fragmentDirectory, $options->changelogFile,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         $gitPath = $this->git->journalPath($options->workingDirectory);
+
         return null !== $gitPath
             ? substr($gitPath, 0, -strlen('.json')) . '-' . $scope . '.json'
-            : rtrim(str_replace('\\', '/', $this->temporaryDirectory), '/') . '/fast-forward-changelog/' . $scope . '/release-plan.json';
+            : rtrim(
+                str_replace('\\', '/', $this->temporaryDirectory),
+                '/',
+            ) . '/fast-forward-changelog/' . $scope . '/release-plan.json';
     }
 }

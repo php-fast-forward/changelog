@@ -32,7 +32,11 @@ final class TemplateResolverTest extends TestCase
         $files->expects(self::never())->method('read');
         $sources = $this->createMock(ConfigSourceFactoryInterface::class);
         $sources->expects(self::never())->method('create');
-        $resolver = new TemplateResolver($templates, $this->createStub(PackagePathResolverInterface::class), $files, $sources, $this->createStub(ReleaseExceptionFactoryInterface::class));
+        $resolver = new TemplateResolver($templates, $this->createStub(
+            PackagePathResolverInterface::class,
+        ), $files, $sources, $this->createStub(
+            ReleaseExceptionFactoryInterface::class,
+        ));
         self::assertSame($template, $resolver->resolve(new ReleaseOptions('/consumer', locale: 'pt-BR')));
     }
 
@@ -41,16 +45,30 @@ final class TemplateResolverTest extends TestCase
     {
         $templates = $this->createMock(TemplateFactoryInterface::class);
         $template = $this->createStub(TemplateInterface::class);
-        $templates->expects(self::once())->method('create')->with('en', ['introduction' => 'Custom'])->willReturn($template);
+        $templates->expects(self::once())->method('create')->with('en', ['introduction' => 'Custom'])->willReturn(
+            $template,
+        );
         $paths = $this->createMock(PackagePathResolverInterface::class);
-        $paths->expects(self::once())->method('absolutePath')->with('presentation.php', '/consumer')->willReturn('/consumer/presentation.php');
+        $paths->expects(self::once())->method('absolutePath')->with('presentation.php', '/consumer')->willReturn(
+            '/consumer/presentation.php',
+        );
         $files = $this->createMock(ManagedFileStoreInterface::class);
-        $files->expects(self::once())->method('read')->with('/consumer/presentation.php')->willReturn('Checked PHP bytes');
+        $files->expects(self::once())->method('read')->with('/consumer/presentation.php')->willReturn(
+            'Checked PHP bytes',
+        );
         $config = $this->createMock(ConfigInterface::class);
         $config->expects(self::once())->method('toArray')->willReturn(['introduction' => 'Custom']);
         $sources = $this->createMock(ConfigSourceFactoryInterface::class);
         $sources->expects(self::once())->method('create')->with('/consumer/presentation.php')->willReturn($config);
-        self::assertSame($template, new TemplateResolver($templates, $paths, $files, $sources, $this->createStub(ReleaseExceptionFactoryInterface::class))->resolve(new ReleaseOptions('/consumer', template: 'presentation.php')));
+        self::assertSame(
+            $template,
+            new TemplateResolver($templates, $paths, $files, $sources, $this->createStub(
+                ReleaseExceptionFactoryInterface::class,
+            ))->resolve(new ReleaseOptions(
+                '/consumer',
+                template: 'presentation.php',
+            )),
+        );
     }
 
     /** Missing custom files produce a diagnostic before the PHP execution boundary. */
@@ -65,8 +83,12 @@ final class TemplateResolverTest extends TestCase
         $sources = $this->createMock(ConfigSourceFactoryInterface::class);
         $sources->expects(self::never())->method('create');
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
         $this->expectExceptionMessage('The selected PHP template does not exist: missing.php');
-        new TemplateResolver($templates, $paths, $files, $sources, $exceptions)->resolve(new ReleaseOptions('/consumer', template: 'missing.php'));
+        new TemplateResolver($templates, $paths, $files, $sources, $exceptions)->resolve(
+            new ReleaseOptions('/consumer', template: 'missing.php'),
+        );
     }
 }

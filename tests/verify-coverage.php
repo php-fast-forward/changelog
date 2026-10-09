@@ -42,7 +42,11 @@ try {
     }
     $coverage = ($covered / $valid) * 100;
     if ($coverage < (float) $minimum) {
-        throw new RuntimeException(sprintf('Line coverage %.2f%% is below required %.2f%%.', $coverage, (float) $minimum));
+        throw new RuntimeException(sprintf(
+            'Line coverage %.2f%% is below required %.2f%%.',
+            $coverage,
+            (float) $minimum,
+        ));
     }
     foreach ($report->xpath('/coverage/packages/package/classes/class') ?: [] as $class) {
         $lines = $class->lines->line;
@@ -57,11 +61,22 @@ try {
         foreach ($lines as $line) {
             $hits = filter_var((string) $line['hits'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
             if (false === $hits || (100.0 === (float) $minimum && 0 === $hits)) {
-                throw new RuntimeException('Invalid or uncovered class line: ' . (string) $class['name'] . ':' . (string) $line['number']);
+                throw new RuntimeException(
+                    'Invalid or uncovered class line: ' . (string) $class['name'] . ':' . (string) $line['number'],
+                );
             }
         }
     }
-    fwrite(STDOUT, sprintf("Line coverage %.2f%% meets required %.2f%% (%d/%d lines); every executable class meets the requirement.\n", $coverage, (float) $minimum, $covered, $valid));
+    fwrite(
+        STDOUT,
+        sprintf(
+            "Line coverage %.2f%% meets required %.2f%% (%d/%d lines); every executable class meets the requirement.\n",
+            $coverage,
+            (float) $minimum,
+            $covered,
+            $valid,
+        ),
+    );
 } catch (Throwable $exception) {
     fwrite(STDERR, 'Coverage verification failed: ' . $exception->getMessage() . "\n");
     exit(1);

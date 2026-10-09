@@ -20,7 +20,9 @@ use Symfony\Component\Process\Process;
 final readonly class ProcessFactory implements ProcessFactoryInterface
 {
     /** Captures the consumer execution root without observing host state. */
-    public function __construct(private string $workingDirectory) {}
+    public function __construct(
+        private string $workingDirectory,
+    ) {}
 
     /**
      * Credentials MUST reach only the HTTP boundary, never Git, hooks or configured helper processes.

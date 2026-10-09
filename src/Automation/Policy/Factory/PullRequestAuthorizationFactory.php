@@ -21,8 +21,13 @@ use FastForward\Changelog\Automation\Policy\PullRequestAuthorization;
 final class PullRequestAuthorizationFactory implements PullRequestAuthorizationFactoryInterface
 {
     /** Retains inspected authority and diagnostic evidence; a missing head grants no reusable skip. */
-    public function create(bool $waiverAuthorized, bool $centralChangeAuthorized, string $kind, array $diagnostics, ?string $headSha = null): PullRequestAuthorization
-    {
+    public function create(
+        bool $waiverAuthorized,
+        bool $centralChangeAuthorized,
+        string $kind,
+        array $diagnostics,
+        ?string $headSha = null,
+    ): PullRequestAuthorization {
         return new PullRequestAuthorization($waiverAuthorized, $centralChangeAuthorized, $kind, $diagnostics, $headSha);
     }
 }

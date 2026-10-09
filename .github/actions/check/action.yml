@@ -1,76 +1,96 @@
 name: Fast Forward Changelog check
 description: "Validate PR fragments and verified waiver/history authority."
+
 inputs:
   working-directory:
     description: "Consumer project directory; never the package installation root."
     required: false
     default: "."
+
   fragment-directory:
     description: "Project-relative pending fragment directory."
     required: false
     default: ".changelog"
+
   changelog-file:
     description: "Project-relative central changelog file."
     required: false
     default: "CHANGELOG.md"
+
   locale:
     description: "Structural language; en or pt-BR."
     required: false
     default: "en"
+
   template:
     description: "keep-a-changelog or an explicitly trusted project PHP template."
     required: false
     default: "keep-a-changelog"
+
   base-ref:
     description: "Git revision used by the shared release planner."
     required: false
     default: "HEAD"
+
   tag-prefix:
     description: "Prefix for stable release tags."
     required: false
     default: "v"
+
   repository:
     description: "GitHub owner/name of the consumer repository."
     required: false
     default: "${{ github.repository }}"
+
   source:
     description: "Historical source: auto, github or tags."
     required: false
     default: "auto"
+
   token:
     description: "GitHub token with the minimum permissions required by this operation."
     required: false
     default: "${{ github.token }}"
+
   since:
     description: "Immutable contribution baseline."
     required: true
+
   pull-request:
     description: "PR number for GitHub-backed exception authority."
     required: false
     default: ""
+
   managed-branch:
     description: "Managed version branch."
     required: false
     default: "changelog/version"
+
   automation-actor:
     description: "Expected authenticated automation Bot."
     required: false
     default: "github-actions[bot]"
+
   waiver-label:
     description: "Maintainer-authorized contribution waiver label."
     required: false
     default: "changelog-not-required"
+
   maintenance-label:
     description: "Maintainer-authorized central-history maintenance label."
     required: false
     default: "changelog-maintenance"
+
 outputs:
   result:
     description: Complete stable JSON result.
+
   status:
     description: "Operation status; empty when unavailable."
+
   fragments:
     description: "Operation fragments; empty when unavailable."
+
 runs:
   using: docker
   image: "../../../Dockerfile"

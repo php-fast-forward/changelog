@@ -30,8 +30,14 @@ final class PlanCommandRunnerTest extends TestCase
 
     #[Test]
     #[DataProvider('modes')]
-    public function modeControlsOnlyApplication(string $operation, string $mode, bool $dry, bool $check, bool $apply, int $expected): void
-    {
+    public function modeControlsOnlyApplication(
+        string $operation,
+        string $mode,
+        bool $dry,
+        bool $check,
+        bool $apply,
+        int $expected,
+    ): void {
         $input = $this->mutation($dry, $check);
         $options = $this->options();
         $plan = $this->plan($mode);
@@ -41,10 +47,18 @@ final class PlanCommandRunnerTest extends TestCase
         $planner->expects(self::once())->method('plan')->with($options, $operation)->willReturn($plan);
         $applier = $this->createMock(ReleaseApplierInterface::class);
         $applier->expects($apply ? self::once() : self::never())->method('apply')->with($plan)->willReturn(true);
-        $applier->expects($check ? self::once() : self::never())->method('isApplied')->with($plan)->willReturn(0 === $expected);
+        $applier->expects($check ? self::once() : self::never())->method('isApplied')->with($plan)->willReturn(
+            0 === $expected,
+        );
         $output = $this->createMock(OutputInterface::class);
-        $output->expects(self::once())->method('writeln')->with(json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), OutputInterface::OUTPUT_RAW);
-        self::assertSame($expected, new PlanCommandRunner($factory, $planner, $applier)->run($input, $operation, $output));
+        $output->expects(self::once())->method('writeln')->with(
+            json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            OutputInterface::OUTPUT_RAW,
+        );
+        self::assertSame(
+            $expected,
+            new PlanCommandRunner($factory, $planner, $applier)->run($input, $operation, $output),
+        );
     }
 
     public static function modes(): array
@@ -73,8 +87,13 @@ final class PlanCommandRunnerTest extends TestCase
         $applier = $this->createMock(ReleaseApplierInterface::class);
         $applier->expects(self::never())->method('apply');
         $output = $this->createMock(OutputInterface::class);
-        $output->expects(self::once())->method('writeln')->with('<error>--dry-run and --check are mutually exclusive.</error>');
-        self::assertSame(2, new PlanCommandRunner($factory, $planner, $applier)->run($this->mutation(true, true), 'version', $output));
+        $output->expects(self::once())->method('writeln')->with(
+            '<error>--dry-run and --check are mutually exclusive.</error>',
+        );
+        self::assertSame(
+            2,
+            new PlanCommandRunner($factory, $planner, $applier)->run($this->mutation(true, true), 'version', $output),
+        );
     }
 
     #[Test]
@@ -87,6 +106,11 @@ final class PlanCommandRunnerTest extends TestCase
         $output->expects(self::once())->method('getErrorOutput')->willReturn($error);
         $output->expects(self::never())->method('writeln');
         $error->expects(self::once())->method('writeln')->with('<error>planning failed</error>');
-        self::assertSame(1, new PlanCommandRunner($factory, $this->createStub(ReleasePlannerInterface::class), $this->createStub(ReleaseApplierInterface::class))->run($this->mutation(), 'version', $output));
+        self::assertSame(
+            1,
+            new PlanCommandRunner($factory, $this->createStub(ReleasePlannerInterface::class), $this->createStub(
+                ReleaseApplierInterface::class,
+            ))->run($this->mutation(), 'version', $output),
+        );
     }
 }

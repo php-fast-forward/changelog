@@ -22,8 +22,10 @@ final class MutationInput
 {
     #[MapInput]
     public ReleaseInput $release;
+
     #[Option(description: 'Describe the transaction without writing files or consuming fragments.')]
     public bool $dryRun = false;
+
     #[Option(description: 'Return exit 1 when a transaction would change managed files.')]
     public bool $check = false;
 }

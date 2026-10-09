@@ -47,11 +47,16 @@ final readonly class PlanCommandRunner implements PlanCommandRunnerInterface
             if (! $input->dryRun && ! $input->check && 'none' !== $plan->mode()) {
                 $this->applier->apply($plan);
             }
-            $output->writeln(json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), OutputInterface::OUTPUT_RAW);
+            $output->writeln(
+                json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                OutputInterface::OUTPUT_RAW,
+            );
+
             return $verified ? Command::SUCCESS : Command::FAILURE;
         } catch (Throwable $exception) {
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $error->writeln('<error>' . OutputFormatter::escape($exception->getMessage()) . '</error>');
+
             return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
     }

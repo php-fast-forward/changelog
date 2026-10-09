@@ -65,16 +65,38 @@ final class ReleasePlannerTest extends TestCase
         $unreleased = new HistoryRelease('unreleased', body: 'Legacy pending text');
         $older = new HistoryRelease('1.0.0', body: 'Rich history');
         $document = new HistoryDocument([$unreleased, $older]);
-        [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'releaseMock' => true, 'historyMock' => true]);
-        $parts['releases']->expects(self::once())->method('create')->with('1.0.1', '2026-10-04', 'release-plan', "Legacy pending text\n\nRendered fragments", null, '')->willReturn(new HistoryRelease('1.0.1', body: "Legacy pending text\n\nRendered fragments"));
-        $parts['history']->expects(self::once())->method('render')->willReturnCallback(static function (HistoryDocument $actual, TemplateInterface $template, bool $preserve): string {
-            self::assertTrue($preserve);
-            self::assertSame(['1.0.1', '1.0.0'], array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $actual->getReleases()));
-            self::assertSame("Legacy pending text\n\nRendered fragments", $actual->getReleases()[0]->getBody());
-            self::assertSame('Rich history', $actual->getReleases()[1]->getBody());
-            return 'after';
-        });
-        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use ($parts): ReleasePlan {
+        [$planner, $parts] = $this->planner(
+            ['document' => $document, 'fragments' => true, 'releaseMock' => true, 'historyMock' => true],
+        );
+        $parts['releases']->expects(self::once())->method('create')->with(
+            '1.0.1',
+            '2026-10-04',
+            'release-plan',
+            "Legacy pending text\n\nRendered fragments",
+            null,
+            '',
+        )->willReturn(
+            new HistoryRelease('1.0.1', body: "Legacy pending text\n\nRendered fragments"),
+        );
+        $parts['history']->expects(self::once())->method('render')->willReturnCallback(
+            static function (HistoryDocument $actual, TemplateInterface $template, bool $preserve): string {
+                self::assertTrue($preserve);
+                self::assertSame([
+                    '1.0.1', '1.0.0'],
+                    array_map(
+                        static fn(HistoryRelease $release): string => $release->getVersion(),
+                        $actual->getReleases(),
+                    ),
+                );
+                self::assertSame("Legacy pending text\n\nRendered fragments", $actual->getReleases()[0]->getBody());
+                self::assertSame('Rich history', $actual->getReleases()[1]->getBody());
+
+                return 'after';
+            },
+        );
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use (
+            $parts
+        ): ReleasePlan {
             self::assertSame(self::SHA, $arguments[1]);
             self::assertSame('1.0.0', $arguments[2]);
             self::assertSame('1.0.1', $arguments[3]);
@@ -82,6 +104,7 @@ final class ReleasePlannerTest extends TestCase
             self::assertSame(['/consumer/.changelog/new.md' => hash('sha256', 'accepted bytes')], $arguments[5]);
             self::assertSame('after', $arguments[9]);
             self::assertSame("Exact notes\n", $arguments[10]);
+
             return $parts['plan'];
         });
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
@@ -93,11 +116,20 @@ final class ReleasePlannerTest extends TestCase
         [$planner, $parts] = $this->planner(['importerMock' => true, 'validatorMock' => true, 'historyMock' => true]);
         $parts['importer']->expects(self::never())->method('import');
         $parts['validator']->expects(self::never())->method('validate');
-        $parts['history']->expects(self::once())->method('render')->with($parts['document'], $parts['template'], false)->willReturn('translated');
-        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use ($parts): ReleasePlan {
+        $parts['history']->expects(self::once())->method('render')->with(
+            $parts['document'],
+            $parts['template'],
+            false,
+        )->willReturn(
+            'translated',
+        );
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use (
+            $parts
+        ): ReleasePlan {
             self::assertNull($arguments[3]);
             self::assertSame([], $arguments[5]);
             self::assertSame('translated', $arguments[9]);
+
             return $parts['plan'];
         });
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer'), 'format'));
@@ -106,15 +138,28 @@ final class ReleasePlannerTest extends TestCase
     /** Backfill adds only missing history and cannot turn pending changes into a release. */
     public function testHistoricalOnlyMaintenanceDoesNotResolveSemverOrObserveTheClock(): void
     {
-        [$planner, $parts] = $this->planner(['missing' => ['0.1.0'], 'validatorMock' => true, 'versionsMock' => true, 'clockMock' => true, 'historyMock' => true]);
+        [$planner, $parts] = $this->planner(
+            ['missing' => [
+                '0.1.0',
+            ], 'validatorMock' => true, 'versionsMock' => true, 'clockMock' => true, 'historyMock' => true],
+        );
         $parts['validator']->expects(self::never())->method('validate');
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['clock']->expects(self::never())->method('now');
-        $parts['history']->expects(self::once())->method('render')->with($parts['document'], $parts['template'], true)->willReturn('imported');
-        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use ($parts): ReleasePlan {
+        $parts['history']->expects(self::once())->method('render')->with(
+            $parts['document'],
+            $parts['template'],
+            true,
+        )->willReturn(
+            'imported',
+        );
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use (
+            $parts
+        ): ReleasePlan {
             self::assertNull($arguments[3]);
             self::assertSame([], $arguments[5]);
             self::assertSame(['0.1.0'], $arguments[6]);
+
             return $parts['plan'];
         });
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer'), 'backfill'));
@@ -127,9 +172,13 @@ final class ReleasePlannerTest extends TestCase
     {
         [$planner, $parts] = $this->planner(['original' => $original, 'repository' => false, 'historyMock' => true]);
         $parts['history']->expects(self::never())->method('render');
-        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use ($parts, $original): ReleasePlan {
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use (
+            $parts,
+            $original
+        ): ReleasePlan {
             self::assertNull($arguments[1]);
             self::assertSame($original ?? '', $arguments[9]);
+
             return $parts['plan'];
         });
         $planner->plan(new ReleaseOptions('/consumer'));
@@ -142,14 +191,25 @@ final class ReleasePlannerTest extends TestCase
         [$planner, $parts] = $this->planner(['receipt' => $receipt, 'versionsMock' => true, 'importerMock' => true]);
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['importer']->expects(self::never())->method('import');
-        $parts['plans']->expects(self::once())->method('resume')->with(self::isInstanceOf(ReleaseOptions::class), $receipt, '/consumer/CHANGELOG.md', 'before', '/consumer/.git/changelog-release-plan.json', 'receipt')->willReturn($parts['plan']);
+        $parts['plans']->expects(self::once())->method('resume')->with(
+            self::isInstanceOf(ReleaseOptions::class),
+            $receipt,
+            '/consumer/CHANGELOG.md',
+            'before',
+            '/consumer/.git/changelog-release-plan.json',
+            'receipt',
+        )->willReturn(
+            $parts['plan'],
+        );
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
     /** Published receipt evidence does not prevent the next independent release calculation. */
     public function testPublishedTagCannotDiscardAnInterruptedLocalJournal(): void
     {
-        [$planner, $parts] = $this->planner(['receipt' => $this->receipt(), 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA, 'date' => null, 'date_source' => null]]]);
+        [$planner, $parts] = $this->planner(
+            ['receipt' => $this->receipt(), 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA, 'date' => null, 'date_source' => null]]],
+        );
         $parts['plans']->expects(self::once())->method('resume')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
@@ -160,11 +220,16 @@ final class ReleasePlannerTest extends TestCase
         $reachable = ['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null];
         $unrelated = ['name' => 'v9.0.0', 'sha' => str_repeat('9', 40), 'date' => null, 'date_source' => null];
         [$planner, $parts] = $this->planner(['tags' => [$unrelated, $reachable], 'importerMock' => true]);
-        $parts['importer']->expects(self::once())->method('currentVersion')->with([$reachable], 'v')->willReturn('1.0.0');
-        $parts['importer']->expects(self::once())->method('import')->willReturnCallback(static function (HistoryDocument $document, ...$arguments) use ($reachable): HistoryImportResult {
-            self::assertContains([$reachable], $arguments);
-            return new HistoryImportResult($document, [], '1.0.0');
-        });
+        $parts['importer']->expects(self::once())->method('currentVersion')->with([$reachable], 'v')->willReturn(
+            '1.0.0',
+        );
+        $parts['importer']->expects(self::once())->method('import')->willReturnCallback(
+            static function (HistoryDocument $document, ...$arguments) use ($reachable): HistoryImportResult {
+                self::assertContains([$reachable], $arguments);
+
+                return new HistoryImportResult($document, [], '1.0.0');
+            },
+        );
         $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
@@ -172,7 +237,9 @@ final class ReleasePlannerTest extends TestCase
     /** A matching version on another branch does not prove that this saved plan was published. */
     public function testUnrelatedTagCannotMarkAnUnpublishedReceiptAsPublished(): void
     {
-        [$planner, $parts] = $this->planner(['receipt' => $this->receipt(), 'tags' => [['name' => 'v1.0.1', 'sha' => str_repeat('9', 40)]]]);
+        [$planner, $parts] = $this->planner(
+            ['receipt' => $this->receipt(), 'tags' => [['name' => 'v1.0.1', 'sha' => str_repeat('9', 40)]]],
+        );
         $parts['plans']->expects(self::once())->method('resume')->willReturn($parts['plan']);
         $parts['plans']->expects(self::never())->method('create');
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
@@ -192,7 +259,12 @@ final class ReleasePlannerTest extends TestCase
     {
         [$planner, $parts] = $this->planner(['inputsMock' => true, 'templatesMock' => true]);
         $options = new ReleaseOptions('/consumer', template: 'presentation.php');
-        $parts['inputs']->expects(self::once())->method('validateTemplate')->with($options, self::SHA)->willThrowException(new RuntimeException('Template differs from the approved base.'));
+        $parts['inputs']->expects(self::once())->method('validateTemplate')->with(
+            $options,
+            self::SHA,
+        )->willThrowException(
+            new RuntimeException('Template differs from the approved base.'),
+        );
         $parts['templates']->expects(self::never())->method('resolve');
         $parts['plans']->expects(self::never())->method('create');
         $this->expectExceptionMessage('Template differs from the approved base');
@@ -219,9 +291,16 @@ final class ReleasePlannerTest extends TestCase
         $data = $this->receipt()->data;
         $data['template'] = 'presentation.php';
         $data['base_sha'] = str_repeat('f', 40);
-        [$planner, $parts] = $this->planner(['receipt' => new ReleaseReceipt($data), 'inputsMock' => true, 'templatesMock' => true]);
+        [$planner, $parts] = $this->planner(
+            ['receipt' => new ReleaseReceipt($data), 'inputsMock' => true, 'templatesMock' => true],
+        );
         $options = new ReleaseOptions('/consumer', template: 'presentation.php');
-        $parts['inputs']->expects(self::once())->method('validateTemplate')->with($options, str_repeat('f', 40))->willThrowException(new RuntimeException('Custom template differs from the approved base.'));
+        $parts['inputs']->expects(self::once())->method('validateTemplate')->with(
+            $options,
+            str_repeat('f', 40),
+        )->willThrowException(
+            new RuntimeException('Custom template differs from the approved base.'),
+        );
         $parts['templates']->expects(self::never())->method('resolve');
         $parts['plans']->expects(self::never())->method('resume');
         $this->expectExceptionMessage('Custom template differs from the approved base');
@@ -235,18 +314,26 @@ final class ReleasePlannerTest extends TestCase
     #[TestWith(['duplicate'])]
     public function testReleasePlanningFailuresAreDiagnostic(string $failure): void
     {
-        $document = 'duplicate' === $failure ? new HistoryDocument([new HistoryRelease('1.0.1')]) : new HistoryDocument();
-        [$planner, $parts] = $this->planner(['fragments' => true, 'failure' => $failure, 'document' => $document, 'currentVersion' => 'duplicate' === $failure ? '1.0.1' : '1.0.0']);
+        $document = 'duplicate' === $failure ? new HistoryDocument([
+            new HistoryRelease('1.0.1'),
+        ]) : new HistoryDocument();
+        [$planner, $parts] = $this->planner(
+            ['fragments' => true, 'failure' => $failure, 'document' => $document, 'currentVersion' => 'duplicate' === $failure ? '1.0.1' : '1.0.0'],
+        );
         $parts['plans']->expects(self::never())->method('create');
-        $this->expectException('duplicate' === $failure || 'hashless' === $failure ? RuntimeException::class : InvalidArgumentException::class);
+        $this->expectException(
+            'duplicate' === $failure || 'hashless' === $failure ? RuntimeException::class : InvalidArgumentException::class,
+        );
         $planner->plan(new ReleaseOptions('/consumer'));
     }
 
     /** A fresh checkout cannot skip an unpublished patch simply because the next fragment requests a minor or major. */
     #[TestWith(['1.1.0', 'minor'])]
     #[TestWith(['2.0.0', 'major'])]
-    public function testFreshCheckoutBlocksAnotherImpactWhileMaintainedReleaseAwaitsTag(string $next, string $impact): void
-    {
+    public function testFreshCheckoutBlocksAnotherImpactWhileMaintainedReleaseAwaitsTag(
+        string $next,
+        string $impact,
+    ): void {
         $document = new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]);
         [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'nextVersion' => $next,
             'impact' => VersionImpact::from($impact), 'versionsMock' => true, 'clockMock' => true]);
@@ -262,8 +349,17 @@ final class ReleasePlannerTest extends TestCase
     #[TestWith([true])]
     public function testPendingSectionOutsideFirstPositionAlsoBlocksAnIndependentVersion(bool $imported): void
     {
-        $document = new HistoryDocument([new HistoryRelease('unreleased'), new HistoryRelease('0.8.0'), new HistoryRelease('1.0.0')]);
-        $maintained = new HistoryDocument([new HistoryRelease('unreleased'), new HistoryRelease('0.8.0'), new HistoryRelease('v1.0.1+build.5'), new HistoryRelease('1.0.0')]);
+        $document = new HistoryDocument([
+            new HistoryRelease('unreleased'),
+            new HistoryRelease('0.8.0'),
+            new HistoryRelease('1.0.0'),
+        ]);
+        $maintained = new HistoryDocument([
+            new HistoryRelease('unreleased'),
+            new HistoryRelease('0.8.0'),
+            new HistoryRelease('v1.0.1+build.5'),
+            new HistoryRelease('1.0.0'),
+        ]);
         [$planner, $parts] = $this->planner(['document' => $imported ? $document : $maintained,
             'importedDocument' => $maintained, 'fragments' => true, 'versionsMock' => true]);
         $parts['versions']->expects(self::never())->method('resolve');
@@ -288,7 +384,10 @@ final class ReleasePlannerTest extends TestCase
     #[TestWith([true])]
     public function testZeroMaintainedReleaseRequiresAnActualReachableStableTag(bool $unrelatedTag): void
     {
-        $tags = $unrelatedTag ? [['name' => 'v0.0.0', 'sha' => str_repeat('9', 40), 'date' => null, 'date_source' => null]] : [];
+        $tags = $unrelatedTag ? [['name' => 'v0.0.0', 'sha' => str_repeat(
+            '9',
+            40,
+        ), 'date' => null, 'date_source' => null]] : [];
         [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('0.0.0')]),
             'currentVersion' => '0.0.0', 'tags' => $tags, 'fragments' => true, 'nextVersion' => '0.0.1',
             'versionsMock' => true, 'clockMock' => true]);
@@ -308,11 +407,17 @@ final class ReleasePlannerTest extends TestCase
         $tags = $tagged ? [['name' => 'v0.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]] : [];
         [$planner, $parts] = $this->planner(['document' => $document, 'currentVersion' => '0.0.0',
             'tags' => $tags, 'fragments' => true, 'nextVersion' => '0.0.1', 'versionsMock' => true]);
-        $parts['versions']->expects(self::once())->method('resolve')->with('0.0.0', self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)))
+        $parts['versions']->expects(self::once())->method('resolve')->with(
+            '0.0.0',
+            self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)),
+        )
             ->willReturn(new VersionResolution('0.0.1', VersionImpact::Patch, []));
-        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(static function (...$arguments) use ($parts): ReleasePlan {
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(static function (...$arguments) use (
+            $parts
+        ): ReleasePlan {
             self::assertSame('0.0.0', $arguments[2]);
             self::assertSame('0.0.1', $arguments[3]);
+
             return $parts['plan'];
         });
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
@@ -338,7 +443,10 @@ final class ReleasePlannerTest extends TestCase
             new HistoryRelease('0.999.999'), new HistoryRelease('1.9.999'), new HistoryRelease('1.10.0+other.build')]);
         [$planner, $parts] = $this->planner(['document' => $document, 'currentVersion' => '1.10.0+published.build',
             'fragments' => true, 'nextVersion' => '1.10.1', 'versionsMock' => true]);
-        $parts['versions']->expects(self::once())->method('resolve')->with('1.10.0+published.build', self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)))
+        $parts['versions']->expects(self::once())->method('resolve')->with(
+            '1.10.0+published.build',
+            self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)),
+        )
             ->willReturn(new VersionResolution('1.10.1', VersionImpact::Patch, []));
         $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
@@ -347,10 +455,15 @@ final class ReleasePlannerTest extends TestCase
     /** An observed publication unlocks the next impact rather than rewriting the existing maintained release. */
     public function testReachableTagForPendingMaintainedSectionUnlocksNextVersion(): void
     {
-        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]),
-            'currentVersion' => '1.0.1', 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA, 'date' => null, 'date_source' => null]],
-            'fragments' => true, 'nextVersion' => '1.1.0', 'versionsMock' => true]);
-        $parts['versions']->expects(self::once())->method('resolve')->with('1.0.1', self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)))
+        [$planner, $parts] = $this->planner(
+            ['document' => new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]),
+                'currentVersion' => '1.0.1', 'tags' => [['name' => 'v1.0.1', 'sha' => self::SHA, 'date' => null, 'date_source' => null]],
+                'fragments' => true, 'nextVersion' => '1.1.0', 'versionsMock' => true],
+        );
+        $parts['versions']->expects(self::once())->method('resolve')->with(
+            '1.0.1',
+            self::callback(static fn(mixed $changes): bool => is_array($changes) && 1 === count($changes)),
+        )
             ->willReturn(new VersionResolution('1.1.0', VersionImpact::Minor, []));
         $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
@@ -364,7 +477,9 @@ final class ReleasePlannerTest extends TestCase
         $document = new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]);
         [$planner, $parts] = $this->planner(['document' => $document, 'tags' => [$unrelated, $reachable],
             'fragments' => true, 'importerMock' => true, 'versionsMock' => true]);
-        $parts['importer']->expects(self::once())->method('currentVersion')->with([$reachable], 'v')->willReturn('1.0.0');
+        $parts['importer']->expects(self::once())->method('currentVersion')->with([$reachable], 'v')->willReturn(
+            '1.0.0',
+        );
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['plans']->expects(self::never())->method('create');
         $this->expectExceptionMessage('Maintained release 1.0.1 is awaiting');
@@ -377,7 +492,9 @@ final class ReleasePlannerTest extends TestCase
     #[TestWith(['backfill'])]
     public function testPendingStableHistoryDoesNotBlockNonVersionWork(string $operation): void
     {
-        [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('1.0.1')]), 'versionsMock' => true]);
+        [$planner, $parts] = $this->planner(
+            ['document' => new HistoryDocument([new HistoryRelease('1.0.1')]), 'versionsMock' => true],
+        );
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer'), $operation));
@@ -404,7 +521,13 @@ final class ReleasePlannerTest extends TestCase
         } elseif ('changed' === $failure) {
             $data['consumed']['.changelog/new.md'] = hash('sha256', 'older');
         }
-        [$planner, $parts] = $this->planner(['receipt' => new ReleaseReceipt($data), 'fragments' => in_array($failure, ['new', 'changed'], true), 'original' => 'absent' === $failure ? null : 'before']);
+        [$planner, $parts] = $this->planner(
+            ['receipt' => new ReleaseReceipt($data), 'fragments' => in_array(
+                $failure,
+                ['new', 'changed'],
+                true,
+            ), 'original' => 'absent' === $failure ? null : 'before'],
+        );
         $parts['plans']->expects(self::never())->method('resume');
         $this->expectException(RuntimeException::class);
         $planner->plan(new ReleaseOptions('/consumer'), 'maintenance' === $failure ? 'format' : 'version');
@@ -429,9 +552,20 @@ final class ReleasePlannerTest extends TestCase
         $data['before_changelog_sha256'] = null === $original ? null : hash('sha256', $original);
         $data['consumed'] = ['.changelog/new.md' => hash('sha256', 'accepted bytes')];
         $receipt = new ReleaseReceipt($data);
-        [$planner, $parts] = $this->planner(['receipt' => $receipt, 'original' => $original, 'fragments' => true, 'clockMock' => true]);
+        [$planner, $parts] = $this->planner(
+            ['receipt' => $receipt, 'original' => $original, 'fragments' => true, 'clockMock' => true],
+        );
         $parts['clock']->expects(self::never())->method('now');
-        $parts['plans']->expects(self::once())->method('resume')->with(self::isInstanceOf(ReleaseOptions::class), $receipt, '/consumer/CHANGELOG.md', $original, '/consumer/.git/changelog-release-plan.json', 'receipt')->willReturn($parts['plan']);
+        $parts['plans']->expects(self::once())->method('resume')->with(
+            self::isInstanceOf(ReleaseOptions::class),
+            $receipt,
+            '/consumer/CHANGELOG.md',
+            $original,
+            '/consumer/.git/changelog-release-plan.json',
+            'receipt',
+        )->willReturn(
+            $parts['plan'],
+        );
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
@@ -456,7 +590,11 @@ final class ReleasePlannerTest extends TestCase
         $data['next_version'] = null;
         $data['notes'] = '';
         $data['notes_sha256'] = hash('sha256', '');
-        [$planner, $parts] = $this->planner(['receipt' => new ReleaseReceipt($data), 'original' => 'original', 'failure' => 'invalid', 'fragments' => true, 'validatorMock' => true]);
+        [$planner, $parts] = $this->planner(
+            ['receipt' => new ReleaseReceipt(
+                $data,
+            ), 'original' => 'original', 'failure' => 'invalid', 'fragments' => true, 'validatorMock' => true],
+        );
         $parts['validator']->expects(self::never())->method('validate');
         $parts['plans']->expects(self::once())->method('resume')->willReturn($parts['plan']);
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer'), $operation));
@@ -478,7 +616,16 @@ final class ReleasePlannerTest extends TestCase
         return new ReleaseReceipt(['base_sha' => self::SHA, 'next_version' => '1.0.1', 'changelog_file' => 'CHANGELOG.md',
             'fragment_directory' => '.changelog', 'locale' => 'en', 'template' => 'keep-a-changelog',
             'tag_prefix' => 'v', 'repository' => null, 'consumed' => [],
-            'before_changelog_sha256' => hash('sha256', 'original'), 'changelog_contents' => 'before', 'after_changelog_sha256' => hash('sha256', 'before'), 'notes' => "Exact notes\n", 'notes_sha256' => hash('sha256', "Exact notes\n")]);
+            'before_changelog_sha256' => hash(
+                'sha256',
+                'original',
+            ), 'changelog_contents' => 'before', 'after_changelog_sha256' => hash(
+                'sha256',
+                'before',
+            ), 'notes' => "Exact notes\n", 'notes_sha256' => hash(
+                'sha256',
+                "Exact notes\n",
+            )]);
     }
 
     /** All external collaborators are doubles; clock/date values are fixed input data. */
@@ -487,52 +634,147 @@ final class ReleasePlannerTest extends TestCase
         $options = new ReleaseOptions('/consumer');
         $document = $settings['document'] ?? new HistoryDocument();
         $template = $this->createStub(TemplateInterface::class);
-        $template->method('categoryHeading')->willReturnCallback(static fn(string $category): string => '### ' . ucfirst($category));
-        $plan = new ReleasePlan($options, 'id', self::SHA, '1.0.0', null, null, [], [], '/consumer/CHANGELOG.md', 'before', 'after', '', '/consumer/.git/changelog-release-plan.json', null, 'receipt');
+        $template->method('categoryHeading')->willReturnCallback(
+            static fn(string $category): string => '### ' . ucfirst($category),
+        );
+        $plan = new ReleasePlan(
+            $options,
+            'id',
+            self::SHA,
+            '1.0.0',
+            null,
+            null,
+            [],
+            [],
+            '/consumer/CHANGELOG.md',
+            'before',
+            'after',
+            '',
+            '/consumer/.git/changelog-release-plan.json',
+            null,
+            'receipt',
+        );
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturnCallback(static fn(string $path): string => '/consumer/' . $path);
-        $paths->method('relativePath')->willReturnCallback(static fn(string $path): string => substr($path, strlen('/consumer/')));
+        $paths->method('relativePath')->willReturnCallback(
+            static fn(string $path): string => substr($path, strlen('/consumer/')),
+        );
         $files = $this->createMock(ManagedFileStoreInterface::class);
         $original = array_key_exists('original', $settings) ? $settings['original'] : 'before';
-        $files->method('read')->willReturnMap([['/consumer/CHANGELOG.md', $original], ['/consumer/.git/changelog-release-plan.json', isset($settings['receipt']) ? 'receipt' : null]]);
+        $files->method('read')->willReturnMap(
+            [['/consumer/CHANGELOG.md', $original], [
+                '/consumer/.git/changelog-release-plan.json',
+                isset($settings['receipt']) ? 'receipt' : null,
+            ]],
+        );
         $files->expects(self::never())->method('write');
         $journals = $this->createStub(ReleaseJournalPathResolverInterface::class);
         $journals->method('resolve')->willReturn('/consumer/.git/changelog-release-plan.json');
         $git = $this->createStub(GitRepositoryInterface::class);
         $git->method('isRepository')->willReturn($settings['repository'] ?? true);
-        $git->method('resolveRef')->willReturnOnConsecutiveCalls(self::SHA, ($settings['baseMismatch'] ?? false) ? str_repeat('b', 40) : self::SHA);
-        $git->method('tags')->willReturn($settings['tags'] ?? [['name' => 'v' . ($settings['currentVersion'] ?? '1.0.0'), 'sha' => self::SHA, 'date' => null, 'date_source' => null]]);
-        $git->method('isAncestor')->willReturnCallback(static fn(string $directory, string $ancestor): bool => $ancestor !== str_repeat('9', 40));
-        $history = ($settings['historyMock'] ?? false) ? $this->createMock(HistoryCodecInterface::class) : $this->createStub(HistoryCodecInterface::class);
+        $git->method('resolveRef')->willReturnOnConsecutiveCalls(
+            self::SHA,
+            ($settings['baseMismatch'] ?? false) ? str_repeat('b', 40) : self::SHA,
+        );
+        $git->method('tags')->willReturn(
+            $settings['tags'] ?? [['name' => 'v' . ($settings['currentVersion'] ?? '1.0.0'), 'sha' => self::SHA, 'date' => null, 'date_source' => null]],
+        );
+        $git->method('isAncestor')->willReturnCallback(
+            static fn(string $directory, string $ancestor): bool => $ancestor !== str_repeat('9', 40),
+        );
+        $history = ($settings['historyMock'] ?? false) ? $this->createMock(
+            HistoryCodecInterface::class,
+        ) : $this->createStub(
+            HistoryCodecInterface::class,
+        );
         $history->method('parse')->willReturn($document);
         $history->method('notes')->willReturn("Exact notes\n");
-        $importer = ($settings['importerMock'] ?? false) ? $this->createMock(HistoryImporterInterface::class) : $this->createStub(HistoryImporterInterface::class);
+        $importer = ($settings['importerMock'] ?? false) ? $this->createMock(
+            HistoryImporterInterface::class,
+        ) : $this->createStub(
+            HistoryImporterInterface::class,
+        );
         $importer->method('currentVersion')->willReturn($settings['currentVersion'] ?? '1.0.0');
-        $importer->method('import')->willReturn(new HistoryImportResult($settings['importedDocument'] ?? $document, $settings['missing'] ?? [], $settings['currentVersion'] ?? '1.0.0'));
-        $templates = ($settings['templatesMock'] ?? false) ? $this->createMock(TemplateResolverInterface::class) : $this->createStub(TemplateResolverInterface::class);
+        $importer->method('import')->willReturn(
+            new HistoryImportResult(
+                $settings['importedDocument'] ?? $document,
+                $settings['missing'] ?? [],
+                $settings['currentVersion'] ?? '1.0.0',
+            ),
+        );
+        $templates = ($settings['templatesMock'] ?? false) ? $this->createMock(
+            TemplateResolverInterface::class,
+        ) : $this->createStub(
+            TemplateResolverInterface::class,
+        );
         $templates->method('resolve')->willReturn($template);
         $change = new Changeset('new.md', Category::Fixed, null, null, null, 'Description');
         $fragments = ($settings['fragments'] ?? false) ? [$change] : [];
-        $hashes = [] === $fragments || 'hashless' === ($settings['failure'] ?? '') ? [] : ['/consumer/.changelog/new.md' => hash('sha256', 'accepted bytes')];
-        $validator = ($settings['validatorMock'] ?? false) ? $this->createMock(ChangesetValidatorInterface::class) : $this->createStub(ChangesetValidatorInterface::class);
-        $validator->method('validate')->willReturn(new ValidationReport($fragments, 'invalid' === ($settings['failure'] ?? '') ? ['new.md' => ['bad category']] : [], false, $hashes));
-        $versions = ($settings['versionsMock'] ?? false) ? $this->createMock(NextVersionResolverInterface::class) : $this->createStub(NextVersionResolverInterface::class);
-        $versions->method('resolve')->willReturn('semver' === ($settings['failure'] ?? '') ? new VersionResolution(null, null, ['invalid tag']) : new VersionResolution($settings['nextVersion'] ?? '1.0.1', $settings['impact'] ?? VersionImpact::Patch, []));
+        $hashes = [] === $fragments || 'hashless' === ($settings['failure'] ?? '') ? [] : ['/consumer/.changelog/new.md' => hash(
+            'sha256',
+            'accepted bytes',
+        )];
+        $validator = ($settings['validatorMock'] ?? false) ? $this->createMock(
+            ChangesetValidatorInterface::class,
+        ) : $this->createStub(
+            ChangesetValidatorInterface::class,
+        );
+        $validator->method('validate')->willReturn(
+            new ValidationReport($fragments, 'invalid' === ($settings['failure'] ?? '') ? ['new.md' => [
+                'bad category',
+            ]] : [], false, $hashes),
+        );
+        $versions = ($settings['versionsMock'] ?? false) ? $this->createMock(
+            NextVersionResolverInterface::class,
+        ) : $this->createStub(
+            NextVersionResolverInterface::class,
+        );
+        $versions->method('resolve')->willReturn(
+            'semver' === ($settings['failure'] ?? '') ? new VersionResolution(null, null, [
+                'invalid tag',
+            ]) : new VersionResolution(
+                $settings['nextVersion'] ?? '1.0.1',
+                $settings['impact'] ?? VersionImpact::Patch,
+                [],
+            ),
+        );
         $renderer = $this->createStub(ReleaseNotesRendererInterface::class);
         $renderer->method('render')->willReturn('Rendered fragments');
-        $releases = ($settings['releaseMock'] ?? false) ? $this->createMock(HistoryReleaseFactoryInterface::class) : $this->createStub(HistoryReleaseFactoryInterface::class);
+        $releases = ($settings['releaseMock'] ?? false) ? $this->createMock(
+            HistoryReleaseFactoryInterface::class,
+        ) : $this->createStub(
+            HistoryReleaseFactoryInterface::class,
+        );
         if (! ($settings['releaseMock'] ?? false)) {
-            $releases->method('create')->willReturnCallback(static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease($version, $date, $source, $body));
+            $releases->method('create')->willReturnCallback(
+                static fn(string $version, ?string $date, ?string $source, string $body): HistoryRelease => new HistoryRelease(
+                    $version,
+                    $date,
+                    $source,
+                    $body,
+                ),
+            );
         }
-        $clock = ($settings['clockMock'] ?? false) ? $this->createMock(ClockInterface::class) : $this->createStub(ClockInterface::class);
+        $clock = ($settings['clockMock'] ?? false) ? $this->createMock(ClockInterface::class) : $this->createStub(
+            ClockInterface::class,
+        );
         $clock->method('now')->willReturn(new DateTimeImmutable('2026-10-03T23:30:00-03:00'));
         $receipts = $this->createStub(ReceiptCodecInterface::class);
         $receipts->method('decode')->willReturn($settings['receipt'] ?? $this->receipt());
         $plans = $this->createMock(ReleasePlanFactoryInterface::class);
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message));
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
-        $inputs = ($settings['inputsMock'] ?? false) ? $this->createMock(ReleaseInputEvidenceValidatorInterface::class) : $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message): RuntimeException => new RuntimeException($message),
+        );
+        $inputs = ($settings['inputsMock'] ?? false) ? $this->createMock(
+            ReleaseInputEvidenceValidatorInterface::class,
+        ) : $this->createStub(
+            ReleaseInputEvidenceValidatorInterface::class,
+        );
+
         return [new ReleasePlanner(
             $paths,
             $files,
@@ -552,6 +794,21 @@ final class ReleasePlannerTest extends TestCase
             $inputs,
             $journals,
         ),
-            compact('document', 'template', 'plan', 'files', 'git', 'history', 'importer', 'validator', 'versions', 'releases', 'clock', 'plans', 'inputs', 'templates')];
+            compact(
+                'document',
+                'template',
+                'plan',
+                'files',
+                'git',
+                'history',
+                'importer',
+                'validator',
+                'versions',
+                'releases',
+                'clock',
+                'plans',
+                'inputs',
+                'templates',
+            )];
     }
 }

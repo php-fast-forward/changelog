@@ -29,7 +29,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 
 /** Validates local contributions and accepts authorization only from verified pull-request policy. */
-#[AsCommand(name: 'check', description: 'Validate fragments and optional pull-request contribution evidence.')]
+#[AsCommand(
+    name: 'check',
+    description: 'Validate fragments and optional pull-request contribution evidence.',
+)]
 final readonly class CheckCommand
 {
     /** Captures validation, trusted policy and checkout identity without reading user environment. */
@@ -45,8 +48,10 @@ final readonly class CheckCommand
         #[MapInput]
         ReleaseInput $settings,
         SymfonyStyle $io,
+
         #[Option(description: 'Git baseline for the contribution delta.')]
         ?string $since = null,
+
         #[Option(description: 'Pull-request number whose trusted authorization is inspected.')]
         ?string $pullRequest = null,
     ): int {
@@ -70,20 +75,27 @@ final readonly class CheckCommand
                     throw new RuntimeException('Pull-request policy could not establish an inspected head identity.');
                 }
                 if ($authorization->headSha !== $this->git->resolveRef($options->workingDirectory)) {
-                    throw new RuntimeException('Check out the inspected pull-request head before applying its authorization.');
+                    throw new RuntimeException(
+                        'Check out the inspected pull-request head before applying its authorization.',
+                    );
                 }
                 $central = $authorization->centralChangeAuthorized;
                 $waiver = $authorization->waiverAuthorized;
             }
             $report = $this->checks->check($options, $since, $central, $waiver);
             if (! $report->isValid()) {
-                $io->getErrorStyle()->error(json_encode($report->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                $io->getErrorStyle()->error(
+                    json_encode($report->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                );
+
                 return Command::FAILURE;
             }
             $io->success(sprintf('Validated %d pending fragments.', count($report->changesets)));
+
             return Command::SUCCESS;
         } catch (Throwable $exception) {
             $io->getErrorStyle()->error($exception->getMessage());
+
             return $exception instanceof InvalidArgumentException ? Command::INVALID : Command::FAILURE;
         }
     }

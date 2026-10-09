@@ -61,7 +61,9 @@ final class TemplateFactory implements TemplateFactoryInterface
 
                 foreach ($value as $category => $heading) {
                     if (! is_string($category) || null === Category::tryFrom($category)) {
-                        throw new InvalidArgumentException('Template categories must use canonical lowercase identifiers.');
+                        throw new InvalidArgumentException(
+                            'Template categories must use canonical lowercase identifiers.',
+                        );
                     }
 
                     $this->validateHeading($heading, '### ');
@@ -95,7 +97,15 @@ final class TemplateFactory implements TemplateFactoryInterface
 
         $this->validateUnreleasedHeading($settings);
 
-        return new KeepAChangelogTemplate($locale, $settings['introduction'], $settings['release_heading'], $settings['release_heading_dated'], $settings['category_headings'], $settings['unreleased_heading'], $settings['no_notes']);
+        return new KeepAChangelogTemplate(
+            $locale,
+            $settings['introduction'],
+            $settings['release_heading'],
+            $settings['release_heading_dated'],
+            $settings['category_headings'],
+            $settings['unreleased_heading'],
+            $settings['no_notes'],
+        );
     }
 
     /** Rejects pending headings that would also identify a valid custom or legacy release, including calendar-valid dates. */
@@ -112,13 +122,24 @@ final class TemplateFactory implements TemplateFactoryInterface
             '##[ \t]+\[' . $captures['version'] . '\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+' . $captures['date'] . ')?',
         ];
         foreach ($patterns as $pattern) {
-            if (1 !== preg_match('~\A' . $pattern . '(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*\z~u', $settings['unreleased_heading'], $matches)) {
+            if (1 !== preg_match(
+                '~\A' . $pattern . '(?:[ \t]+\[(?:YANKED|REMOVIDO)\])?[ \t]*\z~u',
+                $settings['unreleased_heading'],
+                $matches,
+            )) {
                 continue;
             }
-            if (isset($matches['date']) && ! checkdate((int) substr($matches['date'], 5, 2), (int) substr($matches['date'], 8, 2), (int) substr($matches['date'], 0, 4))) {
+            if (isset($matches['date']) && ! checkdate(
+                (int) substr($matches['date'], 5, 2),
+                (int) substr($matches['date'], 8, 2),
+                (int) substr($matches['date'], 0, 4),
+            )) {
                 continue;
             }
-            throw new InvalidArgumentException('The unreleased heading must not also identify a valid release heading.');
+
+            throw new InvalidArgumentException(
+                'The unreleased heading must not also identify a valid release heading.',
+            );
         }
     }
 
@@ -135,6 +156,7 @@ final class TemplateFactory implements TemplateFactoryInterface
             $pattern = substr_replace($pattern, $capture, $position, strlen($placeholder));
             $pattern = str_replace($placeholder, '\k<' . $name . '>', $pattern);
         }
+
         return $pattern;
     }
 
@@ -144,7 +166,9 @@ final class TemplateFactory implements TemplateFactoryInterface
         $parts = preg_split('/(\{(?:version|date)\})/', $heading, -1, PREG_SPLIT_DELIM_CAPTURE);
         for ($index = 1; $index + 2 < count($parts); $index += 2) {
             if ($parts[$index] !== $parts[$index + 2] && 1 !== preg_match('/[^0-9A-Za-z.+-]/', $parts[$index + 1])) {
-                throw new InvalidArgumentException('Mixed {version} and {date} placeholders require a literal delimiter outside valid version/date characters, such as a space, bracket, colon or slash.');
+                throw new InvalidArgumentException(
+                    'Mixed {version} and {date} placeholders require a literal delimiter outside valid version/date characters, such as a space, bracket, colon or slash.',
+                );
             }
         }
     }

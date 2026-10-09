@@ -25,6 +25,7 @@ final class DirectoryNameTest extends TestCase
             try {
                 DirectoryName::withParent($path, 'C:', static function () use ($path): void {
                     self::assertSame('C:', DirectoryName::resolve($path));
+
                     throw new RuntimeException('operation failed');
                 });
                 self::fail('The operation failure must propagate.');

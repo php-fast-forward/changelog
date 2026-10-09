@@ -64,7 +64,14 @@ final class Changelog extends Application
                 throw $exception;
             }
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
-            $error->writeln(json_encode(['error' => $exception->getMessage()], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), OutputInterface::OUTPUT_RAW);
+            $error->writeln(
+                json_encode(
+                    ['error' => $exception->getMessage()],
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE,
+                ),
+                OutputInterface::OUTPUT_RAW,
+            );
+
             return Command::INVALID;
         }
     }

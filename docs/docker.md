@@ -146,6 +146,17 @@ authentication and package access. See [the Container registry guide](https://do
 
 ## Verification and recovery
 
+Repository workflows prepare public base images through Google's Docker Hub
+cache on disposable GitHub-hosted Linux runners. The internal
+[`setup-docker`](../.github/actions/setup-docker/action.yml) action preserves
+other daemon settings and existing mirror order, adds the public cache, and
+preloads only images declared by the trusted runtime Dockerfile. The Buildx
+publisher uses the same mirror. Dockerfile references and full image versions
+stay unchanged; missing cache entries fall back to Docker Hub. The helper
+rejects other runner environments and does not configure developer machines.
+See [Google's cache contract](https://docs.cloud.google.com/artifact-registry/docs/pull-cached-dockerhub-images)
+and [BuildKit registry mirrors](https://docs.docker.com/build/buildkit/configure/).
+
 Run the [actual-image verifier](../tests/Container/verify.md) after building. It
 uses disposable Git repositories, synthetic credentials and network-disabled
 containers. Native unit/coverage checks still run on Linux and Windows. Linux

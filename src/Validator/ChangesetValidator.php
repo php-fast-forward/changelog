@@ -67,8 +67,12 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
      *
      * @param list<string> $paths exact candidates selected by the caller
      */
-    public function validatePaths(string $directory, array $paths, bool $waived = false, bool $requireFragment = true): ValidationReport
-    {
+    public function validatePaths(
+        string $directory,
+        array $paths,
+        bool $waived = false,
+        bool $requireFragment = true,
+    ): ValidationReport {
         $changesets = [];
         $errors = [];
         $hashes = [];

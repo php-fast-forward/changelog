@@ -24,5 +24,9 @@ final readonly class HistoryImportResult
      * Stores complete import evidence without changing existing release values.
      * @param list<string> $missingVersions only versions newly inserted by this import
      */
-    public function __construct(public HistoryDocument $document, public array $missingVersions, public string $currentVersion) {}
+    public function __construct(
+        public HistoryDocument $document,
+        public array $missingVersions,
+        public string $currentVersion,
+    ) {}
 }

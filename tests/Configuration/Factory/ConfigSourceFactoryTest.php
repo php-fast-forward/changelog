@@ -18,7 +18,10 @@ final class ConfigSourceFactoryTest extends TestCase
     {
         $source = new ConfigSourceFactory()->create('/consumer/custom.php');
         self::assertInstanceOf(PhpFileConfig::class, $source);
-        self::assertSame('/consumer/custom.php', new ReflectionProperty(PhpFileConfig::class, 'file')->getValue($source));
+        self::assertSame(
+            '/consumer/custom.php',
+            new ReflectionProperty(PhpFileConfig::class, 'file')->getValue($source),
+        );
         self::assertFalse(new ReflectionProperty(PhpFileConfig::class, 'persistent')->getValue($source));
     }
 }

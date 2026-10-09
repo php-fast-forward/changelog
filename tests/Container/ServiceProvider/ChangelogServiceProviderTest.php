@@ -76,7 +76,17 @@ final class ChangelogServiceProviderTest extends TestCase
         $factories = $provider->getFactories();
         self::assertSame([], $provider->getExtensions());
         self::assertSame(0, RuntimeDefaults::$calls);
-        foreach ([ReleasePlannerInterface::class,PublicationServiceInterface::class,PullRequestPolicyInterface::class,AutomationRunnerInterface::class,VersionPullRequestServiceInterface::class,VersionPullRequestInputFactoryInterface::class,VersionPullRequestResultFactoryInterface::class,VersionPullRequestExceptionFactoryInterface::class,ReleaseDateValidatorInterface::class] as $required) {
+        foreach ([
+            ReleasePlannerInterface::class,
+            PublicationServiceInterface::class,
+            PullRequestPolicyInterface::class,
+            AutomationRunnerInterface::class,
+            VersionPullRequestServiceInterface::class,
+            VersionPullRequestInputFactoryInterface::class,
+            VersionPullRequestResultFactoryInterface::class,
+            VersionPullRequestExceptionFactoryInterface::class,
+            ReleaseDateValidatorInterface::class,
+        ] as $required) {
             self::assertArrayHasKey($required, $factories);
         }
         foreach ($factories as $factory) {
@@ -98,9 +108,17 @@ final class ChangelogServiceProviderTest extends TestCase
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('journalPath')->with('/consumer')->willReturn(null);
         $container = $this->createMock(ContainerInterface::class);
-        $container->expects(self::exactly(2))->method('get')->willReturnMap([[GitRepositoryInterface::class, $git], [ChangelogServiceProvider::CONFIG, new ArrayConfig(['temporary_directory' => '/synthetic-temp'])]]);
+        $container->expects(self::exactly(2))->method('get')->willReturnMap(
+            [[
+                GitRepositoryInterface::class,
+                $git,
+            ], [ChangelogServiceProvider::CONFIG, new ArrayConfig(['temporary_directory' => '/synthetic-temp'])]],
+        );
         $resolver = $factories[ReleaseJournalPathResolver::class]($container);
-        self::assertStringStartsWith('/synthetic-temp/fast-forward-changelog/', $resolver->resolve(new ReleaseOptions('/consumer')));
+        self::assertStringStartsWith(
+            '/synthetic-temp/fast-forward-changelog/',
+            $resolver->resolve(new ReleaseOptions('/consumer')),
+        );
     }
 
     #[Test]
@@ -113,25 +131,44 @@ final class ChangelogServiceProviderTest extends TestCase
         $httpFactory->expects(self::once())->method('create')->willReturn($http);
         $github = $this->createStub(GitHubClientInterface::class);
         $githubFactory = $this->createMock(GitHubClientFactoryInterface::class);
-        $githubFactory->expects(self::once())->method('create')->with('fixture-token', 'https://api.example.test')->willReturn($github);
+        $githubFactory->expects(self::once())->method('create')->with(
+            'fixture-token',
+            'https://api.example.test',
+        )->willReturn(
+            $github,
+        );
         $identifier = $this->createStub(IdentifierGeneratorInterface::class);
         $identifiers = $this->createMock(IdentifierGeneratorFactoryInterface::class);
         $identifiers->expects(self::once())->method('create')->willReturn($identifier);
         $lazy = $this->createMock(LazyCommandFactoryInterface::class);
         $lazy->expects(self::never())->method('create');
         $timezone = new DateTimeZone('UTC');
-        $container->expects(self::exactly(11))->method('get')->willReturnMap([[HttpClientFactoryInterface::class,$httpFactory],[GitHubClientFactoryInterface::class,$githubFactory],[IdentifierGeneratorFactoryInterface::class,$identifiers],
-            [ChangelogServiceProvider::CONFIG, new ArrayConfig(['working_directory' => '/consumer', 'installed_version' => '1.2.3', 'token' => 'fixture-token', 'api_url' => 'https://api.example.test'])],
-            [TimezoneFactory::class,new TimezoneFactory()],[DateTimeZone::class,$timezone],[LazyCommandFactoryInterface::class,$lazy]]);
+        $container->expects(self::exactly(11))->method('get')->willReturnMap(
+            [[HttpClientFactoryInterface::class,$httpFactory],[GitHubClientFactoryInterface::class,$githubFactory],[
+                IdentifierGeneratorFactoryInterface::class,
+                $identifiers,
+            ],
+                [ChangelogServiceProvider::CONFIG, new ArrayConfig(['working_directory' => '/consumer', 'installed_version' => '1.2.3', 'token' => 'fixture-token', 'api_url' => 'https://api.example.test'])],
+                [TimezoneFactory::class,new TimezoneFactory()],[DateTimeZone::class,$timezone],[
+                    LazyCommandFactoryInterface::class,
+                    $lazy,
+                ]],
+        );
         self::assertSame('1.2.3', $factories[ComposerPackageVersionResolver::class]($container)->resolve());
-        self::assertSame('/consumer/file.md', $factories[PackagePathResolver::class]($container)->absolutePath('file.md'));
+        self::assertSame(
+            '/consumer/file.md',
+            $factories[PackagePathResolver::class]($container)->absolutePath('file.md'),
+        );
         self::assertInstanceOf(ProcessFactory::class, $factories[ProcessFactory::class]($container));
         self::assertSame($http, $factories[HttpClientInterface::class]($container));
         self::assertSame($github, $factories[GitHubClientInterface::class]($container));
         self::assertSame($identifier, $factories[IdentifierGeneratorInterface::class]($container));
         self::assertSame('UTC', $factories[DateTimeZone::class]($container)->getName());
         self::assertInstanceOf(SystemClock::class, $factories[SystemClock::class]($container));
-        self::assertSame(['add','check','status','version','notes','publish','backfill','format','github'], $factories[CommandLoaderInterface::class]($container)->getNames());
+        self::assertSame([
+            'add','check','status','version','notes','publish','backfill','format','github'],
+            $factories[CommandLoaderInterface::class]($container)->getNames(),
+        );
     }
 
     /** The output factory captures only the caller-supplied path and injected filesystem. */
@@ -139,10 +176,22 @@ final class ChangelogServiceProviderTest extends TestCase
     {
         $factories = new ChangelogServiceProvider()->getFactories();
         $filesystem = $this->createMock(Filesystem::class);
-        $filesystem->expects(self::once())->method('appendToFile')->with('/runner/output', "result={\"status\":\"valid\"}\nstatus=valid\n", true);
+        $filesystem->expects(self::once())->method('appendToFile')->with(
+            '/runner/output',
+            "result={\"status\":\"valid\"}\nstatus=valid\n",
+            true,
+        );
         $container = $this->createMock(ContainerInterface::class);
-        $container->expects(self::exactly(2))->method('get')->willReturnMap([[Filesystem::class, $filesystem], [ChangelogServiceProvider::CONFIG, new ArrayConfig(['github_output_file' => '/runner/output'])]]);
-        self::assertSame('{"status":"valid"}', $factories[GitHubOutputWriter::class]($container)->write(['status' => 'valid']));
+        $container->expects(self::exactly(2))->method('get')->willReturnMap(
+            [[
+                Filesystem::class,
+                $filesystem,
+            ], [ChangelogServiceProvider::CONFIG, new ArrayConfig(['github_output_file' => '/runner/output'])]],
+        );
+        self::assertSame(
+            '{"status":"valid"}',
+            $factories[GitHubOutputWriter::class]($container)->write(['status' => 'valid']),
+        );
     }
 
     /** Class-name registration resolves defaults lazily and shares one captured configuration. */
@@ -170,10 +219,19 @@ final class ChangelogServiceProviderTest extends TestCase
             'github_output_file' => null,
         ];
         $config = config(['changelog' => $values]);
-        foreach ([container($config, ChangelogServiceProvider::class), container(ChangelogServiceProvider::class, $config)] as $container) {
+        foreach ([
+            container($config, ChangelogServiceProvider::class),
+            container(ChangelogServiceProvider::class, $config),
+        ] as $container) {
             self::assertSame($values, $container->get(ChangelogServiceProvider::CONFIG)->toArray());
-            self::assertSame('/configured/file.md', $container->get(PackagePathResolver::class)->absolutePath('file.md'));
-            self::assertSame('/configured', $container->get(ProcessFactory::class)->create(['git', 'status'])->getWorkingDirectory());
+            self::assertSame(
+                '/configured/file.md',
+                $container->get(PackagePathResolver::class)->absolutePath('file.md'),
+            );
+            self::assertSame(
+                '/configured',
+                $container->get(ProcessFactory::class)->create(['git', 'status'])->getWorkingDirectory(),
+            );
         }
         self::assertSame(0, RuntimeDefaults::$calls);
     }
@@ -182,7 +240,10 @@ final class ChangelogServiceProviderTest extends TestCase
     public function testPartialConfigRetainsDefaultsAndTemporaryFallback(): void
     {
         RuntimeDefaults::$resolvedTemporaryDirectory = false;
-        $container = container(config(['changelog' => ['working_directory' => '/configured']]), ChangelogServiceProvider::class);
+        $container = container(
+            config(['changelog' => ['working_directory' => '/configured']]),
+            ChangelogServiceProvider::class,
+        );
         $settings = $container->get(ChangelogServiceProvider::CONFIG);
         self::assertSame('/configured', $settings->get('working_directory'));
         self::assertSame('/temporary-link', $settings->get('temporary_directory'));

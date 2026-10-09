@@ -24,7 +24,10 @@ final class ChangesetRendererTest extends TestCase
         $body = "    code();  \n\nSecond paragraph.  ";
         $fragment = new Changeset('entry.md', Category::Changed, 1, 2, 'coisa', $body, VersionImpact::Patch);
 
-        self::assertSame("---\ncategory: changed\ntype: patch\nissue: 1\npull_request: 2\nauthor: \"coisa\"\n---\n\n{$body}\n", new ChangesetRenderer()->render($fragment));
+        self::assertSame(
+            "---\ncategory: changed\ntype: patch\nissue: 1\npull_request: 2\nauthor: \"coisa\"\n---\n\n{$body}\n",
+            new ChangesetRenderer()->render($fragment),
+        );
     }
 
     #[Test]
@@ -32,6 +35,9 @@ final class ChangesetRendererTest extends TestCase
     {
         $fragment = new Changeset('entry.md', Category::Deprecated, null, null, null, 'Body.');
 
-        self::assertSame("---\ncategory: deprecated\ntype: minor\n---\n\nBody.\n", new ChangesetRenderer()->render($fragment));
+        self::assertSame(
+            "---\ncategory: deprecated\ntype: minor\n---\n\nBody.\n",
+            new ChangesetRenderer()->render($fragment),
+        );
     }
 }

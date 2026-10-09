@@ -75,7 +75,16 @@ final class ManagedFileStoreTest extends TestCase
     /** Supplies traversal, relative, malformed shares and NUL spellings. */
     public static function unsafePaths(): iterable
     {
-        foreach (['relative.md', '/consumer/../outside.md', '/consumer/./file.md', '//server', '//server/share', '//../share/file.md', '//server/../file.md', "nul\0path"] as $path) {
+        foreach ([
+            'relative.md',
+            '/consumer/../outside.md',
+            '/consumer/./file.md',
+            '//server',
+            '//server/share',
+            '//../share/file.md',
+            '//server/../file.md',
+            "nul\0path",
+        ] as $path) {
             yield [$path];
         }
     }
@@ -151,7 +160,9 @@ final class ManagedFileStoreTest extends TestCase
         $filesystem = $this->filesystem();
         $filesystem->exists('/consumer')->willReturn(true)->shouldBeCalledOnce();
         $filesystem->mkdir(Argument::any())->shouldNotBeCalled();
-        $filesystem->dumpFile('/consumer/CHANGELOG.md', 'contents')->willThrow(new RuntimeException('disk full'))->shouldBeCalledOnce();
+        $filesystem->dumpFile('/consumer/CHANGELOG.md', 'contents')->willThrow(
+            new RuntimeException('disk full'),
+        )->shouldBeCalledOnce();
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('disk full');
         $this->store($filesystem)->write('/consumer/CHANGELOG.md', 'contents');
@@ -161,7 +172,12 @@ final class ManagedFileStoreTest extends TestCase
     public function testParentCreationRaceDoesNotReachDumpFile(): void
     {
         $filesystem = $this->filesystem();
-        $filesystem->readlink('/consumer/.changelog/release-plan.json')->willReturn(null, '/outside')->shouldBeCalledTimes(2);
+        $filesystem->readlink('/consumer/.changelog/release-plan.json')->willReturn(
+            null,
+            '/outside',
+        )->shouldBeCalledTimes(
+            2,
+        );
         $filesystem->exists('/consumer/.changelog')->willReturn(false)->shouldBeCalledOnce();
         $filesystem->mkdir('/consumer/.changelog')->shouldBeCalledOnce();
         $filesystem->dumpFile(Argument::any(), Argument::any())->shouldNotBeCalled();
@@ -190,7 +206,9 @@ final class ManagedFileStoreTest extends TestCase
         $filesystem = $this->filesystem();
         $path = '/consumer/.git/changelog-release-plan.json';
         $filesystem->exists($path)->willReturn(true)->shouldBeCalledOnce();
-        $filesystem->readFile($path)->willThrow(new RuntimeException('not a readable regular file'))->shouldBeCalledOnce();
+        $filesystem->readFile($path)->willThrow(
+            new RuntimeException('not a readable regular file'),
+        )->shouldBeCalledOnce();
         $filesystem->remove(Argument::any())->shouldNotBeCalled();
         $this->expectExceptionMessage('not a readable regular file');
         $this->store($filesystem)->remove($path);
@@ -214,6 +232,7 @@ final class ManagedFileStoreTest extends TestCase
     {
         $filesystem = $this->prophesize(Filesystem::class);
         $filesystem->readlink(Argument::type('string'))->willReturn(null);
+
         return $filesystem;
     }
 
@@ -221,7 +240,13 @@ final class ManagedFileStoreTest extends TestCase
     private function store(ObjectProphecy $filesystem): ManagedFileStore
     {
         $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('failure')->willReturnCallback(static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException($message, previous: $previous));
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException(
+                $message,
+                previous: $previous,
+            ),
+        );
+
         return new ManagedFileStore($filesystem->reveal(), $exceptions);
     }
 }

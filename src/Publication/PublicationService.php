@@ -46,12 +46,16 @@ final readonly class PublicationService implements PublicationServiceInterface
         $sha = $this->tagSha($root, $tag);
         $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
         if (null !== $sha && $sha !== $evidence->sha) {
-            throw $this->exceptions->failure('The release tag already points to another commit; it will never be moved.');
+            throw $this->exceptions->failure(
+                'The release tag already points to another commit; it will never be moved.',
+            );
         }
         if (null !== $release) {
             $this->releaseUrl($release, $tag, $evidence->notes);
             if (null === $sha) {
-                throw $this->exceptions->failure('An existing release has no verified matching tag; publication refused.');
+                throw $this->exceptions->failure(
+                    'An existing release has no verified matching tag; publication refused.',
+                );
             }
         }
         $actions = [];
@@ -75,25 +79,43 @@ final readonly class PublicationService implements PublicationServiceInterface
             $error = $this->create($root . '/git/refs', ['ref' => 'refs/tags/' . $tag, 'sha' => $evidence->sha]);
             $sha = $this->tagSha($root, $tag);
             if ($sha !== $evidence->sha) {
-                throw $this->exceptions->failure('Tag creation outcome is missing or conflicts with the approved commit; retry after checking remote state.', $error);
+                throw $this->exceptions->failure(
+                    'Tag creation outcome is missing or conflicts with the approved commit; retry after checking remote state.',
+                    $error,
+                );
             }
         }
         if (null === $release) {
             if ($this->tagSha($root, $tag) !== $evidence->sha) {
-                throw $this->exceptions->failure('The verified tag changed before release creation; publication refused.');
+                throw $this->exceptions->failure(
+                    'The verified tag changed before release creation; publication refused.',
+                );
             }
             $error = $this->create($root . '/releases', ['tag_name' => $tag, 'target_commitish' => $evidence->sha,
                 'name' => $tag, 'body' => $evidence->notes, 'draft' => false, 'prerelease' => false, 'generate_release_notes' => false]);
             $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
             if (null === $release) {
-                throw $this->exceptions->failure('The matching tag is retained but release creation is unverified; retry the same approved SHA.', $error);
+                throw $this->exceptions->failure(
+                    'The matching tag is retained but release creation is unverified; retry the same approved SHA.',
+                    $error,
+                );
             }
         }
         $url = $this->releaseUrl($release, $tag, $evidence->notes);
         if ($this->tagSha($root, $tag) !== $evidence->sha) {
-            throw $this->exceptions->failure('The release tag changed during publication; no tag rewrite or release update was attempted.');
+            throw $this->exceptions->failure(
+                'The release tag changed during publication; no tag rewrite or release update was attempted.',
+            );
         }
-        return $this->results->create([] === $actions ? 'unchanged' : 'published', $evidence->version, $tag, $evidence->sha, $url, $actions);
+
+        return $this->results->create(
+            [] === $actions ? 'unchanged' : 'published',
+            $evidence->version,
+            $tag,
+            $evidence->sha,
+            $url,
+            $actions,
+        );
     }
 
     /** Treats a failed create response as uncertain; callers MUST verify the corresponding persisted object. */
@@ -101,6 +123,7 @@ final readonly class PublicationService implements PublicationServiceInterface
     {
         try {
             $this->github->request('POST', $path, $body);
+
             return null;
         } catch (Throwable $error) {
             // A lost response or concurrent creation is reconciled through authoritative GET evidence.
@@ -130,11 +153,15 @@ final readonly class PublicationService implements PublicationServiceInterface
                 return $sha;
             }
             if ('tag' !== $type || isset($seen[$sha]) || $depth >= 8) {
-                throw $this->exceptions->failure('GitHub tag objects must terminate in a commit without cycles or excessive nesting.');
+                throw $this->exceptions->failure(
+                    'GitHub tag objects must terminate in a commit without cycles or excessive nesting.',
+                );
             }
             $seen[$sha] = true;
             $annotated = $this->github->request('GET', $root . '/git/tags/' . $sha);
-            if (null === $annotated || ($annotated['sha'] ?? null) !== $sha || ! is_array($annotated['object'] ?? null)) {
+            if (null === $annotated || ($annotated['sha'] ?? null) !== $sha || ! is_array(
+                $annotated['object'] ?? null,
+            )) {
                 throw $this->exceptions->failure('GitHub returned an invalid annotated tag object.');
             }
             $object = $annotated['object'];
@@ -150,8 +177,11 @@ final readonly class PublicationService implements PublicationServiceInterface
             || false !== ($release['draft'] ?? null) || false !== ($release['prerelease'] ?? null)
             || ! is_array($parts) || 'https' !== ($parts['scheme'] ?? null) || empty($parts['host'])
             || isset($parts['user']) || isset($parts['pass']) || 1 === preg_match('~[\x00-\x20\x7f]~', $url)) {
-            throw $this->exceptions->failure('The existing release differs from the exact approved tag, notes or published state.');
+            throw $this->exceptions->failure(
+                'The existing release differs from the exact approved tag, notes or published state.',
+            );
         }
+
         return $url;
     }
 }

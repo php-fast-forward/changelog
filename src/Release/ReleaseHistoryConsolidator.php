@@ -26,11 +26,19 @@ use FastForward\Changelog\Template\TemplateInterface;
 final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsolidatorInterface
 {
     /** Injects value construction; consolidation performs no I/O or clock access. */
-    public function __construct(private HistoryReleaseFactoryInterface $releases, private ReleaseExceptionFactoryInterface $exceptions) {}
+    public function __construct(
+        private HistoryReleaseFactoryInterface $releases,
+        private ReleaseExceptionFactoryInterface $exceptions,
+    ) {}
 
     /** Preserves descriptions, fenced examples and prior releases while removing the pending heading. */
-    public function promote(HistoryDocument $document, string $version, ?string $date, string $notes, TemplateInterface $template): HistoryDocument
-    {
+    public function promote(
+        HistoryDocument $document,
+        string $version,
+        ?string $date,
+        string $notes,
+        TemplateInterface $template,
+    ): HistoryDocument {
         $legacy = ['' => ''];
         $hasLegacy = false;
         $ending = '';
@@ -53,13 +61,28 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
             foreach (Category::cases() as $category) {
                 $body = $this->join($legacy[$category->value] ?? '', $current[$category->value] ?? '', true);
                 if ('' !== trim($body)) {
-                    $notes = $this->join($notes, $template->categoryHeading($category->value) . "\n\n" . ltrim($body, "\r\n"));
+                    $notes = $this->join(
+                        $notes,
+                        $template->categoryHeading($category->value) . "\n\n" . ltrim($body, "\r\n"),
+                    );
                 }
-                $notes = $this->join($notes, $this->join($legacy[$category->value . ':after'] ?? '', $current[$category->value . ':after'] ?? ''));
+                $notes = $this->join(
+                    $notes,
+                    $this->join(
+                        $legacy[$category->value . ':after'] ?? '',
+                        $current[$category->value . ':after'] ?? '',
+                    ),
+                );
             }
         }
-        $retained = array_values(array_filter($document->getReleases(), static fn(HistoryRelease $release): bool => 'unreleased' !== $release->getVersion()));
+        $retained = array_values(
+            array_filter(
+                $document->getReleases(),
+                static fn(HistoryRelease $release): bool => 'unreleased' !== $release->getVersion(),
+            ),
+        );
         array_unshift($retained, $this->releases->create($version, $date, 'release-plan', $notes, null, $ending));
+
         return $document->withReleases($retained);
     }
 
@@ -99,8 +122,13 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
             if (null !== $markedCategory && '' === trim($line)) {
                 continue;
             }
-            if ($outside && 1 === preg_match('/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/', $line, $matches)) {
+            if ($outside && 1 === preg_match(
+                '/^<!-- fast-forward-changelog:category (added|changed|deprecated|removed|fixed|security) -->\r?\n?\z/',
+                $line,
+                $matches,
+            )) {
                 $markedCategory = $matches[1];
+
                 continue;
             }
             if ($outside && 1 === preg_match('/^<!-- fast-forward-changelog:fragment \{.*\} -->\r?\n?\z/', $line)) {
@@ -111,6 +139,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
                 $markedCategory = null;
                 $unknown = false;
                 $sections[$active] ??= '';
+
                 continue;
             }
             if ($peer) {
@@ -123,6 +152,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         if (null !== $markedCategory) {
             throw $this->exceptions->invalid('Legacy category markers must be followed by a level-three heading.');
         }
+
         return $sections;
     }
 
@@ -140,6 +170,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $right = ltrim($right, "\r\n");
         $separator = $compactList && 1 === preg_match('/(?:\A|\n)- [^\r\n]*\z/', $left)
             && str_starts_with($right, '- ') ? $newline : $newline . $newline;
+
         return $left . $separator . $right;
     }
 
@@ -150,16 +181,22 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
     private function outsideFence(string $line, ?array &$fence): bool
     {
         if (null !== $fence) {
-            if (1 === preg_match('/^ {0,3}' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/', $line)) {
+            if (1 === preg_match(
+                '/^ {0,3}' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/',
+                $line,
+            )) {
                 $fence = null;
             }
+
             return false;
         }
         if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
             && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
             $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
+
             return false;
         }
+
         return true;
     }
 }

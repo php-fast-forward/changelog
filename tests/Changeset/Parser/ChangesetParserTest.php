@@ -35,8 +35,11 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(['removed', Category::Removed, VersionImpact::Major])]
     #[TestWith(['fixed', Category::Fixed, VersionImpact::Patch])]
     #[TestWith(['security', Category::Security, VersionImpact::Patch])]
-    public function infersLegacyDefaultsAndAllowsMissingOptionalMetadata(string $value, Category $category, VersionImpact $impact): void
-    {
+    public function infersLegacyDefaultsAndAllowsMissingOptionalMetadata(
+        string $value,
+        Category $category,
+        VersionImpact $impact,
+    ): void {
         $expected = new Changeset('entry.md', $category, null, null, null, 'Body.', $impact);
         $actual = $this->parser($expected)->parse('entry.md', "---\ncategory: {$value}\n---\n\nBody.\n");
 
@@ -64,7 +67,10 @@ final class ChangesetParserTest extends TestCase
         $expected = new Changeset('entry.md', Category::Changed, null, 42, 'coisa', 'Body.', $impact);
         $contents = "---\r\ncategory: changed\r\n{$impactFields}\r\nissue: null\r\npull-request: 42\r\nauthor: \"@coisa\"\r\n---\r\n\r\nBody.\r\n";
 
-        self::assertSame($expected, $this->parser($expected)->parse('C:\\repo\\.changelog\\entry.md', $contents)->changeset);
+        self::assertSame(
+            $expected,
+            $this->parser($expected)->parse('C:\\repo\\.changelog\\entry.md', $contents)->changeset,
+        );
     }
 
     #[Test]
@@ -110,7 +116,10 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function rejectsMissingClosingDelimiter(): void
     {
-        self::assertSame(['Fragment frontmatter must have a closing delimiter.'], $this->parser()->parse('entry.md', "---\ncategory: fixed")->errors);
+        self::assertSame([
+            'Fragment frontmatter must have a closing delimiter.'],
+            $this->parser()->parse('entry.md', "---\ncategory: fixed")->errors,
+        );
     }
 
     #[Test]
@@ -147,7 +156,10 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function rejectsConflictingCanonicalAndLegacyImpactAndDuplicateAliases(): void
     {
-        $result = $this->parser()->parse('entry.md', "---\ncategory: added\ntype: patch\nversion: major\npull_request: 1\npull-request: 1\n---\nBody.");
+        $result = $this->parser()->parse(
+            'entry.md',
+            "---\ncategory: added\ntype: patch\nversion: major\npull_request: 1\npull-request: 1\n---\nBody.",
+        );
 
         self::assertSame([
             'Duplicate frontmatter key "pull_request".',
@@ -158,9 +170,15 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function rejectsInvalidLegacyImpactAndOverflowReferences(): void
     {
-        $result = $this->parser()->parse('entry.md', "---\ncategory: fixed\nversion: invalid\nissue: 9999999999999999999999999\n---\nBody.");
+        $result = $this->parser()->parse(
+            'entry.md',
+            "---\ncategory: fixed\nversion: invalid\nissue: 9999999999999999999999999\n---\nBody.",
+        );
 
-        self::assertSame(['Issue must be a positive integer or null.', 'Version must be one of major, minor, patch.'], $result->errors);
+        self::assertSame([
+            'Issue must be a positive integer or null.', 'Version must be one of major, minor, patch.'],
+            $result->errors,
+        );
     }
 
     /** Builds the parser using only mocked factory collaborators. */
@@ -169,12 +187,28 @@ final class ChangesetParserTest extends TestCase
         $changesets = $this->prophesize(ChangesetFactoryInterface::class);
         $results = $this->prophesize(ChangesetParseResultFactoryInterface::class);
         $results->invalid(Argument::type('string'), Argument::type('array'))
-            ->will(static fn(array $arguments): ChangesetParseResult => new ChangesetParseResult($arguments[0], null, $arguments[1]));
+            ->will(
+                static fn(array $arguments): ChangesetParseResult => new ChangesetParseResult(
+                    $arguments[0],
+                    null,
+                    $arguments[1],
+                ),
+            );
 
         if (null !== $expected) {
-            $changesets->create($expected->id, $expected->category, $expected->issue, $expected->pullRequest, $expected->author, $expected->description, $expected->type)
+            $changesets->create(
+                $expected->id,
+                $expected->category,
+                $expected->issue,
+                $expected->pullRequest,
+                $expected->author,
+                $expected->description,
+                $expected->type,
+            )
                 ->willReturn($expected)->shouldBeCalledOnce();
-            $results->valid($expected)->willReturn(new ChangesetParseResult($expected->id, $expected, []))->shouldBeCalledOnce();
+            $results->valid($expected)->willReturn(
+                new ChangesetParseResult($expected->id, $expected, []),
+            )->shouldBeCalledOnce();
         }
 
         return new ChangesetParser($changesets->reveal(), $results->reveal());

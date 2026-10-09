@@ -36,5 +36,8 @@ foreach ($phpFiles() as $file) {
     }
 }
 
-fwrite($failed ? STDERR : STDOUT, $failed ? "PHP lint failed.\n" : "Every package PHP file passes syntax validation.\n");
+fwrite(
+    $failed ? STDERR : STDOUT,
+    $failed ? "PHP lint failed.\n" : "Every package PHP file passes syntax validation.\n",
+);
 exit($failed ? 1 : 0);

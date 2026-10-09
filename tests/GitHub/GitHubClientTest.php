@@ -23,11 +23,21 @@ final class GitHubClientTest extends TestCase
     public function sendsExplicitHeadersJsonAndDisablesRedirects(): void
     {
         $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->with('POST', 'https://api.github.com/repos/owner/project/issues', [
-            'headers' => ['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2026-03-10', 'User-Agent' => 'FastForward-Changelog', 'Authorization' => 'Bearer private-token'],
-            'max_redirects' => 0, 'json' => ['title' => 'Example'],
-        ])->willReturn($this->response(201, ['number' => 3]));
-        self::assertSame(['number' => 3], $this->client($http, 'private-token')->request('POST', '/repos/owner/project/issues', ['title' => 'Example']));
+        $http->expects(self::once())->method('request')->with(
+            'POST',
+            'https://api.github.com/repos/owner/project/issues',
+            [
+                'headers' => ['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2026-03-10', 'User-Agent' => 'FastForward-Changelog', 'Authorization' => 'Bearer private-token'],
+                'max_redirects' => 0, 'json' => ['title' => 'Example'],
+            ],
+        )->willReturn($this->response(201, ['number' => 3]));
+        self::assertSame([
+            'number' => 3],
+            $this->client(
+                $http,
+                'private-token',
+            )->request('POST', '/repos/owner/project/issues', ['title' => 'Example']),
+        );
     }
 
     #[Test]
@@ -76,7 +86,9 @@ final class GitHubClientTest extends TestCase
     public function transportExceptionsAreRedactedWithoutChaining(): void
     {
         $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->willThrowException(new TransportException('super-secret raw server error'));
+        $http->expects(self::once())->method('request')->willThrowException(
+            new TransportException('super-secret raw server error'),
+        );
         $this->expectExceptionMessage('response details were withheld');
         $this->client($http)->request('GET', '/resource');
     }
@@ -86,7 +98,9 @@ final class GitHubClientTest extends TestCase
     {
         $response = $this->createMock(ResponseInterface::class);
         $response->method('getStatusCode')->willReturn(200);
-        $response->expects(self::once())->method('toArray')->with(false)->willThrowException(new JsonException('secret raw JSON'));
+        $response->expects(self::once())->method('toArray')->with(false)->willThrowException(
+            new JsonException('secret raw JSON'),
+        );
         $http = $this->createMock(HttpClientInterface::class);
         $http->expects(self::once())->method('request')->willReturn($response);
         $this->expectExceptionMessage('response details were withheld');
@@ -108,8 +122,12 @@ final class GitHubClientTest extends TestCase
     #[TestWith(['GET', '/resource', '', 'https://api.github.com?secret=value'])]
     #[TestWith(['GET', '/resource', '', 'https://api.github.com#fragment'])]
     #[TestWith(['GET', '/resource', '', 'https://api.github.com:bad'])]
-    public function rejectsUnsafeSettingsBeforeTransport(string $method, string $path, string $token, string $base): void
-    {
+    public function rejectsUnsafeSettingsBeforeTransport(
+        string $method,
+        string $path,
+        string $token,
+        string $base,
+    ): void {
         $http = $this->createMock(HttpClientInterface::class);
         $http->expects(self::never())->method('request');
         $this->expectException(RuntimeException::class);
@@ -121,16 +139,34 @@ final class GitHubClientTest extends TestCase
     {
         $first = array_fill(0, 100, ['id' => 1]);
         $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::exactly(2))->method('request')->willReturnCallback(function (string $method, string $url) use ($first): ResponseInterface {
+        $http->expects(self::exactly(2))->method('request')->willReturnCallback(function (string $method, string $url) use (
+            $first
+        ): ResponseInterface {
             self::assertSame('GET', $method);
             if (str_ends_with($url, 'page=1')) {
-                self::assertSame('https://api.github.com/repos/owner/project/releases?state=all&per_page=100&page=1', $url);
-                return $this->response(200, $first, ['link' => ['<https://api.github.com/repositories/123/releases?per_page=100&page=2>; rel="next"']]);
+                self::assertSame(
+                    'https://api.github.com/repos/owner/project/releases?state=all&per_page=100&page=1',
+                    $url,
+                );
+
+                return $this->response(
+                    200,
+                    $first,
+                    ['link' => ['<https://api.github.com/repositories/123/releases?per_page=100&page=2>; rel="next"']],
+                );
             }
             self::assertSame('https://api.github.com/repos/owner/project/releases?state=all&per_page=100&page=2', $url);
-            return $this->response(200, [['id' => 2]], ['link' => ['<https://api.github.com/resource?page=1>; rel="prev"']]);
+
+            return $this->response(
+                200,
+                [['id' => 2]],
+                ['link' => ['<https://api.github.com/resource?page=1>; rel="prev"']],
+            );
         });
-        self::assertSame([...$first, ['id' => 2]], $this->client($http)->paginate('/repos/owner/project/releases?state=all&per_page=5&page=9'));
+        self::assertSame([
+            ...$first, ['id' => 2]],
+            $this->client($http)->paginate('/repos/owner/project/releases?state=all&per_page=5&page=9'),
+        );
     }
 
     #[Test]
@@ -152,12 +188,16 @@ final class GitHubClientTest extends TestCase
     #[TestWith(['<https://api.github.com:444/releases?per_page=100&page=2>; rel="next"'])]
     #[TestWith(['<https://api.github.com/releases?per_page=100&page=2#fragment>; rel="next"'])]
     #[TestWith(['not-a-link; rel="next"'])]
-    #[TestWith(['<https://api.github.com/releases?per_page=100&page=2>; rel="next", <https://api.github.com/releases?per_page=100&page=2>; rel="next"'])]
+    #[TestWith([
+        '<https://api.github.com/releases?per_page=100&page=2>; rel="next", <https://api.github.com/releases?per_page=100&page=2>; rel="next"',
+    ])]
     #[TestWith(['<https://api.github.com/releases?per_page=100&page=8>; rel="next"'])]
     public function rejectsUnsafeOrAmbiguousPaginationWithoutASecondRequest(string $link): void
     {
         $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->willReturn($this->response(200, [['id' => 1]], ['link' => [$link]]));
+        $http->expects(self::once())->method('request')->willReturn(
+            $this->response(200, [['id' => 1]], ['link' => [$link]]),
+        );
         $this->expectException(RuntimeException::class);
         $this->client($http)->paginate('/releases');
     }
@@ -166,7 +206,11 @@ final class GitHubClientTest extends TestCase
     public function enterprisePaginationCannotLeaveItsApiPath(): void
     {
         $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->willReturn($this->response(200, [], ['link' => ['<https://enterprise.test/api/v30/releases?per_page=100&page=2>; rel="next"']]));
+        $http->expects(self::once())->method('request')->willReturn(
+            $this->response(200, [], ['link' => [
+                '<https://enterprise.test/api/v30/releases?per_page=100&page=2>; rel="next"',
+            ]]),
+        );
         $this->expectExceptionMessage('outside the trusted API base');
         $this->client($http, '', 'https://enterprise.test/api/v3')->paginate('/releases');
     }
@@ -177,15 +221,26 @@ final class GitHubClientTest extends TestCase
     public function pageLimitsFailClosedWithoutReturningPartialRecords(int $limit): void
     {
         $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(0 === $limit ? self::never() : self::once())->method('request')->willReturn($this->response(200, [['id' => 1]], ['link' => ['<https://api.github.com/releases?per_page=100&page=2>; rel="next"']]));
+        $http->expects(0 === $limit ? self::never() : self::once())->method('request')->willReturn(
+            $this->response(200, [['id' => 1]], ['link' => [
+                '<https://api.github.com/releases?per_page=100&page=2>; rel="next"',
+            ]]),
+        );
         $this->expectException(RuntimeException::class);
         $this->client($http, '', 'https://api.github.com', $limit)->paginate('/releases');
     }
 
-    private function client(HttpClientInterface $http, string $token = '', string $api = 'https://api.github.com', int $maxPages = 100): GitHubClient
-    {
+    private function client(
+        HttpClientInterface $http,
+        string $token = '',
+        string $api = 'https://api.github.com',
+        int $maxPages = 100,
+    ): GitHubClient {
         $errors = $this->createStub(GitHubExceptionFactoryInterface::class);
-        $errors->method('failure')->willReturnCallback(static fn(string $message): RuntimeException => new RuntimeException($message));
+        $errors->method('failure')->willReturnCallback(
+            static fn(string $message): RuntimeException => new RuntimeException($message),
+        );
+
         return new GitHubClient($http, $errors, $token, $api, $maxPages);
     }
 
@@ -195,6 +250,7 @@ final class GitHubClientTest extends TestCase
         $response->method('getStatusCode')->willReturn($status);
         $response->method('toArray')->willReturn($data);
         $response->method('getHeaders')->willReturn($headers);
+
         return $response;
     }
 }

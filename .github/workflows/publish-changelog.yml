@@ -35,6 +35,9 @@ jobs:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Publish the verified consolidation
         id: publication
         uses: ./.github/actions/publish

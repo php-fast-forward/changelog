@@ -46,19 +46,23 @@ jobs:
           FF_EXPECTED_SHA: ${{ inputs.expected-sha || '' }}
         run: |
           set -euo pipefail
+
           if [[ ! "$FF_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "::error::Select an existing semantic release tag such as v1.0.0."
             exit 1
           fi
+
           if [[ ! "$FF_EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::The approved source must be a complete commit SHA."
             exit 1
           fi
+
           FF_VERSION="${FF_TAG#v}"
           if (( ${#FF_VERSION} > 128 )); then
             echo "::error::The version exceeds the container tag limit."
             exit 1
           fi
+
           printf 'tag=%s\nversion=%s\nimage=ghcr.io/%s\n' "$FF_TAG" "$FF_VERSION" "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Check out the release tag
@@ -76,12 +80,14 @@ jobs:
           FF_EXPECTED_SHA: ${{ inputs.expected-sha || '' }}
         run: |
           set -euo pipefail
+
           FF_TAG_SHA="$(git rev-parse --verify "refs/tags/${FF_TAG}^{commit}")"
           FF_SOURCE_SHA="$(git rev-parse HEAD)"
           if [[ "$FF_TAG_SHA" != "$FF_SOURCE_SHA" || "$FF_SOURCE_SHA" != "$FF_EXPECTED_SHA" ]]; then
             echo "::error::The release tag does not match the approved source commit."
             exit 1
           fi
+
           printf 'sha=%s\n' "$FF_SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Set up the integration verifier
@@ -90,6 +96,9 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Build and verify the versioned CLI
         shell: bash
         env:
@@ -97,7 +106,13 @@ jobs:
           FF_PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          docker build --platform "$FF_PLATFORM" --build-arg "COMPOSER_ROOT_VERSION=$FF_VERSION" --tag fast-forward-changelog:release-check .
+
+          docker build \
+            --platform "$FF_PLATFORM" \
+            --build-arg "COMPOSER_ROOT_VERSION=$FF_VERSION" \
+            --tag fast-forward-changelog:release-check \
+            .
+
           php tests/Container/verify.php fast-forward-changelog:release-check "$FF_VERSION"
 
   publish:
@@ -114,6 +129,9 @@ jobs:
           ref: ${{ needs.validate.outputs.sha }}
           persist-credentials: false
 
+      - name: Prepare the base image cache
+        uses: ./.github/actions/setup-docker
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
@@ -121,6 +139,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -155,6 +177,7 @@ jobs:
           FF_APPROVED_SHA: ${{ needs.validate.outputs.sha }}
         run: |
           set -euo pipefail
+
           FF_OBJECT="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${FF_TAG}" --jq '[.object.type, .object.sha] | @tsv')"
           IFS=$'\t' read -r FF_TYPE FF_REMOTE_SHA <<< "$FF_OBJECT"
           FF_DEPTH=0
@@ -163,6 +186,7 @@ jobs:
               echo "::error::The remote release tag is not bound to a commit."
               exit 1
             fi
+
             FF_OBJECT="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${FF_REMOTE_SHA}" --jq '[.object.type, .object.sha] | @tsv')"
             IFS=$'\t' read -r FF_TYPE FF_REMOTE_SHA <<< "$FF_OBJECT"
             FF_DEPTH=$((FF_DEPTH + 1))

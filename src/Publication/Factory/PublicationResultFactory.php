@@ -22,8 +22,14 @@ use FastForward\Changelog\Publication\PublicationResult;
 final readonly class PublicationResultFactory implements PublicationResultFactoryInterface
 {
     /** Retains approved identity and actions exactly without I/O. */
-    public function create(string $state, ?string $version, ?string $tag, string $sha, ?string $url, array $actions): PublicationResult
-    {
+    public function create(
+        string $state,
+        ?string $version,
+        ?string $tag,
+        string $sha,
+        ?string $url,
+        array $actions,
+    ): PublicationResult {
         return new PublicationResult($state, $version, $tag, $sha, $url, $actions);
     }
 }

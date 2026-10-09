@@ -23,7 +23,11 @@ final class HistoryDocument
      *
      * @param list<HistoryRelease> $releases retained historical sections
      */
-    public function __construct(private array $releases = [], private string $prefix = '', private string $references = '') {}
+    public function __construct(
+        private array $releases = [],
+        private string $prefix = '',
+        private string $references = '',
+    ) {}
 
     /** Returns the release sections in their stored presentation order. */
     public function getReleases(): array

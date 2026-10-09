@@ -21,5 +21,11 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 interface VersionPullRequestInputFactoryInterface
 {
     /** Rejects unsafe refs, equal branches, invalid Bot logins and multiline/oversized PR titles. */
-    public function create(string $baseBranch = 'main', string $managedBranch = 'changelog/version', string $automationActor = 'github-actions[bot]', string $title = 'chore: update changelog', bool $dryRun = false): VersionPullRequestInput;
+    public function create(
+        string $baseBranch = 'main',
+        string $managedBranch = 'changelog/version',
+        string $automationActor = 'github-actions[bot]',
+        string $title = 'chore: update changelog',
+        bool $dryRun = false,
+    ): VersionPullRequestInput;
 }

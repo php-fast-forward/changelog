@@ -20,5 +20,7 @@ namespace FastForward\Changelog\Release;
 final readonly class ReleaseReceipt
 {
     /** Captures the strictly validated schema-one data without filesystem access. */
-    public function __construct(public array $data) {}
+    public function __construct(
+        public array $data,
+    ) {}
 }

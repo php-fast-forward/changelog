@@ -37,7 +37,16 @@ final class VersionPullRequestFactoriesTest extends TestCase
         $custom = $factory->create('support/1.x', 'changelog/support-1.x', 'my-app[bot]', 'Update history', true);
         self::assertTrue($custom->dryRun);
         self::assertSame('my-app[bot]', $custom->automationActor);
-        $value = new VersionPullRequestResultFactory()->create('updated', 7, 'https://github.com/o/r/pull/7', str_repeat('a', 40), str_repeat('b', 64), null, true, ['maintenance']);
+        $value = new VersionPullRequestResultFactory()->create(
+            'updated',
+            7,
+            'https://github.com/o/r/pull/7',
+            str_repeat('a', 40),
+            str_repeat('b', 64),
+            null,
+            true,
+            ['maintenance'],
+        );
         self::assertSame('updated', $value->status);
         self::assertSame(7, $value->prNumber);
         self::assertSame('https://github.com/o/r/pull/7', $value->url);
@@ -66,6 +75,11 @@ final class VersionPullRequestFactoriesTest extends TestCase
     public function rejectsUnsafeAutomationSettings(string $base, string $branch, string $actor, string $title): void
     {
         $this->expectException(VersionPullRequestException::class);
-        new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create('long' === $base ? str_repeat('a', 256) : $base, $branch, $actor, 'long' === $title ? str_repeat('a', 257) : $title);
+        new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create(
+            'long' === $base ? str_repeat('a', 256) : $base,
+            $branch,
+            $actor,
+            'long' === $title ? str_repeat('a', 257) : $title,
+        );
     }
 }

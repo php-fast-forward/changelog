@@ -14,9 +14,17 @@ trait ReceiptFixtureTrait
             'schema' => 1, 'base_sha' => str_repeat('a', 40), 'current_version' => '1.0.0',
             'next_version' => '1.0.1', 'impact' => 'patch',
             'consumed' => ['.changelog/a.md' => hash('sha256', 'alpha'), '.changelog/b.md' => hash('sha256', 'beta')],
-            'historical_versions' => ['0.1.0'], 'changelog_file' => 'CHANGELOG.md', 'fragment_directory' => '.changelog',
+            'historical_versions' => [
+                '0.1.0',
+            ], 'changelog_file' => 'CHANGELOG.md', 'fragment_directory' => '.changelog',
             'locale' => 'en', 'template' => 'keep-a-changelog', 'tag_prefix' => 'v', 'repository' => null,
-            'before_changelog_sha256' => hash('sha256', 'before'), 'changelog_contents' => 'after', 'after_changelog_sha256' => hash('sha256', 'after'),
+            'before_changelog_sha256' => hash(
+                'sha256',
+                'before',
+            ), 'changelog_contents' => 'after', 'after_changelog_sha256' => hash(
+                'sha256',
+                'after',
+            ),
             'notes' => "Exact  notes\n", 'notes_sha256' => hash('sha256', "Exact  notes\n"),
         ];
     }

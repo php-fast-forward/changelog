@@ -23,7 +23,10 @@ use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 final readonly class GitRepository implements GitRepositoryInterface
 {
     /** Injects process construction so unit tests never start Git. */
-    public function __construct(private ProcessFactoryInterface $processes, private ReleaseExceptionFactoryInterface $exceptions) {}
+    public function __construct(
+        private ProcessFactoryInterface $processes,
+        private ReleaseExceptionFactoryInterface $exceptions,
+    ) {}
 
     /** Probes repository availability without treating a non-Git project as an error. */
     public function isRepository(string $directory): bool
@@ -38,6 +41,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         if ('' === $root) {
             throw $this->exceptions->failure('Git did not return a repository root.');
         }
+
         return str_replace('\\', '/', $root);
     }
 
@@ -53,12 +57,16 @@ final readonly class GitRepository implements GitRepositoryInterface
             || (! str_starts_with($path, '/') && 1 !== preg_match('~^[A-Za-z]:/~', $path))) {
             throw $this->exceptions->failure('Git did not return a safe absolute private directory.');
         }
+
         return $path . '/changelog-release-plan.json';
     }
 
     /** Returns only complete scalar evidence whose generated output matches the exact approved central blob. */
-    public function releaseMetadata(string $directory, string $reference, string $changelogFile = 'CHANGELOG.md'): ?array
-    {
+    public function releaseMetadata(
+        string $directory,
+        string $reference,
+        string $changelogFile = 'CHANGELOG.md',
+    ): ?array {
         $sha = $this->resolveRef($directory, $reference);
         $direct = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $sha, '--']));
         $central = $this->readFileAt($directory, $sha, $changelogFile);
@@ -70,6 +78,7 @@ final readonly class GitRepository implements GitRepositoryInterface
             if (! hash_equals($direct['output_sha256'], $output)) {
                 throw $this->exceptions->failure('Release commit metadata differs from its approved changelog blob.');
             }
+
             return $direct;
         }
         $parents = trim($this->run($directory, ['show', '-s', '--format=%P', $sha, '--']));
@@ -91,14 +100,18 @@ final readonly class GitRepository implements GitRepositoryInterface
                 continue;
             }
             if (null !== $selected && $selected !== $candidate) {
-                throw $this->exceptions->failure('The approved merge has conflicting matching direct-parent release metadata.');
+                throw $this->exceptions->failure(
+                    'The approved merge has conflicting matching direct-parent release metadata.',
+                );
             }
             $selected = $candidate;
         }
         if (null !== $selected) {
             return $selected;
         }
-        $raw = trim($this->run($directory, ['rev-list', '--topo-order', '--max-count=101', $parents[0] . '..' . $sha, '--']));
+        $raw = trim(
+            $this->run($directory, ['rev-list', '--topo-order', '--max-count=101', $parents[0] . '..' . $sha, '--']),
+        );
         $commits = '' === $raw ? [] : explode("\n", $raw);
         if (count($commits) > 100) {
             throw $this->exceptions->failure('Merged release evidence exceeds the bounded commit inventory.');
@@ -117,6 +130,7 @@ final readonly class GitRepository implements GitRepositoryInterface
             }
             $selected = $candidate;
         }
+
         return $selected;
     }
 
@@ -132,8 +146,14 @@ final readonly class GitRepository implements GitRepositoryInterface
                     continue;
                 }
                 $pattern = 'base_sha' === $field ? '(?:[a-f0-9]{40}|[a-f0-9]{64})' : '[a-f0-9]{64}';
-                if (isset($data[$field]) || 1 !== preg_match('~^' . $trailer . ': (' . $pattern . ')$~D', $line, $match)) {
-                    throw $this->exceptions->failure('Release commit metadata contains malformed or duplicate trailers.');
+                if (isset($data[$field]) || 1 !== preg_match(
+                    '~^' . $trailer . ': (' . $pattern . ')$~D',
+                    $line,
+                    $match,
+                )) {
+                    throw $this->exceptions->failure(
+                        'Release commit metadata contains malformed or duplicate trailers.',
+                    );
                 }
                 $data[$field] = $match[1];
             }
@@ -144,6 +164,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         if (count($data) !== count($fields)) {
             throw $this->exceptions->failure('Release commit metadata is incomplete.');
         }
+
         return array_replace(array_fill_keys(array_values($fields), ''), $data);
     }
 
@@ -160,9 +181,13 @@ final readonly class GitRepository implements GitRepositoryInterface
             if (2 === $process->getExitCode()) {
                 return null;
             }
-            throw $this->exceptions->failure('Cannot read the repository-local Git origin: ' . trim($process->getErrorOutput()));
+
+            throw $this->exceptions->failure(
+                'Cannot read the repository-local Git origin: ' . trim($process->getErrorOutput()),
+            );
         }
         $url = rtrim($process->getOutput(), "\r\n");
+
         return '' === $url ? null : $url;
     }
 
@@ -174,6 +199,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         if (1 !== preg_match('/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/D', $sha)) {
             throw $this->exceptions->failure('Git returned an invalid commit identity.');
         }
+
         return $sha;
     }
 
@@ -190,13 +216,21 @@ final readonly class GitRepository implements GitRepositoryInterface
         if (1 === $process->getExitCode()) {
             return false;
         }
+
         throw $this->exceptions->failure('Git ancestry verification failed: ' . trim($process->getErrorOutput()));
     }
 
     /** Reads lightweight and annotated identities and keeps the provenance of known dates. */
     public function tags(string $directory): array
     {
-        $output = $this->run($directory, ['for-each-ref', '--format=%(refname:strip=2)%00%(objecttype)%00%(taggerdate:iso-strict)%00%(objectname)%00%(*objectname)%00%(*objecttype)', 'refs/tags/']);
+        $output = $this->run(
+            $directory,
+            [
+                'for-each-ref',
+                '--format=%(refname:strip=2)%00%(objecttype)%00%(taggerdate:iso-strict)%00%(objectname)%00%(*objectname)%00%(*objecttype)',
+                'refs/tags/',
+            ],
+        );
         $tags = [];
         foreach (explode("\n", rtrim($output, "\n")) as $line) {
             if ('' === $line) {
@@ -219,6 +253,7 @@ final readonly class GitRepository implements GitRepositoryInterface
             $tags[] = ['name' => $fields[0], 'sha' => $sha,
                 'date' => $date, 'date_source' => null === $date ? null : 'annotated-tag'];
         }
+
         return $tags;
     }
 
@@ -226,7 +261,20 @@ final readonly class GitRepository implements GitRepositoryInterface
     public function changesSince(string $directory, string $reference): array
     {
         $base = $this->resolveRef($directory, $reference);
-        $raw = $this->run($directory, ['diff', '--no-ext-diff', '--no-textconv', '--relative', '--name-status', '-z', '--find-renames', $base . '...HEAD', '--']);
+        $raw = $this->run(
+            $directory,
+            [
+                'diff',
+                '--no-ext-diff',
+                '--no-textconv',
+                '--relative',
+                '--name-status',
+                '-z',
+                '--find-renames',
+                $base . '...HEAD',
+                '--',
+            ],
+        );
         $tokens = explode("\0", rtrim($raw, "\0"));
         $changes = [];
         for ($index = 0; $index < count($tokens) && '' !== $tokens[$index]; ++$index) {
@@ -242,6 +290,7 @@ final readonly class GitRepository implements GitRepositoryInterface
             }
             $changes[] = ['status' => $status, 'path' => $first, 'previous' => $previous];
         }
+
         return $changes;
     }
 
@@ -253,6 +302,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         if ('' === $this->run($directory, ['ls-tree', '--name-only', $sha, '--', $path])) {
             return null;
         }
+
         return $this->run($directory, ['show', $sha . ':./' . $path]);
     }
 
@@ -267,12 +317,17 @@ final readonly class GitRepository implements GitRepositoryInterface
             if ('' === $record) {
                 continue;
             }
-            if (1 !== preg_match('~^([0-9]{6}) (?:blob|commit) (?:[a-f0-9]{40}|[a-f0-9]{64})\t(.+)$~sD', $record, $parts)
+            if (1 !== preg_match(
+                '~^([0-9]{6}) (?:blob|commit) (?:[a-f0-9]{40}|[a-f0-9]{64})\t(.+)$~sD',
+                $record,
+                $parts,
+            )
                 || ($parts[2] !== $path && ! str_starts_with($parts[2], $path . '/'))) {
                 throw $this->exceptions->failure('Git returned a malformed committed-path record.');
             }
             $files[] = ['path' => $parts[2], 'mode' => $parts[1]];
         }
+
         return $files;
     }
 
@@ -284,6 +339,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         }
         $this->run($directory, ['add', '--', $path]);
         $this->run($directory, ['commit', '--only', '--message', $message, '--', $path]);
+
         return $this->resolveRef($directory);
     }
 
@@ -302,7 +358,9 @@ final readonly class GitRepository implements GitRepositoryInterface
             || str_starts_with($path, '-') || str_starts_with($path, '/')
             || 1 === preg_match('~^[A-Za-z]:~', $path)
             || [] !== array_intersect(explode('/', $path), ['', '.', '..'])) {
-            throw $this->exceptions->invalid('Baseline path must identify a canonical project-relative file or directory.');
+            throw $this->exceptions->invalid(
+                'Baseline path must identify a canonical project-relative file or directory.',
+            );
         }
     }
 
@@ -319,8 +377,10 @@ final readonly class GitRepository implements GitRepositoryInterface
             if ($allowFailure) {
                 return null;
             }
+
             throw $this->exceptions->failure('Git failed: ' . trim($process->getErrorOutput()));
         }
+
         return $process->getOutput();
     }
 }

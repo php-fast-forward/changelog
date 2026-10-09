@@ -72,6 +72,7 @@ final readonly class GitHubClient implements GitHubClientInterface
                 return $records;
             }
         }
+
         throw $this->exceptions->failure('GitHub pagination exceeded its page limit; no partial history was accepted.');
     }
 
@@ -103,9 +104,12 @@ final readonly class GitHubClient implements GitHubClientInterface
             if ($status < 200 || $status >= 300) {
                 throw $this->exceptions->failure('GitHub API request failed with HTTP ' . $status . '.');
             }
+
             return [$response->toArray(false), $response->getHeaders(false)];
         } catch (ExceptionInterface) {
-            throw $this->exceptions->failure('GitHub transport or JSON decoding failed; response details were withheld.');
+            throw $this->exceptions->failure(
+                'GitHub transport or JSON decoding failed; response details were withheld.',
+            );
         }
     }
 
@@ -115,7 +119,10 @@ final readonly class GitHubClient implements GitHubClientInterface
         $base = parse_url($this->apiUrl);
         $path = explode('?', rawurldecode($relativePath), 2)[0];
         if (! is_array($base) || 'https' !== ($base['scheme'] ?? null) || empty($base['host'])
-            || 1 === preg_match('/[\x00-\x20\x7f]/', $this->apiUrl) || isset($base['user']) || isset($base['query']) || isset($base['fragment'])
+            || 1 === preg_match(
+                '/[\x00-\x20\x7f]/',
+                $this->apiUrl,
+            ) || isset($base['user']) || isset($base['query']) || isset($base['fragment'])
             || ! str_starts_with($relativePath, '/') || str_starts_with($relativePath, '//')
             || str_contains($relativePath, '\\') || str_contains($relativePath, '#')
             || 1 === preg_match('/[\x00-\x20\x7f]/', $relativePath)
@@ -123,6 +130,7 @@ final readonly class GitHubClient implements GitHubClientInterface
         ) {
             throw $this->exceptions->failure('GitHub API requests require a trusted HTTPS base and relative endpoint.');
         }
+
         return rtrim($this->apiUrl, '/') . $relativePath;
     }
 
@@ -155,6 +163,7 @@ final readonly class GitHubClient implements GitHubClientInterface
         if (($query['page'] ?? null) !== (string) ($page + 1) || ($query['per_page'] ?? null) !== '100') {
             throw $this->exceptions->failure('GitHub pagination returned an unsupported page sequence.');
         }
+
         return true;
     }
 }

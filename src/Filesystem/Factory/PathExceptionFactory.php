@@ -24,6 +24,9 @@ final readonly class PathExceptionFactory implements PathExceptionFactoryInterfa
     /** Identifies the rejected path without performing any inspection or I/O. */
     public function create(string $path): InvalidArgumentException
     {
-        return new InvalidArgumentException(sprintf('Unsafe fragment path "%s": use an absolute regular path without traversal.', $path));
+        return new InvalidArgumentException(sprintf(
+            'Unsafe fragment path "%s": use an absolute regular path without traversal.',
+            $path,
+        ));
     }
 }

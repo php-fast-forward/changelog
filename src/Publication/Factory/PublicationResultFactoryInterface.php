@@ -22,5 +22,12 @@ use FastForward\Changelog\Publication\PublicationResult;
 interface PublicationResultFactoryInterface
 {
     /** Retains observed state, exact target identity and planned/performed actions. */
-    public function create(string $state, ?string $version, ?string $tag, string $sha, ?string $url, array $actions): PublicationResult;
+    public function create(
+        string $state,
+        ?string $version,
+        ?string $tag,
+        string $sha,
+        ?string $url,
+        array $actions,
+    ): PublicationResult;
 }

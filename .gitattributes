@@ -1,4 +1,7 @@
 *                       text=auto
+*.php                   text eol=lf
+/bin/changelog          text eol=lf
+
 /.github/workflows/     export-ignore
 /.github/skills/         export-ignore
 /docs/                  export-ignore
