@@ -5,13 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-10
 
 ### Added
 
 - Bootstrap the standalone changelog domain, document model, manager, and reusable CLI commands (#1)
 - Add a Git-baseline check command, explicit service contracts, a PSR-11 service provider, and lazy command loading (#1)
 - Add deterministic PSR-20 time through `fast-forward/clock` and an isolated unit-test coverage gate (#1)
+- Adds consistent short options for common settings, fragment metadata, read-only modes and note output while preserving Symfony global shortcuts and the existing long options. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Ships the canonical changelog skill in Composer archives and declares its donor source for optional llm/skills installation, with a verified consumer recipe and an evaluated Fast Forward resource-bundle alternative. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags.
+
+### Changed
+
+- Distribute the repository skill from one real GitHub package, with relative links for other hosts and explicit validation of Windows checkout behavior.
+- Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
+- Adds contextual Dash artwork organizing change fragments into a release history.
+- Runs all GitHub Actions from the self-contained Docker CLI under .github/actions, with direct commands, validated outputs and separate consumer data.
+- Uses Symfony Console Ask for the required add description, retries blank interactive answers without trimming Markdown spaces, and preserves unattended invalid-input handling. Direct AddCommand invocations no longer receive InputInterface.
+- Uses Symfony NotBlank constraints for interactive descriptions with configurable errors and preserved Markdown spaces, removing the field-specific ChangeDescriptionValidator class. AddCommand and CheckCommand take SymfonyStyle first, separated from their attributed input parameters. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Aligns README sections, examples and verified badges with the Fast Forward package documentation format.
+- Registers ChangelogServiceProvider by class name with lazy defaults and optional Fast Forward Config injection instead of provider constructor arguments.
+- Improves PHP, Dockerfile and workflow readability with separated statement blocks, grouped command attributes and wrapped arguments; keeps the formatting rules in the project quality gate.
+- Moves semantic impact to `Version`, GitHub Actions outputs to `Automation\Output`, transport factories to `Http` and `Process`, and release-note rendering to `Release\Renderer`, with matching tests and updated PHP imports. Documents the SDK and development-tooling boundaries and excludes development scripts and formatter configuration from package archives. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Adds a standalone fragment-based changelog and release lifecycle for Composer projects. The add/check/status/version/notes/publish/backfill/format commands replace the legacy Unreleased editing workflow, share their PHP domain with GitHub Actions, and support deterministic release plans, localized history, verified version pull requests and recoverable publication. This repository now records its own changes with the same CLI and consolidates CHANGELOG.md through its release workflow. ([@mentordosnerds](https://github.com/mentordosnerds))
 
 ### Fixed
 
@@ -21,3 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strip credentials from generated repository links and render release-note output without Symfony formatting (#1)
 - Validate real release dates and create missing parent directories before Git repository discovery (#1)
 - Treat prefixed versions as one identity and apply SemVer prerelease precedence when ordering releases (#1)
+- Preloads trusted Dockerfile base images through the public Docker Hub cache on disposable GitHub-hosted Linux runners, reducing build failures from upstream registry limits and timeouts.
+- Accept GitHub platform-signed bot transactions while preserving exact author identity, signature, receipt and file-scope checks; expose safe commit diagnostics when ownership proof fails. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Separate release and category headings with blank lines while keeping simple changelog entries compact and preserving multiline Markdown.
+- Promotes legacy Unreleased descriptions into the next version without leaving a pending section or duplicating category headings.
+- Reject ambiguous Unreleased headings and unsupported historical release headings before consolidation, so custom template changes cannot duplicate history or misidentify an existing release.
+- Confirm refreshed version pull requests through a fresh read of the same pull request, so a stale GitHub update response cannot report a successful changelog transaction as failed.
