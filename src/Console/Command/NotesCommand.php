@@ -68,7 +68,7 @@ final readonly class NotesCommand
         )]
         ?string $version = null,
 
-        #[Option(description: 'Optional project-relative managed output file.', name: 'output')]
+        #[Option(description: 'Optional project-relative managed output file.', name: 'output', shortcut: 'o')]
         ?string $outputFile = null,
     ): int {
         try {

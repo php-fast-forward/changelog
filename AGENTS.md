@@ -72,6 +72,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Changelog skill](.github/skills/changelog/SKILL.md): portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
+- [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Skill link verifier](scripts/skills-sync.md): verifies the real canonical package and two bounded host links; preserves unrelated files and reports unmaterialized Windows checkouts.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

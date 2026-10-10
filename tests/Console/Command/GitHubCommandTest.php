@@ -67,6 +67,26 @@ final class GitHubCommandTest extends TestCase
         );
     }
 
+    /** Shared and operation shortcuts retain explicit trusted-context values in the machine runner. */
+    public function testShortTrustedContextOptionsRemainExplicit(): void
+    {
+        $input = new GitHubInput();
+        $input->release->workingDirectory = '/consumer';
+        $input->release->repository = 'fixture/changelog';
+        $input->since = 'main';
+        $input->pullRequest = '21';
+        $runner = $this->createMock(AutomationRunnerInterface::class);
+        $runner->expects(self::once())->method('run')->with('check', $input->values())->willReturn(
+            ['status' => 'valid'],
+        );
+        $writer = $this->createMock(GitHubOutputWriterInterface::class);
+        $writer->expects(self::once())->method('write')->willReturn('{"status":"valid"}');
+        $tester = new CommandTester(new Command('github', new GitHubCommand($runner, $writer)));
+        self::assertSame(0, $tester->execute([
+            'operation' => 'check', '-C' => '/consumer', '-r' => 'fixture/changelog', '-S' => 'main', '-p' => '21',
+        ], ['interactive' => false]));
+    }
+
     /** Controlled validation/JSON failures are distinct from failed operations and never write result outputs. */
     #[DataProvider('failures')]
     public function testFailuresUseJsonAndDistinctExitStatuses(Throwable $failure, int $status): void

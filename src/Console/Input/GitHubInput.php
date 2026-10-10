@@ -24,10 +24,10 @@ final class GitHubInput
     #[MapInput]
     public ReleaseInput $release;
 
-    #[Option(description: 'Contribution base revision.')]
+    #[Option(description: 'Contribution base revision.', shortcut: 'S')]
     public ?string $since = null;
 
-    #[Option(description: 'Explicit trusted PR number.')]
+    #[Option(description: 'Explicit trusted PR number.', shortcut: 'p')]
     public ?string $pullRequest = null;
 
     #[Option(description: 'Exclusive generated version branch.')]
@@ -72,7 +72,7 @@ final class GitHubInput
     #[Option(description: 'Inspect without remote writes: true or false.')]
     public ?string $dryRun = null;
 
-    #[Option(description: 'Exact approved publication commit.')]
+    #[Option(description: 'Exact approved publication commit.', shortcut: 't')]
     public ?string $targetSha = null;
 
     #[Option(description: 'History operation: backfill or format.')]

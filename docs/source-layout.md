@@ -39,8 +39,10 @@ Factory subnamespaces are local construction boundaries, not separate domains.
 ## PHP API migration
 
 The namespace correction changes public PHP names and carries a major fragment.
-Use the new imports and container service keys. CLI names, flags, JSON, Markdown
-and release evidence remain unchanged. No compatibility aliases are introduced.
+Use the new imports and container service keys. Existing CLI names, long options,
+JSON, Markdown and release evidence remain unchanged. The additional short
+options are documented in [adoption](adoption.md). No PHP compatibility aliases
+are introduced.
 
 | Previous namespace/type | Canonical namespace/type |
 | --- | --- |

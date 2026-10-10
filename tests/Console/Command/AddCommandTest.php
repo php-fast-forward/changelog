@@ -81,6 +81,30 @@ final class AddCommandTest extends TestCase
         $tester->execute([], ['interactive' => false]);
     }
 
+    /** Short metadata and shared flags bind to their long-name values without implicitly committing. */
+    public function testShortOptionsBindSettingsAndMetadataWithoutCommitConsent(): void
+    {
+        $settings = new ReleaseInput();
+        $settings->workingDirectory = '/consumer';
+        $settings->locale = 'pt-BR';
+        $settings->template = 'custom.php';
+        $settings->baseRef = 'main';
+        $settings->repository = 'fixture/changelog';
+        $settings->source = 'tags';
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::once())->method('create')->with($settings->values())->willReturn($this->options());
+        $writer = $this->createMock(FragmentWriterInterface::class);
+        $writer->expects(self::once())->method('add')->with(
+            $this->options(), 'Short **Markdown**', 'fixed', 'patch', 'short.md', 17, 19, 'fixture', false, 'explicit message',
+        )->willReturn('/consumer/.changelog/short.md');
+        $tester = new CommandTester(new Command(null, new AddCommand($factory, $writer)));
+        self::assertSame(0, $tester->execute([
+            'message' => 'Short **Markdown**', '-C' => '/consumer', '-l' => 'pt-BR', '-T' => 'custom.php',
+            '-b' => 'main', '-r' => 'fixture/changelog', '-s' => 'tags', '-c' => 'fixed', '-t' => 'patch',
+            '-f' => 'short.md', '-i' => '17', '-p' => '19', '-a' => 'fixture', '-m' => 'explicit message',
+        ], ['interactive' => false]));
+    }
+
     #[Test]
     public function nativeAskRetriesBlankAnswersAndPreservesMarkdownSpaces(): void
     {
