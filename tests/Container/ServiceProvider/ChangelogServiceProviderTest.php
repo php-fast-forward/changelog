@@ -6,6 +6,7 @@ namespace FastForward\Changelog\Tests\Container\ServiceProvider;
 
 use DateTimeZone;
 use FastForward\Changelog\Automation\AutomationRunnerInterface;
+use FastForward\Changelog\Automation\Output\GitHubOutputWriter;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
@@ -13,17 +14,16 @@ use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullReque
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServiceInterface;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
 use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface;
-use FastForward\Changelog\Console\GitHubOutputWriter;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\Date\Factory\TimezoneFactory;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactoryInterface;
 use FastForward\Changelog\Fragment\IdentifierGeneratorInterface;
-use FastForward\Changelog\Git\Factory\ProcessFactory;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\Factory\GitHubClientFactoryInterface;
-use FastForward\Changelog\GitHub\Factory\HttpClientFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
+use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
 use FastForward\Changelog\Release\ReleaseJournalPathResolver;
 use FastForward\Changelog\Release\ReleaseOptions;

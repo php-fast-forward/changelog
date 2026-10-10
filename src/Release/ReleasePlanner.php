@@ -25,6 +25,7 @@ use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;

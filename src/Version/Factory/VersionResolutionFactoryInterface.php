@@ -16,7 +16,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Version\Factory;
 
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 use FastForward\Changelog\Version\VersionResolution;
 
 /**

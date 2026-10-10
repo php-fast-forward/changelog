@@ -20,7 +20,7 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\ChangesetParseResult;
 use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
 use FastForward\Changelog\Changeset\Factory\ChangesetParseResultFactoryInterface;
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 
 /**
  * Parses a restricted scalar frontmatter without executing PHP or requiring YAML.

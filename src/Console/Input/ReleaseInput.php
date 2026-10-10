@@ -19,7 +19,7 @@ use Symfony\Component\Console\Attribute\Option;
 /** Maps the shared public settings without loading config or observing host state. */
 final class ReleaseInput
 {
-    #[Option(description: 'Consumer project directory.', name: 'cwd')]
+    #[Option(description: 'Consumer project directory.', name: 'cwd', shortcut: 'C')]
     public string $workingDirectory = '.';
 
     #[Option(description: 'Project-relative fragment directory.')]
@@ -28,22 +28,22 @@ final class ReleaseInput
     #[Option(description: 'Project-relative central changelog file.')]
     public string $changelogFile = 'CHANGELOG.md';
 
-    #[Option(description: 'Structural language: en or pt-BR.')]
+    #[Option(description: 'Structural language: en or pt-BR.', shortcut: 'l')]
     public string $locale = 'en';
 
-    #[Option(description: 'keep-a-changelog or an explicitly trusted project PHP template.')]
+    #[Option(description: 'keep-a-changelog or an explicitly trusted project PHP template.', shortcut: 'T')]
     public string $template = 'keep-a-changelog';
 
-    #[Option(description: 'Git revision used as the release baseline.')]
+    #[Option(description: 'Git revision used as the release baseline.', shortcut: 'b')]
     public string $baseRef = 'HEAD';
 
     #[Option(description: 'Prefix of stable release tags.')]
     public string $tagPrefix = 'v';
 
-    #[Option(description: 'GitHub repository in owner/name form.')]
+    #[Option(description: 'GitHub repository in owner/name form.', shortcut: 'r')]
     public ?string $repository = null;
 
-    #[Option(description: 'Historical evidence source: auto, github or tags.')]
+    #[Option(description: 'Historical evidence source: auto, github or tags.', shortcut: 's')]
     public string $source = 'auto';
 
     /** Returns exactly the settings accepted by the shared options factory. */

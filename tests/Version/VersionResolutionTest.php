@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Version;
 
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 use FastForward\Changelog\Version\VersionResolution;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;

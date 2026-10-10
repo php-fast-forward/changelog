@@ -21,9 +21,9 @@ use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
 use FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface;
-use FastForward\Changelog\Changeset\VersionImpact;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Version\VersionImpact;
 use Throwable;
 
 /** Uses a trusted metadata snapshot without executing or checking out the untrusted PR head. */

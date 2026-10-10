@@ -16,7 +16,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Console\Command;
 
 use FastForward\Changelog\Automation\AutomationRunnerInterface;
-use FastForward\Changelog\Console\GitHubOutputWriterInterface;
+use FastForward\Changelog\Automation\Output\GitHubOutputWriterInterface;
 use FastForward\Changelog\Console\Input\GitHubInput;
 use InvalidArgumentException;
 use JsonException;

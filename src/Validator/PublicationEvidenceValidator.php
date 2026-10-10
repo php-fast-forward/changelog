@@ -28,8 +28,8 @@ use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterfac
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface;
-use FastForward\Changelog\Release\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;

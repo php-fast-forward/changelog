@@ -61,28 +61,28 @@ final readonly class AddCommand
         )]
         string $message,
 
-        #[Option(description: 'added, changed, deprecated, removed, fixed or security.')]
+        #[Option(description: 'added, changed, deprecated, removed, fixed or security.', shortcut: 'c')]
         string $category = 'changed',
 
-        #[Option(description: 'Explicit semantic impact: major, minor or patch.')]
+        #[Option(description: 'Explicit semantic impact: major, minor or patch.', shortcut: 't')]
         ?string $type = null,
 
-        #[Option(description: 'Explicit unique fragment filename.')]
+        #[Option(description: 'Explicit unique fragment filename.', shortcut: 'f')]
         ?string $name = null,
 
-        #[Option(description: 'Related positive issue number.')]
+        #[Option(description: 'Related positive issue number.', shortcut: 'i')]
         ?string $issue = null,
 
-        #[Option(description: 'Related positive pull-request number.')]
+        #[Option(description: 'Related positive pull-request number.', shortcut: 'p')]
         ?string $pullRequest = null,
 
-        #[Option(description: 'Optional GitHub author login.')]
+        #[Option(description: 'Optional GitHub author login.', shortcut: 'a')]
         ?string $author = null,
 
         #[Option(description: 'Commit only the created fragment.')]
         bool $commit = false,
 
-        #[Option(description: 'Message for the optional fragment-only commit.')]
+        #[Option(description: 'Message for the optional fragment-only commit.', shortcut: 'm')]
         string $commitMessage = 'chore: record changelog fragment',
     ): int {
         try {

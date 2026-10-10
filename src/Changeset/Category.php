@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Changeset;
 
+use FastForward\Changelog\Version\VersionImpact;
+
 /**
  * Lists the public Keep a Changelog categories accepted by a changeset.
  *

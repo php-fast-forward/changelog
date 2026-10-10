@@ -5,13 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-10-09
+## [1.0.0] - 2026-10-10
 
 ### Added
 
 - Bootstrap the standalone changelog domain, document model, manager, and reusable CLI commands (#1)
 - Add a Git-baseline check command, explicit service contracts, a PSR-11 service provider, and lazy command loading (#1)
 - Add deterministic PSR-20 time through `fast-forward/clock` and an isolated unit-test coverage gate (#1)
+- Adds consistent short options for common settings, fragment metadata, read-only modes and note output while preserving Symfony global shortcuts and the existing long options. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Ships the canonical changelog skill in Composer archives and declares its donor source for optional llm/skills installation, with a verified consumer recipe and an evaluated Fast Forward resource-bundle alternative. ([@mentordosnerds](https://github.com/mentordosnerds))
 - Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags.
 
 ### Changed
@@ -25,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aligns README sections, examples and verified badges with the Fast Forward package documentation format.
 - Registers ChangelogServiceProvider by class name with lazy defaults and optional Fast Forward Config injection instead of provider constructor arguments.
 - Improves PHP, Dockerfile and workflow readability with separated statement blocks, grouped command attributes and wrapped arguments; keeps the formatting rules in the project quality gate.
+- Moves semantic impact to `Version`, GitHub Actions outputs to `Automation\Output`, transport factories to `Http` and `Process`, and release-note rendering to `Release\Renderer`, with matching tests and updated PHP imports. Documents the SDK and development-tooling boundaries and excludes development scripts and formatter configuration from package archives. ([@mentordosnerds](https://github.com/mentordosnerds))
 - Adds a standalone fragment-based changelog and release lifecycle for Composer projects. The add/check/status/version/notes/publish/backfill/format commands replace the legacy Unreleased editing workflow, share their PHP domain with GitHub Actions, and support deterministic release plans, localized history, verified version pull requests and recoverable publication. This repository now records its own changes with the same CLI and consolidates CHANGELOG.md through its release workflow. ([@mentordosnerds](https://github.com/mentordosnerds))
 
 ### Fixed

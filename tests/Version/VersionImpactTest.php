@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace FastForward\Changelog\Tests\Changeset;
+namespace FastForward\Changelog\Tests\Version;
 
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;

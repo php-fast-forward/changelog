@@ -13,13 +13,17 @@ declare(strict_types=1);
  * @see https://datatracker.ietf.org/doc/html/rfc2119
  */
 
-namespace FastForward\Changelog\GitHub\Factory;
+namespace FastForward\Changelog\Http\Factory;
 
+use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-/** Concentrates concrete HTTP transport construction at the composition boundary. */
-interface HttpClientFactoryInterface
+/** Constructs the Symfony transport without sending traffic during composition. */
+final class HttpClientFactory implements HttpClientFactoryInterface
 {
-    /** Creates an HTTP client without starting a request or reading a token. */
-    public function create(): HttpClientInterface;
+    /** Returns a fresh transport; request headers and credentials belong to the adapter. */
+    public function create(): HttpClientInterface
+    {
+        return HttpClient::create();
+    }
 }

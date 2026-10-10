@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Git;
 
-use FastForward\Changelog\Git\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Git\GitRepository;
+use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;

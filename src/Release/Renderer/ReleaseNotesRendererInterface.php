@@ -14,7 +14,7 @@ declare(strict_types=1);
  * @see       https://datatracker.ietf.org/doc/html/rfc2119
  */
 
-namespace FastForward\Changelog\Release;
+namespace FastForward\Changelog\Release\Renderer;
 
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Template\TemplateInterface;

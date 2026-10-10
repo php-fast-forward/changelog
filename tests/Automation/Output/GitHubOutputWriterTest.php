@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace FastForward\Changelog\Tests\Console;
+namespace FastForward\Changelog\Tests\Automation\Output;
 
-use FastForward\Changelog\Console\GitHubOutputWriter;
+use FastForward\Changelog\Automation\Output\GitHubOutputWriter;
 use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Attributes\CoversClass;

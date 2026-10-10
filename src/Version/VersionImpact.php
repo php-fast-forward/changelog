@@ -14,7 +14,7 @@ declare(strict_types=1);
  * @see       https://datatracker.ietf.org/doc/html/rfc2119
  */
 
-namespace FastForward\Changelog\Changeset;
+namespace FastForward\Changelog\Version;
 
 /**
  * Represents the semantic-version impact contributed by one changeset.
