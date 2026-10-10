@@ -89,6 +89,9 @@
         "allow-plugins": false
     },
     "extra": {
+        "skills": {
+            "source": ".github/skills"
+        },
         "branch-alias": {
             "dev-main": "1.x-dev"
         }

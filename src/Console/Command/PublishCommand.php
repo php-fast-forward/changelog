@@ -48,10 +48,10 @@ final readonly class PublishCommand
         ReleaseInput $settings,
         OutputInterface $output,
 
-        #[Option(description: 'Approved commit or revision; defaults to checked-out HEAD.')]
+        #[Option(description: 'Approved commit or revision; defaults to checked-out HEAD.', shortcut: 't')]
         ?string $targetSha = null,
 
-        #[Option(description: 'Inspect publication actions without changing GitHub state.')]
+        #[Option(description: 'Inspect publication actions without changing GitHub state.', shortcut: 'd')]
         bool $dryRun = false,
     ): int {
         try {

@@ -181,6 +181,8 @@ function runtimeGraph(string $installation): void
         'phpunit/phpunit',
         'rector/rector',
         'symplify/easy-coding-standard',
+        'llm/skills',
+        'fast-forward/composer-installers',
     ] as $forbidden) {
         verify(
             !in_array($forbidden, $names, true),
@@ -190,6 +192,21 @@ function runtimeGraph(string $installation): void
     $package = $installation . '/vendor/fast-forward/changelog';
     verify(!is_link($package), 'The path repository must be mirrored with symlink=false.');
     verify(!is_dir($package . '/vendor'), 'The installed library must not bundle the checkout vendor directory.');
+    $metadata = json_decode(file_get_contents($package . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+    verify(
+        'library' === $metadata['type'],
+        'Optional skill installation must retain the library installation contract.',
+    );
+    verify(
+        '.github/skills' === ($metadata['extra']['skills']['source'] ?? null),
+        'The canonical skill donor path is missing.',
+    );
+    foreach (['SKILL.md', 'LICENSE'] as $resource) {
+        verify(
+            is_file($package . '/.github/skills/changelog/' . $resource),
+            'The installed package is missing canonical skill resource: ' . $resource,
+        );
+    }
     fwrite(STDOUT, sprintf("Runtime graph: %d packages, no development tools.\n", count($packages)));
 }
 
@@ -520,7 +537,7 @@ function exercise(string $installation, string $consumer, array $environment): v
         $notes['stdout'] === cli($binary, $consumer, $environment, ['notes', '--source=tags'])['stdout'],
         'Default notes did not select the latest maintained release.',
     );
-    cli($binary, $consumer, $environment, ['notes', '1.1.0', '--output=release-notes.md', '--source=tags']);
+    cli($binary, $consumer, $environment, ['notes', '1.1.0', '-o', 'release-notes.md', '-s', 'tags']);
     verify(
         $notes['stdout'] === file_get_contents($consumer . '/release-notes.md'),
         'Managed notes output changed bytes.',

@@ -19,8 +19,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Tester\CommandTester;
 
 #[CoversClass(PublishCommand::class)]
 #[UsesClass(ReleaseInput::class)]
@@ -66,6 +68,25 @@ final class PublishCommandTest extends TestCase
     public static function targets(): array
     {
         return [[null,false],['release-commit',true]];
+    }
+
+    /** Short target and dry-run flags resolve the approved identity while retaining read-only intent. */
+    public function testShortTargetAndDryRunPreserveApprovedIdentity(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::once())->method('create')->willReturn($this->options());
+        $sha = str_repeat('a', 40);
+        $git = $this->createMock(GitRepositoryInterface::class);
+        $git->expects(self::once())->method('resolveRef')->with('/consumer', 'approved')->willReturn($sha);
+        $publication = $this->createMock(PublicationServiceInterface::class);
+        $publication->expects(self::once())->method('publish')->with($this->options(), $sha, true)
+            ->willReturn(new PublicationResult('planned', '1.0.0', 'v1.0.0', $sha, null, []));
+        $tester = new CommandTester(new Command(null, new PublishCommand($factory, $git, $publication)));
+        self::assertSame(
+            0,
+            $tester->execute(['-C' => '/consumer', '-t' => 'approved', '-d' => true], ['interactive' => false]),
+        );
+        self::assertStringContainsString('"state":"planned"', $tester->getDisplay(true));
     }
 
     #[Test]

@@ -16,7 +16,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Git;
 
-use FastForward\Changelog\Git\Factory\ProcessFactoryInterface;
+use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 
 /** Runs structured Git argv without shell interpolation or global cwd mutation. */

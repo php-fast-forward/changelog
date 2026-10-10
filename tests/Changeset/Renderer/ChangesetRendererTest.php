@@ -7,7 +7,7 @@ namespace FastForward\Changelog\Tests\Changeset\Renderer;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\Renderer\ChangesetRenderer;
-use FastForward\Changelog\Changeset\VersionImpact;
+use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;

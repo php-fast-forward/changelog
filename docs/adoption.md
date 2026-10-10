@@ -31,6 +31,10 @@ npx --yes skills@1.7.0 add /path/to/changelog/.github/skills/changelog --list
 See [skill distribution and evidence](skills.md) for separately authorized
 project copy installation and host limitations.
 
+For consumers using Composer to manage skills, the optional
+[Composer installer guide](composer-skills.md) installs the packaged canonical
+resources with explicit trust and copy steps. It adds no runtime dependency.
+
 There is no `init` step or mandatory local configuration. Defaults are
 `.changelog/`, `CHANGELOG.md`, English Keep a Changelog presentation, tag prefix
 `v`, history source `auto` and baseline `HEAD`. `add` creates the fragment directory
@@ -105,6 +109,32 @@ by a blank line before the attributed input parameters.
 `--no-interaction` disables prompts. A message argument is required for unattended
 `add`. All commands accept the shared settings below; their use does not imply
 every setting affects every operation.
+
+Common short options are `-C` for `--cwd`, `-l` for `--locale`, `-T` for
+`--template`, `-b` for `--base-ref`, `-r` for `--repository` and `-s` for
+`--source`. Specific command options use:
+
+| Command | Short options |
+| --- | --- |
+| `add` | `-c` category, `-t` impact, `-f` filename, `-i` issue, `-p` PR, `-a` author, `-m` commit message |
+| `check` | `-S` since, `-p` PR |
+| `status` | `-j` JSON |
+| `version`, `backfill`, `format` | `-d` dry run, `-c` check |
+| `notes` | `-o` output file |
+| `publish` | `-t` approved target, `-d` dry run |
+| `github` | `-S` since, `-p` PR, `-t` approved target; machine-operation settings keep their explicit long forms |
+
+`-s` (history source) and `-S` (contribution baseline) are distinct. Template
+uses uppercase `-T` so command-specific `-t` remains available. `-c` means
+category in `add` and check mode in mutation commands. Symfony's `-h`, `-q`,
+`-v`, `-V` and `-n` retain their normal global meanings. A commit message does
+not enable `--commit`.
+
+```sh
+vendor/bin/changelog add "Fixes the parser." -c fixed -t patch -f parser-fix.md -n
+vendor/bin/changelog version -C /path/to/project -s tags -d -n
+vendor/bin/changelog notes 1.2.3 -o release-notes.md -n
+```
 
 | Flag | Default / contract |
 | --- | --- |

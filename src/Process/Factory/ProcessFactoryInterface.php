@@ -12,7 +12,7 @@ declare(strict_types=1);
  * @see       https://github.com/php-fast-forward/changelog
  */
 
-namespace FastForward\Changelog\Git\Factory;
+namespace FastForward\Changelog\Process\Factory;
 
 use Symfony\Component\Process\Process;
 

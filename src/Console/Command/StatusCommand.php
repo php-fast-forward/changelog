@@ -43,6 +43,7 @@ final readonly class StatusCommand
     /** Prints only the shared summary; --json is accepted for explicit machine consumers. */
     public function __invoke(#[MapInput] ReleaseInput $settings, OutputInterface $output, #[Option(
         description: 'Explicitly select the machine-readable JSON output.',
+        shortcut: 'j',
     )] bool $json = false): int
     {
         try {

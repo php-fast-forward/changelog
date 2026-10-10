@@ -50,10 +50,10 @@ final readonly class CheckCommand
         #[MapInput]
         ReleaseInput $settings,
 
-        #[Option(description: 'Git baseline for the contribution delta.')]
+        #[Option(description: 'Git baseline for the contribution delta.', shortcut: 'S')]
         ?string $since = null,
 
-        #[Option(description: 'Pull-request number whose trusted authorization is inspected.')]
+        #[Option(description: 'Pull-request number whose trusted authorization is inspected.', shortcut: 'p')]
         ?string $pullRequest = null,
     ): int {
         try {

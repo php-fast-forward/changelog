@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Changeset;
 
+use FastForward\Changelog\Version\VersionImpact;
+
 /**
  * Holds one validated and independently identified release fragment.
  *

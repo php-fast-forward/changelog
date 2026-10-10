@@ -17,7 +17,6 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Version;
 
 use FastForward\Changelog\Changeset\Changeset;
-use FastForward\Changelog\Changeset\VersionImpact;
 
 /**
  * Selects the maximum effective impact across all pending changesets.

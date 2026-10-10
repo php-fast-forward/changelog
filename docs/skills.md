@@ -7,6 +7,11 @@ contribution checks, recovery, historical maintenance and approved publication.
 It contains no setup hook or executable helper. Skill installation copies
 instructions only; the Composer runtime remains separate.
 
+Composer archives include these canonical resources and declare their donor path.
+Consumers can opt into the verified [Composer skill installer route](composer-skills.md),
+which keeps Copilot's target real and leaves plugin activation and copying explicit.
+The same guide records the Fast Forward resource-bundle alternative.
+
 ## Canonical source and repository host paths
 
 Edit `.github/skills/changelog` only. Copilot's conventional package path contains

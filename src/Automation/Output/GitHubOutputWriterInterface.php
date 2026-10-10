@@ -13,7 +13,7 @@ declare(strict_types=1);
  * @see https://datatracker.ietf.org/doc/html/rfc2119
  */
 
-namespace FastForward\Changelog\Console;
+namespace FastForward\Changelog\Automation\Output;
 
 /** Encodes one machine result and optionally writes its declared GitHub Action outputs. */
 interface GitHubOutputWriterInterface
