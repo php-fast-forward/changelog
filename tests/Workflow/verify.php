@@ -140,6 +140,12 @@ foreach ([$feedback, $lifecycle, $internalDependabot] as $workflow) {
 $internalFragment = $internalDependabot['jobs']['fragment'];
 $internalFeedback = $internalDependabot['jobs']['feedback'];
 verifyWorkflow(
+    '${{ github.workflow_sha }}' === $internalFragment['steps'][0]['with']['ref']
+        && '${{ github.repository }}' === $internalFragment['steps'][0]['with']['repository']
+        && false === $internalFragment['steps'][0]['with']['persist-credentials'],
+    'Privileged Dependabot runtime must use the trusted workflow commit, never a stale PR base snapshot.',
+);
+verifyWorkflow(
     '${{ steps.operation.outputs.head-sha }}' === $internalFragment['outputs']['head-sha']
         && 'operation' === $internalFragment['steps'][3]['id']
         && './.github/actions/dependabot' === $internalFragment['steps'][3]['uses'],
@@ -152,16 +158,19 @@ verifyWorkflow(
 verifyWorkflow(
     '${{ needs.fragment.outputs.head-sha || github.event.pull_request.head.sha }}'
         === $internalFeedback['with']['head-sha']
-        && '${{ github.event.pull_request.base.sha }}' === $internalFeedback['with']['base-sha']
         && '${{ github.event.pull_request.number }}' === $internalFeedback['with']['pull-request'],
     'Internal feedback must validate the new fragment head or the unchanged immutable event head.',
+);
+verifyWorkflow(
+    ! array_key_exists('base-sha', $internalFeedback['with']),
+    'Internal feedback must resolve the live API base instead of trusting a stale PR payload snapshot.',
 );
 verifyWorkflow(
     'always' === $internalFeedback['with']['comment-mode']
         && '${{ secrets.CHANGELOG_TOKEN || github.token }}' === $internalFeedback['secrets']['token'],
     'Internal feedback must update its sticky comment using the existing trusted token contract.',
 );
-$assertions += 4;
+$assertions += 6;
 
 foreach ($feedback['jobs']['status']['steps'] as $step) {
     if (! str_starts_with($step['uses'] ?? '', './.changelog-runtime/.github/actions/')) {
