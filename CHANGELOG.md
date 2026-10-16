@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add deterministic PSR-20 time through `fast-forward/clock` and an isolated unit-test coverage gate (#1)
 - Adds consistent short options for common settings, fragment metadata, read-only modes and note output while preserving Symfony global shortcuts and the existing long options. ([@mentordosnerds](https://github.com/mentordosnerds))
 - Ships the canonical changelog skill in Composer archives and declares its donor source for optional llm/skills installation, with a verified consumer recipe and an evaluated Fast Forward resource-bundle alternative. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Allow every reusable changelog workflow to inherit JSON runner labels, supporting private repositories on existing self-hosted billing fallback runners while retaining the GitHub-hosted default.
 - Adopt one reusable changelog lifecycle with exact-head validation, automatic validation of generated branches and configurable sticky PR feedback for successful, failed and recovered checks. Publication remains opt-in during consumer validation.
 - Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags.
 
