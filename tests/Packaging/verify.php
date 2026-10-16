@@ -35,6 +35,12 @@ if (isset($argv[2])) {
 $assertions = 0;
 $commands = 0;
 $commandPrefix = '1' === getenv('CHANGELOG_PACKAGING_DIRECT') ? [] : ['rtk', 'proxy'];
+$dependencyMode = getenv('CHANGELOG_PACKAGING_DEPENDENCIES') ?: 'highest';
+if (!in_array($dependencyMode, ['highest', 'lowest'], true)) {
+    throw new InvalidArgumentException('CHANGELOG_PACKAGING_DEPENDENCIES must be highest or lowest.');
+}
+$resolutionCommand = 'lowest' === $dependencyMode ? 'update' : 'install';
+$resolutionOptions = 'lowest' === $dependencyMode ? ['--prefer-lowest', '--prefer-stable'] : [];
 
 /** Fails with an exact fixture contract; the retained path supports diagnosis. */
 function verify(bool $condition, string $message): void
@@ -624,7 +630,7 @@ fwrite(STDOUT, json_encode(['version' => $evidence->version, 'tag' => $evidence-
 PHP;
     $proof = json_decode(
         execute([
-            PHP_BINARY, '-r', $proofCode, $installation . '/vendor/autoload.php', $approved, realpath(
+            PHP_BINARY, '-d', 'display_errors=stderr', '-r', $proofCode, $installation . '/vendor/autoload.php', $approved, realpath(
                 $environment['TMPDIR'],
             )],
             $consumer,
@@ -707,9 +713,12 @@ try {
         $global . '/composer.json',
         json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
     );
-    fwrite(STDOUT, "Packaging fixtures: {$fixtureRoot}\nInstalling local runtime...\n");
+    fwrite(
+        STDOUT,
+        "Packaging fixtures: {$fixtureRoot}\nDependency bounds: {$dependencyMode}\nInstalling local runtime...\n",
+    );
     execute([
-        'composer', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'],
+        'composer', $resolutionCommand, '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress', ...$resolutionOptions],
         $local,
         $localEnv,
     );
@@ -717,9 +726,25 @@ try {
     runtimeGraph($local);
     exercise($local, $fixtureRoot . '/local-consumer', $localEnv);
     exerciseNonGit($local, $fixtureRoot . '/non-git-consumer', $localEnv);
+    $diagnosticAutoload = $fixtureRoot . '/diagnostic-autoload.php';
+    file_put_contents(
+        $diagnosticAutoload,
+        "<?php\ntrigger_error('Synthetic autoload diagnostic.', E_USER_WARNING);\nrequire "
+        . var_export($local . '/vendor/autoload.php', true) . ";\n",
+    );
+    $diagnostic = execute([
+        PHP_BINARY, '-d', 'display_errors=1', '-d', 'error_reporting=-1', '-r',
+        '$_composer_autoload_path = $argv[1]; $entry = $argv[2]; $_SERVER["argv"] = [$entry, "status", "--json", "--source=tags", "--no-interaction"]; require $entry;',
+        $diagnosticAutoload, $local . '/vendor/fast-forward/changelog/bin/changelog',
+    ], $fixtureRoot . '/local-consumer', $localEnv);
+    summary($diagnostic);
+    verify(
+        str_contains($diagnostic['stderr'], 'Synthetic autoload diagnostic.'),
+        'Diagnostics must remain visible on stderr.',
+    );
     fwrite(STDOUT, "Installing native Composer global runtime...\n");
     execute([
-        'composer', 'global', 'install', '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress'],
+        'composer', 'global', $resolutionCommand, '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--no-interaction', '--no-progress', ...$resolutionOptions],
         $fixtureRoot . '/global-consumer',
         $globalEnv,
     );

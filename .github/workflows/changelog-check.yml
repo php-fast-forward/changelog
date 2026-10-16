@@ -1,101 +1,122 @@
 # The caller MUST pin this reusable workflow to a reviewed full commit SHA.
-name: Changelog check
+name: "Reusable: Changelog Check"
 
 on:
   workflow_call:
     inputs:
+
       runs-on:
-        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
         default: '["ubuntu-latest"]'
+
       working-directory:
         description: 'Consumer-relative directory below the project checkout.'
         type: string
         required: false
         default: '.'
+
       fragment-directory:
         description: 'Consumer-relative fragment directory.'
         type: string
         required: false
         default: '.changelog'
+
       changelog-file:
         description: 'Consumer-relative central changelog path.'
         type: string
         required: false
         default: 'CHANGELOG.md'
+
       locale:
         description: 'Built-in presentation locale en or pt-BR.'
         type: string
         required: false
         default: 'en'
+
       template:
         description: 'Built-in keep-a-changelog template; PHP templates are refused for PR checks.'
         type: string
         required: false
         default: 'keep-a-changelog'
+
       base-ref:
         description: 'Selected local base revision; automation normally uses HEAD.'
         type: string
         required: false
         default: 'HEAD'
+
       tag-prefix:
         description: 'Exact stable-version tag prefix.'
         type: string
         required: false
         default: 'v'
+
       repository:
         description: 'Target owner/name; empty uses the caller repository.'
         type: string
         required: false
         default: ''
+
       source:
         description: 'Historical release notes source auto, github or tags.'
         type: string
         required: false
         default: 'auto'
+
       pull-request:
         description: 'Live pull-request number, bound to its supplied head.'
         type: number
         required: true
+
       head-sha:
         description: 'Exact PR head SHA for a read-only checkout.'
         type: string
         required: true
+
       base-sha:
         description: 'Exact PR base SHA used for fragment/change comparison.'
         type: string
         required: true
+
       managed-branch:
         description: 'Exclusive generated version branch.'
         type: string
         required: false
         default: 'changelog/version'
+
       automation-actor:
         description: 'Configured trusted generated-PR Bot.'
         type: string
         required: false
         default: 'github-actions[bot]'
+
       waiver-label:
         description: 'Label requiring the latest privileged human grant.'
         type: string
         required: false
         default: 'changelog-not-required'
+
       maintenance-label:
         description: 'Label requiring the latest privileged human grant.'
         type: string
         required: false
         default: 'changelog-maintenance'
     secrets:
+
       token:
         description: 'Optional scoped App token; otherwise uses github.token.'
         required: false
     outputs:
+
       result:
         description: 'Complete machine-readable operation result.'
         value: ${{ jobs.changelog.outputs.result }}
+
       status:
         description: 'Operation status output.'
         value: ${{ jobs.changelog.outputs.status }}
+
       fragments:
         description: 'Operation fragments output.'
         value: ${{ jobs.changelog.outputs.fragments }}
@@ -104,6 +125,7 @@ permissions: {}
 
 jobs:
   changelog:
+    name: Check Changelog
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 15
     permissions:
@@ -116,7 +138,8 @@ jobs:
       fragments: ${{ steps.operation.outputs.fragments }}
     steps:
       # Dynamic typing preserves new official job.workflow_* fields in older actionlint schemas.
-      - name: Validate the trusted workflow and consumer path
+
+      - name: Validate The Trusted Workflow And Consumer Path
         shell: bash
         env:
           FF_RUNTIME_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
@@ -164,8 +187,9 @@ jobs:
             echo "::error::PR checks accept the built-in template only; PHP templates are not executed."
             exit 1
           fi
-      - name: Check out consumer data
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Check Out Consumer Data
+        uses: actions/checkout@v6.1.0
         with:
           repository: ${{ inputs.repository || github.repository }}
           ref: ${{ inputs.head-sha }}
@@ -173,20 +197,22 @@ jobs:
           path: project
           fetch-depth: 0
           persist-credentials: false
-      - name: Check out the called workflow runtime
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Check Out The Called Workflow Runtime
+        uses: actions/checkout@v6.1.0
         with:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .changelog-runtime
           fetch-depth: 1
           persist-credentials: false
-      - name: Prepare the trusted runtime base image cache
+
+      - name: Prepare The Trusted Runtime Base Image Cache
         uses: ./.changelog-runtime/.github/actions/setup-docker
         with:
           dockerfile: .changelog-runtime/Dockerfile
 
-      - name: Run the shared check action
+      - name: Run The Shared Check Action
         id: operation
         uses: ./.changelog-runtime/.github/actions/check
         with:

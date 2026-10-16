@@ -17,7 +17,7 @@ category: changed
 type: patch
 issue: 123
 pull_request: 456
-author: "mentordosnerds"
+author: "example-contributor"
 ---
 
 Updates a dependency while preserving the public API.

@@ -1,4 +1,4 @@
-name: Fast Forward Changelog publish
+name: Fast Forward Changelog Publish
 description: "Reconcile an immutable tag and GitHub Release from approved Git blobs."
 
 inputs:

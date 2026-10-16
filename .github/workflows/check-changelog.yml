@@ -1,4 +1,4 @@
-name: Check changelog
+name: Check Changelog
 
 on:
   pull_request:
@@ -13,11 +13,12 @@ concurrency:
 
 jobs:
   check:
+    name: Check Contribution
     permissions:
       contents: read
       pull-requests: read
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@35c7653ef3fbe0704dd457a5a058137531eaf171
+    uses: ./.github/workflows/changelog-check.yml
     with:
       working-directory: '.'
       repository: ${{ github.repository }}

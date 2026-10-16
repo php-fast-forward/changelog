@@ -1,13 +1,14 @@
 # Workflow contract fixtures
 
-Run `composer test:workflows` on Linux or macOS with Bash and jq. Symfony YAML is
+Run `composer test:workflows` on Linux or macOS with Bash and Node.js. Symfony YAML is
 a development dependency; the distributed CLI and Docker image do not need it.
 
 The fixture reads the actual reusable workflows, checks their nested inputs and
-permission grants, and executes the actual Bash context/freshness guards. It
-replaces `gh` with a function returning synthetic metadata and uses disposable
-output files. No GitHub request, real credential, consumer installation, tag or
-release is used.
+permission grants, and executes the actual Bash and GitHub Script guards. It
+injects a synthetic GitHub API client and output collector into the actual inline
+JavaScript, including API failures and stale PR snapshots. Bash cache guards use
+disposable output files and reject any self-hosted daemon operation. No GitHub
+request, real credential, consumer installation, tag or release is used.
 
 Cases cover trusted base events, default branch overrides, explicit and resolved
 base SHAs, invalid identities/modes, inert shell metacharacters, operational

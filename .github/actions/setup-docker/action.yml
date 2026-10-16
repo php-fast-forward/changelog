@@ -1,4 +1,4 @@
-name: Prepare Docker base image cache
+name: Prepare Docker Base Image Cache
 description: Use the public cache on disposable Ubuntu runners, leaving self-hosted daemons unchanged.
 
 inputs:
@@ -10,7 +10,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Configure the runner-local Docker Hub cache
+    - name: Configure The Runner-Local Docker Hub Cache
       shell: bash
       run: |
         set -euo pipefail
@@ -40,9 +40,10 @@ runs:
 
         sudo systemctl restart docker
 
-    - name: Preload the Dockerfile base images through the configured cache
+    - name: Preload The Dockerfile Base Images Through The Configured Cache
       if: runner.environment == 'github-hosted'
       shell: bash
+
       env:
         FF_DOCKERFILE: ${{ inputs.dockerfile }}
       run: |

@@ -140,6 +140,12 @@ require verified issuer authority; editable labels or PR text alone do not grant
 it. There is no user-controlled skip flag. A waiver can excuse a missing new
 fragment and cannot suppress malformed metadata or unauthorized modifications.
 
+A verified maintainer maintenance grant can remove an incorrect optional
+`author` line from an inherited fragment. It cannot replace that value or alter
+any other byte, path or regular-file mode; validation must match the committed
+head. This is a narrowly scoped correction, separate from ordinary contributions
+and waivers. Do not invent a contributor identity to fill the removed value.
+
 ## Preview and consolidate a release
 
 An ordinary contributor may inspect the read-only plan with `status`. The version

@@ -1,4 +1,4 @@
-name: Fast Forward Changelog check
+name: Fast Forward Changelog Check
 description: "Validate PR fragments and verified waiver/history authority."
 
 inputs:

@@ -10,18 +10,23 @@ routing without replacing this contract.
 For changelog lifecycle work, read the root and then the published package's
 [SKILL.md](../resources/skills/fast-forward-changelog/SKILL.md). That package
 owns its portable consumer procedure, never permission to install or publish.
+The root explicitly applies that same procedure to this repository, substituting
+`php bin/changelog` for a consumer installation. Resource location does not claim
+automatic native-agent discovery; agents follow the explicit root link.
 
 ## Current and target hierarchy
 
 | Decision | Path | Responsibility and boundary |
 | --- | --- | --- |
-| Retain/update | `AGENTS.md` | Development, quality, isolation, publication authority and Child DOX Index. |
+| Retain/update | `AGENTS.md` | Development, quality, isolation, internal use of the canonical resource skill, publication authority and Child DOX Index. |
 | Relocate/rename | `resources/skills/fast-forward-changelog/{SKILL.md,LICENSE}` | Sole distributed skill, with an unambiguous public identifier. |
 | Reserve | `.agents/skills` | Skills consumed by the project; no generated copies or aliases of the published resource. |
 | Retire | `CLAUDE.md`, `.github/copilot-instructions.md`, old Codex/Claude skill links | Remove unused host-specific distribution adapters; no automatic native-host support claim. |
 | Retire | `scripts/skills-sync.mjs`, its test and guide | Link synchronization is no longer a repository responsibility; no replacement generator is needed. |
 | Retain | `scripts/{lint,php-files,phpdoc,verify-quality}.php` | Actual development gates; excluded from consumer archives and runtime images. |
 | Retain | `.github/actions`, `.github/workflows` | Thin CLI action metadata and orchestration, consumed through GitHub; excluded from Composer archives. |
+| Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
+| Add | `docs/automation-map.md` | Navigation separating public reusable contracts, repository automation and low-level actions without changing their paths. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
 
