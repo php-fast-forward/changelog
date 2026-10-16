@@ -25,6 +25,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
 {
     /**
      * Renders descriptions and references without leaking technical fragment metadata.
+     * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
      * @param list<Changeset> $changesets independent author records
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
@@ -38,7 +39,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                     continue;
                 }
                 $multiline = str_contains($change->description, "\n");
-                $body = ($multiline ? "-\n  " : '- ') . str_replace("\n", "\n  ", $change->description);
+                $body = ($multiline ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $change->description);
                 $references = $this->references($change, $repository);
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = $body . $suffix;

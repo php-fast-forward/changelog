@@ -25,6 +25,14 @@ changes recognized introduction and structural headings, leaving descriptions,
 unknown headings, code fences, dates, yanked annotations and references intact.
 Changing locale does not translate descriptions.
 
+Existing Changesets headings such as `## 0.5.1` are recognized as release
+boundaries, including valid prerelease/build versions. Incremental preparation
+preserves their exact headings and
+notes, while new releases use the selected template. Additional text on a bare
+version heading is not part of this import grammar. Multiline fragment paragraphs
+remain indented within their list item without adding spaces to empty separators;
+authored Markdown hard breaks remain unchanged.
+
 ## Plain Markdown boundaries
 
 A level-two release heading outside a fenced code block starts a new release.

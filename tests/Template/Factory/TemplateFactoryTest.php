@@ -154,6 +154,12 @@ final class TemplateFactoryTest extends TestCase
 
     #[Test]
     #[TestWith([['unreleased_heading' => '## [1.2.3]']])]
+    #[TestWith([['unreleased_heading' => '## 1.2.3']])]
+    #[TestWith([['unreleased_heading' => '## v1.2.3']])]
+    #[TestWith([['unreleased_heading' => '## 1.2.3-next.0']])]
+    #[TestWith([['unreleased_heading' => '## V1.2.3+build.1']])]
+    #[TestWith([['unreleased_heading' => '## 1.2.3-next.0+build.7']])]
+    #[TestWith([['unreleased_heading' => "## \tV1.2.3\t "]])]
     #[TestWith([['unreleased_heading' => '## [v1.2.3]']])]
     #[TestWith([['unreleased_heading' => '## [V1.2.3-beta.1+build.7]']])]
     #[TestWith([['unreleased_heading' => '## [1.2.3] - 2026-10-03']])]
@@ -200,6 +206,10 @@ final class TemplateFactoryTest extends TestCase
 
     #[Test]
     #[TestWith(['en', ['unreleased_heading' => '## [unreleased]']])]
+    #[TestWith(['en', ['unreleased_heading' => '## 01.2.3']])]
+    #[TestWith(['en', ['unreleased_heading' => '## 1.02.3']])]
+    #[TestWith(['en', ['unreleased_heading' => '## 1.2.03']])]
+    #[TestWith(['en', ['unreleased_heading' => '## 1.2.3-01']])]
     #[TestWith(['en', ['unreleased_heading' => '## [Não publicado]']])]
     #[TestWith(['pt-BR', ['unreleased_heading' => '## [não publicado]']])]
     #[TestWith(['pt-BR', ['unreleased_heading' => '## [Unreleased]']])]

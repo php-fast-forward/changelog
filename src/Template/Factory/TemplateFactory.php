@@ -117,11 +117,12 @@ final class TemplateFactory implements TemplateFactoryInterface
         );
     }
 
-    /** Rejects pending headings that would also identify a valid custom or legacy release, including calendar-valid dates. */
+    /** Rejects pending headings that also identify valid custom, bare or bracketed releases, including valid dates. */
     private function validateUnreleasedHeading(array $settings): void
     {
         $identifier = '(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)';
-        $version = '[vV]?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)'
+        $stable = '[vV]?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)';
+        $version = $stable
             . '(?:-' . $identifier . '(?:\.' . $identifier . ')*)?'
             . '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?';
         $captures = ['version' => '(?<version>' . $version . ')', 'date' => '(?<date>\d{4}-\d{2}-\d{2})'];
@@ -129,6 +130,7 @@ final class TemplateFactory implements TemplateFactoryInterface
             $this->headingPattern(str_replace('{date}', '', $settings['release_heading']), $captures),
             $this->headingPattern($settings['release_heading_dated'], $captures),
             '##[ \t]+\[' . $captures['version'] . '\](?:\([^\r\n]*\))?(?:[ \t]+-[ \t]+' . $captures['date'] . ')?',
+            '##[ \t]+' . $captures['version'] . '(?=[ \t]*\z)',
         ];
         foreach ($patterns as $pattern) {
             if (1 !== preg_match(
