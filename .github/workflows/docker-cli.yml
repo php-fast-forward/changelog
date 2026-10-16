@@ -3,10 +3,12 @@ name: Publish Docker CLI
 on:
   workflow_call:
     inputs:
+
       tag:
         description: 'Verified existing release tag.'
         type: string
         required: true
+
       expected-sha:
         description: 'Exact approved release commit.'
         type: string
@@ -20,10 +22,12 @@ concurrency:
 
 jobs:
   validate:
+    name: Validate Release Image (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
+
       matrix:
         include:
           - os: ubuntu-latest
@@ -38,7 +42,8 @@ jobs:
       image: ${{ steps.release.outputs.image }}
       sha: ${{ steps.source.outputs.sha }}
     steps:
-      - name: Validate the release selector
+
+      - name: Validate The Release Selector
         id: release
         shell: bash
         env:
@@ -65,14 +70,14 @@ jobs:
 
           printf 'tag=%s\nversion=%s\nimage=ghcr.io/%s\n' "$FF_TAG" "$FF_VERSION" "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
-      - name: Check out the release tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check Out The Release Tag
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ steps.release.outputs.tag }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Bind the tag to the checked-out release commit
+      - name: Bind The Tag To The Checked-Out Release Commit
         id: source
         shell: bash
         env:
@@ -90,16 +95,16 @@ jobs:
 
           printf 'sha=%s\n' "$FF_SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Set up the integration verifier
-        uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4 # 2.36.0
+      - name: Set Up The Integration Verifier
+        uses: shivammathur/setup-php@2.36.0
         with:
           php-version: '8.5'
           coverage: none
 
-      - name: Prepare the base image cache
+      - name: Prepare The Base Image Cache
         uses: ./.github/actions/setup-docker
 
-      - name: Build and verify the versioned CLI
+      - name: Build And Verify The Versioned CLI
         shell: bash
         env:
           FF_VERSION: ${{ steps.release.outputs.version }}
@@ -116,6 +121,7 @@ jobs:
           php tests/Container/verify.php fast-forward-changelog:release-check "$FF_VERSION"
 
   publish:
+    name: Publish Release Image
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -123,36 +129,37 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Check out the validated release commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check Out The Validated Release Commit
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ needs.validate.outputs.sha }}
           persist-credentials: false
 
-      - name: Prepare the base image cache
+      - name: Prepare The Base Image Cache
         uses: ./.github/actions/setup-docker
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set Up QEMU
+        uses: docker/setup-qemu-action@v4.4.0
         with:
           platforms: arm64
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
         with:
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["mirror.gcr.io"]
 
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - name: Log In To GHCR
+        uses: docker/login-action@v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Prepare the multi-platform release image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - name: Prepare The Multi-Platform Release Image
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -169,7 +176,7 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=changelog-release-image
 
-      - name: Revalidate the remote release tag before publication
+      - name: Revalidate The Remote Release Tag Before Publication
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -196,9 +203,9 @@ jobs:
             exit 1
           fi
 
-      - name: Publish the prepared release image
+      - name: Publish The Prepared Release Image
         id: image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -216,7 +223,7 @@ jobs:
           cache-from: type=gha,scope=changelog-release-image
           cache-to: type=gha,mode=max,scope=changelog-release-image
 
-      - name: Record the published image
+      - name: Record The Published Image
         shell: bash
         env:
           FF_IMAGE: ${{ needs.validate.outputs.image }}

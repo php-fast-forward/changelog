@@ -15,6 +15,12 @@ a Composer path repository with `symlink: false` and an explicit `dev-main`
 version. Both installs disable development dependencies, plugins and scripts.
 This snapshot excludes the development checkout's ignored `vendor/` directory.
 
+`CHANGELOG_PACKAGING_DEPENDENCIES=highest` is the default fresh resolution.
+Set it to `lowest` to exercise the minimum stable runtime dependency graph with
+`composer update --prefer-lowest --prefer-stable` in both disposable installations.
+The development checkout keeps its lock; neither mode updates that file. CI runs
+both bounds on the supported PHP 8.5 runtime.
+
 Each run provides its own process environment, HOME, Composer homes/cache, Git
 identity and consumer repositories. It does not change the user's global
 Composer installation or credentials. GitHub tokens are removed and the API
@@ -28,6 +34,8 @@ The checks cover:
   byte, while excluding repository automation, host configuration and dev files.
 - The runtime dependency graph and native local/global Composer proxies, including
   a nested autoloader that must not override Composer's selected autoloader.
+- A synthetic autoload warning retained on stderr while machine output remains a
+  single JSON object, even when PHP initially enables display_errors on stdout.
 - All nine public commands, lazy help/list metadata and failure isolation for a
   deliberately broken selected command.
 - Consumer working-directory behavior, fragment-only defaults, ignored implicit

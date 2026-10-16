@@ -105,11 +105,21 @@ remain useful before committing the release inputs.
 
 ### GitHub automation
 
-Use the Docker actions or reusable workflows at a reviewed immutable commit:
+Copy the [consumer workflow](resources/workflows/changelog.yml) into your
+`.github/workflows/changelog.yml` and select a reviewed product commit as
+described in its [setup notes](resources/workflows/README.md). It calls the
+single [`changelog.yml`](.github/workflows/changelog.yml) reusable entrypoint for
+checks, sticky PR comments, Dependabot fragments and a reviewable version PR.
+Real publication stays disabled in the example.
+
+The [automation map](docs/automation-map.md) separates public reusables, this
+repository's event workflows and implementation actions. Advanced integrations
+can compose the lower-level Docker actions and operation workflows:
 
 | Action | Reusable workflow | Responsibility |
 | --- | --- | --- |
 | `.github/actions/check` | `changelog-check.yml` | Contribution checks and verified PR policy |
+| `.github/actions/pr-status` | `changelog-pr-status.yml` | Exact-head status and sticky PR feedback |
 | `.github/actions/dependabot` | `changelog-dependabot.yml` | One dependency-update fragment |
 | `.github/actions/version` | `changelog-version.yml` | One reviewable version PR |
 | `.github/actions/publish` | `changelog-publish.yml` | Publication from an approved consolidation SHA |
@@ -191,8 +201,7 @@ project/
 │   ├── preserve-markdown.md
 │   └── dependency-update.md
 └── .github/workflows/
-    ├── check-changelog.yml
-    └── release-changelog.yml
+    └── changelog.yml
 ```
 
 File names identify examples; each contribution creates a new unique fragment.

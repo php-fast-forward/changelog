@@ -1,4 +1,4 @@
-name: Publish changelog
+name: Publish Changelog
 
 on:
   pull_request_target:
@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   publish:
+    name: Publish Changelog
     if: >-
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository &&
@@ -28,17 +29,19 @@ jobs:
       tag: ${{ steps.publication.outputs.tag }}
       sha: ${{ steps.publication.outputs.sha }}
     steps:
-      - name: Check out the approved merge
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check Out The Approved Merge
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ github.repository }}
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Prepare the base image cache
+
+      - name: Prepare The Base Image Cache
         uses: ./.github/actions/setup-docker
 
-      - name: Publish the verified consolidation
+      - name: Publish The Verified Consolidation
         id: publication
         uses: ./.github/actions/publish
         with:
@@ -53,6 +56,7 @@ jobs:
           target-sha: ${{ github.event.pull_request.merge_commit_sha }}
 
   image:
+    name: Publish Docker CLI
     needs: publish
     if: needs.publish.result == 'success' && needs.publish.outputs.version != ''
     permissions:

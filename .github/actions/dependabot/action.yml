@@ -1,4 +1,4 @@
-name: Fast Forward Changelog dependabot
+name: Fast Forward Changelog Dependabot
 description: "Create one deterministic fragment from verified Dependabot metadata."
 
 inputs:

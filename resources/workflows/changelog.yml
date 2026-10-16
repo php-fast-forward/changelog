@@ -1,0 +1,37 @@
+# Copy to the consumer's .github/workflows/changelog.yml.
+# Replace REVIEWED_COMMIT_SHA with a reviewed, integrated 40-character commit.
+name: Changelog
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, closed]
+
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  changelog:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      statuses: write
+
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@REVIEWED_COMMIT_SHA
+
+    with:
+      runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
+      base-branch: main
+      source: tags
+      comment-mode: always
+      prepare-release: true
+      publish: false

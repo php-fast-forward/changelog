@@ -1,73 +1,94 @@
 # Consumer entrypoint: pin this workflow to a reviewed full commit SHA.
-name: Changelog lifecycle
+name: "Reusable: Changelog Lifecycle"
 
 on:
   workflow_call:
     inputs:
+
       runs-on:
-        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
         default: '["ubuntu-latest"]'
+
       base-branch:
         description: Release line; empty uses the repository default branch.
         type: string
         default: ''
+
       fragment-directory:
         type: string
         default: '.changelog'
+
       changelog-file:
         type: string
         default: 'CHANGELOG.md'
+
       locale:
         type: string
         default: 'en'
+
       tag-prefix:
         type: string
         default: 'v'
+
       source:
         type: string
         default: 'auto'
+
       managed-branch:
         type: string
         default: 'changelog/version'
+
       automation-actor:
         type: string
         default: 'github-actions[bot]'
+
       waiver-label:
         type: string
         default: 'changelog-not-required'
+
       maintenance-label:
         type: string
         default: 'changelog-maintenance'
+
       comment-mode:
         description: always, on-failure or never.
         type: string
         default: 'always'
+
       prepare-release:
         description: Prepare a reviewable version PR on base pushes or manual dispatch.
         type: boolean
         default: true
+
       publish:
         description: Enable publication after the managed PR is merged. Keep false during validation.
         type: boolean
         default: false
+
       dry-run:
         description: Preview version and publication without remote content writes.
         type: boolean
         default: false
     secrets:
+
       token:
         description: Optional scoped App token for trusted operations; PR checks use github.token.
         required: false
     outputs:
+
       version-pr:
         value: ${{ jobs.version.outputs.pull-request }}
+
       version-head:
         value: ${{ jobs.version.outputs.head-sha }}
+
       published-version:
         value: ${{ jobs.publish.outputs.version }}
+
       published-tag:
         value: ${{ jobs.publish.outputs.tag }}
+
       published-sha:
         value: ${{ jobs.publish.outputs.sha }}
 
@@ -75,7 +96,7 @@ permissions: {}
 
 jobs:
   check:
-    name: Check contribution
+    name: Check Contribution
     if: >-
       github.event_name == 'pull_request' &&
       github.base_ref == (inputs.base-branch || github.event.repository.default_branch)
@@ -100,7 +121,7 @@ jobs:
       maintenance-label: ${{ inputs.maintenance-label }}
 
   dependabot:
-    name: Author Dependabot fragment
+    name: Author Dependabot Fragment
     if: >-
       github.event_name == 'pull_request_target' && github.event.action != 'closed' &&
       github.base_ref == (inputs.base-branch || github.event.repository.default_branch) &&
@@ -123,7 +144,7 @@ jobs:
       token: ${{ secrets.token || github.token }}
 
   feedback:
-    name: PR feedback
+    name: PR Feedback
     needs: dependabot
     if: >-
       !cancelled() && github.event_name == 'pull_request_target' && github.event.action != 'closed' &&
@@ -154,7 +175,7 @@ jobs:
       token: ${{ secrets.token || github.token }}
 
   version:
-    name: Prepare version PR
+    name: Prepare Version PR
     if: >-
       inputs.prepare-release &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
@@ -179,7 +200,7 @@ jobs:
       token: ${{ secrets.token || github.token }}
 
   validate-version:
-    name: Validate generated version head
+    name: Validate Generated Version Head
     needs: version
     if: >-
       needs.version.result == 'success' && !inputs.dry-run &&
@@ -209,7 +230,7 @@ jobs:
       token: ${{ secrets.token || github.token }}
 
   publish:
-    name: Publish approved consolidation
+    name: Publish Approved Consolidation
     if: >-
       inputs.publish && github.event_name == 'pull_request_target' && github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&

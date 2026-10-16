@@ -1,4 +1,4 @@
-name: Fast Forward Changelog PR status
+name: Fast Forward Changelog PR Status
 description: Validate an exact PR snapshot, render feedback and optionally publish its commit status.
 
 inputs:

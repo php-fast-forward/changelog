@@ -5,36 +5,23 @@ existing operations, infers the PR revisions and default branch from the event,
 validates generated heads and updates one PR comment. No initialization file,
 Composer install, Node runtime or consumer shell script is required.
 
+The [automation map](automation-map.md) identifies this public entrypoint, its
+optional individual operations and this package's own event workflows. Copy
+the [consumer caller](../resources/workflows/changelog.yml); keep reusable
+implementations in `.github/workflows`, as required by GitHub.
+
 ## Start with validation
 
-Create one consumer workflow using a reviewed full product commit. This example
-pins the implementation commit that introduced the facade and feedback:
+Copy the [caller example](../resources/workflows/changelog.yml) into the consumer's
+`.github/workflows/changelog.yml`. Replace its explicit `REVIEWED_COMMIT_SHA`
+placeholder with a full reviewed commit already integrated into this package's
+release line; do not select a temporary PR branch or unmerged PR commit. The
+[example's setup notes](../resources/workflows/README.md) describe branch filters,
+runner selection and the optional token.
 
-```yaml
-name: Changelog
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
-  pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, closed]
-  push:
-  workflow_dispatch:
-
-permissions: {}
-
-jobs:
-  changelog:
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: read
-      statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@6a6062a80d28ab69da1e74952fad693f34806fa3
-    with:
-      prepare-release: false
-      publish: false
-```
+The example enables `prepare-release: true` to validate the reviewable version
+PR and keeps `publish: false`. Set `prepare-release: false` when initially
+testing only contributions and comments.
 
 The caller grants the maximum required permissions; each internal job reduces
 them. PR-head checks use the ordinary read-only token. Feedback executes the
@@ -43,8 +30,7 @@ Composer scripts or PHP templates. Publication remains disabled by default.
 Dependabot fragment generation remains active; use a disposable pilot PR to
 validate its writes before adopting the workflow broadly.
 
-After validating contributions and comments, enable `prepare-release: true` to
-exercise the reviewable version PR. Only enable `publish: true` after the pilot
+Only enable `publish: true` after the pilot
 has validated the approved-merge publication contract and publication is
 authorized. The workflow never merges its own version PR. `dry-run: true`
 previews version/publication operations without their remote content writes;
@@ -139,8 +125,10 @@ with an existing billing-fallback variable can add:
 
 For example, the variable may contain
 `["self-hosted","Linux","X64","local-ci"]`. The selected Linux runner must have
-Docker, Bash, Git, GitHub CLI and jq available and be allowed to run the called
-public workflows. Runner registration, isolation and repository access belong
+Docker, Bash and Git available and be allowed to run the called public workflows.
+PR metadata queries use the official GitHub Script action and the Actions runner's
+bundled JavaScript runtime; installing GitHub CLI or jq on a self-hosted runner is
+not required. Runner registration, isolation and repository access belong
 to the consumer's infrastructure. The workflow does not detect billing limits
 or change runner assignments; an existing fallback controller can update the
 variable. Use persistent runners only for work authorized under that runner's
