@@ -45,7 +45,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@2a41bb8c2f0fb45d8fa6da4d7dc7abf2e4b40121
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@e85adf33154b735941a9a903c1a1d4dfb331d6fb
 
     with:
       runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
@@ -75,7 +75,7 @@ Until that release is published, select `fast-forward/changelog:dev-main` for th
 Choose a project installation:
 
 ```sh
-composer require --dev fast-forward/changelog
+composer require --dev fast-forward/changelog:dev-main
 vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
 vendor/bin/changelog check --no-interaction
 ```
@@ -83,7 +83,7 @@ vendor/bin/changelog check --no-interaction
 Or install globally and run from the repository you want to maintain:
 
 ```sh
-composer global require fast-forward/changelog
+composer global require fast-forward/changelog:dev-main
 changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
 changelog check --no-interaction
 ```
