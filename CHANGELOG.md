@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-10-10
+## [1.0.0] - 2026-10-16
 
 ### Added
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add deterministic PSR-20 time through `fast-forward/clock` and an isolated unit-test coverage gate (#1)
 - Adds consistent short options for common settings, fragment metadata, read-only modes and note output while preserving Symfony global shortcuts and the existing long options. ([@mentordosnerds](https://github.com/mentordosnerds))
 - Ships the canonical changelog skill in Composer archives and declares its donor source for optional llm/skills installation, with a verified consumer recipe and an evaluated Fast Forward resource-bundle alternative. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Adopt one reusable changelog lifecycle with exact-head validation, automatic validation of generated branches and configurable sticky PR feedback for successful, failed and recovered checks. Publication remains opt-in during consumer validation.
 - Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags.
 
 ### Changed
@@ -39,7 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate real release dates and create missing parent directories before Git repository discovery (#1)
 - Treat prefixed versions as one identity and apply SemVer prerelease precedence when ordering releases (#1)
 - Preloads trusted Dockerfile base images through the public Docker Hub cache on disposable GitHub-hosted Linux runners, reducing build failures from upstream registry limits and timeouts.
+- Reject invalid UTF-8 and unclosed structural code fences before a fragment can pass contribution checks, and retain the verified container 1.6 resolution contract so fresh installations cannot silently bypass a failed explicit command factory.
 - Accept GitHub platform-signed bot transactions while preserving exact author identity, signature, receipt and file-scope checks; expose safe commit diagnostics when ownership proof fails. ([@mentordosnerds](https://github.com/mentordosnerds))
+- Preserve managed-version authorization in the ordinary CLI check and reject ambiguous category headings so approved fragment consumption validates consistently and custom presentation cannot silently reclassify historical notes.
 - Separate release and category headings with blank lines while keeping simple changelog entries compact and preserving multiline Markdown.
 - Promotes legacy Unreleased descriptions into the next version without leaving a pending section or duplicating category headings.
 - Reject ambiguous Unreleased headings and unsupported historical release headings before consolidation, so custom template changes cannot duplicate history or misidentify an existing release.

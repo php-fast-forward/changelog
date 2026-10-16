@@ -50,6 +50,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     public function getFactories(): array
     {
         return [
+            \FastForward\Changelog\Automation\PullRequest\PullRequestStatusServiceInterface::class => new AliasFactory(
+                \FastForward\Changelog\Automation\PullRequest\PullRequestStatusService::class,
+            ),
             self::CONFIG => static fn(ContainerInterface $container): ConfigInterface => new ArrayConfig([
                 'working_directory' => self::configuration(
                     $container,

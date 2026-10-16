@@ -34,6 +34,7 @@ if (isset($argv[2])) {
 }
 $assertions = 0;
 $commands = 0;
+$commandPrefix = '1' === getenv('CHANGELOG_PACKAGING_DIRECT') ? [] : ['rtk', 'proxy'];
 
 /** Fails with an exact fixture contract; the retained path supports diagnosis. */
 function verify(bool $condition, string $message): void
@@ -45,16 +46,16 @@ function verify(bool $condition, string $message): void
     }
 }
 
-/** Runs structured arguments through RTK, capturing both streams without a pipe deadlock. */
+/** Runs structured fixture arguments, using RTK locally or explicit direct execution in CI. */
 function execute(array $arguments, string $directory, array $environment, int $expected = 0): array
 {
-    global $fixtureRoot, $commands;
+    global $fixtureRoot, $commands, $commandPrefix;
     ++$commands;
     $stdout = $fixtureRoot . '/command-' . $commands . '.out';
     $stderr = $fixtureRoot . '/command-' . $commands . '.err';
     $null = 'Windows' === PHP_OS_FAMILY ? 'NUL' : '/dev/null';
     $process = proc_open([
-        'rtk', 'proxy', ...$arguments],
+        ...$commandPrefix, ...$arguments],
         [0 => ['file', $null, 'r'], 1 => ['file', $stdout, 'w'], 2 => ['file', $stderr, 'w']],
         $pipes,
         $directory,

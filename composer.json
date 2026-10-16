@@ -45,7 +45,7 @@
         "container-interop/service-provider": "^0.4.1",
         "fast-forward/clock": "^1.0",
         "fast-forward/config": "^1.4",
-        "fast-forward/container": "^1.6",
+        "fast-forward/container": "~1.6.0",
         "psr/clock": "^1.0",
         "psr/container": "^1.0 || ^2.0",
         "symfony/console": "^8.1",
@@ -65,6 +65,7 @@
         "phpunit/php-code-coverage": "^13.0",
         "phpunit/phpunit": "^13.0",
         "rector/rector": "^2.6",
+        "symfony/yaml": "^8.1",
         "symplify/easy-coding-standard": "^13.3"
     },
     "minimum-stability": "stable",
@@ -99,6 +100,8 @@
     "scripts": {
         "test": "@test:unit",
         "test:unit": "phpunit --testsuite unit",
+        "test:workflows": "@php tests/Workflow/verify.php",
+        "test:packaging": "@php tests/Packaging/verify.php",
         "test:coverage": [
             "@php -d pcov.enabled=1 -d pcov.directory=src -d xdebug.mode=coverage vendor/bin/phpunit --testsuite unit --coverage-cobertura=.build/coverage.xml --coverage-clover=.build/clover.xml --coverage-text --coverage-html=.build/coverage",
             "@php tests/verify-coverage.php .build/coverage.xml 100"

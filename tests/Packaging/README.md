@@ -6,7 +6,9 @@ Run the actual local and global Composer installations in disposable consumers:
 rtk proxy php tests/Packaging/verify.php
 ```
 
-The harness requires PHP 8.5, Composer 2, Git and RTK on `PATH`. Composer may
+The harness requires PHP 8.5, Composer 2, Git and RTK on `PATH` for local runs.
+The dedicated CI job sets `CHANGELOG_PACKAGING_DIRECT=1` to execute its structured
+arguments directly on the disposable runner, without an RTK prerequisite. Composer may
 download the package's public runtime dependencies. It exports the current
 tracked and unignored source into a clean temporary package snapshot, then uses
 a Composer path repository with `symlink: false` and an explicit `dev-main`
@@ -24,7 +26,7 @@ The checks cover:
 
 - The runtime dependency graph and native local/global Composer proxies, including
   a nested autoloader that must not override Composer's selected autoloader.
-- All eight public commands, lazy help/list metadata and failure isolation for a
+- All nine public commands, lazy help/list metadata and failure isolation for a
   deliberately broken selected command.
 - Consumer working-directory behavior, fragment-only defaults, ignored implicit
   PHP configuration, collision rejection and opt-in scoped commits that preserve

@@ -55,6 +55,39 @@ final class TemplateFactoryTest extends TestCase
         self::assertSame('No notes', $template->missingNotes());
     }
 
+    /** Ambiguous category identities must fail before consolidation can merge unrelated change kinds. */
+    #[Test]
+    #[TestWith(['en', ['changed' => '### Fixed']])]
+    #[TestWith(['en', ['changed' => "### Fixed \t"]])]
+    #[TestWith(['en', ['changed' => '### Updates', 'fixed' => '### Updates']])]
+    #[TestWith(['pt-BR', ['changed' => '### Corrigido']])]
+    public function rejectsCategoryHeadingsThatResolveToTheSameVisibleStructure(string $locale, array $headings): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('category headings must identify distinct categories');
+
+        new TemplateFactory()->create($locale, ['category_headings' => $headings]);
+    }
+
+    /** Harmless terminal heading whitespace cannot make formatting select a different category alias. */
+    #[Test]
+    public function categoryOverridesRetainTheirIdentityAcrossActualHistoryFormatting(): void
+    {
+        $template = new TemplateFactory()->create('en', [
+            'category_headings' => ['changed' => "### Fixed \t", 'fixed' => '### Repairs'],
+        ]);
+        $codec = $this->codec();
+        $document = $codec->parse(
+            "## [1.0.0]\n\n" . $template->categoryHeading('changed') . "\n\n- Changed existing API.\n",
+            $template,
+        );
+        $formatted = $codec->render($document, $template);
+
+        self::assertStringContainsString("### Fixed\n\n- Changed existing API.\n", $formatted);
+        self::assertStringNotContainsString('### Repairs', $formatted);
+        self::assertSame($formatted, $codec->render($codec->parse($formatted, $template), $template));
+    }
+
     #[Test]
     #[TestWith(['## {version}{date}'])]
     #[TestWith(['## {date}{version}'])]

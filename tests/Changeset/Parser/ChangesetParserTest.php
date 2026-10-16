@@ -101,6 +101,58 @@ final class ChangesetParserTest extends TestCase
         self::assertSame($expected, $this->parser($expected)->parse('entry.md', $contents)->changeset);
     }
 
+    /** Accepted fragments must serialize into the immutable JSON plan instead of failing only during release. */
+    #[Test]
+    #[TestWith(['ff'])]
+    #[TestWith(['c0af'])]
+    #[TestWith(['eda080'])]
+    public function rejectsInvalidUtf8BeforeConstructingAChangeset(string $hex): void
+    {
+        $result = $this->parser()->parse('entry.md', "---\ncategory: fixed\n---\n\nBody " . hex2bin($hex));
+
+        self::assertFalse($result->isValid());
+        self::assertContains(
+            'Fragment contents must be valid UTF-8 for release plans and automation output.',
+            $result->errors,
+        );
+    }
+
+    /** Each rendered fragment must close its own fence without depending on another fragment's bytes. */
+    #[Test]
+    #[TestWith(["```php\necho 'example';"])]
+    #[TestWith(["~~~text\nexample\n```"])]
+    #[TestWith(["````php\nexample\n```"])]
+    #[TestWith([" ```php\nexample\n  ```"])]
+    public function rejectsFencesThatWouldPreventReleaseHistoryRendering(string $body): void
+    {
+        $result = $this->parser()->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body);
+
+        self::assertFalse($result->isValid());
+        self::assertContains(
+            'Fragment code fences must close before the end of their rendered release entry.',
+            $result->errors,
+        );
+    }
+
+    /** Valid Markdown whitespace, Unicode, paired fences and nested/inline examples remain byte-identical. */
+    #[Test]
+    #[TestWith(["```php\necho 'exemplo';  \n```"])]
+    #[TestWith(["~~~text\n```\n~~~"])]
+    #[TestWith(["````php\n```\n````"])]
+    #[TestWith([" ```php\n example\n ```"])]
+    #[TestWith(["  ```php\nIndented example remains data."])]
+    #[TestWith(['```php'])]
+    #[TestWith(["```invalid`info\nTexto preservado: ação."])]
+    #[TestWith(["```php\nexample\n````  "])]
+    public function retainsReleaseCompatibleMarkdownExactly(string $body): void
+    {
+        $expected = new Changeset('entry.md', Category::Fixed, null, null, null, $body, VersionImpact::Patch);
+        $result = $this->parser($expected)->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body . "\n");
+
+        self::assertSame($expected, $result->changeset);
+        self::assertSame($body, $result->changeset->description);
+    }
+
     #[Test]
     public function reportsFilenameAndDelimiterErrorsWithoutConstructingAFragment(): void
     {

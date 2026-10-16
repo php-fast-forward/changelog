@@ -12,6 +12,7 @@ use FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactoryIn
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestAuthorization;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
+use FastForward\Changelog\Automation\PullRequest\PullRequestStatusServiceInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestResult;
@@ -56,6 +57,21 @@ use RuntimeException;
 #[UsesClass(PublicationResult::class)]
 final class AutomationRunnerTest extends TestCase
 {
+    /** PR feedback uses the same validated options and explicit snapshot/authority settings. */
+    #[Test]
+    public function pullRequestFeedbackMapsTheExactSnapshot(): void
+    {
+        $pullRequests = $this->createMock(PullRequestStatusServiceInterface::class);
+        $pullRequests->expects(self::once())->method('inspect')->with(
+            $this->options(), 7, $this->sha(), $this->sha('b'), 'main', 'changelog/version',
+            'github-actions[bot]', 'changelog-not-required', 'changelog-maintenance', true,
+        )->willReturn(['status' => 'invalid']);
+        self::assertSame(['status' => 'invalid'], $this->runner(compact('pullRequests'))->run('pr-status', [
+            'pull-request' => '7', 'expected-head-sha' => $this->sha(), 'since' => $this->sha('b'),
+            'publish-status' => 'true',
+        ]));
+    }
+
     #[Test]
     #[TestWith(['unknown', []])]
     #[TestWith(['version', ['waiver-label' => 'forged']])]
@@ -678,6 +694,7 @@ final class AutomationRunnerTest extends TestCase
             $services['applier'] ?? $this->noCalls(ReleaseApplierInterface::class),
             $services['github'] ?? $this->noCalls(GitHubClientInterface::class),
             $exceptions,
+            $services['pullRequests'] ?? $this->noCalls(PullRequestStatusServiceInterface::class),
         );
     }
 
