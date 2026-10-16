@@ -34,11 +34,12 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     ) {}
 
     /**
-     * Parses English, Brazilian Portuguese and semantically marked release sections.
+     * Parses English, Brazilian Portuguese, Changesets and marked release sections.
      *
      * Fenced code MUST NOT create release boundaries. Unknown prose, nested
      * Markdown, references and footer boilerplate MUST remain byte-preserved.
      * Legacy boundaries require an Unreleased alias or a numeric version token;
+     * bare Changesets version headings retain their original source bytes.
      * recognized malformed headings MUST fail, with semantic validation owned
      * by the release factory rather than silently treating releases as prose.
      * Unrecognized level-two headings with numeric-dot-triple version shapes
@@ -318,7 +319,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     }
 
     /**
-     * Recognizes standard headings and headings from the explicitly selected template.
+     * Recognizes standard, bare Changesets and explicitly selected template headings.
+     *
+     * Bare version-only headings delegate semantic validation to the release
+     * factory; arbitrary labels or trailing prose remain outside that grammar.
      *
      * @return array{version:string,date:?string}|null
      */
@@ -370,6 +374,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
                 return ['version' => $unreleased ? 'unreleased' : $matches['version'], 'date' => $matches['date'] ?? null];
             }
+        }
+
+        if (1 === preg_match(
+            '~^##[ \t]+(?<version>[vV]?[0-9]+\.[0-9]+\.[0-9]+)[ \t]*(?:\r?\n|\z)~u',
+            $line,
+            $matches,
+        )) {
+            return ['version' => $matches['version'], 'date' => null];
         }
 
         if (1 === preg_match('/^##[ \t]+/', $line)
