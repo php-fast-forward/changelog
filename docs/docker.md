@@ -153,7 +153,10 @@ other daemon settings and existing mirror order, adds the public cache, and
 preloads only images declared by the trusted runtime Dockerfile. The Buildx
 publisher uses the same mirror. Dockerfile references and full image versions
 stay unchanged; missing cache entries fall back to Docker Hub. The helper
-rejects other runner environments and does not configure developer machines.
+skips cache configuration and preloading on self-hosted runners, preserving their
+existing daemon without a restart. It rejects unsupported hosted environments
+and does not configure developer machines. See the [runner input and access
+requirements](reusable-lifecycle.md#optional-settings-and-composition).
 See [Google's cache contract](https://docs.cloud.google.com/artifact-registry/docs/pull-cached-dockerhub-images)
 and [BuildKit registry mirrors](https://docs.docker.com/build/buildkit/configure/).
 
