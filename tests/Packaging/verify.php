@@ -199,15 +199,22 @@ function runtimeGraph(string $installation): void
         'Optional skill installation must retain the library installation contract.',
     );
     verify(
-        '.github/skills' === ($metadata['extra']['skills']['source'] ?? null),
+        'resources/skills' === ($metadata['extra']['skills']['source'] ?? null),
         'The canonical skill donor path is missing.',
     );
     foreach (['SKILL.md', 'LICENSE'] as $resource) {
         verify(
-            is_file($package . '/.github/skills/changelog/' . $resource),
+            is_file($package . '/resources/skills/fast-forward-changelog/' . $resource),
             'The installed package is missing canonical skill resource: ' . $resource,
         );
     }
+    verify(
+        str_starts_with(
+            file_get_contents($package . '/resources/skills/fast-forward-changelog/SKILL.md'),
+            "---\nname: fast-forward-changelog\n",
+        ),
+        'The distributed skill must retain its unambiguous public identifier.',
+    );
     fwrite(STDOUT, sprintf("Runtime graph: %d packages, no development tools.\n", count($packages)));
 }
 
@@ -232,6 +239,36 @@ function exportSource(string $packageRoot, string $destination, array $environme
         }
     }
     verify(!is_dir($destination . '/vendor'), 'Source export must exclude checkout dependencies.');
+}
+
+/** Verifies archive exclusions and exact skill bytes in an isolated synthetic repository. */
+function verifyArchive(string $packageRoot, string $fixtureRoot, array $environment): void
+{
+    $source = $fixtureRoot . '/archive-source';
+    exportSource($packageRoot, $source, $environment);
+    execute(['git', 'init', '--initial-branch=main'], $source, $environment);
+    execute(['git', 'add', '--all'], $source, $environment);
+    execute(['git', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Synthetic package archive'], $source, $environment);
+    $archive = $fixtureRoot . '/package.tar';
+    execute(['git', 'archive', '--format=tar', '--output=' . $archive, 'HEAD'], $source, $environment);
+    $listing = execute(['tar', '-tf', $archive], $source, $environment);
+    $entries = preg_split('/\R/', trim($listing['stdout']));
+    foreach (['.github/', '.agents/', '.claude/', 'scripts/', 'tests/', 'docs/'] as $excluded) {
+        verify(
+            [] === array_filter($entries, static fn(string $entry): bool => str_starts_with($entry, $excluded)),
+            'Development surface leaked into the archive: ' . $excluded,
+        );
+    }
+    foreach (['SKILL.md', 'LICENSE'] as $file) {
+        $relative = 'resources/skills/fast-forward-changelog/' . $file;
+        verify(in_array($relative, $entries, true), 'Canonical skill is absent from the archive: ' . $file);
+        $contents = execute(['tar', '-xOf', $archive, $relative], $source, $environment);
+        verify(
+            file_get_contents($packageRoot . '/' . $relative) === $contents['stdout'],
+            'Archived skill bytes differ from the canonical package: ' . $file,
+        );
+    }
+    fwrite(STDOUT, "Archive skill and development exclusions PASS.\n");
 }
 
 /** Exercises actual Composer proxies, selected-command construction and disposable Git transactions. */
@@ -656,6 +693,7 @@ try {
     $localEnv = environment($fixtureRoot, $fixtureRoot . '/local-composer');
     $globalEnv = environment($fixtureRoot, $fixtureRoot . '/global-composer');
     exportSource($packageRoot, $fixtureRoot . '/package', $localEnv);
+    verifyArchive($packageRoot, $fixtureRoot, $localEnv);
     $manifest = ['name' => 'fixture/changelog-consumer', 'type' => 'project', 'license' => 'MIT',
         'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => 'dev-main']]]],
         'require' => ['fast-forward/changelog' => 'dev-main'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];
