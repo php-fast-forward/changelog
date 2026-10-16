@@ -34,24 +34,29 @@ function workflowGuard(string $source, string $directory, array $environment, in
 }
 
 /** Executes the actual inline JavaScript with an isolated SDK double; errors must produce no outputs. */
-function workflowScriptGuard(string $source, string $directory, array $environment, array $snapshot, int $expected): array
-{
-    $harness = <<<'JS'
-        const outputs = {};
-        const requests = [];
-        const context = { repo: { owner: 'fixture', repo: 'consumer' } };
-        const core = { setOutput: (name, value) => { outputs[name] = value; } };
-        const github = { rest: { pulls: { get: async (request) => {
-          requests.push(request);
-          if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
+function workflowScriptGuard(
+    string $source,
+    string $directory,
+    array $environment,
+    array $snapshot,
+    int $expected,
+): array {
+    $harness = <<<'JS_WRAP'
+    const outputs = {};
+    const requests = [];
+    const context = { repo: { owner: 'fixture', repo: 'consumer' } };
+    const core = { setOutput: (name, value) => { outputs[name] = value; } };
+    const github = { rest: { pulls: { get: async (request) => {
+      requests.push(request);
+      if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
 
-          return { data: JSON.parse(process.argv[2]) };
-        } } } };
-        const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-        new AsyncFunction('github', 'context', 'core', process.argv[1])(github, context, core)
-          .catch(() => { process.exitCode = 1; })
-          .finally(() => process.stdout.write(JSON.stringify({ outputs, requests })));
-        JS;
+      return { data: JSON.parse(process.argv[2]) };
+    } } } };
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    new AsyncFunction('github', 'context', 'core', process.argv[1])(github, context, core)
+      .catch(() => { process.exitCode = 1; })
+      .finally(() => process.stdout.write(JSON.stringify({ outputs, requests })));
+    JS_WRAP;
     $process = new Process(['node', '-e', $harness, $source, json_encode($snapshot, JSON_THROW_ON_ERROR)], $directory, [
         'GH_TOKEN' => false, 'GITHUB_TOKEN' => false, 'GH_HOST' => false,
         ...$environment,
