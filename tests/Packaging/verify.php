@@ -524,7 +524,7 @@ function exercise(string $installation, string $consumer, array $environment): v
         'Legacy and new fix categories were not combined.',
     );
     verify(
-        str_contains($preview['notes'], "  ### Fixed\n  \n  Keep this title inside Added."),
+        str_contains($preview['notes'], "  ### Fixed\n\n  Keep this title inside Added."),
         'A nested fragment heading or its description was moved to another category.',
     );
     $changed = $git(['diff', '--name-status', '--', 'CHANGELOG.md', '.changelog'])['stdout'];

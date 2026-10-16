@@ -376,8 +376,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
         }
 
+        $bareVersion = '[vV]?[0-9]+\.[0-9]+\.[0-9]+'
+            . '(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?'
+            . '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?';
         if (1 === preg_match(
-            '~^##[ \t]+(?<version>[vV]?[0-9]+\.[0-9]+\.[0-9]+)[ \t]*(?:\r?\n|\z)~u',
+            '~^##[ \t]+(?<version>' . $bareVersion . ')[ \t]*(?:\r?\n|\z)~u',
             $line,
             $matches,
         )) {

@@ -321,23 +321,30 @@ final class HistoryCodecTest extends TestCase
     #[TestWith([null, "\n"])]
     #[TestWith(['en', "\r\n"])]
     #[TestWith(['pt-BR', "\n"])]
-    public function changesetsHistoryRetainsItsExactHeadingsAndNotes(?string $locale, string $newline): void
-    {
+    #[TestWith(['en', "\n", 'v1.2.3-next.0'])]
+    #[TestWith(['pt-BR', "\r\n", 'V1.2.3+build.1'])]
+    #[TestWith(['en', "\n", '1.2.3-next.0+build.7'])]
+    public function changesetsHistoryRetainsItsExactHeadingsAndNotes(
+        ?string $locale,
+        string $newline,
+        string $headingVersion = '0.5.1',
+    ): void {
         $markdown = str_replace(
             "\n",
             $newline,
-            "# History\n\n## 0.5.1\n\n### Patch Changes\n\n- Prior release with [provenance](https://example.test/pr/1).\n\n## 0.5.0\n\n### Minor Changes\n\n- Older release.\n",
+            "# History\n\n## " . $headingVersion . "\n\n### Patch Changes\n\n- Prior release with [provenance](https://example.test/pr/1).\n\n## 0.5.0\n\n### Minor Changes\n\n- Older release.\n",
         );
         $codec = $this->codec();
         $template = null === $locale ? null : $this->template($locale);
         $document = $codec->parse($markdown, $template);
 
-        self::assertSame(['0.5.1', '0.5.0'], array_map(
+        $version = preg_replace('/^[vV]/', '', $headingVersion);
+        self::assertSame([$version, '0.5.0'], array_map(
             static fn(HistoryRelease $release): string => $release->getVersion(),
             $document->getReleases(),
         ));
-        self::assertNull($document->getRelease('0.5.1')->getDate());
-        self::assertStringContainsString('### Patch Changes', $codec->notes($document, '0.5.1'));
+        self::assertNull($document->getRelease($version)->getDate());
+        self::assertStringContainsString('### Patch Changes', $codec->notes($document, $version));
         self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
     }
 
