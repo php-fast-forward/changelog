@@ -27,7 +27,10 @@ final readonly class DependabotInputFactory implements DependabotInputFactoryInt
         private GitHubExceptionFactoryInterface $exceptions,
     ) {}
 
-    /** Rejects unsafe or unsupported shapes before returning normalized deterministic metadata. */
+    /**
+     * Rejects unsafe metadata before returning deterministic names and alert numbers.
+     * Normalizes only the exact upstream github_actions ecosystem to canonical github-actions.
+     */
     public function create(
         int $pullRequest,
         string $expectedHeadSha,
@@ -38,6 +41,8 @@ final readonly class DependabotInputFactory implements DependabotInputFactoryInt
         bool $includeDev = true,
         bool $includeActions = true,
     ): DependabotInput {
+        $ecosystem = 'github_actions' === $ecosystem ? 'github-actions' : $ecosystem;
+
         if ($pullRequest < 1 || ! GitHubEvidence::sha($expectedHeadSha) || [] === $packageNames
             || ! in_array($dependencyType, ['direct:production', 'direct:development', 'indirect'], true)
             || 1 !== preg_match('/\A[a-z][a-z0-9-]*\z/', $ecosystem)

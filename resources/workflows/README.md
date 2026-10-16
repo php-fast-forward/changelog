@@ -6,10 +6,10 @@ GitHub does not execute the example while it remains in `resources/workflows`.
 
 Before enabling it:
 
-1. Replace `REVIEWED_COMMIT_SHA` with a full, reviewed commit already integrated
-   into this package's release line and containing the tested reusable workflow.
-   The placeholder deliberately does not identify a published version. Do not
-   pin a temporary PR branch or its unmerged commit.
+1. Review the full product commit already selected in the example. It is an
+   integrated revision containing the tested reusable workflow, not a claim that
+   a tagged release exists. Update it deliberately after validation; do not pin
+   a temporary PR branch or its unmerged commit.
 2. Adjust both event branch filters and `base-branch` if the consumer's release
    branch is not `main`.
 3. Keep `publish: false` during validation. The example checks contributions,

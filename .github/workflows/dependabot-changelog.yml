@@ -22,6 +22,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    outputs:
+      head-sha: ${{ steps.operation.outputs.head-sha }}
     steps:
 
       - name: Check Out The Trusted Base
@@ -46,6 +48,7 @@ jobs:
           skip-commit-verification: 'false'
 
       - name: Add One Deterministic Dependabot Fragment
+        id: operation
         uses: ./.github/actions/dependabot
         with:
           working-directory: '.'
@@ -57,3 +60,23 @@ jobs:
           dependency-type: ${{ steps.metadata.outputs.dependency-type }}
           ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}
           security-alert-numbers: '[]'
+
+  feedback:
+    name: Validate Updated Dependabot Head
+    needs: fragment
+    if: needs.fragment.result == 'success'
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      statuses: write
+    uses: ./.github/workflows/changelog-pr-status.yml
+    with:
+      pull-request: ${{ github.event.pull_request.number }}
+      head-sha: ${{ needs.fragment.outputs.head-sha || github.event.pull_request.head.sha }}
+      base-sha: ${{ github.event.pull_request.base.sha }}
+      base-branch: main
+      automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+      comment-mode: always
+    secrets:
+      token: ${{ secrets.CHANGELOG_TOKEN || github.token }}

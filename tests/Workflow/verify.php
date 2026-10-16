@@ -79,6 +79,7 @@ function workflowScriptGuard(
 $root = dirname(__DIR__, 2);
 $feedback = Yaml::parseFile($root . '/.github/workflows/changelog-pr-status.yml');
 $lifecycle = Yaml::parseFile($root . '/.github/workflows/changelog.yml');
+$internalDependabot = Yaml::parseFile($root . '/.github/workflows/dependabot-changelog.yml');
 $assertions = 0;
 
 // Every public entrypoint must preserve the caller's runner selection through nested jobs.
@@ -103,7 +104,7 @@ foreach (['changelog', 'changelog-check', 'changelog-dependabot', 'changelog-his
 }
 
 // Resolve actual nested workflow contracts and verify that the caller never withholds a required permission.
-foreach ([$feedback, $lifecycle] as $workflow) {
+foreach ([$feedback, $lifecycle, $internalDependabot] as $workflow) {
     foreach ($workflow['jobs'] as $name => $job) {
         if (! isset($job['uses'])) {
             continue;
@@ -135,6 +136,32 @@ foreach ([$feedback, $lifecycle] as $workflow) {
         ++$assertions;
     }
 }
+
+$internalFragment = $internalDependabot['jobs']['fragment'];
+$internalFeedback = $internalDependabot['jobs']['feedback'];
+verifyWorkflow(
+    '${{ steps.operation.outputs.head-sha }}' === $internalFragment['outputs']['head-sha']
+        && 'operation' === $internalFragment['steps'][3]['id']
+        && './.github/actions/dependabot' === $internalFragment['steps'][3]['uses'],
+    'Internal Dependabot must forward the fragment action head for same-run feedback.',
+);
+verifyWorkflow(
+    'fragment' === $internalFeedback['needs'] && "needs.fragment.result == 'success'" === $internalFeedback['if'],
+    'Internal feedback must run after successful creation and unchanged idempotent results.',
+);
+verifyWorkflow(
+    '${{ needs.fragment.outputs.head-sha || github.event.pull_request.head.sha }}'
+        === $internalFeedback['with']['head-sha']
+        && '${{ github.event.pull_request.base.sha }}' === $internalFeedback['with']['base-sha']
+        && '${{ github.event.pull_request.number }}' === $internalFeedback['with']['pull-request'],
+    'Internal feedback must validate the new fragment head or the unchanged immutable event head.',
+);
+verifyWorkflow(
+    'always' === $internalFeedback['with']['comment-mode']
+        && '${{ secrets.CHANGELOG_TOKEN || github.token }}' === $internalFeedback['secrets']['token'],
+    'Internal feedback must update its sticky comment using the existing trusted token contract.',
+);
+$assertions += 4;
 
 foreach ($feedback['jobs']['status']['steps'] as $step) {
     if (! str_starts_with($step['uses'] ?? '', './.changelog-runtime/.github/actions/')) {

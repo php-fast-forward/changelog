@@ -20,7 +20,10 @@ use FastForward\Changelog\Automation\Dependabot\DependabotInput;
 /** Validates explicit trusted workflow metadata before any privileged request. */
 interface DependabotInputFactoryInterface
 {
-    /** Rejects unsafe names, incomplete object IDs and ambiguous metadata; names/alerts become sorted unique lists. */
+    /**
+     * Rejects unsafe names, incomplete object IDs and ambiguous metadata; names/alerts become sorted unique lists.
+     * Normalizes the exact upstream github_actions ecosystem to canonical github-actions.
+     */
     public function create(
         int $pullRequest,
         string $expectedHeadSha,
