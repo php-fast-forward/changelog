@@ -158,7 +158,10 @@ try {
     workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
         'RUNNER_ENVIRONMENT' => 'self-hosted', 'RUNNER_OS' => 'Linux', 'FF_FIXTURE_FORBID_DOCKER' => '1',
     ], 0);
-    verifyWorkflow(! is_file($directory . '/unexpected-daemon-operation'), 'Self-hosted daemons must remain untouched.');
+    verifyWorkflow(
+        ! is_file($directory . '/unexpected-daemon-operation'),
+        'Self-hosted daemons must remain untouched.',
+    );
     workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
         'RUNNER_ENVIRONMENT' => 'github-hosted', 'RUNNER_OS' => 'Windows', 'FF_FIXTURE_FORBID_DOCKER' => '1',
     ], 1);
