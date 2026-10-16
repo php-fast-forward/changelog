@@ -209,13 +209,12 @@ committed-template contract.
 ### Agent skill
 
 The portable procedure and license live in the real
-[`.github/skills/changelog`](.github/skills/changelog/SKILL.md) package.
-Repository `.agents/skills/changelog` and `.claude/skills/changelog` are relative
-directory links to that single source. Copilot reads real files in `.github`.
-Use the [link verifier](scripts/skills-sync.md) when maintaining this layout;
-Windows checkouts without materialized symlinks are reported explicitly.
-Discovery and an authorized project copy installation are documented separately
-in [skill distribution](docs/skills.md); neither claims native host activation.
+[`resources/skills/fast-forward-changelog`](resources/skills/fast-forward-changelog/SKILL.md)
+package. Its public name is `fast-forward-changelog`.
+`.agents/skills` is reserved for skills consumed by a project; this library does
+not create host adapters there. See [skill distribution](docs/skills.md) for
+portable naming and [Composer installation](docs/composer-skills.md) for an
+explicit consumer copy. Copying the files does not establish native activation.
 
 ## ❓ FAQ
 

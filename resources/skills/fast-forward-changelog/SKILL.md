@@ -1,5 +1,5 @@
 ---
-name: changelog
+name: fast-forward-changelog
 description: Record independent Fast Forward Changelog fragments, check contributions, inspect release plans, maintain history, and publish an approved commit. Use this package's workflow and verified release facts.
 license: MIT
 compatibility: Requires an installed fast-forward/changelog CLI on PHP 8.5+, or an existing global changelog command. Git is needed for contribution comparison and releases; authorized GitHub access is needed only for GitHub history, policy checks and publication.

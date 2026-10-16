@@ -1,113 +1,48 @@
 # Instruction scope map
 
-## Scope and current hierarchy
+## Scope and reading route
 
-The repository has one development contract: [AGENTS.md](../AGENTS.md). It
-owns source, tests, documentation, quality, isolation and publication authority.
-The host bootstrap supplements command routing; it does not replace this
-repository contract. Ordinary source and test directories share the root rules
-and have no child `AGENTS.md` files.
+[AGENTS.md](../AGENTS.md) is the sole development contract for source, tests,
+docs, resources and internal quality tools. Ordinary directories do not have
+different authority and need no child AGENTS.md. The host bootstrap supplements
+routing without replacing this contract.
 
-```text
-AGENTS.md                              repository development and authority
-Dockerfile                             version-argument CLI image under /usr/local
-.github/workflows/docker-cli.yml       exact-release validation and GHCR publication
-.github/actions/*/action.yml           thin Docker metadata invoking the CLI
-docs/docker.md                        image inputs, invocation and boundaries
-tests/Container/verify.php             isolated actual-image verification
-tests/Container/verify.md              fixture operation and recovery guide
-CLAUDE.md                              Claude adapter to the root and skill
-.github/copilot-instructions.md        Copilot adapter to the root and skill
-.github/skills/changelog/SKILL.md       real canonical consumer procedure
-.agents/skills/changelog                directory link to the canonical package
-.claude/skills/changelog                directory link to the canonical package
-scripts/skills-sync.mjs                 bounded package/link verifier
-scripts/skills-sync.md                  helper operation and recovery guide
-```
+For changelog lifecycle work, read the root and then the published package's
+[SKILL.md](../resources/skills/fast-forward-changelog/SKILL.md). That package
+owns its portable consumer procedure, never permission to install or publish.
 
-The [canonical skill](../.github/skills/changelog/SKILL.md) is a self-contained
-package with its own procedure. It describes fragment contributions, checks,
-release planning, historical maintenance and approved publication. It does not
-grant installation, commit or publication authority. Codex and Claude
-directory links resolve to this same package and license; neither is an
-independent source of policy. Copilot reads real resources at its own path.
+## Current and target hierarchy
 
-## Target decisions and durable entrypoints
-
-The product retains this minimal hierarchy. New domain, GitHub and automation
-directories do not introduce different development authority, so they do not
-need additional instruction contracts.
-
-The source namespace audit moves generic HTTP/process factories to `src/Http`
-and `src/Process`, semantic impact to `src/Version`, Action output to
-`src/Automation/Output`, and note rendering to `src/Release/Renderer`. All source
-and corresponding unit tests retain the same root reading chain and authority.
-The [namespace map](source-layout.md), [dependency assessment](integration-dependencies.md)
-and [development scripts guide](../scripts/README.md) document these ordinary
-responsibilities without creating child AGENTS.md files. Rollback restores the
-imports, paths, container keys and this navigation together.
-
-| Decision | Entrypoint | Responsibility and boundary |
+| Decision | Path | Responsibility and boundary |
 | --- | --- | --- |
-| Retain and update | [AGENTS.md](../AGENTS.md) | Own repository development and the durable reading index; retain quality, isolation and authority boundaries. |
-| Retain | [CLAUDE.md](../CLAUDE.md), [Copilot instructions](../.github/copilot-instructions.md) | Route hosts to the root and canonical package without duplicating procedures. |
-| Retain | [Changelog SKILL.md](../.github/skills/changelog/SKILL.md) | Own the portable consumer procedure; runtime installation and publication require existing authorization. |
-| Migrate | Codex and Claude skill directory links | Point to the real `.github/skills/changelog` canonical package; preserve manual/unknown resources during migration. |
-| Retain | [Adoption guide](adoption.md) | Explain consumer runtime and workflow adoption, with explicit installation and release boundaries. |
-| Retain | [Skill distribution guide](skills.md) | Record layout, discovery and validation evidence without claiming native host activation. |
-| Retain | [skills-sync.md](../scripts/skills-sync.md) | Explain the helper's inputs, bounded links, drift checks and recovery. |
-| Create | [Docker runtime guide](docker.md) | Explain image construction, direct CLI operations and mounted consumer data; image publication remains separately authorized. |
-| Create | [Container fixture guide](../tests/Container/verify.md) | Verify the real packaged image using disposable repositories and synthetic credentials, without real GitHub writes. |
-| Relocate | `.github/actions/` | Keep five action metadata entrypoints with one shared Dockerfile and the existing repository authority. |
-| Retire | `scripts/automation.php` | The native `github` command owns input mapping, output and exit status; domain services retain behavior. |
-| Do not create | Procedural `AGENTS.md` files in ordinary folders or the skill package | Keep common development rules at the root and package procedures in `SKILL.md`. |
+| Retain/update | `AGENTS.md` | Development, quality, isolation, publication authority and Child DOX Index. |
+| Relocate/rename | `resources/skills/fast-forward-changelog/{SKILL.md,LICENSE}` | Sole distributed skill, with an unambiguous public identifier. |
+| Reserve | `.agents/skills` | Skills consumed by the project; no generated copies or aliases of the published resource. |
+| Retire | `CLAUDE.md`, `.github/copilot-instructions.md`, old Codex/Claude skill links | Remove unused host-specific distribution adapters; no automatic native-host support claim. |
+| Retire | `scripts/skills-sync.mjs`, its test and guide | Link synchronization is no longer a repository responsibility; no replacement generator is needed. |
+| Retain | `scripts/{lint,php-files,phpdoc,verify-quality}.php` | Actual development gates; excluded from consumer archives and runtime images. |
+| Retain | `.github/actions`, `.github/workflows` | Thin CLI action metadata and orchestration, consumed through GitHub; excluded from Composer archives. |
+| Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
+| Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
 
-The root Child DOX Index links the canonical skill and durable adoption,
-distribution, link, Docker and container-fixture guides above. Each entry states its responsibility, output and material limit. The
-guides are operational navigation, not additional scoped instruction contracts;
-host links do not receive separate child-index entries.
-
-## Reading and maintenance route
-
-Read the root contract before changing source, tests, configuration or docs.
-Claude and Copilot adapters direct the same reading route. For changelog
-lifecycle work, load the canonical skill after the root. To maintain its
-distribution, read the [link helper guide](../scripts/skills-sync.md), edit the
-real canonical package, then check the two adapters. Create/migrate links only
-when needed:
-
-```sh
-node scripts/skills-sync.mjs --write
-node scripts/skills-sync.mjs --check
-```
-
-Repository-local command routing may wrap these invocations with RTK. The helper
-does not install user skills or modify host links. Its script location determines
-the repository root, independent of the caller's working directory.
+The root index points to these durable guides and the canonical package.
+No extra child contract is created for resources, scripts or the skill itself.
+The [source map](source-layout.md) and
+[integration assessment](integration-dependencies.md) retain responsibility for
+namespaces and transport boundaries.
 
 ## Migration, validation and rollback
 
-The foundation map deferred a distributable skill and host adapters. The product
-now ships those entrypoints and replaces that deferred map with the hierarchy
-above. The earlier layout used a canonical `.agents` package with generated regular
-copies for Claude/Copilot. The target makes `.github` the real canonical package
-and replaces only matching Codex/Claude copies with relative directory links.
-Keep the root index, host adapters, canonical package, links and operator guide
-together when updating their paths or responsibilities.
+The previous source was `.github/skills/changelog`, with Codex/Claude links and
+a Node synchronizer. The approved layout places distributable assets under
+`resources` and leaves agent directories for consumption. Move source, license,
+donor metadata, archive rules, instructions and tests together.
 
-Validate relative links, the absence of duplicate child contracts, a real
-canonical package and `skills-sync.mjs --check`. Directory links resolve within
-the repository to `../../.github/skills/changelog`. Windows tracked link-text
-fallbacks are reported as unmaterialized. Format validation and disposable
-fixtures establish package structure and link/discovery behavior; native host
-activation remains separate evidence recorded in [skills.md](skills.md).
+Validate actual installed resources, the archive contents and CLI behavior with
+`composer test:packaging`; run package gates and review the final SHA.
+`export-ignore` applies to archives, not a full source clone. Copy/discovery
+checks do not establish native host activation.
 
-The Docker migration preserves the root development contract and adds no
-child AGENTS.md. Metadata moves from `actions/` to `.github/actions/`; the CLI
-replaces the old action script. Read root AGENTS.md before Dockerfile, metadata,
-workflows, source, docs and tests. Verify the native gates, actual container
-fixture, action outputs and package archive paths before merging.
-
-Rollback restores the affected instruction files, index, package resources,
-metadata paths, CLI adapter and Docker/workflow contracts as one reviewed Git diff. No external installation or host
-configuration forms part of this migration.
+Rollback restores the resource path, metadata, instructions, adapters and tests
+as one reviewed Git change. It never rewrites consumer-managed files, installs
+global skills or changes host configuration.
