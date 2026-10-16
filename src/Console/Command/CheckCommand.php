@@ -60,6 +60,7 @@ final readonly class CheckCommand
             $options = $this->options->create($settings->values());
             $central = false;
             $waiver = false;
+            $kind = 'ordinary';
             if (null !== $pullRequest) {
                 $number = filter_var($pullRequest, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
                 if (false === $number) {
@@ -82,8 +83,9 @@ final readonly class CheckCommand
                 }
                 $central = $authorization->centralChangeAuthorized;
                 $waiver = $authorization->waiverAuthorized;
+                $kind = $authorization->kind;
             }
-            $report = $this->checks->check($options, $since, $central, $waiver);
+            $report = $this->checks->check($options, $since, $central, $waiver, $kind);
             if (! $report->isValid()) {
                 $io->getErrorStyle()->error(
                     json_encode($report->errors, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),

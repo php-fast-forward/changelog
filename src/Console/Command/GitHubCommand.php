@@ -31,7 +31,7 @@ use Throwable;
 /** Exposes the existing trusted automation services through the ordinary packaged CLI. */
 #[AsCommand(
     name: 'github',
-    description: 'Run an explicit GitHub check, Dependabot, version, publish or history operation.',
+    description: 'Run an explicit GitHub check, PR status, Dependabot, version, publish or history operation.',
 )]
 final readonly class GitHubCommand
 {
@@ -43,13 +43,10 @@ final readonly class GitHubCommand
 
     /** Returns JSON on stdout; validation and operational failures use JSON diagnostics and distinct exit statuses. */
     public function __invoke(
-        #[Argument(description: 'Operation: check, dependabot, version, publish or history.', suggestedValues: [
-            'check',
-            'dependabot',
-            'version',
-            'publish',
-            'history',
-        ])]
+        #[Argument(
+            description: 'Operation: check, pr-status, dependabot, version, publish or history.',
+            suggestedValues: ['check', 'pr-status', 'dependabot', 'version', 'publish', 'history'],
+        )]
         string $operation,
 
         #[MapInput]
@@ -60,7 +57,7 @@ final readonly class GitHubCommand
             $result = $this->runner->run($operation, $input->values());
             $output->writeln($this->writer->write($result), OutputInterface::OUTPUT_RAW);
 
-            return Command::SUCCESS;
+            return 'invalid' === ($result['status'] ?? null) ? Command::FAILURE : Command::SUCCESS;
         } catch (Throwable $exception) {
             $error = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $error->writeln(

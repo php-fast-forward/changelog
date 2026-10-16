@@ -18,6 +18,7 @@ use FastForward\Changelog\Automation\Dependabot\DependabotFragmentServiceInterfa
 use FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactoryInterface;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
+use FastForward\Changelog\Automation\PullRequest\PullRequestStatusServiceInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServiceInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
@@ -40,6 +41,17 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
     ];
 
     private const array OPERATION_INPUTS = [
+        'pr-status' => [
+            'since',
+            'pull-request',
+            'expected-head-sha',
+            'base-branch',
+            'managed-branch',
+            'automation-actor',
+            'waiver-label',
+            'maintenance-label',
+            'publish-status',
+        ],
         'check' => ['since', 'pull-request', 'managed-branch', 'automation-actor', 'waiver-label', 'maintenance-label'],
         'dependabot' => [
             'pull-request',
@@ -79,6 +91,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         private ReleaseApplierInterface $applier,
         private GitHubClientInterface $github,
         private ReleaseExceptionFactoryInterface $exceptions,
+        private PullRequestStatusServiceInterface $pullRequests,
     ) {}
 
     /** Validates the complete explicit input surface before selecting one package operation. */
@@ -113,6 +126,16 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         }
 
         return match ($operation) {
+            'pr-status' => $this->pullRequests->inspect(
+                $options, $this->number($inputs, 'pull-request'),
+                $this->text($inputs, 'expected-head-sha'), $this->text($inputs, 'since'),
+                $this->text($inputs, 'base-branch', 'main'),
+                $this->text($inputs, 'managed-branch', 'changelog/version'),
+                $this->text($inputs, 'automation-actor', 'github-actions[bot]'),
+                $this->text($inputs, 'waiver-label', 'changelog-not-required'),
+                $this->text($inputs, 'maintenance-label', 'changelog-maintenance'),
+                $this->boolean($inputs, 'publish-status'),
+            ),
             'check' => $this->check($options, $inputs),
             'dependabot' => $this->dependabot($options, $inputs),
             'version' => $this->version($options, $inputs),

@@ -1,5 +1,11 @@
 # GitHub Actions for consumers
 
+Start with [one reusable lifecycle](reusable-lifecycle.md) for the normal
+contribution, Dependabot, version and approved-merge flow, including PR feedback
+and exact-head status. The individual workflows below remain available for
+advanced composition. Publication is disabled by default in the facade while
+consumer validation is in progress.
+
 The five reusable workflows run the same PHP services as the local CLI. A
 contribution adds a fragment; version automation opens one managed PR; approval
 and merge precede publication of its verified tag and GitHub Release.

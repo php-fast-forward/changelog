@@ -61,6 +61,13 @@ break spaces, interior blank lines, comments and all other description bytes.
 Serialization adds one final newline. The parser does not render or translate
 the author's description.
 
+Fragment contents must be valid UTF-8 so the same accepted value can be
+serialized into release plans and automation JSON. Multiline descriptions must
+close structural code fences within their own rendered entry; a later fragment
+cannot supply the missing closing fence. Inline and deeper indented examples
+retain their original bytes. These checks run during authoring and contribution
+validation, before version preparation.
+
 ## Migration of existing fragments
 
 Historical fragments remain readable:

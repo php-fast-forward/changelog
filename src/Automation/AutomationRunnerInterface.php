@@ -17,6 +17,9 @@ namespace FastForward\Changelog\Automation;
 /** Connects typed package services to explicit Action inputs without reading runner state. */
 interface AutomationRunnerInterface
 {
-    /** Returns stable machine data; invalid, unauthorized or conflicted operations MUST fail. */
+    /**
+     * Returns stable machine data; invalid inputs and unavailable authority MUST fail.
+     * PR feedback returns status=invalid for contribution errors so the CLI can persist feedback before exiting 1.
+     */
     public function run(string $operation, array $inputs): array;
 }

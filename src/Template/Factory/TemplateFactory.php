@@ -95,6 +95,15 @@ final class TemplateFactory implements TemplateFactoryInterface
             throw new InvalidArgumentException('Dated release headings must contain {date}.');
         }
 
+        $headings = array_map(
+            static fn(string $heading): string => rtrim($heading, " \t"),
+            $settings['category_headings'],
+        );
+        if (count(array_unique($headings)) !== count($headings)) {
+            throw new InvalidArgumentException('Template category headings must identify distinct categories.');
+        }
+        $settings['category_headings'] = $headings;
+
         $this->validateUnreleasedHeading($settings);
 
         return new KeepAChangelogTemplate(

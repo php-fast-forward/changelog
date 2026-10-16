@@ -1,0 +1,89 @@
+name: Fast Forward Changelog PR status
+description: Validate an exact PR snapshot, render feedback and optionally publish its commit status.
+
+inputs:
+  working-directory:
+    description: Repository root below the mounted workspace.
+    default: '.'
+  repository:
+    description: Consumer owner/name.
+    default: ${{ github.repository }}
+  token:
+    description: Token with read permissions and statuses write when publishing a status.
+    default: ${{ github.token }}
+  pull-request:
+    description: Open pull-request number.
+    required: true
+  head-sha:
+    description: Exact checked-out PR head.
+    required: true
+  base-sha:
+    description: Exact live PR base.
+    required: true
+  base-branch:
+    description: Maintained release line.
+    default: ${{ github.event.repository.default_branch }}
+  fragment-directory:
+    description: Repository-relative pending fragments.
+    default: '.changelog'
+  changelog-file:
+    description: Repository-relative consolidated history.
+    default: 'CHANGELOG.md'
+  locale:
+    description: Structural presentation locale.
+    default: 'en'
+  tag-prefix:
+    description: Stable tag prefix, matching version and publication.
+    default: 'v'
+  source:
+    description: Historical source setting, matching the approved transaction.
+    default: 'auto'
+  managed-branch:
+    description: Exclusive generated version branch.
+    default: 'changelog/version'
+  automation-actor:
+    description: Trusted generated-commit Bot.
+    default: 'github-actions[bot]'
+  waiver-label:
+    description: Maintainer-authorized contribution waiver label.
+    default: 'changelog-not-required'
+  maintenance-label:
+    description: Maintainer-authorized history maintenance label.
+    default: 'changelog-maintenance'
+  publish-status:
+    description: Publish the exact head commit status, true or false.
+    default: 'false'
+
+outputs:
+  result:
+    description: JSON containing comment_body, errors, head_sha and base_sha, including validation failures.
+  status:
+    description: valid or invalid; unavailable evidence fails without claiming validation.
+  head-sha:
+    description: Inspected immutable PR head.
+
+runs:
+  using: docker
+  image: '../../../Dockerfile'
+  env:
+    FF_CHANGELOG_TOKEN: ${{ inputs.token }}
+  args:
+    - github
+    - pr-status
+    - --no-interaction
+    - --cwd=${{ inputs.working-directory }}
+    - --repository=${{ inputs.repository }}
+    - --source=${{ inputs.source }}
+    - --locale=${{ inputs.locale }}
+    - --tag-prefix=${{ inputs.tag-prefix }}
+    - --pull-request=${{ inputs.pull-request }}
+    - --expected-head-sha=${{ inputs.head-sha }}
+    - --since=${{ inputs.base-sha }}
+    - --base-branch=${{ inputs.base-branch }}
+    - --fragment-directory=${{ inputs.fragment-directory }}
+    - --changelog-file=${{ inputs.changelog-file }}
+    - --managed-branch=${{ inputs.managed-branch }}
+    - --automation-actor=${{ inputs.automation-actor }}
+    - --waiver-label=${{ inputs.waiver-label }}
+    - --maintenance-label=${{ inputs.maintenance-label }}
+    - --publish-status=${{ inputs.publish-status }}
