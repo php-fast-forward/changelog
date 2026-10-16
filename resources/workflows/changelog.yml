@@ -1,5 +1,5 @@
 # Copy to the consumer's .github/workflows/changelog.yml.
-# Replace REVIEWED_COMMIT_SHA with a reviewed, integrated 40-character commit.
+# Uses a reviewed, integrated product commit; update deliberately after validation.
 name: Changelog
 
 on:
@@ -26,7 +26,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@REVIEWED_COMMIT_SHA
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@2a41bb8c2f0fb45d8fa6da4d7dc7abf2e4b40121
 
     with:
       runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}

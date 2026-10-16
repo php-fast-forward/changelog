@@ -37,7 +37,7 @@ explains why their implementations remain in `.github/workflows`.
 | Repository workflow | Trigger | Package operation |
 | --- | --- | --- |
 | [`check-changelog`](../.github/workflows/check-changelog.yml) | PR to `main`, including label changes | Check the exact contribution head with read permissions. |
-| [`dependabot-changelog`](../.github/workflows/dependabot-changelog.yml) | Dependabot PR to `main` | Collect verified dependency metadata from the base context and create one deterministic fragment. |
+| [`dependabot-changelog`](../.github/workflows/dependabot-changelog.yml) | Dependabot PR to `main` | Collect verified metadata, create or retain one deterministic fragment, and validate the current head with status and sticky feedback in the same trusted run. Native test workflows may still require approval. |
 | [`release-changelog`](../.github/workflows/release-changelog.yml) | Push to `main` | Plan from the fresh base and create or update `changelog/version`. |
 | [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, reconcile the approved tag/release, then call the versioned GHCR build. |
 | [`docker-cli`](../.github/workflows/docker-cli.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
