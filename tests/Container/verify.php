@@ -254,7 +254,7 @@ try {
     verify(
         str_contains($notes, 'Container <info>literal</info> contribution.') && str_contains(
             $notes,
-            "  ### Fixed\n  \n  Keep the nested heading.",
+            "  ### Fixed\n\n  Keep the nested heading.",
         ),
         'The installed image corrupted multiline fragment descriptions.',
     );

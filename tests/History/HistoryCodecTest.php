@@ -318,6 +318,50 @@ final class HistoryCodecTest extends TestCase
     }
 
     #[Test]
+    #[TestWith([null, "\n"])]
+    #[TestWith(['en', "\r\n"])]
+    #[TestWith(['pt-BR', "\n"])]
+    #[TestWith(['en', "\n", 'v1.2.3-next.0'])]
+    #[TestWith(['pt-BR', "\r\n", 'V1.2.3+build.1'])]
+    #[TestWith(['en', "\n", '1.2.3-next.0+build.7'])]
+    public function changesetsHistoryRetainsItsExactHeadingsAndNotes(
+        ?string $locale,
+        string $newline,
+        string $headingVersion = '0.5.1',
+    ): void {
+        $markdown = str_replace(
+            "\n",
+            $newline,
+            "# History\n\n## " . $headingVersion . "\n\n### Patch Changes\n\n- Prior release with [provenance](https://example.test/pr/1).\n\n## 0.5.0\n\n### Minor Changes\n\n- Older release.\n",
+        );
+        $codec = $this->codec();
+        $template = null === $locale ? null : $this->template($locale);
+        $document = $codec->parse($markdown, $template);
+
+        $version = preg_replace('/^[vV]/', '', $headingVersion);
+        self::assertSame([$version, '0.5.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $document->getReleases(),
+        ));
+        self::assertNull($document->getRelease($version)->getDate());
+        self::assertStringContainsString('### Patch Changes', $codec->notes($document, $version));
+        self::assertSame($markdown, $codec->render($document, $this->template('en'), true));
+    }
+
+    #[Test]
+    public function bareChangesetsHeadingDelegatesSemanticValidationToTheReleaseFactory(): void
+    {
+        $releases = $this->createMock(HistoryReleaseFactoryInterface::class);
+        $releases->expects(self::once())->method('create')
+            ->with('01.2.3', null, null, "Notes.\n", "## 01.2.3\n", '')
+            ->willThrowException(new InvalidArgumentException('Invalid semantic version.'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid semantic version.');
+        $this->codec($releases)->parse("## 01.2.3\nNotes.\n");
+    }
+
+    #[Test]
     #[TestWith(['2026-10-03'])]
     #[TestWith([null])]
     public function customPlainPresentationRoundTripsWithTheSelectedTemplate(?string $date): void

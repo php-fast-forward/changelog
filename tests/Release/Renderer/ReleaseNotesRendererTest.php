@@ -60,7 +60,7 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertLessThan(strpos($notes, '### custom fixed'), strpos($notes, '### custom added'));
         self::assertStringNotContainsString('b.md', $notes);
         self::assertStringContainsString(
-            "-\n  Feature **b**.\n  \n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])",
+            "-\n  Feature **b**.\n\n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])",
             $notes,
         );
         self::assertStringEndsWith("\n", $notes);
@@ -107,7 +107,7 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('c.md', Category::Fixed, null, null, null, 'After.'),
         ];
         self::assertSame(
-            "### Fixed\n\n- Before.\n-\n  First paragraph.\n  \n  Second paragraph.\n- After.\n",
+            "### Fixed\n\n- Before.\n-\n  First paragraph.\n\n  Second paragraph.\n- After.\n",
             new ReleaseNotesRenderer()->render($changes, $template),
         );
     }

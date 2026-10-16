@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strip credentials from generated repository links and render release-note output without Symfony formatting (#1)
 - Validate real release dates and create missing parent directories before Git repository discovery (#1)
 - Treat prefixed versions as one identity and apply SemVer prerelease precedence when ordering releases (#1)
+- Recognize existing Changesets version-only release headings when adopting the CLI, preserving their exact historical Markdown while using the selected template for new releases. Keep empty paragraph separators free of generated indentation so multiline release notes pass whitespace checks without a post-processing script.
 - Preloads trusted Dockerfile base images through the public Docker Hub cache on disposable GitHub-hosted Linux runners, reducing build failures from upstream registry limits and timeouts.
 - Reject invalid UTF-8 and unclosed structural code fences before a fragment can pass contribution checks, and retain the verified container 1.6 resolution contract so fresh installations cannot silently bypass a failed explicit command factory.
 - Accept GitHub platform-signed bot transactions while preserving exact author identity, signature, receipt and file-scope checks; expose safe commit diagnostics when ownership proof fails. ([@mentordosnerds](https://github.com/mentordosnerds))
