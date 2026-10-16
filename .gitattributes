@@ -2,7 +2,9 @@
 *.php                   text eol=lf
 /bin/changelog          text eol=lf
 
-/.github/workflows/     export-ignore
+/.github/               export-ignore
+/.agents/               export-ignore
+/.claude/               export-ignore
 /docs/                  export-ignore
 /tests/                 export-ignore
 /scripts/               export-ignore

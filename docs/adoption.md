@@ -27,12 +27,12 @@ An existing global Composer installation exposes `changelog` instead. Commands
 operate on the consumer working directory, including when the package itself is
 installed elsewhere; `--cwd=/path/to/project` selects it explicitly. A skill
 installation is separate and does not install PHP, Composer or this runtime.
-The real canonical skill package is `.github/skills/changelog`; repository
-Codex/Claude directories link to that source. To discover an explicitly reviewed
+The published skill is `resources/skills/fast-forward-changelog`; `.agents/skills`
+is reserved for skills consumed by a project. To discover an explicitly reviewed
 local checkout without installing into another environment:
 
 ```sh
-npx --yes skills@1.7.0 add /path/to/changelog/.github/skills/changelog --list
+npx --yes skills@1.7.0 add /path/to/changelog/resources/skills/fast-forward-changelog --list
 ```
 
 See [skill distribution and evidence](skills.md) for separately authorized

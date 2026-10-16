@@ -91,7 +91,7 @@
     },
     "extra": {
         "skills": {
-            "source": ".github/skills"
+            "source": "resources/skills"
         },
         "branch-alias": {
             "dev-main": "1.x-dev"

@@ -40,11 +40,11 @@ used across Fast Forward PHP packages.
   passing checks for the current head. Installing elsewhere or publishing real
   tags/releases requires separate user authorization; retain authority already
   explicitly given for the current task.
-- Edit the real `.github/skills/changelog` directory as the sole skill source.
-  `.agents/skills/changelog` and `.claude/skills/changelog` are relative directory
-  links to that package, not independent procedures. Run
-  `node scripts/skills-sync.mjs --check` before review; `--write` creates missing
-  declared links or migrates byte-identical legacy copies without overwriting manual files.
+- Edit `resources/skills/fast-forward-changelog` as the sole published skill
+  source. Reserve `.agents/skills` for skills consumed by this project; do not
+  generate host aliases or copies there. Validate resource and archive changes
+  with `composer test:packaging`. Consumer installation and native host activation
+  remain explicit operations, separate from package distribution.
 
 ## Design Notes
 
@@ -68,11 +68,10 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 
 - [Source namespaces](docs/source-layout.md): domain and transport ownership, canonical PHP imports and the major namespace migration; ordinary folders share the root contract.
 - [Integration dependencies](docs/integration-dependencies.md): records verified Git/GitHub candidate versions and adoption criteria without claiming SDK installation or behavioral equivalence.
-- [Development scripts](scripts/README.md): maps each used quality/skill helper and its development prerequisites; production CLI and images do not invoke them.
-- [Changelog skill](.github/skills/changelog/SKILL.md): portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
+- [Development scripts](scripts/README.md): maps the four used PHP quality helpers; production CLI and images do not invoke them.
+- [Published changelog skill](resources/skills/fast-forward-changelog/SKILL.md): uniquely named portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
-- [Skill link verifier](scripts/skills-sync.md): verifies the real canonical package and two bounded host links; preserves unrelated files and reports unmaterialized Windows checkouts.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.
