@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
 - Adds contextual Dash artwork organizing change fragments into a release history.
 - Runs all GitHub Actions from the self-contained Docker CLI under .github/actions, with direct commands, validated outputs and separate consumer data.
+-
+  Makes GitHub automation the README's first adoption path, with a copyable caller
+  pinned to a reviewed implementation. Documents both project and global CLI use,
+  then directs agent skills and advanced integrations to their focused guides.
 - Uses Symfony Console Ask for the required add description, retries blank interactive answers without trimming Markdown spaces, and preserves unattended invalid-input handling. Direct AddCommand invocations no longer receive InputInterface.
 - Uses Symfony NotBlank constraints for interactive descriptions with configurable errors and preserved Markdown spaces, removing the field-specific ChangeDescriptionValidator class. AddCommand and CheckCommand take SymfonyStyle first, separated from their attributed input parameters.
 - Aligns README sections, examples and verified badges with the Fast Forward package documentation format.
@@ -43,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate real release dates and create missing parent directories before Git repository discovery (#1)
 - Treat prefixed versions as one identity and apply SemVer prerelease precedence when ordering releases (#1)
 - Recognize existing Changesets version-only release headings when adopting the CLI, preserving their exact historical Markdown while using the selected template for new releases. Keep empty paragraph separators free of generated indentation so multiline release notes pass whitespace checks without a post-processing script.
+-
+  Accept the verified `github_actions` ecosystem from Dependabot metadata and normalize it to `github-actions`, allowing GitHub Actions dependency PRs to receive fragments while preserving contribution identity, scope and package validation.
+
+  Validate the resulting Dependabot head and update its changelog status and sticky comment in the same trusted workflow run, including when the default GitHub token does not trigger another PR event.
 - Preloads trusted Dockerfile base images through the public Docker Hub cache on disposable GitHub-hosted Linux runners, reducing build failures from upstream registry limits and timeouts.
 - Reject invalid UTF-8 and unclosed structural code fences before a fragment can pass contribution checks, and retain the verified container 1.6 resolution contract so fresh installations cannot silently bypass a failed explicit command factory.
 - Allow verified maintainer maintenance to remove an incorrect optional author from a pending fragment only when committed regular-file modes and every other byte remain unchanged. Ordinary contributions and waivers cannot change inherited fragments.

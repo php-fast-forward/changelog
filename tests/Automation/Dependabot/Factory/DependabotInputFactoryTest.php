@@ -53,12 +53,43 @@ final class DependabotInputFactoryTest extends TestCase
         self::assertFalse($filtered->includeActions);
     }
 
+    /** Preserves the verified metadata identity while adapting the upstream Actions ecosystem name. */
+    #[Test]
+    public function normalizesTheGitHubActionsMetadataOutput(): void
+    {
+        $value = $this->factory()->create(
+            28,
+            'abc69d66772c915005e256914d02616a442799aa',
+            ['shivammathur/setup-php'],
+            'direct:production',
+            'github_actions',
+        );
+
+        self::assertSame(28, $value->pullRequest);
+        self::assertSame('abc69d66772c915005e256914d02616a442799aa', $value->expectedHeadSha);
+        self::assertSame(['shivammathur/setup-php'], $value->packageNames);
+        self::assertSame('direct:production', $value->dependencyType);
+        self::assertSame('github-actions', $value->ecosystem);
+        self::assertTrue($value->includeActions);
+    }
+
+    /** Normalization must not weaken identity, scope, path or supported-token validation. */
     #[Test]
     #[TestWith([0, 'sha', [], 'unknown', 'Composer', []])]
+    #[TestWith([0, 'valid', ['a/b'], 'direct:production', 'github_actions', []])]
+    #[TestWith([7, 'short', ['a/b'], 'direct:production', 'github_actions', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'unknown', 'github_actions', []])]
+    #[TestWith([7, 'valid', ['../body'], 'direct:production', 'github_actions', []])]
     #[TestWith([7, 'short', ['a/b'], 'indirect', 'composer', []])]
     #[TestWith([7, 'valid', [], 'indirect', 'composer', []])]
     #[TestWith([7, 'valid', ['a/b'], 'unknown', 'composer', []])]
     #[TestWith([7, 'valid', ['a/b'], 'indirect', 'composer?token=x', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'indirect', 'GitHub_Actions', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'indirect', 'github_Actions', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'indirect', 'github_actions ', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'indirect', 'github__actions', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'indirect', 'github_actions-extra', []])]
+    #[TestWith([7, 'valid', ['a/b'], 'indirect', 'npm_and_yarn', []])]
     #[TestWith([7, 'valid', ['bad`body'], 'indirect', 'composer', []])]
     #[TestWith([7, 'valid', ['../body'], 'indirect', 'composer', []])]
     #[TestWith([7, 'valid', [3], 'indirect', 'composer', []])]
