@@ -7,7 +7,7 @@ come from that approved document at its exact merge commit.
 ## Install and verify the runtime
 
 The runtime requires PHP 8.5 or later and Composer. In an authorized consumer
-checkout, install a release or reviewed source revision containing the eight
+checkout, install a release or reviewed source revision containing the nine
 commands documented here:
 
 ```sh
@@ -15,6 +15,13 @@ composer require --dev fast-forward/changelog
 vendor/bin/changelog list --raw
 vendor/bin/changelog add --help
 ```
+
+The current compatibility range keeps `fast-forward/container` on `~1.6.0`.
+The 1.7–1.9 resolution path can retry a failed explicit concrete factory through
+autowiring, hiding the selected command's construction failure. The production
+packaging fixture detects that regression. Broaden this range only after an
+upstream correction passes that same fixture; the installed development lock
+alone does not establish downstream compatibility.
 
 An existing global Composer installation exposes `changelog` instead. Commands
 operate on the consumer working directory, including when the package itself is
@@ -160,6 +167,10 @@ drift from failure using its output/diagnostic. `status --json` prints the same
 machine plan used by consolidation; stdout is suitable for automation.
 
 ## Release and history workflow
+
+For a single consumer entrypoint with configurable PR comments and validation of
+generated heads, use [the reusable lifecycle](reusable-lifecycle.md). Start with
+publication disabled and complete a pilot before enabling release publication.
 
 The normal route is contribution PR → version workflow → reviewed version PR →
 publication at the approved merge SHA. Applying `version`, `backfill` or `format`

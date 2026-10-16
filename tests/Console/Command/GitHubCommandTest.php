@@ -27,6 +27,20 @@ use Throwable;
 #[UsesClass(ReleaseInput::class)]
 final class GitHubCommandTest extends TestCase
 {
+    /** Invalid contributions still persist feedback for the comment job while retaining the failing exit code. */
+    public function testInvalidFeedbackIsWrittenBeforeReturningFailure(): void
+    {
+        $runner = $this->createStub(AutomationRunnerInterface::class);
+        $runner->method('run')->willReturn(['status' => 'invalid', 'comment_body' => 'Correct the fragment.']);
+        $writer = $this->createMock(GitHubOutputWriterInterface::class);
+        $writer->expects(self::once())->method('write')->with([
+            'status' => 'invalid', 'comment_body' => 'Correct the fragment.',
+        ])->willReturn('{"status":"invalid"}');
+        $tester = new CommandTester(new Command('github', new GitHubCommand($runner, $writer)));
+        self::assertSame(1, $tester->execute(['operation' => 'pr-status'], ['interactive' => false]));
+        self::assertSame("{\"status\":\"invalid\"}\n", $tester->getDisplay(true));
+    }
+
     /** The actual Console parser maps arguments and flags without shell interpolation or JSON-input scripts. */
     public function testNativeConsoleMappingAndRawOutput(): void
     {

@@ -63,6 +63,11 @@ Unknown settings and incompatible shapes also fail early. An Unreleased heading
 cannot collide with a concrete selected-template release or built-in release
 heading.
 
+Category headings must remain distinct after terminal spaces and tabs are
+removed. Those terminal characters are normalized before rendering so a custom
+heading cannot collide with another category or change identity on a formatting
+round trip. Ambiguous overrides fail before any history is written.
+
 Keep a custom template matching the headings already present until a reviewed
 migration changes those headings. Switching to a different custom syntax does
 not reinterpret old release-shaped level-two headings as introductory prose:

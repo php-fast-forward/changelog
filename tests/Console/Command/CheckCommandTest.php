@@ -35,7 +35,13 @@ final class CheckCommandTest extends TestCase
     public function localCheckNeverQueriesPolicyOrGit(): void
     {
         [$command, $checks, $policy, $git, $io] = $this->compose();
-        $checks->expects(self::once())->method('check')->with($this->options(), null, false, false)->willReturn(
+        $checks->expects(self::once())->method('check')->with(
+            $this->options(),
+            null,
+            false,
+            false,
+            'ordinary',
+        )->willReturn(
             new ValidationReport([], [], false),
         );
         $policy->expects(self::never())->method('inspect');
@@ -54,9 +60,37 @@ final class CheckCommandTest extends TestCase
         );
         $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($sha);
         $io->expects(self::once())->method('note')->with('human grant verified');
-        $checks->expects(self::once())->method('check')->with($this->options(), 'main', true, true)->willReturn(
+        $checks->expects(self::once())->method('check')->with(
+            $this->options(),
+            'main',
+            true,
+            true,
+            'maintenance',
+        )->willReturn(
             new ValidationReport([], [], true),
         );
+        self::assertSame(0, $command($io, $this->settings(), 'main', '21'));
+    }
+
+    /** Managed fragment deletions retain their verified policy kind through the public command boundary. */
+    #[Test]
+    public function managedVersionAuthorizationReachesContributionValidation(): void
+    {
+        [$command, $checks, $policy, $git, $io] = $this->compose();
+        $sha = str_repeat('a', 40);
+        $policy->expects(self::once())->method('inspect')->with($this->options(), 21)->willReturn(
+            new PullRequestAuthorization(false, true, 'managed-version', [], $sha),
+        );
+        $git->expects(self::once())->method('resolveRef')->with('/consumer')->willReturn($sha);
+        $checks->expects(self::once())->method('check')->with(
+            $this->options(),
+            'main',
+            true,
+            false,
+            'managed-version',
+        )->willReturn(new ValidationReport([], [], false));
+        $io->expects(self::once())->method('success')->with('Validated 0 pending fragments.');
+
         self::assertSame(0, $command($io, $this->settings(), 'main', '21'));
     }
 

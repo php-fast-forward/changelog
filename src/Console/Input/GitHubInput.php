@@ -81,6 +81,9 @@ final class GitHubInput
     #[Option(description: 'Report pending historical maintenance: true or false.')]
     public ?string $check = null;
 
+    #[Option(description: 'Publish the exact PR head commit status: true or false.')]
+    public ?string $publishStatus = null;
+
     /** Initializes shared value settings only; no host state or configuration is loaded. */
     public function __construct()
     {

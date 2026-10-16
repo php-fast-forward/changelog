@@ -17,6 +17,30 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
+    packaging:
+        name: Fresh Composer installations
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - name: Set up PHP
+              uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4 # 2.36.0
+              with:
+                  php-version: '8.5'
+                  coverage: none
+                  tools: composer:v2
+
+            - name: Validate fresh local and global consumers
+              run: php tests/Packaging/verify.php
+              env:
+                  CHANGELOG_PACKAGING_DIRECT: '1'
+
     tests:
         name: PHP 8.5 (${{ matrix.os }})
         runs-on: ${{ matrix.os }}
@@ -64,6 +88,10 @@ jobs:
 
             - name: Smoke test the CLI
               run: php bin/changelog list --raw
+
+            - name: Verify reusable workflow guards and contracts without network
+              if: startsWith(matrix.os, 'ubuntu-')
+              run: composer test:workflows
 
             - name: Prepare the runner-local base image cache
               if: startsWith(matrix.os, 'ubuntu-')
