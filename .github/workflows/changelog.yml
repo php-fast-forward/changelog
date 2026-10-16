@@ -5,7 +5,7 @@ on:
   workflow_call:
     inputs:
       runs-on:
-        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
         default: '["ubuntu-latest"]'
       base-branch:

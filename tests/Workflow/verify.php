@@ -16,15 +16,14 @@ function verifyWorkflow(bool $valid, string $message): void
     }
 }
 
-/** Executes actual workflow Bash guards with a synthetic gh function and disposable output files. */
+/** Executes actual workflow Bash guards with disposable outputs and forbidden daemon operations. */
 function workflowGuard(string $source, string $directory, array $environment, int $expected): string
 {
     $output = $directory . '/output-' . bin2hex(random_bytes(6));
     $process = new Process(['bash', '-c', $source], $directory, [
         'GH_TOKEN' => 'synthetic-fixture-token', 'GITHUB_TOKEN' => false,
-        'GH_HOST' => false, 'GH_REPO' => 'fixture/project',
-        'BASH_ENV' => $directory . '/gh-mock', 'GITHUB_OUTPUT' => $output,
-        'FF_FIXTURE_BASE' => str_repeat('b', 40),
+        'GH_HOST' => false,
+        'BASH_ENV' => $directory . '/daemon-mock', 'GITHUB_OUTPUT' => $output,
         ...$environment,
     ]);
     $process->setTimeout(10);
@@ -32,6 +31,44 @@ function workflowGuard(string $source, string $directory, array $environment, in
     verifyWorkflow($expected === $status, 'Workflow guard returned unexpected status: ' . $process->getErrorOutput());
 
     return is_file($output) ? file_get_contents($output) : '';
+}
+
+/** Executes the actual inline JavaScript with an isolated SDK double; errors must produce no outputs. */
+function workflowScriptGuard(string $source, string $directory, array $environment, array $snapshot, int $expected): array
+{
+    $harness = <<<'JS'
+        const outputs = {};
+        const requests = [];
+        const context = { repo: { owner: 'fixture', repo: 'consumer' } };
+        const core = { setOutput: (name, value) => { outputs[name] = value; } };
+        const github = { rest: { pulls: { get: async (request) => {
+          requests.push(request);
+          if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
+
+          return { data: JSON.parse(process.argv[2]) };
+        } } } };
+        const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+        new AsyncFunction('github', 'context', 'core', process.argv[1])(github, context, core)
+          .catch(() => { process.exitCode = 1; })
+          .finally(() => process.stdout.write(JSON.stringify({ outputs, requests })));
+        JS;
+    $process = new Process(['node', '-e', $harness, $source, json_encode($snapshot, JSON_THROW_ON_ERROR)], $directory, [
+        'GH_TOKEN' => false, 'GITHUB_TOKEN' => false, 'GH_HOST' => false,
+        ...$environment,
+    ]);
+    $process->setTimeout(10);
+    $status = $process->run();
+    verifyWorkflow($expected === $status, 'Workflow script returned unexpected status: ' . $process->getErrorOutput());
+    $result = json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+    verifyWorkflow(0 === $expected || [] === $result['outputs'], 'Failed guards must never authorize an output.');
+    foreach ($result['requests'] as $request) {
+        verifyWorkflow(
+            ['owner' => 'fixture', 'repo' => 'consumer', 'pull_number' => 7] === $request,
+            'SDK requests must target the exact consumer PR.',
+        );
+    }
+
+    return $result;
 }
 
 $root = dirname(__DIR__, 2);
@@ -140,19 +177,12 @@ $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(
 $filesystem->mkdir($directory);
 
 try {
-    $filesystem->dumpFile($directory . '/gh-mock', <<<'BASH'
+    $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
         if [[ "${FF_FIXTURE_FORBID_DOCKER:-}" == 1 ]]; then
           sudo() { touch unexpected-daemon-operation; return 73; }
           docker() { touch unexpected-daemon-operation; return 73; }
           jq() { touch unexpected-daemon-operation; return 73; }
         fi
-        gh() {
-          if [[ "$*" == *'--jq .base.sha' ]]; then
-            printf '%s\n' "$FF_FIXTURE_BASE"
-          else
-            printf '%s\n' "$FF_FIXTURE_PR"
-          fi
-        }
         BASH);
     $cache = Yaml::parseFile($root . '/.github/actions/setup-docker/action.yml');
     workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
@@ -178,7 +208,8 @@ try {
         'FF_EVENT_PR' => '7', 'FF_PR' => '7', 'FF_HEAD' => $head,
         'FF_BASE' => $base, 'FF_BRANCH' => 'main', 'FF_COMMENT_MODE' => 'always',
     ];
-    $guard = $feedback['jobs']['status']['steps'][0]['run'];
+    $pr = ['state' => 'open', 'head' => ['sha' => $head], 'base' => ['sha' => $base, 'ref' => 'main']];
+    $guard = $feedback['jobs']['status']['steps'][0]['with']['script'];
     foreach ([
         [[], 0], [['FF_BASE' => ''], 0], [['FF_COMMENT_MODE' => 'on-failure'], 0],
         [['FF_COMMENT_MODE' => 'never'], 0], [['FF_EVENT' => 'push'], 0],
@@ -189,17 +220,25 @@ try {
         [['FF_RUNTIME_SHA' => 'main'], 1], [['FF_PR' => '7; touch unexpected'], 1],
         [['FF_HEAD' => 'moving-branch'], 1], [['FF_BASE' => 'short'], 1],
         [['FF_COMMENT_MODE' => 'sometimes'], 1], [['FF_RUNTIME_REPOSITORY' => ''], 1],
+        [['FF_PR' => '9007199254740993'], 1], [['FF_PR' => '0'], 1],
+        [['FF_PR' => '7\n'], 1],
+        [['FF_BASE' => '', 'FF_FIXTURE_API_FAILURE' => '1'], 1],
     ] as [$overrides, $expected]) {
-        $output = workflowGuard($guard, $directory, [...$environment, ...$overrides], $expected);
+        $result = workflowScriptGuard($guard, $directory, [...$environment, ...$overrides], $pr, $expected);
         verifyWorkflow(
-            0 !== $expected || 'base=' . $base . "\n" === $output,
+            0 !== $expected || ['base' => $base] === $result['outputs'],
             'Resolved base output must be an exact immutable SHA.',
+        );
+        verifyWorkflow(
+            count($result['requests']) === ('' === ($overrides['FF_BASE'] ?? $base) ? 1 : 0),
+            'Explicit bases and rejected identities must not query the API.',
         );
         ++$assertions;
     }
+    workflowScriptGuard($guard, $directory, [...$environment, 'FF_BASE' => ''],
+        [...$pr, 'base' => ['sha' => 'main', 'ref' => 'main']], 1);
     verifyWorkflow(! is_file($directory . '/unexpected'), 'PR metadata must never become executable shell text.');
-    $pr = ['state' => 'open', 'head' => ['sha' => $head], 'base' => ['sha' => $base, 'ref' => 'main']];
-    $guard = $comment['steps'][0]['run'];
+    $guard = $comment['steps'][0]['with']['script'];
     foreach ([
         [$pr, $base, true], [$pr, '', true],
         [[...$pr, 'state' => 'closed'], $base, false],
@@ -207,17 +246,29 @@ try {
         [[...$pr, 'base' => ['sha' => str_repeat('d', 40), 'ref' => 'main']], $base, false],
         [[...$pr, 'base' => ['sha' => $base, 'ref' => 'other']], $base, false],
     ] as [$snapshot, $expectedBase, $current]) {
-        $output = workflowGuard($guard, $directory, [...$environment,
-            'FF_BASE' => $expectedBase, 'FF_FIXTURE_PR' => json_encode($snapshot, JSON_THROW_ON_ERROR),
-        ], 0);
+        $result = workflowScriptGuard($guard, $directory, [...$environment, 'FF_BASE' => $expectedBase], $snapshot, 0);
         verifyWorkflow(
-            ($current ? "current=true\n" : '') === $output,
+            ($current ? ['current' => 'true'] : []) === $result['outputs'],
             'Moved or closed PR feedback must not overwrite a newer comment.',
         );
         ++$assertions;
     }
+    foreach ([['FF_PR' => '7; touch unexpected'], ['FF_PR' => '9007199254740993'],
+        ['FF_HEAD' => 'moving-branch'], ['FF_BASE' => 'main'], ['FF_FIXTURE_API_FAILURE' => '1']] as $overrides) {
+        workflowScriptGuard($guard, $directory, [...$environment, ...$overrides], $pr, 1);
+        ++$assertions;
+    }
+    foreach ([$feedback['jobs']['status']['steps'][0], $comment['steps'][0]] as $step) {
+        verifyWorkflow(
+            'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' === $step['uses']
+                && '${{ secrets.token || github.token }}' === $step['with']['github-token']
+                && ! str_contains($step['with']['script'], '${{'),
+            'SDK guards must use the pinned action and inert environment input.',
+        );
+        ++$assertions;
+    }
     workflowGuard($feedback['jobs']['status']['steps'][5]['run'], $directory, [], 1);
-    $assertions += 2;
+    $assertions += 3;
 } finally {
     $filesystem->remove($directory);
 }

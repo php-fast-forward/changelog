@@ -139,8 +139,10 @@ with an existing billing-fallback variable can add:
 
 For example, the variable may contain
 `["self-hosted","Linux","X64","local-ci"]`. The selected Linux runner must have
-Docker, Bash, Git, GitHub CLI and jq available and be allowed to run the called
-public workflows. Runner registration, isolation and repository access belong
+Docker, Bash and Git available and be allowed to run the called public workflows.
+PR metadata queries use the official GitHub Script action and the Actions runner's
+bundled JavaScript runtime; installing GitHub CLI or jq on a self-hosted runner is
+not required. Runner registration, isolation and repository access belong
 to the consumer's infrastructure. The workflow does not detect billing limits
 or change runner assignments; an existing fallback controller can update the
 variable. Use persistent runners only for work authorized under that runner's

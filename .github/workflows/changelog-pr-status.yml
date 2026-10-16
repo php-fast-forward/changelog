@@ -5,7 +5,7 @@ on:
   workflow_call:
     inputs:
       runs-on:
-        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
         default: '["ubuntu-latest"]'
       pull-request:
@@ -89,7 +89,7 @@ jobs:
     steps:
       - name: Resolve trusted context and immutable comparison
         id: snapshot
-        shell: bash
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           FF_RUNTIME_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
           FF_RUNTIME_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
@@ -101,38 +101,42 @@ jobs:
           FF_BASE: ${{ inputs.base-sha }}
           FF_BRANCH: ${{ inputs.base-branch || github.event.repository.default_branch }}
           FF_COMMENT_MODE: ${{ inputs.comment-mode }}
-          GH_TOKEN: ${{ secrets.token || github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
+        with:
+          github-token: ${{ secrets.token || github.token }}
+          script: |
+            const input = process.env;
+            const sha = /^[a-f0-9]{40}$/;
+            const number = Number(input.FF_PR);
 
-          if [[ -z "$FF_RUNTIME_REPOSITORY" || ! "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ \
-              || ! "$FF_PR" =~ ^[1-9][0-9]*$ || ! "$FF_HEAD" =~ ^[a-f0-9]{40}$ ]]; then
-            echo '::error::An immutable runtime and complete PR snapshot are required.'
-            exit 1
-          fi
+            if (!input.FF_RUNTIME_REPOSITORY || !sha.test(input.FF_RUNTIME_SHA)
+                || !/^[1-9][0-9]*$/.test(input.FF_PR) || !Number.isSafeInteger(number)
+                || !sha.test(input.FF_HEAD)) {
+              throw new Error('An immutable runtime and complete PR snapshot are required.');
+            }
 
-          case "$FF_COMMENT_MODE" in
-            always|on-failure|never) ;;
-            *) echo '::error::comment-mode must be always, on-failure or never.'; exit 1 ;;
-          esac
+            if (!['always', 'on-failure', 'never'].includes(input.FF_COMMENT_MODE)) {
+              throw new Error('comment-mode must be always, on-failure or never.');
+            }
 
-          case "$FF_EVENT" in
-            pull_request_target)
-              [[ "$FF_PR" == "$FF_EVENT_PR" ]] || exit 1
-              ;;
-            push|workflow_dispatch)
-              [[ "$FF_REF" == "refs/heads/$FF_BRANCH" ]] || exit 1
-              ;;
-            *) echo '::error::Feedback requires a trusted base event.'; exit 1 ;;
-          esac
+            if (input.FF_EVENT === 'pull_request_target') {
+              if (input.FF_PR !== input.FF_EVENT_PR) throw new Error('PR event identity mismatch.');
+            } else if (['push', 'workflow_dispatch'].includes(input.FF_EVENT)) {
+              if (input.FF_REF !== `refs/heads/${input.FF_BRANCH}`) {
+                throw new Error('Feedback requires the selected base branch.');
+              }
+            } else {
+              throw new Error('Feedback requires a trusted base event.');
+            }
 
-          if [[ -z "$FF_BASE" ]]; then
-            FF_BASE=$(gh api "repos/$GH_REPO/pulls/$FF_PR" --jq .base.sha)
-          fi
+            let base = input.FF_BASE;
+            if (!base) {
+              const { data } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+              base = data.base.sha;
+            }
 
-          [[ "$FF_BASE" =~ ^[a-f0-9]{40}$ ]] || exit 1
-          echo "base=$FF_BASE" >> "$GITHUB_OUTPUT"
+            if (!sha.test(base)) throw new Error('An immutable base SHA is required.');
+
+            core.setOutput('base', base);
 
       - name: Check out consumer data without executing it
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -197,25 +201,30 @@ jobs:
     steps:
       - name: Discard feedback if the PR moved or closed
         id: fresh
-        shell: bash
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          GH_TOKEN: ${{ secrets.token || github.token }}
-          GH_REPO: ${{ github.repository }}
           FF_PR: ${{ inputs.pull-request }}
           FF_HEAD: ${{ inputs.head-sha }}
           FF_BASE: ${{ inputs.base-sha || fromJSON(needs.status.outputs.result || '{"base_sha":""}').base_sha }}
           FF_BRANCH: ${{ inputs.base-branch || github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
+        with:
+          github-token: ${{ secrets.token || github.token }}
+          script: |
+            const input = process.env;
+            const sha = /^[a-f0-9]{40}$/;
+            const number = Number(input.FF_PR);
 
-          [[ "$FF_PR" =~ ^[1-9][0-9]*$ && "$FF_HEAD" =~ ^[a-f0-9]{40}$ ]] || exit 1
-          snapshot=$(gh api "repos/$GH_REPO/pulls/$FF_PR")
-          if [[ $(jq -r .state <<< "$snapshot") == open \
-              && $(jq -r .head.sha <<< "$snapshot") == "$FF_HEAD" \
-              && $(jq -r .base.ref <<< "$snapshot") == "$FF_BRANCH" \
-              && ( -z "$FF_BASE" || $(jq -r .base.sha <<< "$snapshot") == "$FF_BASE" ) ]]; then
-            echo 'current=true' >> "$GITHUB_OUTPUT"
-          fi
+            if (!/^[1-9][0-9]*$/.test(input.FF_PR) || !Number.isSafeInteger(number)
+                || !sha.test(input.FF_HEAD) || (input.FF_BASE && !sha.test(input.FF_BASE))) {
+              throw new Error('A complete immutable PR snapshot is required.');
+            }
+
+            const { data } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+            if (data.state === 'open' && data.head.sha === input.FF_HEAD
+                && data.base.ref === input.FF_BRANCH
+                && (!input.FF_BASE || data.base.sha === input.FF_BASE)) {
+              core.setOutput('current', 'true');
+            }
 
       - name: Create or update one changelog comment
         if: steps.fresh.outputs.current == 'true'
