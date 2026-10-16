@@ -125,6 +125,34 @@ their normal event-driven CI. An optional App token may be supplied as
 consistent across all operations. PR operations work at repository root; select
 nested packages through repository-relative managed paths.
 
+All changelog lifecycle reusable workflows also accept `runs-on`, a JSON string of runner
+labels. It defaults to `["ubuntu-latest"]` and is propagated to every nested job,
+including feedback comments and generated-head validation. A private consumer
+with an existing billing-fallback variable can add:
+
+```yaml
+    with:
+      runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
+      prepare-release: true
+      publish: false
+```
+
+For example, the variable may contain
+`["self-hosted","Linux","X64","local-ci"]`. The selected Linux runner must have
+Docker, Bash, Git, GitHub CLI and jq available and be allowed to run the called
+public workflows. Runner registration, isolation and repository access belong
+to the consumer's infrastructure. The workflow does not detect billing limits
+or change runner assignments; an existing fallback controller can update the
+variable. Use persistent runners only for work authorized under that runner's
+trust policy, including same-repository contributors.
+
+GitHub documents self-hosted access for called workflows owned by the same user
+or organization as the caller. Passing labels alone does not establish access
+to a runner across owners; verify the actual scheduling and runner-group policy
+before relying on that topology. See [GitHub's runner rules](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#self-hosted-runners).
+The optional Docker cache setup skips self-hosted runners without modifying or
+restarting their persistent daemon.
+
 Outputs expose the version PR number/head and published version/tag/SHA. They
 allow a consumer to attach its own post-publication tasks. Docker image
 publication is product-specific and remains separate. The packaged runtime is
