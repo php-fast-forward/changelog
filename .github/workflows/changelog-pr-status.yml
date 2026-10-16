@@ -4,6 +4,10 @@ name: Changelog PR feedback
 on:
   workflow_call:
     inputs:
+      runs-on:
+        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        type: string
+        default: '["ubuntu-latest"]'
       pull-request:
         description: Open PR to validate.
         type: number
@@ -72,7 +76,7 @@ concurrency:
 jobs:
   status:
     name: Validate exact PR head
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -186,7 +190,7 @@ jobs:
     needs: status
     if: >-
       !cancelled() && (inputs.comment-mode == 'always' || inputs.comment-mode == 'on-failure')
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 5
     permissions:
       pull-requests: write

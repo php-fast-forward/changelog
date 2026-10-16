@@ -39,6 +39,27 @@ $feedback = Yaml::parseFile($root . '/.github/workflows/changelog-pr-status.yml'
 $lifecycle = Yaml::parseFile($root . '/.github/workflows/changelog.yml');
 $assertions = 0;
 
+// Every public entrypoint must preserve the caller's runner selection through nested jobs.
+foreach (['changelog', 'changelog-check', 'changelog-dependabot', 'changelog-history',
+    'changelog-pr-status', 'changelog-publish', 'changelog-version'] as $entrypoint) {
+    $workflow = Yaml::parseFile($root . '/.github/workflows/' . $entrypoint . '.yml');
+    $runner = $workflow['on']['workflow_call']['inputs']['runs-on'] ?? [];
+    verifyWorkflow(
+        'string' === ($runner['type'] ?? null) && '["ubuntu-latest"]' === ($runner['default'] ?? null),
+        $entrypoint . ': caller-selectable runner with hosted default is required.',
+    );
+    ++$assertions;
+    foreach ($workflow['jobs'] as $job) {
+        verifyWorkflow(
+            isset($job['uses'])
+                ? '${{ inputs.runs-on }}' === ($job['with']['runs-on'] ?? null)
+                : '${{ fromJSON(inputs.runs-on) }}' === ($job['runs-on'] ?? null),
+            $entrypoint . ': every job must inherit the caller-selected runner.',
+        );
+        ++$assertions;
+    }
+}
+
 // Resolve actual nested workflow contracts and verify that the caller never withholds a required permission.
 foreach ([$feedback, $lifecycle] as $workflow) {
     foreach ($workflow['jobs'] as $name => $job) {
@@ -120,6 +141,11 @@ $filesystem->mkdir($directory);
 
 try {
     $filesystem->dumpFile($directory . '/gh-mock', <<<'BASH'
+        if [[ "${FF_FIXTURE_FORBID_DOCKER:-}" == 1 ]]; then
+          sudo() { touch unexpected-daemon-operation; return 73; }
+          docker() { touch unexpected-daemon-operation; return 73; }
+          jq() { touch unexpected-daemon-operation; return 73; }
+        fi
         gh() {
           if [[ "$*" == *'--jq .base.sha' ]]; then
             printf '%s\n' "$FF_FIXTURE_BASE"
@@ -128,6 +154,19 @@ try {
           fi
         }
         BASH);
+    $cache = Yaml::parseFile($root . '/.github/actions/setup-docker/action.yml');
+    workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
+        'RUNNER_ENVIRONMENT' => 'self-hosted', 'RUNNER_OS' => 'Linux', 'FF_FIXTURE_FORBID_DOCKER' => '1',
+    ], 0);
+    verifyWorkflow(! is_file($directory . '/unexpected-daemon-operation'), 'Self-hosted daemons must remain untouched.');
+    workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
+        'RUNNER_ENVIRONMENT' => 'github-hosted', 'RUNNER_OS' => 'Windows', 'FF_FIXTURE_FORBID_DOCKER' => '1',
+    ], 1);
+    verifyWorkflow(
+        "runner.environment == 'github-hosted'" === ($cache['runs']['steps'][1]['if'] ?? null),
+        'Base-image preloading must stay restricted to the hosted cache.',
+    );
+    $assertions += 3;
     $head = str_repeat('a', 40);
     $base = str_repeat('b', 40);
     $environment = [

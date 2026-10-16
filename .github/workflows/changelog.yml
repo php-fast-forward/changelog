@@ -4,6 +4,10 @@ name: Changelog lifecycle
 on:
   workflow_call:
     inputs:
+      runs-on:
+        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        type: string
+        default: '["ubuntu-latest"]'
       base-branch:
         description: Release line; empty uses the repository default branch.
         type: string
@@ -81,6 +85,7 @@ jobs:
       issues: read
     uses: ./.github/workflows/changelog-check.yml
     with:
+      runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
       base-sha: ${{ github.event.pull_request.base.sha }}
@@ -106,6 +111,7 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/changelog-dependabot.yml
     with:
+      runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
       fragment-directory: ${{ inputs.fragment-directory }}
@@ -129,6 +135,7 @@ jobs:
       statuses: write
     uses: ./.github/workflows/changelog-pr-status.yml
     with:
+      runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ needs.dependabot.outputs.head-sha || github.event.pull_request.head.sha }}
       base-sha: ${{ github.event.pull_request.base.sha }}
@@ -158,6 +165,7 @@ jobs:
       issues: read
     uses: ./.github/workflows/changelog-version.yml
     with:
+      runs-on: ${{ inputs.runs-on }}
       base-branch: ${{ inputs.base-branch || github.event.repository.default_branch }}
       managed-branch: ${{ inputs.managed-branch }}
       automation-actor: ${{ inputs.automation-actor }}
@@ -183,6 +191,7 @@ jobs:
       statuses: write
     uses: ./.github/workflows/changelog-pr-status.yml
     with:
+      runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ fromJSON(needs.version.outputs.pull-request) }}
       head-sha: ${{ needs.version.outputs.head-sha }}
       base-branch: ${{ inputs.base-branch || github.event.repository.default_branch }}
@@ -212,6 +221,7 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/changelog-publish.yml
     with:
+      runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       target-sha: ${{ github.event.pull_request.merge_commit_sha }}
       expected-head-sha: ${{ github.event.pull_request.head.sha }}

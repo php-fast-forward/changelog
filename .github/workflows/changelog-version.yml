@@ -4,6 +4,10 @@ name: Changelog version
 on:
   workflow_call:
     inputs:
+      runs-on:
+        description: JSON runner labels; Linux with Docker and GitHub CLI is required.
+        type: string
+        default: '["ubuntu-latest"]'
       working-directory:
         description: 'Consumer-relative directory below the project checkout.'
         type: string
@@ -108,7 +112,7 @@ permissions: {}
 
 jobs:
   changelog:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 15
     permissions:
       contents: write
