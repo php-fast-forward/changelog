@@ -7,8 +7,8 @@ Composer install, Node runtime or consumer shell script is required.
 
 ## Start with validation
 
-Create one consumer workflow using a reviewed full product commit. The reference
-below is replaced with the validated implementation commit before delivery:
+Create one consumer workflow using a reviewed full product commit. This example
+pins the implementation commit that introduced the facade and feedback:
 
 ```yaml
 name: Changelog
@@ -30,7 +30,7 @@ jobs:
       pull-requests: write
       issues: read
       statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@REVIEWED_IMPLEMENTATION_COMMIT
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@6a6062a80d28ab69da1e74952fad693f34806fa3
     with:
       prepare-release: false
       publish: false
