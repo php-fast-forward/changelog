@@ -25,6 +25,9 @@ use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use function FastForward\Config\config;
 use function FastForward\Container\container;
 
+// PHP diagnostics must not corrupt machine-readable command output.
+ini_set('display_errors', 'stderr');
+
 // The native Composer proxy supplies the correct local/global consumer autoloader.
 $autoloadCandidates = [
     ...(isset($_composer_autoload_path) && is_string($_composer_autoload_path) ? [$_composer_autoload_path] : []),

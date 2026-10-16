@@ -265,10 +265,10 @@ try {
     }
     foreach ([$feedback['jobs']['status']['steps'][0], $comment['steps'][0]] as $step) {
         verifyWorkflow(
-            'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' === $step['uses']
+            'actions/github-script@v9.0.0' === $step['uses']
                 && '${{ secrets.token || github.token }}' === $step['with']['github-token']
                 && ! str_contains($step['with']['script'], '${{'),
-            'SDK guards must use the pinned action and inert environment input.',
+            'SDK guards must use the verified action version and inert environment input.',
         );
         ++$assertions;
     }

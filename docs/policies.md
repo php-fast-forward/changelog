@@ -1,10 +1,16 @@
 # Pull-request and Dependabot policies
 
-The base workflow owns the trusted configuration, the checked-out runtime and
-metadata collection. It MUST NOT execute PHP, Composer, scripts or workflow
+Privileged base workflows own the trusted configuration, the checked-out runtime
+and metadata collection. They MUST NOT execute PHP, Composer, scripts or workflow
 code from an untrusted pull-request head. API reads inspect that head as data.
 Neither PR prose nor a public CLI flag can waive the fragment requirement or
 authorize direct changes to the central changelog.
+
+This repository's separate `pull_request` contribution job uses a local reusable
+to test the exact revision under review with read-only permissions and no
+persisted checkout credentials. This self-test does not grant privileged runtime
+trust or replace independent review. Consumers continue to select a reviewed
+product commit for their trusted lifecycle jobs.
 
 ## Human exceptions
 
@@ -24,6 +30,14 @@ collaborator-permission response. Only the explicit effective `role_name`
 authority. Ordinary `write`, unknown/custom role names, inaccessible permission
 records and Bot label actors do not grant an exception. Maintainers may grant
 an exception to a fork PR; this does not authorize privileged writes to the fork.
+
+The same verified maintenance grant permits one narrow attribution correction:
+remove exactly one `author` line from a pending fragment's frontmatter. The
+committed base/head must be regular files of the same mode, the validated bytes
+must match HEAD, and every remaining byte must stay identical. This does not
+permit replacing the author, changing impact, descriptions, references, paths
+or permissions, or consuming fragments. Ordinary PRs, waivers, unbound kinds
+and missing Git evidence cannot grant this exception.
 
 GitHub maps the maintain role to the legacy permission value write, so the
 permission value alone cannot distinguish these roles. These rules use the

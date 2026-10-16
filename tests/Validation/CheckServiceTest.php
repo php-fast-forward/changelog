@@ -269,6 +269,83 @@ final class CheckServiceTest extends TestCase
     }
 
     #[Test]
+    #[TestWith(['exact', true])]
+    #[TestWith(['crlf', true])]
+    #[TestWith(['cr', true])]
+    #[TestWith(['body', false])]
+    #[TestWith(['category', false])]
+    #[TestWith(['replacement', false])]
+    #[TestWith(['duplicate', false])]
+    #[TestWith(['body-only', false])]
+    #[TestWith(['unclosed', false])]
+    #[TestWith(['missing-base', false])]
+    #[TestWith(['missing-head', false])]
+    #[TestWith(['unaccepted-head', false])]
+    #[TestWith(['changed-mode', false])]
+    #[TestWith(['symlink', false])]
+    #[TestWith(['missing-mode', false])]
+    #[TestWith(['git-failure', false])]
+    #[TestWith(['invalid-opening', false])]
+    public function verifiedMaintenanceMayOnlyRemoveAnAttributionFromIdenticalCommittedBytes(
+        string $scenario,
+        bool $expected,
+    ): void {
+        $before = "---\ncategory: fixed\ntype: patch\nauthor: \"example\"\n---\n\nKeep this note.\nauthor: prose\n";
+        $after = str_replace("author: \"example\"\n", '', $before);
+        if (in_array($scenario, ['crlf', 'cr'], true)) {
+            $ending = 'crlf' === $scenario ? "\r\n" : "\r";
+            $before = str_replace("\n", $ending, $before);
+            $after = str_replace("\n", $ending, $after);
+        }
+        $before = match ($scenario) {
+            'duplicate' => str_replace('type: patch', "author: other\ntype: patch", $before),
+            'body-only' => $after,
+            'unclosed' => "---\nauthor: example\n",
+            'missing-base' => null,
+            'invalid-opening' => 'invalid' . $before,
+            default => $before,
+        };
+        $after = match ($scenario) {
+            'body' => str_replace('Keep this note.', 'Different note.', $after),
+            'category' => str_replace('fixed', 'security', $after),
+            'replacement' => str_replace('type: patch', "type: patch\nauthor: other", $after),
+            'body-only' => str_replace("author: prose\n", '', $after),
+            'missing-head' => null,
+            default => $after,
+        };
+        $validator = $this->prophesize(ChangesetValidatorInterface::class);
+        $validator->validate('/repo/.changelog', false, false)->willReturn(new ValidationReport(
+            [], [], false, ['/repo/.changelog/old.md' => hash('sha256',
+                'unaccepted-head' === $scenario ? 'different' : ($after ?? ''))],
+        ));
+        $validator->validatePaths('/repo/.changelog', [], false, false)->willReturn(
+            new ValidationReport([], [], false),
+        );
+        $git = $this->prophesize(GitRepositoryInterface::class);
+        $git->changesSince('/repo', 'base')->willReturn([
+            ['status' => 'M', 'path' => '.changelog/old.md', 'previous' => null],
+        ]);
+        $git->readFileAt('/repo', 'base', '.changelog/old.md')->willReturn($before);
+        $git->readFileAt('/repo', 'HEAD', '.changelog/old.md')->willReturn($after);
+        $git->filesAt('/repo', 'base', '.changelog/old.md')->willReturn([
+            ['path' => '.changelog/old.md', 'mode' => '100644'],
+        ]);
+        $git->filesAt('/repo', 'HEAD', '.changelog/old.md')->willReturn(
+            'missing-mode' === $scenario ? [] : [['path' => '.changelog/old.md', 'mode' => match ($scenario) {
+                'changed-mode' => '100755', 'symlink' => '120000', default => '100644',
+            }]],
+        );
+        if ('git-failure' === $scenario) {
+            $git->readFileAt('/repo', 'base', '.changelog/old.md')->willThrow(new RuntimeException('Unavailable'));
+        }
+
+        $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base',
+            centralChangeAuthorized: true, authorizationKind: 'maintenance');
+
+        self::assertSame($expected, $report->isValid());
+    }
+
+    #[Test]
     public function receiptProtectionUsesTheConfiguredRepositoryRelativeFragmentRoot(): void
     {
         $validator = $this->prophesize(ChangesetValidatorInterface::class);
@@ -291,6 +368,27 @@ final class CheckServiceTest extends TestCase
 
         self::assertFalse($report->isValid());
         self::assertSame(['@receipt'], array_keys($report->errors));
+    }
+
+    #[Test]
+    #[TestWith([false, 'maintenance'])]
+    #[TestWith([true, 'ordinary'])]
+    #[TestWith([true, 'managed-version'])]
+    #[TestWith([true, 'unknown'])]
+    public function authorCorrectionsCannotUseAnUnboundKindOrWaiver(bool $central, string $kind): void
+    {
+        $validator = $this->emptyValidator();
+        $git = $this->prophesize(GitRepositoryInterface::class);
+        $git->changesSince('/repo', 'base')->willReturn([
+            ['status' => 'M', 'path' => '.changelog/old.md', 'previous' => null],
+        ]);
+        $git->readFileAt(Argument::any(), Argument::any(), Argument::any())->shouldNotBeCalled();
+
+        $report = $this->checker($validator, $git)->check(new ReleaseOptions('/repo'), 'base',
+            centralChangeAuthorized: $central, waiverAuthorized: true, authorizationKind: $kind);
+
+        self::assertFalse($report->isValid());
+        self::assertArrayHasKey('.changelog/old.md', $report->errors);
     }
 
     #[Test]

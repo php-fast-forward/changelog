@@ -1,214 +1,221 @@
----
 name: Tests
 
-"on":
-    pull_request:
-    push:
-        branches:
-            - main
-    workflow_dispatch:
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
-    contents: read
-    actions: read
+  contents: read
+  actions: read
 
 concurrency:
-    group: tests-${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: true
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSER_PROCESS_TIMEOUT: '600'
 
 jobs:
-    packaging:
-        name: Fresh Composer installations
-        runs-on: ubuntu-latest
-        timeout-minutes: 20
-        permissions:
-            contents: read
-        steps:
-            - name: Check out repository
-              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-              with:
-                  persist-credentials: false
+  packaging:
+    name: Fresh Composer Installations (${{ matrix.dependencies }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
-            - name: Set up PHP
-              uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4 # 2.36.0
-              with:
-                  php-version: '8.5'
-                  coverage: none
-                  tools: composer:v2
+    permissions:
+      contents: read
 
-            - name: Validate fresh local and global consumers
-              run: php tests/Packaging/verify.php
-              env:
-                  CHANGELOG_PACKAGING_DIRECT: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        dependencies: [highest, lowest]
 
-    tests:
-        name: PHP 8.5 (${{ matrix.os }})
-        runs-on: ${{ matrix.os }}
-        timeout-minutes: 15
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-        steps:
-            - name: Check out repository
-              # v7
-              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-              with:
-                  persist-credentials: false
+      - name: Set Up PHP
+        uses: shivammathur/setup-php@2.36.0
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
 
-            - name: Set up PHP
-              # 2.36.0
-              uses: shivammathur/setup-php@db91e1a0e48e84637d325a7ee4d2677e146ceec4
-              with:
-                  php-version: '8.5'
-                  coverage: xdebug
-                  tools: composer:v2
+      - name: Validate Fresh Local And Global Consumers
+        run: php tests/Packaging/verify.php
+        env:
+          CHANGELOG_PACKAGING_DIRECT: '1'
+          CHANGELOG_PACKAGING_DEPENDENCIES: ${{ matrix.dependencies }}
 
-            - name: Validate Composer metadata
-              run: composer validate --strict
+  tests:
+    name: PHP 8.5 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
 
-            - name: Install development dependencies
-              run: >-
-                  composer install
-                  --no-interaction
-                  --prefer-dist
-                  --no-plugins
-                  --no-scripts
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
 
-            - name: Run the package quality and unit coverage gates
-              run: composer check
-              env:
-                  XDEBUG_MODE: coverage
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-            - name: Smoke test the CLI
-              run: php bin/changelog list --raw
+      - name: Set Up PHP
+        uses: shivammathur/setup-php@2.36.0
+        with:
+          php-version: '8.5'
+          coverage: xdebug
+          tools: composer:v2
 
-            - name: Verify reusable workflow guards and contracts without network
-              if: startsWith(matrix.os, 'ubuntu-')
-              run: composer test:workflows
+      - name: Isolate Composer State
+        shell: bash
+        run: |
+          echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
+          echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
 
-            - name: Prepare the runner-local base image cache
-              if: startsWith(matrix.os, 'ubuntu-')
-              uses: ./.github/actions/setup-docker
+      - name: Validate Composer Metadata
+        run: composer validate --strict
 
-            - name: Build the packaged CLI image
-              # Base images are preloaded by the preceding runner-local cache step.
-              if: startsWith(matrix.os, 'ubuntu-')
-              run: docker build --progress=plain -t fast-forward-changelog:ci .
+      - name: Install Development Dependencies
+        run: >-
+          composer install
+          --no-interaction
+          --prefer-dist
+          --no-plugins
+          --no-scripts
+          --no-progress
 
-            - name: Verify the actual container CLI in disposable consumers
-              if: startsWith(matrix.os, 'ubuntu-')
-              run: php tests/Container/verify.php fast-forward-changelog:ci
+      - name: Run The Package Quality And Unit Coverage Gates
+        run: composer check
+        env:
+          XDEBUG_MODE: coverage
 
-            - name: Verify the Composer root version build argument
-              if: startsWith(matrix.os, 'ubuntu-')
-              run: |
-                  docker build \
-                    --build-arg COMPOSER_ROOT_VERSION=1.2.3 \
-                    --tag fast-forward-changelog:version-fixture \
-                    .
+      - name: Smoke Test The CLI
+        run: php bin/changelog list --raw
 
-                  php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
+      - name: Verify Reusable Workflow Guards And Contracts Without Network
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: composer test:workflows
 
-            - name: Verify Docker action invocation and runner outputs
-              if: startsWith(matrix.os, 'ubuntu-')
-              id: docker-action
-              uses: ./.github/actions/history
-              with:
-                  operation: format
-                  dry-run: 'true'
-                  source: tags
+      - name: Prepare The Runner-Local Base Image Cache
+        if: startsWith(matrix.os, 'ubuntu-')
+        uses: ./.github/actions/setup-docker
 
-            - name: Verify the Docker action output contract
-              if: startsWith(matrix.os, 'ubuntu-')
-              env:
-                  FF_ACTION_RESULT: ${{ steps.docker-action.outputs.result }}
-                  FF_ACTION_STATUS: ${{ steps.docker-action.outputs.status }}
-              run: |
-                  # PHP evaluates these variables; shell quoting is intentional.
-                  # shellcheck disable=SC2016
-                  php -r '
-                      $result = json_decode(
-                          getenv("FF_ACTION_RESULT"),
-                          true,
-                          512,
-                          JSON_THROW_ON_ERROR,
-                      );
+      - name: Build The Packaged CLI Image
+        # Base images are preloaded by the preceding runner-local cache step.
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: docker build --progress=plain -t fast-forward-changelog:ci .
 
-                      if (
-                          $result["status"] !== "dry-run"
-                          || getenv("FF_ACTION_STATUS") !== "dry-run"
-                      ) {
-                          exit(1);
-                      }
-                  '
+      - name: Verify The Actual Container CLI In Disposable Consumers
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: php tests/Container/verify.php fast-forward-changelog:ci
 
-            - name: Upload native line coverage from this run
-              if: >-
-                  ${{ success() && matrix.os == 'ubuntu-latest' &&
-                      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-                       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
-              # v7
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-              with:
-                  name: coverage-report-php
-                  path: .build/coverage.xml
-                  if-no-files-found: error
-                  retention-days: 30
+      - name: Verify The Composer Root Version Build Argument
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          docker build \
+            --build-arg COMPOSER_ROOT_VERSION=1.2.3 \
+            --tag fast-forward-changelog:version-fixture \
+            .
 
-    coverage-report:
-        name: Line coverage report
-        needs: tests
+          php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
+
+      - name: Verify Docker Action Invocation And Runner Outputs
+        if: startsWith(matrix.os, 'ubuntu-')
+        id: docker-action
+        uses: ./.github/actions/history
+        with:
+          operation: format
+          dry-run: 'true'
+          source: tags
+
+      - name: Verify The Docker Action Output Contract
+        if: startsWith(matrix.os, 'ubuntu-')
+        env:
+          FF_ACTION_RESULT: ${{ steps.docker-action.outputs.result }}
+          FF_ACTION_STATUS: ${{ steps.docker-action.outputs.status }}
+        run: |
+          # PHP evaluates these variables; shell quoting is intentional.
+          # shellcheck disable=SC2016
+          php -r '
+              $result = json_decode(
+                  getenv("FF_ACTION_RESULT"),
+                  true,
+                  512,
+                  JSON_THROW_ON_ERROR,
+              );
+
+              if (
+                  $result["status"] !== "dry-run"
+                  || getenv("FF_ACTION_STATUS") !== "dry-run"
+              ) {
+                  exit(1);
+              }
+          '
+
+      - name: Upload Native Line Coverage From This Run
         if: >-
-            ${{ needs.tests.result == 'success' &&
-                ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-                 (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-        permissions:
-            contents: read
-            actions: read
-            pull-requests: write
-        steps:
-            - name: Check out report templates
-              # v7; same-repository PRs and the maintained base only.
-              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-              with:
-                  persist-credentials: false
+          ${{ success() && matrix.os == 'ubuntu-latest' &&
+              ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+               (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: coverage-report-php
+          path: .build/coverage.xml
+          if-no-files-found: error
+          retention-days: 30
 
-            - name: Download native coverage from this workflow run
-              # v8.0.1
-              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-              with:
-                  name: coverage-report-php
-                  path: .build
+  coverage-report:
+    name: Line Coverage Report
+    needs: tests
+    if: >-
+      ${{ needs.tests.result == 'success' &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
 
-            - name: Compare and summarize line coverage
-              id: coverage
-              # v7; follows the native Cobertura report pattern from mentordosnerds/cli.
-              uses: clearlyip/code-coverage-report-action@110af9d4ec87b6706f182fd90e3102af9e5203bf
-              with:
-                  filename: .build/coverage.xml
-                  artifact_download_workflow_names: Tests
-                  artifact_name: changelog-coverage-%name%
-                  overall_coverage_fail_threshold: '100'
-                  file_coverage_error_min: '100'
-                  file_coverage_warning_max: '100'
-                  only_list_changed_files: 'true'
-                  fail_on_negative_difference: 'true'
-                  without_base_coverage_template: .github/coverage-templates/without-base-coverage.hbs
-                  with_base_coverage_template: .github/coverage-templates/with-base-coverage.hbs
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
 
-            - name: Update the sticky coverage comment
-              if: >-
-                  ${{ github.event_name == 'pull_request' &&
-                      github.event.pull_request.head.repo.full_name == github.repository &&
-                      github.event.pull_request.user.login != 'dependabot[bot]' &&
-                      steps.coverage.outputs.file != '' }}
-              # v2.9.4; Dependabot's restricted token still gets the report artifact.
-              uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405
-              with:
-                  header: code-coverage-overview
-                  number: ${{ github.event.pull_request.number }}
-                  path: ${{ steps.coverage.outputs.file }}
+    steps:
+      - name: Download Native Coverage From This Workflow Run
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: coverage-report-php
+          path: .build
+
+      - name: Compare And Summarize Line Coverage
+        id: coverage
+        uses: clearlyip/code-coverage-report-action@v7.0.0
+        with:
+          filename: .build/coverage.xml
+          artifact_download_workflow_names: Tests
+          artifact_name: changelog-coverage-%name%
+          overall_coverage_fail_threshold: '100'
+          file_coverage_error_min: '100'
+          file_coverage_warning_max: '100'
+          only_list_changed_files: 'true'
+          fail_on_negative_difference: 'true'
+
+      - name: Update The Sticky Coverage Comment
+        if: >-
+          ${{ github.event_name == 'pull_request' &&
+              github.event.pull_request.head.repo.full_name == github.repository &&
+              github.event.pull_request.user.login != 'dependabot[bot]' &&
+              steps.coverage.outputs.file != '' }}
+        # Dependabot's restricted token still gets the report artifact.
+        uses: marocchino/sticky-pull-request-comment@v2.9.4
+        with:
+          header: code-coverage-overview
+          number: ${{ github.event.pull_request.number }}
+          path: ${{ steps.coverage.outputs.file }}

@@ -1,4 +1,4 @@
-name: Release changelog
+name: Release Changelog
 
 on:
   push:
@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   version:
+    name: Prepare Version PR
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -19,17 +20,19 @@ jobs:
       pull-requests: write
       issues: read
     steps:
-      - name: Check out the fresh release base
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check Out The Fresh Release Base
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ github.repository }}
           ref: main
           fetch-depth: 0
           persist-credentials: false
-      - name: Prepare the base image cache
+
+      - name: Prepare The Base Image Cache
         uses: ./.github/actions/setup-docker
 
-      - name: Create or update the single version PR
+      - name: Create Or Update The Single Version PR
         uses: ./.github/actions/version
         with:
           working-directory: '.'

@@ -4,6 +4,16 @@ This package uses its own CLI and local Docker Actions. Ordinary changes add
 one pending fragment; the managed version PR updates `CHANGELOG.md` after those
 changes reach `main`. Contributors do not maintain a central `Unreleased` list.
 
+The [published skill](../resources/skills/fast-forward-changelog/SKILL.md) is also
+the internal procedure. Read it directly from `resources`; the repository does
+not need a second copy in `.agents/skills`. In a source checkout, substitute
+`php bin/changelog` for the skill's consumer command `vendor/bin/changelog`.
+
+The current central `Unreleased` section is legacy pending content. The version
+transaction promotes those descriptions into the concrete release alongside
+the fragments and removes that heading. Keep both inputs until that reviewed
+transaction; new contributions add only independent fragments.
+
 From the package checkout, install dependencies and create a fragment:
 
 ```sh
@@ -18,6 +28,11 @@ accepts `--commit` to commit only that new fragment. Local `php bin/changelog
 check` validates pending fragments. Maintainers can preview consolidation with
 `php bin/changelog version --dry-run`; applying it locally is an explicit
 maintenance operation, separate from the ordinary contribution flow.
+
+The following event workflows belong to this package. Consumers copy the
+[single caller example](../resources/workflows/README.md) instead. The
+[automation map](automation-map.md) lists all public reusable interfaces and
+explains why their implementations remain in `.github/workflows`.
 
 | Repository workflow | Trigger | Package operation |
 | --- | --- | --- |
@@ -62,9 +77,9 @@ collector and the service's live alert verification. The collector exposes
 dependency names, type and ecosystem in its
 [pinned output contract](https://github.com/dependabot/fetch-metadata/blob/21025c705c08248db411dc16f3619e6b5f9ea21a/action.yml).
 
-The examples and workflows describe future repository operation. Adding and
-validating them does not create a release. A generated version PR remains open
-for review and approval; merging it activates the publication workflow for its
-approved merge SHA. No real tag or GitHub Release is part of this implementation
-session. Consumer repositories should follow [the reusable workflow guide](github-actions.md)
-and pin external package references to a reviewed product commit.
+A generated version PR remains open for review and approval; merging it
+activates this repository's publication workflow for the approved merge SHA.
+Preparing or validating that PR does not publish a release. Consumers should
+follow [the reusable lifecycle guide](reusable-lifecycle.md) and pin package
+references to a reviewed, integrated product commit. Their caller example
+keeps publication disabled during validation.

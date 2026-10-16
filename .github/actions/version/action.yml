@@ -1,4 +1,4 @@
-name: Fast Forward Changelog version
+name: Fast Forward Changelog Version
 description: "Create or update one version PR from the freshly checked-out trusted base."
 
 inputs:

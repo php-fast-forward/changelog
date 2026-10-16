@@ -27,6 +27,11 @@ used across Fast Forward PHP packages.
 - PHP `^8.5` is the minimum supported runtime; code updates MUST NOT require PHP 8.6.
 - Run `composer check` for independent quality gates. Rector/ECS check and fix
   scripts are separate; revalidate after applying fixes.
+- Run `composer test:workflows` after reusable workflow changes; its isolated
+  Bash/JavaScript fixtures need Node.js only for development. Run actionlint on
+  changed workflow contracts and verify the effective consumer jobs separately.
+- Keep `composer.lock` for reproducible contributor, CI and Docker CLI builds.
+  Library consumers resolve the constraints in `composer.json` independently.
 - Keep unit tests under the namespace hierarchy of the source they exercise.
   Unit tests MUST replace filesystem, Git, processes, network, clock and host
   state with injected doubles. Integration and packaging fixtures are separate
@@ -35,8 +40,10 @@ used across Fast Forward PHP packages.
   adapters or factories. Coverage is executed-path evidence, not correctness.
 - Public and private methods MUST explain contracts in PHPDoc, including
   relevant invariants, observable effects and failure conditions.
-- Preserve unrelated work and stage only reviewed task files. Workflow
-  dependencies use verified immutable commits. Merging requires review and
+- Preserve unrelated work and stage only reviewed task files. External Actions
+  use verified full version tags, as requested by the maintainer. References to
+  this package from consumers use reviewed immutable commits until release;
+  repository-local reusable calls test the caller's exact revision. Merging requires review and
   passing checks for the current head. Installing elsewhere or publishing real
   tags/releases requires separate user authorization; retain authority already
   explicitly given for the current task.
@@ -45,6 +52,27 @@ used across Fast Forward PHP packages.
   generate host aliases or copies there. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
   remain explicit operations, separate from package distribution.
+
+## This Repository's Changelog
+
+- Read [the canonical skill](resources/skills/fast-forward-changelog/SKILL.md)
+  before recording notes, validating contributions or maintaining releases here.
+  It is also the internal procedure; no copy or host-discovery adapter is needed.
+- In this source checkout use `php bin/changelog` in place of the consumer's
+  `vendor/bin/changelog`. Inspect `php bin/changelog list --raw` and command help
+  before choosing flags. Validate pending notes with `php bin/changelog check`
+  and compare a contribution with `php bin/changelog check --since=origin/main`.
+- Add one unique `.changelog/*.md` fragment per coherent observable change.
+  Preserve inherited pending notes and the central history in ordinary PRs.
+  Leave optional `author` absent unless an actual contributor identity is known;
+  do not infer a personal credit from the repository's organization.
+- `CHANGELOG.md` is consolidated version history. Its initial `Unreleased` is
+  legacy migration input: the version transaction promotes it into the concrete
+  release and removes the pending heading. Never add new notes there or recreate
+  it alongside fragments.
+- Let the workflow prepare the single `changelog/version` PR. A prepared version
+  and green checks are not publication authority: review its exact head, history
+  and fragment deletions before any separately authorized merge/release.
 
 ## Design Notes
 
@@ -74,4 +102,6 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
+- [Automation map](docs/automation-map.md): distinguishes stable public reusables, repository workflows and lower-level actions; consumers copy the caller from resources without moving GitHub entrypoints.
+- [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and private runner settings; publication starts disabled.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

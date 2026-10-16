@@ -38,7 +38,8 @@ final readonly class CheckService implements CheckServiceInterface
      * New A/C paths and R paths from outside the fragment scope are contributions.
      * Renaming/mutating inherited fragments is rejected. Only verified managed
      * version transactions may change their receipt or consume pending fragments;
-     * central-history maintenance MUST preserve both generated evidence and inputs.
+     * Maintenance preserves generated evidence and pending descriptions, except
+     * for removing one optional author line from otherwise identical regular blobs.
      */
     public function check(
         ReleaseOptions $options,
@@ -109,6 +110,15 @@ final readonly class CheckService implements CheckServiceInterface
                 continue;
             }
 
+            if ('M' === $status && $centralChangeAuthorized && 'maintenance' === $authorizationKind
+                && [] === $inventory->errors && $this->isAuthorRemoval(
+                    $options, $since, $path,
+                    $inventory->hashes[$directory . '/' . substr($path, strlen($fragmentRoot) + 1)] ?? '',
+                )
+            ) {
+                continue;
+            }
+
             $errors[$path][] = sprintf(
                 'Inherited fragments must not be modified, deleted, renamed or changed in type (status %s).',
                 $change['status'],
@@ -127,6 +137,52 @@ final readonly class CheckService implements CheckServiceInterface
         }
 
         return $this->reports->create($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
+    }
+
+    /**
+     * Accepts only removal of one frontmatter author line from committed regular
+     * blobs of identical mode. Accepted parser bytes must equal HEAD; missing Git
+     * evidence, other metadata, body, path or whitespace changes fail closed.
+     */
+    private function isAuthorRemoval(ReleaseOptions $options, string $base, string $path, string $acceptedHash): bool
+    {
+        try {
+            $before = $this->git->readFileAt($options->workingDirectory, $base, $path);
+            $after = $this->git->readFileAt($options->workingDirectory, 'HEAD', $path);
+            $oldEntries = $this->git->filesAt($options->workingDirectory, $base, $path);
+            $newEntries = $this->git->filesAt($options->workingDirectory, 'HEAD', $path);
+        } catch (Throwable) {
+            return false;
+        }
+
+        if (null === $before || null === $after || ! hash_equals($acceptedHash, hash('sha256', $after))
+            || $oldEntries !== $newEntries || 1 !== count($newEntries)
+            || $newEntries[0]['path'] !== $path || ! in_array($newEntries[0]['mode'], ['100644', '100755'], true)
+        ) {
+            return false;
+        }
+
+        $lines = preg_split('/(\r\n|\n|\r)/', $before, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        if ('---' !== $lines[0]) {
+            return false;
+        }
+
+        $removed = 0;
+
+        for ($index = 2; $index < count($lines); $index += 2) {
+            if ('---' === $lines[$index]) {
+                return 1 === $removed && $after === implode('', $lines);
+            }
+
+            if (str_starts_with($lines[$index], 'author:')) {
+                $lines[$index] = '';
+                $lines[$index + 1] = '';
+                ++$removed;
+            }
+        }
+
+        return false;
     }
 
     /**
