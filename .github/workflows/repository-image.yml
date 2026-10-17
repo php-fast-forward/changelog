@@ -1,6 +1,19 @@
 name: 'Repository: Publish Docker CLI'
 
 on:
+  workflow_dispatch:
+    inputs:
+
+      tag:
+        description: 'Existing published release tag to recover.'
+        type: string
+        required: true
+
+      expected-sha:
+        description: 'Exact approved commit already selected by that release.'
+        type: string
+        required: true
+
   workflow_call:
     inputs:
 
@@ -95,6 +108,22 @@ jobs:
 
           printf 'sha=%s\n' "$FF_SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
+      - name: Verify The Published GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FF_TAG: ${{ steps.release.outputs.tag }}
+          FF_EXPECTED_SHA: ${{ inputs.expected-sha }}
+        run: |
+          set -euo pipefail
+
+          FF_RELEASE="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${FF_TAG}" --jq '[.tag_name, .draft, .target_commitish] | @tsv')"
+          IFS=$'\t' read -r FF_RELEASE_TAG FF_DRAFT FF_RELEASE_SHA <<< "$FF_RELEASE"
+          if [[ "$FF_RELEASE_TAG" != "$FF_TAG" || "$FF_DRAFT" != 'false' || "$FF_RELEASE_SHA" != "$FF_EXPECTED_SHA" ]]; then
+            echo "::error::The published release does not select the approved tag and commit."
+            exit 1
+          fi
+
       - name: Set Up The Integration Verifier
         uses: shivammathur/setup-php@2.37.1
         with:
@@ -174,7 +203,6 @@ jobs:
             org.opencontainers.image.licenses=MIT
           provenance: true
           sbom: true
-          cache-from: type=gha,scope=changelog-release-image
 
       - name: Revalidate The Remote Release Tag Before Publication
         shell: bash
@@ -220,8 +248,6 @@ jobs:
             org.opencontainers.image.licenses=MIT
           provenance: true
           sbom: true
-          cache-from: type=gha,scope=changelog-release-image
-          cache-to: type=gha,mode=max,scope=changelog-release-image
 
       - name: Record The Published Image
         shell: bash
