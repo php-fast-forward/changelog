@@ -41,6 +41,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         'working-directory' => 'workingDirectory', 'fragment-directory' => 'fragmentDirectory',
         'changelog-file' => 'changelogFile', 'locale' => 'locale', 'template' => 'template',
         'base-ref' => 'baseRef', 'tag-prefix' => 'tagPrefix', 'repository' => 'repository', 'source' => 'source',
+        'resolve-pull-requests' => 'resolvePullRequests',
     ];
 
     private const array OPERATION_INPUTS = [
@@ -156,7 +157,8 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
 
         foreach (self::SETTINGS as $input => $property) {
             if (array_key_exists($input, $inputs)) {
-                $settings[$property] = $this->text($inputs, $input);
+                $settings[$property] = 'resolvePullRequests' === $property
+                    ? $this->boolean($inputs, $input) : $this->text($inputs, $input);
             }
         }
         $options = $this->options->create($settings);

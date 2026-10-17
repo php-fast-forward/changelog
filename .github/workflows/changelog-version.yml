@@ -69,6 +69,12 @@ on:
         required: false
         default: 'auto'
 
+      resolve-pull-requests:
+        description: 'Resolve missing fragment PR references from verified Git and GitHub evidence.'
+        type: boolean
+        required: false
+        default: true
+
       base-branch:
         description: 'Fresh approved base branch to check out.'
         type: string
@@ -244,6 +250,7 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           repository: ${{ inputs.repository || github.repository }}
           source: ${{ inputs.source }}
+          resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           token: ${{ steps.auth.outputs.token }}
           base-branch: ${{ inputs.base-branch }}
           managed-branch: ${{ inputs.managed-branch }}

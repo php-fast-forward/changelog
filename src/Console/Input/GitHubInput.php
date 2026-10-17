@@ -103,6 +103,7 @@ final class GitHubInput
             'fragment-directory' => $this->release->fragmentDirectory, 'changelog-file' => $this->release->changelogFile,
             'locale' => $this->release->locale, 'template' => $this->release->template, 'base-ref' => $this->release->baseRef,
             'tag-prefix' => $this->release->tagPrefix, 'source' => $this->release->source];
+        $settings['resolve-pull-requests'] = $this->release->values()['resolvePullRequests'] ? 'true' : 'false';
         if (null !== $this->release->repository) {
             $settings['repository'] = $this->release->repository;
         }

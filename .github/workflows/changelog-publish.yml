@@ -69,6 +69,12 @@ on:
         required: false
         default: 'auto'
 
+      resolve-pull-requests:
+        description: 'Recompute verified fragment PR references before comparing approved release notes.'
+        type: boolean
+        required: false
+        default: true
+
       base-branch:
         description: 'Configured merged PR base branch.'
         type: string
@@ -262,6 +268,7 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           repository: ${{ inputs.repository || github.repository }}
           source: ${{ inputs.source }}
+          resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           token: ${{ steps.auth.outputs.token }}
           base-branch: ${{ inputs.base-branch }}
           pull-request: ${{ inputs.pull-request }}

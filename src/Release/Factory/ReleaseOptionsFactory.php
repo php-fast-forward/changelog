@@ -29,6 +29,7 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         'changelogFile' => 'CHANGELOG.md', 'locale' => 'en',
         'template' => 'keep-a-changelog', 'baseRef' => 'HEAD',
         'tagPrefix' => 'v', 'repository' => null, 'source' => 'auto',
+        'resolvePullRequests' => false,
     ];
 
     /**
@@ -59,6 +60,13 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         }
         $settings = array_replace(self::DEFAULTS, $values);
         foreach ($settings as $name => $value) {
+            if ('resolvePullRequests' === $name) {
+                if (! is_bool($value)) {
+                    throw new InvalidArgumentException('Setting resolvePullRequests must be a boolean.');
+                }
+
+                continue;
+            }
             if ('repository' === $name && null === $value) {
                 continue;
             }

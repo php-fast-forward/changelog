@@ -106,6 +106,40 @@ $repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.
 $repositoryDocumentation = Yaml::parseFile($root . '/.github/workflows/repository-documentation.yml');
 $assertions = 0;
 
+foreach ([
+    'changelog',
+    'changelog-check',
+    'changelog-pr-status',
+    'changelog-version',
+    'changelog-publish',
+] as $workflowName) {
+    $workflow = Yaml::parseFile($root . '/.github/workflows/' . $workflowName . '.yml');
+    $referenceInput = $workflow['on']['workflow_call']['inputs']['resolve-pull-requests'];
+    verifyWorkflow(
+        'boolean' === $referenceInput['type'] && true === $referenceInput['default'],
+        $workflowName . ' must expose the enabled reference policy as a boolean.',
+    );
+    ++$assertions;
+}
+
+foreach (['check', 'feedback', 'version', 'validate-version', 'publish'] as $jobName) {
+    verifyWorkflow(
+        '${{ inputs.resolve-pull-requests }}' === $lifecycle['jobs'][$jobName]['with']['resolve-pull-requests'],
+        $jobName . ' must receive the same release-evidence reference policy.',
+    );
+    ++$assertions;
+}
+
+foreach (['check', 'pr-status', 'version', 'publish'] as $actionName) {
+    $action = Yaml::parseFile($root . '/.github/actions/' . $actionName . '/action.yml');
+    verifyWorkflow(
+        'true' === $action['inputs']['resolve-pull-requests']['default']
+            && in_array('--resolve-pull-requests=${{ inputs.resolve-pull-requests }}', $action['runs']['args'], true),
+        $actionName . ' must pass its reference policy directly to the CLI.',
+    );
+    ++$assertions;
+}
+
 verifyWorkflow(
     'Repository: Tests' === $repositoryCi['name']
         && $repositoryCi['name'] === workflowStep(

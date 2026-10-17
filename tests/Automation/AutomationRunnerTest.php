@@ -84,10 +84,10 @@ final class AutomationRunnerTest extends TestCase
     #[Test]
     public function commonInputsMapToSharedSettingsWithoutReadingEnvironment(): void
     {
-        $inputs = ['working-directory' => '/consumer', 'fragment-directory' => '.changes', 'changelog-file' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'base-ref' => 'main', 'tag-prefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags'];
+        $inputs = ['working-directory' => '/consumer', 'fragment-directory' => '.changes', 'changelog-file' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'base-ref' => 'main', 'tag-prefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags', 'resolve-pull-requests' => 'true'];
         $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
         $factory->expects(self::once())->method('create')->with(
-            ['workingDirectory' => '/consumer', 'fragmentDirectory' => '.changes', 'changelogFile' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'baseRef' => 'main', 'tagPrefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags'],
+            ['workingDirectory' => '/consumer', 'fragmentDirectory' => '.changes', 'changelogFile' => 'HISTORY.md', 'locale' => 'pt_BR', 'template' => 'compact', 'baseRef' => 'main', 'tagPrefix' => 'release/', 'repository' => 'owner/project', 'source' => 'tags', 'resolvePullRequests' => true],
         )->willReturn(
             $this->options(),
         );

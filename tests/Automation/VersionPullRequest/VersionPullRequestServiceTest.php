@@ -50,6 +50,38 @@ final class VersionPullRequestServiceTest extends TestCase
     private array $policyCalls = [];
     private array $plannerCalls = [];
     private array $pullRequestSnapshots = [];
+    private array $referencePolicies = [];
+
+    /** Enabling discovery replaces a provably owned old transaction and proves the new head under the enabled policy. */
+    public function testReferencePolicyUpgradeReplacesOnlyTheVerifiedOwnedPendingHead(): void
+    {
+        $result = $this->synchronizeFixture(
+            ['existing' => true, 'resolve_references' => true, 'legacy_reference_policy' => true],
+        );
+
+        self::assertSame('updated', $result->status);
+        self::assertSame([true, false, true], $this->referencePolicies);
+        self::assertStringContainsString(
+            'Changelog-Options: ' . new ReleaseOptions(
+                '/consumer',
+                repository: 'owner/project',
+                resolvePullRequests: true,
+            )->evidenceHash(),
+            $this->writes('commits')[0][2]['message'],
+        );
+        self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
+    }
+
+    /** An unowned legacy head cannot be rescued merely by enabling the new option. */
+    public function testReferencePolicyUpgradeCannotAdoptAnUnownedBranch(): void
+    {
+        $result = $this->synchronizeFixture(['existing' => true, 'resolve_references' => true, 'unowned' => true]);
+
+        self::assertSame('refused', $result->status);
+        self::assertSame([true, false], $this->referencePolicies);
+        self::assertSame([], $this->writes('commits'));
+        self::assertSame([], $this->writes('refs/heads'));
+    }
 
     #[Test]
     public function createsSignedVersionTransactionFromFreshBaseWithOnlyApprovedFileChanges(): void
@@ -522,6 +554,7 @@ final class VersionPullRequestServiceTest extends TestCase
         $options = new ReleaseOptions(
             '/consumer',
             repository: isset($settings['missing_repo']) ? null : 'owner/project',
+            resolvePullRequests: $settings['resolve_references'] ?? false,
         );
         $base = str_repeat('b', 40);
         $head = isset($settings['base_existing']) ? $base : (isset($settings['existing']) || isset($settings['orphan']) ? str_repeat(
@@ -757,6 +790,12 @@ final class VersionPullRequestServiceTest extends TestCase
             $settings
         ): bool {
             $this->policyCalls[] = ['inspectHead', $sha];
+            $this->referencePolicies[] = $received->resolvePullRequests;
+
+            if (isset($settings['legacy_reference_policy']) && str_repeat('a', 40) === $sha
+                && $received->resolvePullRequests) {
+                return false;
+            }
 
             return ! isset($settings['unowned']) && ! (isset($settings['unsigned_new_commit']) && str_repeat(
                 'c',

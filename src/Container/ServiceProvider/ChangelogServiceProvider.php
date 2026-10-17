@@ -177,6 +177,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function releaseFactories(): array
     {
         return [
+            Release\Reference\PullRequestReferenceResolverInterface::class => new AliasFactory(
+                Release\Reference\PullRequestReferenceResolver::class,
+            ),
             Release\ReleaseJournalPathResolverInterface::class => new AliasFactory(
                 Release\ReleaseJournalPathResolver::class,
             ),
@@ -247,6 +250,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 Filesystem\ManagedFileStoreInterface::class,
                 History\Factory\HistoryReleaseFactoryInterface::class,
                 Release\ReleaseHistoryConsolidatorInterface::class,
+                Release\Reference\PullRequestReferenceResolverInterface::class,
                 GitHubClientInterface::class,
                 Release\ReleaseMetadataParser::class,
                 History\HistoryReferenceBuilder::class,
@@ -356,6 +360,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 Git\GitRepository::class,
             ),
             Git\GitCommitTreeReaderInterface::class => new AliasFactory(
+                Git\GitRepository::class,
+            ),
+            Git\GitFragmentOriginReaderInterface::class => new AliasFactory(
                 Git\GitRepository::class,
             ),
             Process\Factory\ProcessFactoryInterface::class => new AliasFactory(

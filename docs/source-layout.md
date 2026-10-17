@@ -36,6 +36,18 @@ contains the rules used by it and other operations. Shared values stay with the
 domain they describe, rather than in a generic model or utility namespace.
 Factory subnamespaces are local construction boundaries, not separate domains.
 
+`Release\Reference` enriches pending notes with verified merged pull-request
+references. `Git\GitFragmentOriginReaderInterface` is an optional capability of
+Git adapters: custom adapters need it only when automatic references are enabled.
+It reads immutable committed history rather than the current worktree or index.
+The standard provider wires both contracts automatically.
+
+Direct PHP construction of `Release\ReleasePlanner` and
+`Validator\PublicationEvidenceValidator` now requires a
+`Release\Reference\PullRequestReferenceResolverInterface` collaborator before
+their optional arguments. Consumers constructing these services manually must
+supply it; consumers using `ChangelogServiceProvider` need no wiring change.
+
 ## PHP API migration
 
 The namespace correction changes public PHP names and carries a major fragment.
