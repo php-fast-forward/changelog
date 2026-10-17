@@ -1,4 +1,4 @@
-name: Tests
+name: 'Repository: Tests'
 
 on:
   pull_request:
@@ -204,7 +204,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@v7.0.0
         with:
           filename: .build/coverage.xml
-          artifact_download_workflow_names: Tests
+          artifact_download_workflow_names: 'Repository: Tests'
           artifact_name: changelog-coverage-%name%
           overall_coverage_fail_threshold: '100'
           file_coverage_error_min: '100'

@@ -10,7 +10,7 @@ collects them into `CHANGELOG.md` and removes the consumed fragments.
 
 [![PHP Version](https://img.shields.io/badge/php-%5E8.5-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
 [![Composer Package](https://img.shields.io/badge/composer-fast--forward%2Fchangelog-F28D1A.svg?logo=composer&logoColor=white)](https://packagist.org/packages/fast-forward/changelog)
-[![Tests](https://img.shields.io/github/actions/workflow/status/php-fast-forward/changelog/tests.yml?logo=githubactions&logoColor=white&label=tests&color=22C55E)](https://github.com/php-fast-forward/changelog/actions/workflows/tests.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/php-fast-forward/changelog/repository-ci.yml?logo=githubactions&logoColor=white&label=tests&color=22C55E)](https://github.com/php-fast-forward/changelog/actions/workflows/repository-ci.yml)
 [![License](https://img.shields.io/github/license/php-fast-forward/changelog?color=64748B)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/php-fast-forward?logo=githubsponsors&logoColor=white&color=EC4899)](https://github.com/sponsors/php-fast-forward)
 
@@ -45,7 +45,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@99c46107d6de2f484095d3703afcc89e42f4b1fc
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@4934f391eb6022814599fec86f003216ef512d79
 
     with:
       base-branch: main

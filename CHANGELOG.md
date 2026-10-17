@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   then directs agent skills and advanced integrations to their focused guides.
 - Uses Symfony Console Ask for the required add description, retries blank interactive answers without trimming Markdown spaces, and preserves unattended invalid-input handling. Direct AddCommand invocations no longer receive InputInterface.
 - Uses Symfony NotBlank constraints for interactive descriptions with configurable errors and preserved Markdown spaces, removing the field-specific ChangeDescriptionValidator class. AddCommand and CheckCommand take SymfonyStyle first, separated from their attributed input parameters.
+- Distinguishes repository-owned workflows with consistent names and one internal
+  changelog caller, preserving the public reusable and Action paths. Source archives
+  retain the six public Docker Actions and their build context for direct GitHub
+  consumption, while excluding internal automation and maintenance files.
+  Image publication also requires the approved merged-PR event and its exact
+  merge SHA at the internal caller, in addition to the verified publication outputs.
 - Aligns README sections, examples and verified badges with the Fast Forward package documentation format.
 - Registers ChangelogServiceProvider by class name with lazy defaults and optional Fast Forward Config injection instead of provider constructor arguments.
 - Use the reusable workflow's Ubuntu default in public onboarding examples and document every optional lifecycle input without requiring repository-specific runner variables.
@@ -56,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Treat prefixed versions as one identity and apply SemVer prerelease precedence when ordering releases (#1)
 - Recognize existing Changesets version-only release headings when adopting the CLI, preserving their exact historical Markdown while using the selected template for new releases. Keep empty paragraph separators free of generated indentation so multiline release notes pass whitespace checks without a post-processing script.
 - Keeps an owned version PR unchanged across calendar days when fresh inputs reconstruct the same signed transaction, preserving its release date, exact history and fragment scope.
+- Resolves the current PR base before validating feedback after an automated
+  Dependabot fragment commit, so a concurrently advanced base does not reuse the
+  event's stale comparison. Ordinary event checks retain their exact supplied base.
 - Accept the verified `github_actions` ecosystem from Dependabot metadata and normalize it to `github-actions`, allowing GitHub Actions dependency PRs to receive fragments while preserving contribution identity, scope and package validation.
 
   Validate the resulting Dependabot head and update its changelog status and sticky comment in the same trusted workflow run, including when the default GitHub token does not trigger another PR event.

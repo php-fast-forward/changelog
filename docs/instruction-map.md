@@ -24,9 +24,12 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retire | `CLAUDE.md`, `.github/copilot-instructions.md`, old Codex/Claude skill links | Remove unused host-specific distribution adapters; no automatic native-host support claim. |
 | Retire | `scripts/skills-sync.mjs`, its test and guide | Link synchronization is no longer a repository responsibility; no replacement generator is needed. |
 | Retain | `scripts/{lint,php-files,phpdoc,verify-quality}.php` | Actual development gates; excluded from consumer archives and runtime images. |
-| Retain | `.github/actions`, `.github/workflows` | Thin CLI action metadata and orchestration, consumed through GitHub; excluded from Composer archives. |
+| Retain/update | `.github/actions/{check,pr-status,dependabot,version,publish,history}` | Stable public Docker Action paths; metadata and root Docker context remain in shared source archives. |
+| Retain | `.github/actions/{github-auth,setup-docker}` | Trusted internal helpers; excluded from consumer archives and not public integration contracts. |
+| Retain/update | `.github/workflows/changelog*.yml` | Seven stable public reusable contracts, kept directly in GitHub's required directory; excluded from Composer archives. |
+| Consolidate/rename | `.github/workflows/repository-{ci,changelog,image}.yml` | Internal quality, one lifecycle caller and product image publication; excluded from consumer archives. |
 | Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
-| Add | `docs/automation-map.md` | Navigation separating public reusable contracts, repository automation and low-level actions without changing their paths. |
+| Retain/update | `docs/automation-map.md` | Navigation separating stable public interfaces, repository-prefixed workflows, internal helpers and copyable resources. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
 
@@ -35,6 +38,13 @@ No extra child contract is created for resources, scripts or the skill itself.
 The [source map](source-layout.md) and
 [integration assessment](integration-dependencies.md) retain responsibility for
 namespaces and transport boundaries.
+
+The current hierarchy and target hierarchy both have one development root.
+Workflow organization changes folder responsibilities and navigation, not
+authority. Read root → automation map → lifecycle or individual operation guide;
+for changelog authoring, read root → canonical resource skill. Root index
+summaries identify the automation map as the public/internal contract directory
+and the resources guide as the copy/configuration procedure.
 
 ## Migration, validation and rollback
 
@@ -47,6 +57,14 @@ Validate actual installed resources, the archive contents and CLI behavior with
 `composer test:packaging`; run package gates and review the final SHA.
 `export-ignore` applies to archives, not a full source clone. Copy/discovery
 checks do not establish native host activation.
+
+For the automation reorganization, replace the four internal lifecycle callers
+together and preserve the seven public addresses. Run `composer test:workflows`,
+actionlint, packaging and native checks; verify the remote Docker Action as well
+as the local checkout route. If nesting changes a required check context,
+migrate only that protection entry after the new context passes. Restore its
+previous mapping when rolling back. Public Action archive metadata remains a
+deliberate distribution contract rather than an accidental maintenance export.
 
 Rollback restores the resource path, metadata, instructions, adapters and tests
 as one reviewed Git change. It never rewrites consumer-managed files, installs

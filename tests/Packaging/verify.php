@@ -174,7 +174,7 @@ function cli(string $binary, string $consumer, array $environment, array $argume
 /** Checks both installed runtime dependencies and the mirrored package bootstrap. */
 function runtimeGraph(string $installation): void
 {
-    global $packageRoot;
+    global $packageRoot, $fixtureRoot;
     $data = json_decode(
         file_get_contents($installation . '/vendor/composer/installed.json'),
         true,
@@ -200,6 +200,10 @@ function runtimeGraph(string $installation): void
     $package = $installation . '/vendor/fast-forward/changelog';
     verify(!is_link($package), 'The path repository must be mirrored with symlink=false.');
     verify(!is_dir($package . '/vendor'), 'The installed library must not bundle the checkout vendor directory.');
+    verify(
+        snapshot($fixtureRoot . '/package') === snapshot($package),
+        'The installed package differs from the extracted Git archive payload.',
+    );
     $metadata = json_decode(file_get_contents($package . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
     verify(
         'library' === $metadata['type'],
@@ -251,8 +255,8 @@ function exportSource(string $packageRoot, string $destination, array $environme
     verify(!is_dir($destination . '/vendor'), 'Source export must exclude checkout dependencies.');
 }
 
-/** Verifies archive exclusions and exact skill bytes in an isolated synthetic repository. */
-function verifyArchive(string $packageRoot, string $fixtureRoot, array $environment): void
+/** Verifies public Actions, their build context and skill bytes, returning the isolated Git archive. */
+function verifyArchive(string $packageRoot, string $fixtureRoot, array $environment): string
 {
     $source = $fixtureRoot . '/archive-source';
     exportSource($packageRoot, $source, $environment);
@@ -263,10 +267,45 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
     execute(['git', 'archive', '--format=tar', '--output=' . $archive, 'HEAD'], $source, $environment);
     $listing = execute(['tar', '-tf', $archive], $source, $environment);
     $entries = preg_split('/\R/', trim($listing['stdout']));
-    foreach (['.github/', '.agents/', '.claude/', 'scripts/', 'tests/', 'docs/'] as $excluded) {
+    foreach (['.agents/', '.claude/', 'scripts/', 'tests/', 'docs/'] as $excluded) {
         verify(
             [] === array_filter($entries, static fn(string $entry): bool => str_starts_with($entry, $excluded)),
             'Development surface leaked into the archive: ' . $excluded,
+        );
+    }
+    $actions = array_map(
+        static fn(string $operation): string => '.github/actions/' . $operation . '/action.yml',
+        ['check', 'dependabot', 'history', 'pr-status', 'publish', 'version'],
+    );
+    $githubFiles = array_values(array_filter(
+        $entries,
+        static fn(string $entry): bool => str_starts_with($entry, '.github/') && !str_ends_with($entry, '/'),
+    ));
+    sort($githubFiles, SORT_STRING);
+    verify(
+        $actions === $githubFiles,
+        'The archive must contain exactly the six public Action metadata files under .github.',
+    );
+    $contentsRoot = $fixtureRoot . '/archive-contents';
+    mkdir($contentsRoot, 0700);
+    execute(['tar', '-xf', $archive, '-C', $contentsRoot], $source, $environment);
+    $runtimeFiles = ['Dockerfile', '.dockerignore', 'composer.json', 'composer.lock', 'LICENSE', 'bin/changelog'];
+    foreach (array_keys(snapshot($packageRoot . '/src')) as $file) {
+        $runtimeFiles[] = 'src/' . $file;
+    }
+    foreach ([...$actions, ...$runtimeFiles] as $file) {
+        verify(in_array($file, $entries, true), 'Action build dependency is absent from the archive: ' . $file);
+        verify(
+            hash_file('sha256', $packageRoot . '/' . $file) === hash_file('sha256', $contentsRoot . '/' . $file),
+            'Archived Action/runtime bytes differ from the candidate source: ' . $file,
+        );
+    }
+    foreach ($actions as $file) {
+        verify(
+            realpath(dirname($contentsRoot . '/' . $file) . '/../../../Dockerfile') === realpath(
+                $contentsRoot . '/Dockerfile',
+            ),
+            'The archived public Action cannot resolve the shared Dockerfile: ' . $file,
         );
     }
     $skillFiles = snapshot($packageRoot . '/resources/skills/fast-forward-changelog');
@@ -281,7 +320,9 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
             'Archived skill bytes differ from the canonical package: ' . $file,
         );
     }
-    fwrite(STDOUT, "Archive skill and development exclusions PASS.\n");
+    fwrite(STDOUT, "Archive public Actions, Docker context, skill and development exclusions PASS.\n");
+
+    return $archive;
 }
 
 /** Exercises actual Composer proxies, selected-command construction and disposable Git transactions. */
@@ -751,8 +792,8 @@ try {
     }
     $localEnv = environment($fixtureRoot, $fixtureRoot . '/local-composer');
     $globalEnv = environment($fixtureRoot, $fixtureRoot . '/global-composer');
-    exportSource($packageRoot, $fixtureRoot . '/package', $localEnv);
-    verifyArchive($packageRoot, $fixtureRoot, $localEnv);
+    $archive = verifyArchive($packageRoot, $fixtureRoot, $localEnv);
+    execute(['tar', '-xf', $archive, '-C', $fixtureRoot . '/package'], $fixtureRoot, $localEnv);
     $manifest = ['name' => 'fixture/changelog-consumer', 'type' => 'project', 'license' => 'MIT',
         'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => 'dev-main']]]],
         'require' => ['fast-forward/changelog' => 'dev-main'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];

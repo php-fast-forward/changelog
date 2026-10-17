@@ -100,8 +100,140 @@ function workflowScriptGuard(
 $root = dirname(__DIR__, 2);
 $feedback = Yaml::parseFile($root . '/.github/workflows/changelog-pr-status.yml');
 $lifecycle = Yaml::parseFile($root . '/.github/workflows/changelog.yml');
-$internalDependabot = Yaml::parseFile($root . '/.github/workflows/dependabot-changelog.yml');
+$repository = Yaml::parseFile($root . '/.github/workflows/repository-changelog.yml');
+$repositoryCi = Yaml::parseFile($root . '/.github/workflows/repository-ci.yml');
+$repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.yml');
 $assertions = 0;
+
+verifyWorkflow(
+    'Repository: Tests' === $repositoryCi['name']
+        && $repositoryCi['name'] === workflowStep(
+            $repositoryCi['jobs']['coverage-report'],
+            'Compare And Summarize Line Coverage',
+        )['with']['artifact_download_workflow_names'],
+    'Coverage must resolve artifacts from the renamed repository CI workflow.',
+);
+verifyWorkflow(
+    'Fresh Composer Installations (${{ matrix.dependencies }})' === $repositoryCi['jobs']['packaging']['name']
+        && ['highest', 'lowest'] === $repositoryCi['jobs']['packaging']['strategy']['matrix']['dependencies']
+        && 'PHP 8.5 (${{ matrix.os }})' === $repositoryCi['jobs']['tests']['name']
+        && [
+            'ubuntu-latest',
+            'ubuntu-24.04-arm',
+            'windows-latest',
+        ] === $repositoryCi['jobs']['tests']['strategy']['matrix']['os'],
+    'Repository CI renames must preserve all five required check names and matrix values.',
+);
+verifyWorkflow(
+    'Repository: Publish Docker CLI' === $repositoryImage['name']
+        && ['workflow_call'] === array_keys($repositoryImage['on'])
+        && true === $repositoryImage['on']['workflow_call']['inputs']['tag']['required']
+        && true === $repositoryImage['on']['workflow_call']['inputs']['expected-sha']['required']
+        && './.github/workflows/repository-image.yml' === $repository['jobs']['image']['uses'],
+    'The renamed image workflow must remain an internal call bound to the existing publication selector.',
+);
+$assertions += 3;
+
+verifyWorkflow(
+    [
+        'pull_request' => [
+            'branches' => ['main'],
+            'types' => ['opened', 'synchronize', 'reopened', 'ready_for_review', 'labeled', 'unlabeled'],
+        ],
+        'pull_request_target' => ['branches' => ['main'], 'types' => ['opened', 'synchronize', 'reopened', 'closed']],
+        'push' => ['branches' => ['main']],
+    ] === $repository['on'],
+    'The internal caller must preserve the original event union without a new publication trigger.',
+);
+$repositoryCheck = $repository['jobs']['check'];
+$repositoryLifecycle = $repository['jobs']['changelog'];
+verifyWorkflow(
+    'Repository: Changelog' === $repository['name']
+        && 'Check Contribution' === $repositoryCheck['name']
+        && 'Check Changelog' === Yaml::parseFile(
+            $root . '/.github/workflows/changelog-check.yml',
+        )['jobs']['changelog']['name']
+        && './.github/workflows/changelog-check.yml' === $repositoryCheck['uses']
+        && "github.event_name == 'pull_request'" === $repositoryCheck['if']
+        && ['contents' => 'read', 'pull-requests' => 'read', 'issues' => 'read'] === $repositoryCheck['permissions']
+        && ! isset($repositoryCheck['secrets']),
+    'The PR route must preserve its exact required context, read-only token and direct modular call without secrets.',
+);
+verifyWorkflow(
+    './.github/workflows/changelog.yml' === $repositoryLifecycle['uses']
+        && "github.event_name != 'pull_request'" === $repositoryLifecycle['if']
+        && true === $repositoryLifecycle['with']['prepare-release']
+        && true === $repositoryLifecycle['with']['publish']
+        && 'main' === $repositoryLifecycle['with']['base-branch']
+        && '${{ vars.CHANGELOG_AUTOMATION_ACTOR || \'github-actions[bot]\' }}'
+            === $repositoryLifecycle['with']['automation-actor'],
+    'Trusted events must use the local facade while preserving the existing preparation, publication and Bot configuration.',
+);
+verifyWorkflow(
+    ! isset($repository['concurrency']) && ! isset($repositoryLifecycle['concurrency'])
+        && ! isset($lifecycle['concurrency'])
+        && 'check-changelog-${{ github.repository }}-${{ github.event.pull_request.number }}'
+            === $repositoryCheck['concurrency']['group']
+        && true === $repositoryCheck['concurrency']['cancel-in-progress'],
+    'Only the read-only check caller may hold a cancellation lock; trusted facade calls must delegate their locks.',
+);
+$versionLock = Yaml::parseFile($root . '/.github/workflows/changelog-version.yml')['jobs']['changelog']['concurrency'];
+$publicationLock = Yaml::parseFile(
+    $root . '/.github/workflows/changelog-publish.yml',
+)['jobs']['changelog']['concurrency'];
+verifyWorkflow(
+    $versionLock === $publicationLock
+        && 'changelog-${{ inputs.repository || github.repository }}-${{ inputs.base-branch }}' === $versionLock['group']
+        && false === $versionLock['cancel-in-progress'],
+    'Preparation and publication must serialize only at the shared module lock without cancelling each other.',
+);
+verifyWorkflow(
+    'changelog-dependabot-${{ inputs.repository || github.repository }}-${{ inputs.pull-request }}'
+        === Yaml::parseFile(
+            $root . '/.github/workflows/changelog-dependabot.yml',
+        )['jobs']['changelog']['concurrency']['group']
+        && 'changelog-feedback-${{ github.repository }}-${{ inputs.pull-request }}' === $feedback['concurrency']['group']
+        && 'docker-cli-${{ github.repository }}-${{ inputs.tag || github.ref_name }}' === $repositoryImage['concurrency']['group'],
+    'Fragment, feedback and image operations must keep separate lock namespaces from the approved release transaction.',
+);
+$assertions += 2;
+$image = $repository['jobs']['image'];
+verifyWorkflow(
+    'changelog' === $image['needs']
+        && str_contains($image['if'], "needs.changelog.result == 'success'")
+        && str_contains($image['if'], "needs.changelog.outputs.published-version != ''")
+        && str_contains($image['if'], "needs.changelog.outputs.published-tag != ''")
+        && str_contains($image['if'], "needs.changelog.outputs.published-sha != ''")
+        && '${{ needs.changelog.outputs.published-tag }}' === $image['with']['tag']
+        && '${{ needs.changelog.outputs.published-sha }}' === $image['with']['expected-sha'],
+    'Only effective publication outputs may select the image tag and its approved source SHA.',
+);
+foreach (['version', 'tag', 'sha'] as $output) {
+    verifyWorkflow(
+        '${{ jobs.publish.outputs.' . $output . ' }}' === $lifecycle['on']['workflow_call']['outputs']['published-' . $output]['value'],
+        'Image selectors must originate in publication rather than version preparation.',
+    );
+    ++$assertions;
+}
+foreach ([
+    'check-changelog',
+    'dependabot-changelog',
+    'release-changelog',
+    'publish-changelog',
+    'tests',
+    'docker-cli',
+] as $retired) {
+    verifyWorkflow(
+        ! is_file($root . '/.github/workflows/' . $retired . '.yml'),
+        'Previous internal workflows must not compete with the single repository caller: ' . $retired,
+    );
+    ++$assertions;
+}
+verifyWorkflow(
+    10 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and three repository workflows must remain distinct.',
+);
+$assertions += 6;
 
 // Every public entrypoint must preserve the caller's runner selection through nested jobs.
 foreach (['changelog', 'changelog-check', 'changelog-dependabot', 'changelog-history',
@@ -125,7 +257,7 @@ foreach (['changelog', 'changelog-check', 'changelog-dependabot', 'changelog-his
 }
 
 // Resolve actual nested workflow contracts and verify that the caller never withholds a required permission.
-foreach ([$feedback, $lifecycle, $internalDependabot] as $workflow) {
+foreach ([$feedback, $lifecycle, $repository] as $workflow) {
     foreach ($workflow['jobs'] as $name => $job) {
         if (! isset($job['uses'])) {
             continue;
@@ -158,43 +290,47 @@ foreach ([$feedback, $lifecycle, $internalDependabot] as $workflow) {
     }
 }
 
-$internalFragment = $internalDependabot['jobs']['fragment'];
-$internalFeedback = $internalDependabot['jobs']['feedback'];
+$dependabot = Yaml::parseFile($root . '/.github/workflows/changelog-dependabot.yml');
+$fragment = $dependabot['jobs']['changelog'];
+$runtime = workflowStep($fragment, 'Check Out The Called Workflow Runtime');
+$operation = workflowStep($fragment, 'Run The Shared Dependabot Action');
+$lifecycleFeedback = $lifecycle['jobs']['feedback'];
 verifyWorkflow(
-    '${{ github.workflow_sha }}' === $internalFragment['steps'][0]['with']['ref']
-        && '${{ github.repository }}' === $internalFragment['steps'][0]['with']['repository']
-        && false === $internalFragment['steps'][0]['with']['persist-credentials'],
+    '${{ fromJSON(toJSON(job)).workflow_sha }}' === $runtime['with']['ref']
+        && '${{ fromJSON(toJSON(job)).workflow_repository }}' === $runtime['with']['repository']
+        && false === $runtime['with']['persist-credentials'],
     'Privileged Dependabot runtime must use the trusted workflow commit, never a stale PR base snapshot.',
 );
 verifyWorkflow(
-    '${{ steps.operation.outputs.head-sha }}' === $internalFragment['outputs']['head-sha']
-        && 'operation' === $internalFragment['steps'][3]['id']
-        && './.github/actions/dependabot' === $internalFragment['steps'][3]['uses'],
-    'Internal Dependabot must forward the fragment action head for same-run feedback.',
+    '${{ steps.operation.outputs.head-sha }}' === $fragment['outputs']['head-sha']
+        && 'operation' === $operation['id']
+        && './.changelog-runtime/.github/actions/dependabot' === $operation['uses'],
+    'Dependabot must forward the fragment action head for same-run feedback.',
 );
 verifyWorkflow(
-    'fragment' === $internalFeedback['needs'] && "needs.fragment.result == 'success'" === $internalFeedback['if'],
-    'Internal feedback must run after successful creation and unchanged idempotent results.',
+    'dependabot' === $lifecycleFeedback['needs'] && str_contains($lifecycleFeedback['if'], '!cancelled()'),
+    'Feedback must follow fragment creation and preserve failures instead of suppressing diagnostics.',
 );
 verifyWorkflow(
-    '${{ needs.fragment.outputs.head-sha || github.event.pull_request.head.sha }}'
-        === $internalFeedback['with']['head-sha']
-        && '${{ github.event.pull_request.number }}' === $internalFeedback['with']['pull-request'],
-    'Internal feedback must validate the new fragment head or the unchanged immutable event head.',
+    '${{ needs.dependabot.outputs.head-sha || github.event.pull_request.head.sha }}'
+        === $lifecycleFeedback['with']['head-sha']
+        && '${{ github.event.pull_request.number }}' === $lifecycleFeedback['with']['pull-request'],
+    'Feedback must validate the new fragment head or the unchanged immutable event head.',
 );
 verifyWorkflow(
-    ! array_key_exists('base-sha', $internalFeedback['with']),
-    'Internal feedback must resolve the live API base instead of trusting a stale PR payload snapshot.',
+    '${{ needs.dependabot.result != \'success\' && github.event.pull_request.base.sha || \'\' }}'
+        === $lifecycleFeedback['with']['base-sha'],
+    'Successful Dependabot authoring must resolve the live API base; other feedback retains the event base.',
 );
 verifyWorkflow(
-    'always' === $internalFeedback['with']['comment-mode']
-        && '${{ secrets.CHANGELOG_TOKEN || github.token }}' === $internalFeedback['secrets']['token'],
-    'Internal feedback must update its sticky comment using the existing trusted token contract.',
+    'always' === $repositoryLifecycle['with']['comment-mode']
+        && '${{ secrets.CHANGELOG_TOKEN || github.token }}' === $repositoryLifecycle['secrets']['token'],
+    'Repository feedback must update its sticky comment using the existing trusted token contract.',
 );
 $assertions += 6;
 
 // This pinned action reads optional lookup flags as strings: even the literal "false" enables a lookup.
-foreach ([$internalDependabot, Yaml::parseFile($root . '/.github/workflows/changelog-dependabot.yml')] as $workflow) {
+foreach ([$dependabot] as $workflow) {
     foreach ($workflow['jobs'] as $job) {
         foreach ($job['steps'] ?? [] as $step) {
             if (($step['uses'] ?? null) !== 'dependabot/fetch-metadata@v2.5.0') {
@@ -368,6 +504,94 @@ $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(
 $filesystem->mkdir($directory);
 
 try {
+    $imageGuard = <<<'JS_WRAP'
+    const snapshot = JSON.parse(process.env.FF_IMAGE_CONTEXT);
+    const condition = process.env.FF_IMAGE_CONDITION.replace(
+      /\b(?:github|needs)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
+      path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
+    );
+    core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
+    JS_WRAP;
+    $approvedImage = str_repeat('a', 40);
+    $imageContext = [
+        'github' => [
+            'event_name' => 'pull_request_target', 'repository' => 'fixture/consumer',
+            'event' => [
+                'action' => 'closed',
+                'pull_request' => [
+                    'merged' => true, 'merge_commit_sha' => $approvedImage,
+                    'head' => ['ref' => 'changelog/version', 'repo' => ['full_name' => 'fixture/consumer']],
+                    'base' => ['ref' => 'main'],
+                ],
+            ],
+        ],
+        'needs' => ['changelog' => [
+            'result' => 'success',
+            'outputs' => [
+                'published-version' => '1.2.3', 'published-tag' => 'v1.2.3', 'published-sha' => $approvedImage,
+            ],
+        ]],
+    ];
+    foreach ([
+        [[], true],
+        [['github.event_name' => 'pull_request'], false],
+        [['github.event_name' => 'push'], false],
+        [['github.event_name' => 'workflow_dispatch'], false],
+        [['github.event.action' => 'opened'], false],
+        [['github.event.pull_request.merged' => false], false],
+        [['github.event.pull_request.head.repo.full_name' => 'fork/consumer'], false],
+        [['github.event.pull_request.head.ref' => 'feature/untrusted'], false],
+        [['github.event.pull_request.head.ref' => "changelog/version' || true || '"], false],
+        [['github.event.pull_request.base.ref' => 'release'], false],
+        [['github.event.pull_request.merge_commit_sha' => str_repeat('b', 40)], false],
+        [['github.event.pull_request' => null], false],
+        [['needs.changelog.result' => 'failure'], false],
+        [['needs.changelog.result' => 'skipped'], false],
+        [['needs.changelog.outputs.published-version' => ''], false],
+        [['needs.changelog.outputs.published-tag' => ''], false],
+        [['needs.changelog.outputs.published-sha' => ''], false],
+        [['needs.changelog.outputs.published-sha' => str_repeat('b', 40)], false],
+    ] as [$overrides, $expected]) {
+        $snapshot = $imageContext;
+        foreach ($overrides as $path => $value) {
+            $segments = explode('.', $path);
+            $last = array_pop($segments);
+            $cursor = &$snapshot;
+            foreach ($segments as $segment) {
+                $cursor = &$cursor[$segment];
+            }
+            $cursor[$last] = $value;
+            unset($cursor);
+        }
+        $evaluated = workflowScriptGuard($imageGuard, $directory, [
+            'FF_IMAGE_CONTEXT' => json_encode($snapshot, JSON_THROW_ON_ERROR),
+            'FF_IMAGE_CONDITION' => $image['if'],
+        ], [], 0);
+        verifyWorkflow(
+            ['eligible' => $expected] === $evaluated['outputs'] && [] === $evaluated['requests'],
+            'Complete opaque outputs cannot authorize an image outside the exact approved merged-PR event.',
+        );
+        ++$assertions;
+    }
+    $movedBase = str_repeat('e', 40);
+    $resolved = workflowScriptGuard(
+        $feedback['jobs']['status']['steps'][0]['with']['script'],
+        $directory,
+        [
+            'FF_RUNTIME_REPOSITORY' => 'php-fast-forward/changelog',
+            'FF_RUNTIME_SHA' => str_repeat('c', 40),
+            'FF_EVENT' => 'pull_request_target', 'FF_REF' => 'refs/heads/main',
+            'FF_EVENT_PR' => '7', 'FF_PR' => '7', 'FF_HEAD' => str_repeat('d', 40),
+            'FF_BASE' => '', 'FF_BRANCH' => 'main', 'FF_COMMENT_MODE' => 'always',
+        ],
+        ['state' => 'open', 'head' => ['sha' => str_repeat('d', 40)], 'base' => ['sha' => $movedBase, 'ref' => 'main']],
+        0,
+    );
+    verifyWorkflow(
+        ['base' => $movedBase] === $resolved['outputs'] && 1 === count($resolved['requests']),
+        'Post-Dependabot feedback must read the moved API base for the newly authored immutable head.',
+    );
+    ++$assertions;
     $authenticationEnvironment = [
         'FF_AUTH_CLIENT_ID' => '', 'FF_AUTH_PRIVATE_KEY' => '', 'FF_AUTH_TOKEN' => '',
         'FF_AUTH_REPOSITORY' => 'fixture/consumer', 'FF_AUTH_OPERATION' => 'version',
