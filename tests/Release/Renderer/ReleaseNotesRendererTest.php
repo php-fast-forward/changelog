@@ -10,6 +10,7 @@ use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
@@ -60,7 +61,7 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertLessThan(strpos($notes, '### custom fixed'), strpos($notes, '### custom added'));
         self::assertStringNotContainsString('b.md', $notes);
         self::assertStringContainsString(
-            "-\n  Feature **b**.\n\n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])",
+            "- Feature **b**.\n\n  ```php\n  return true;\n  ```\n\n  ([#42](https://github.com/owner/project/pull/42), [#12](https://github.com/owner/project/issues/12), @someone[bot])",
             $notes,
         );
         self::assertStringEndsWith("\n", $notes);
@@ -107,7 +108,7 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('c.md', Category::Fixed, null, null, null, 'After.'),
         ];
         self::assertSame(
-            "### Fixed\n\n- Before.\n-\n  First paragraph.\n\n  Second paragraph.\n- After.\n",
+            "### Fixed\n\n- Before.\n- First paragraph.\n\n  Second paragraph.\n- After.\n",
             new ReleaseNotesRenderer()->render($changes, $template),
         );
     }
@@ -125,5 +126,56 @@ final class ReleaseNotesRendererTest extends TestCase
             "-\n  ```php\n  return 1;\n  ```\n\n  ([@human](https://github.com/human))",
             $notes,
         );
+    }
+
+    /** Soft-wrapped Composer notes must display text on the bullet's first line. */
+    public function testComposerNoteHasOneVisibleBulletAndPreservesItsCompleteDescription(): void
+    {
+        $description = <<<'MARKDOWN'
+        Atualiza as dependências Composer às versões compatíveis revisadas,
+        mantendo o comportamento público da biblioteca. Preserva `prefer-stable: true` e
+        as restrições de versão declaradas no pacote, com testes para instalações
+        nas versões mínimas e máximas suportadas.
+        MARKDOWN;
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Changed');
+        $notes = new ReleaseNotesRenderer()->render(
+            [new Changeset('composer-dependencies.md', Category::Changed, null, null, null, $description)],
+            $template,
+        );
+
+        self::assertStringStartsWith("### Changed\n\n- Atualiza as dependências Composer", $notes);
+        self::assertSame(1, preg_match_all('/^- /m', $notes));
+        self::assertDoesNotMatchRegularExpression('/^-$/m', $notes);
+        $item = substr($notes, strlen("### Changed\n\n"), -1);
+        self::assertSame($description, str_replace("\n  ", "\n", substr($item, 2)));
+    }
+
+    /** Removing only the outer list wrapper must recover authored Markdown, including meaningful spaces. */
+    #[TestWith(["First line.\nSoft continuation.", '- First line.'])]
+    #[TestWith(["Hard break.  \nContinuation.", '- Hard break.  '])]
+    #[TestWith(["First paragraph.\n\nSecond paragraph.", '- First paragraph.'])]
+    #[TestWith(["Description.\n\n```php\n    return true;  \n\n```\n\nAfter code.", '- Description.'])]
+    #[TestWith(["```php\nreturn true;\n```", "-\n  ```php"])]
+    #[TestWith(["~~~php\nreturn true;\n~~~", "-\n  ~~~php"])]
+    #[TestWith(["```literal``` span\nContinued text.", '- ```literal``` span'])]
+    #[TestWith(["- Parent item\n  - Nested child\n\nAfter the nested list.", '- - Parent item'])]
+    #[TestWith(["> Quoted text.\n>\n> Another paragraph.", '- > Quoted text.'])]
+    #[TestWith(["    indented code;\n      keep extra indentation;", '-     indented code;'])]
+    #[TestWith(["### Inner heading\n\nBody under the heading.", '- ### Inner heading'])]
+    public function testAuthoredMarkdownSurvivesTheReadableListWrapper(string $description, string $prefix): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Fixed');
+        $notes = new ReleaseNotesRenderer()->render(
+            [new Changeset('rich.md', Category::Fixed, null, null, null, $description)],
+            $template,
+        );
+        $item = substr($notes, strlen("### Fixed\n\n"), -1);
+
+        self::assertStringStartsWith($prefix, $item);
+        self::assertDoesNotMatchRegularExpression('/^[ \t]+$/m', $notes);
+        $unwrapped = preg_replace('/\A(?:-\n {2}|- )/', '', $item);
+        self::assertSame($description, str_replace("\n  ", "\n", $unwrapped));
     }
 }

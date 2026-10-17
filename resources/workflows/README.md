@@ -16,10 +16,10 @@ Before enabling it:
    updates a sticky PR comment, authors verified Dependabot fragments and
    prepares one reviewable version PR. It never merges that PR.
 
-`vars.CI_LINUX_RUNNER` may contain a JSON array of labels for an authorized
-self-hosted Linux runner. Without that variable, jobs use `ubuntu-latest`.
-Docker, Bash and Git are required. The workflow does not detect billing limits
-or configure runner access.
+Jobs use `ubuntu-latest` by default; no repository variable is required.
+Optionally pass `runs-on` as a JSON array of Linux runner labels, for example
+`runs-on: '["self-hosted", "Linux", "X64"]'`. Docker, Bash and Git are required.
+Runner selection and access belong to the consumer's infrastructure.
 
 The caller grants the maximum token permissions needed by the lifecycle; the
 reusable jobs narrow them for each operation. PR-head checks remain read-only.
@@ -38,6 +38,6 @@ approved-merge contract and obtaining publication authority.
 
 See the [automation map](../../docs/automation-map.md) to distinguish public
 reusables, internal repository workflows and lower-level actions. The
-[lifecycle guide](../../docs/reusable-lifecycle.md) documents settings, feedback
-and pilot acceptance; the [operation contracts](../../docs/github-actions.md)
-cover advanced composition.
+[lifecycle guide](../../docs/reusable-lifecycle.md#optional-settings-and-composition)
+lists every optional input and its default, feedback and pilot acceptance.
+The [operation contracts](../../docs/github-actions.md) cover advanced composition.

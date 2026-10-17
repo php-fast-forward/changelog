@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\History;
 
 use FastForward\Changelog\Changeset\Category;
+use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
 use FastForward\Changelog\Template\TemplateInterface;
@@ -27,8 +29,46 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TemplateFactory::class)]
 #[UsesClass(KeepAChangelogTemplate::class)]
 #[UsesClass(Category::class)]
+#[UsesClass(Changeset::class)]
+#[UsesClass(ReleaseNotesRenderer::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** Rendered prose and block-first fences must preserve later real releases without importing code examples. */
+    #[Test]
+    #[TestWith(['```'])]
+    #[TestWith(['~~~'])]
+    public function renderedReleaseNotesKeepBothHistoryVersionsOutsideCodeExamples(string $fence): void
+    {
+        $template = $this->template('en');
+        $composer = "Update reviewed Composer dependencies.\n\n{$fence}markdown\n## [9.9.9]\n{$fence}\n\nKeep compatible constraints.";
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('composer-dependencies.md', Category::Changed, null, null, null, $composer),
+            new Changeset(
+                'fenced-example.md',
+                Category::Fixed,
+                null,
+                null,
+                null,
+                "{$fence}php\nreturn true;\n{$fence}",
+            ),
+        ], $template);
+        $markdown = "# Changelog\n\n## [1.1.0]\n\n" . $notes
+            . "\n## [1.0.0]\n\n### Fixed\n\n- Published history.\n";
+        $codec = $this->codec();
+
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertStringContainsString('- Update reviewed Composer dependencies.', $notes);
+        self::assertSame(
+            ['1.1.0', '1.0.0'],
+            array_map(static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases()),
+        );
+        self::assertNull($parsed->getRelease('9.9.9'));
+        self::assertSame("\n" . $notes . "\n", $parsed->getRelease('1.1.0')->getBody());
+        self::assertStringContainsString('- Published history.', $parsed->getRelease('1.0.0')->getBody());
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */
     #[Test]
     #[TestWith(['```foo``` bar'])]

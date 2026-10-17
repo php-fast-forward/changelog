@@ -26,6 +26,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     /**
      * Renders descriptions and references without leaking technical fragment metadata.
      * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
+     * Prose starts beside its list marker; an opening fence keeps its existing block wrapper for history parsing.
      * @param list<Changeset> $changesets independent author records
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
@@ -39,7 +40,10 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                     continue;
                 }
                 $multiline = str_contains($change->description, "\n");
-                $body = ($multiline ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $change->description);
+                $fenced = $multiline
+                    && 1 === preg_match('/\A {0,3}(`{3,}|~{3,})([^\n]*)/', $change->description, $fence)
+                    && ('~' === $fence[1][0] || ! str_contains($fence[2], '`'));
+                $body = ($fenced ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $change->description);
                 $references = $this->references($change, $repository);
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = $body . $suffix;

@@ -57,7 +57,6 @@ jobs:
       statuses: write
     uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b02a255a3445b2bea86d090d98961cdfe35e57a
     with:
-      runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
       base-branch: main
       source: tags
       comment-mode: always
@@ -67,9 +66,9 @@ jobs:
 
 Adjust both branch filters and `base-branch` to the release branch. Linux runners
 need Docker, Bash and Git; the caller needs no PHP, Composer, Node installation or
-custom shell script. `CI_LINUX_RUNNER` is optional JSON runner labels. Validate
-runner-group access before using an existing self-hosted runner; this workflow
-does not configure runners or detect billing limits.
+custom shell script. Jobs use `ubuntu-latest` by default; optional `runs-on`
+accepts JSON Linux runner labels. Validate runner-group access before selecting
+an existing self-hosted runner. See the settings reference for all optional inputs.
 
 Allow Actions to create PRs according to application policy. The default token
 uses each job's narrowed permissions; PR-head checks remain read-only and trusted
