@@ -16,15 +16,18 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Publication;
 
+use FastForward\Changelog\Automation\Policy\GitHubEvidence;
+use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface;
 use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
 use Throwable;
 
 /** Reconciles create-only GitHub publication after independent commit/domain evidence proof. */
-final readonly class PublicationService implements PublicationServiceInterface
+final readonly class PublicationService implements MergedPublicationServiceInterface
 {
     /** Injects proof, authenticated HTTP, typed output and failures without performing any I/O. */
     public function __construct(
@@ -32,12 +35,60 @@ final readonly class PublicationService implements PublicationServiceInterface
         private GitHubClientInterface $github,
         private PublicationResultFactoryInterface $results,
         private ReleaseExceptionFactoryInterface $exceptions,
+        private ?PullRequestPolicyInterface $policy = null,
     ) {}
 
     /** Creates only missing remote objects and verifies every uncertain response by a fresh read. */
     public function publish(ReleaseOptions $options, string $approvedSha, bool $dryRun = false): PublicationResult
     {
-        $evidence = $this->evidence->validate($options, $approvedSha);
+        return $this->write($this->evidence->validate($options, $approvedSha), $dryRun);
+    }
+
+    /** Binds immutable PR authority to its signed head before validating the complete merge domain or writing. */
+    public function publishMerged(
+        ReleaseOptions $options,
+        int $pullRequest,
+        string $mergeSha,
+        string $headSha,
+        string $baseBranch = 'main',
+        string $managedBranch = 'changelog/version',
+        string $automationActor = 'github-actions[bot]',
+        bool $dryRun = false,
+    ): PublicationResult {
+        if (!GitHubEvidence::repository($options->repository) || $pullRequest < 1
+            || !GitHubEvidence::sha($mergeSha) || !GitHubEvidence::sha($headSha)
+            || '' === $baseBranch || '' === $managedBranch || '' === $automationActor
+            || null === $this->policy || !$this->evidence instanceof MergedPublicationEvidenceValidatorInterface) {
+            throw $this->exceptions->invalid(
+                'Merged publication requires complete PR identities and contextual proof capabilities.',
+            );
+        }
+        $pr = $this->github->request('GET', '/repos/' . $options->repository . '/pulls/' . $pullRequest);
+        if (null === $pr || ($pr['number'] ?? null) !== $pullRequest
+            || ($pr['state'] ?? null) !== 'closed' || true !== ($pr['merged'] ?? null)
+            || ($pr['merge_commit_sha'] ?? null) !== $mergeSha || ($pr['head']['sha'] ?? null) !== $headSha
+            || ($pr['head']['repo']['full_name'] ?? null) !== $options->repository
+            || ($pr['base']['repo']['full_name'] ?? null) !== $options->repository
+            || !is_int($pr['base']['repo']['id'] ?? null) || $pr['base']['repo']['id'] < 1
+            || ($pr['head']['repo']['id'] ?? null) !== $pr['base']['repo']['id']
+            || ($pr['head']['ref'] ?? null) !== $managedBranch || ($pr['base']['ref'] ?? null) !== $baseBranch
+            || !GitHubEvidence::identity($pr['user'] ?? null, $automationActor, 'Bot')) {
+            throw $this->exceptions->failure(
+                'Publication requires the merged configured version PR and its immutable head/merge identities.',
+            );
+        }
+        $account = $this->github->request('GET', '/users/' . rawurlencode($automationActor));
+        if (!GitHubEvidence::identity($account, $automationActor, 'Bot', $pr['user']['id'])
+            || !$this->policy->inspectHead($options, $headSha, $automationActor, $mergeSha)) {
+            throw $this->exceptions->failure('The merged version PR lacks signed automation ownership.');
+        }
+
+        return $this->write($this->evidence->validateMerged($options, $mergeSha, $headSha), $dryRun);
+    }
+
+    /** Shares create-only reconciliation only after one of the complete public proof paths succeeds. */
+    private function write(PublicationEvidence $evidence, bool $dryRun): PublicationResult
+    {
         if (null === $evidence->version) {
             return $this->results->create('maintenance', null, null, $evidence->sha, null, []);
         }

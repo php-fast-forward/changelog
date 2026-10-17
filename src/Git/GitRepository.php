@@ -18,15 +18,21 @@ namespace FastForward\Changelog\Git;
 
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use FastForward\Changelog\Release\ReleaseMetadataParser;
 
 /** Runs structured Git argv without shell interpolation or global cwd mutation. */
-final readonly class GitRepository implements GitRepositoryInterface
+final readonly class GitRepository implements GitRepositoryInterface, GitCommitTreeReaderInterface
 {
+    private ReleaseMetadataParser $metadata;
+
     /** Injects process construction so unit tests never start Git. */
     public function __construct(
         private ProcessFactoryInterface $processes,
         private ReleaseExceptionFactoryInterface $exceptions,
-    ) {}
+        ?ReleaseMetadataParser $metadata = null,
+    ) {
+        $this->metadata = $metadata ?? new ReleaseMetadataParser($exceptions);
+    }
 
     /** Probes repository availability without treating a non-Git project as an error. */
     public function isRepository(string $directory): bool
@@ -68,7 +74,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         string $changelogFile = 'CHANGELOG.md',
     ): ?array {
         $sha = $this->resolveRef($directory, $reference);
-        $direct = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $sha, '--']));
+        $direct = $this->metadata->parse($this->run($directory, ['show', '-s', '--format=%B', $sha, '--']));
         $central = $this->readFileAt($directory, $sha, $changelogFile);
         if (null === $central) {
             return null;
@@ -95,7 +101,7 @@ final readonly class GitRepository implements GitRepositoryInterface
         // Exact matching direct parents identify the merged transaction before ancestor fallback.
         $selected = null;
         foreach ($parents as $parent) {
-            $candidate = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $parent, '--']));
+            $candidate = $this->metadata->parse($this->run($directory, ['show', '-s', '--format=%B', $parent, '--']));
             if (null === $candidate || ! hash_equals($candidate['output_sha256'], $output)) {
                 continue;
             }
@@ -121,7 +127,7 @@ final readonly class GitRepository implements GitRepositoryInterface
             if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $commit)) {
                 throw $this->exceptions->failure('Git returned malformed merged release evidence.');
             }
-            $candidate = $this->metadata($this->run($directory, ['show', '-s', '--format=%B', $commit, '--']));
+            $candidate = $this->metadata->parse($this->run($directory, ['show', '-s', '--format=%B', $commit, '--']));
             if (null === $candidate || ! hash_equals($candidate['output_sha256'], $output)) {
                 continue;
             }
@@ -134,38 +140,16 @@ final readonly class GitRepository implements GitRepositoryInterface
         return $selected;
     }
 
-    /** Parses four unique complete whole-line trailers without accepting prose, duplicate values or partial sets. */
-    private function metadata(string $message): ?array
+    /** Binds an existing complete commit identity to its complete immutable tree without reading a working file. */
+    public function treeSha(string $directory, string $reference): string
     {
-        $fields = ['Changelog-Base' => 'base_sha', 'Changelog-Plan' => 'plan_id',
-            'Changelog-Output' => 'output_sha256', 'Changelog-Options' => 'options_sha256'];
-        $data = [];
-        foreach (explode("\n", str_replace("\r\n", "\n", $message)) as $line) {
-            foreach ($fields as $trailer => $field) {
-                if (! str_starts_with($line, $trailer . ':')) {
-                    continue;
-                }
-                $pattern = 'base_sha' === $field ? '(?:[a-f0-9]{40}|[a-f0-9]{64})' : '[a-f0-9]{64}';
-                if (isset($data[$field]) || 1 !== preg_match(
-                    '~^' . $trailer . ': (' . $pattern . ')$~D',
-                    $line,
-                    $match,
-                )) {
-                    throw $this->exceptions->failure(
-                        'Release commit metadata contains malformed or duplicate trailers.',
-                    );
-                }
-                $data[$field] = $match[1];
-            }
-        }
-        if ([] === $data) {
-            return null;
-        }
-        if (count($data) !== count($fields)) {
-            throw $this->exceptions->failure('Release commit metadata is incomplete.');
+        $sha = $this->resolveRef($directory, $reference);
+        $tree = trim($this->run($directory, ['rev-parse', '--verify', '--end-of-options', $sha . '^{tree}']));
+        if (1 !== preg_match('/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/D', $tree)) {
+            throw $this->exceptions->failure('Git returned an invalid complete tree identity.');
         }
 
-        return array_replace(array_fill_keys(array_values($fields), ''), $data);
+        return $tree;
     }
 
     /**

@@ -48,6 +48,8 @@ interface ChangesetStoreInterface
      * `.changelog/AGENTS.md` MUST be excluded because it is reserved for local
      * instructions. Hidden and nested Markdown MUST remain visible so the
      * validation layer can reject names and layouts that violate policy.
+     * Paths MUST use forward-slash separators for stable inventory keys across
+     * platforms, while retaining invalid segments for validation diagnostics.
      *
      * @return list<string>|null absolute Markdown paths;
      *                           null when the discovery root is unsafe

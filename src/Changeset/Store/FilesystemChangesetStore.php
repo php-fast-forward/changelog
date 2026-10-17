@@ -81,6 +81,7 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
      *
      * Only the root-level AGENTS.md is reserved. Validation owns diagnostics
      * for all other candidates. An absent directory is a read-only empty result.
+     * Converts native separators without collapsing invalid path segments.
      *
      * @return list<string>|null Paths, or null for unsafe root ancestry.
      */
@@ -107,7 +108,7 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
 
         foreach ($finder->getIterator() as $file) {
             if ($file instanceof SplFileInfo && 'AGENTS.md' !== $file->getRelativePathname()) {
-                $paths[] = $file->getPathname();
+                $paths[] = str_replace('\\', '/', $file->getPathname());
             }
         }
 
