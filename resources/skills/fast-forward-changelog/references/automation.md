@@ -93,5 +93,11 @@ remain operations. The version PR must contain only central history and
 consumed fragment deletions, with no generated metadata or technical plan files.
 The workflow never merges it. Only separately authorized publication may enable
 `publish: true`, using the exact approved merge SHA and committed evidence.
+Ordinary squash merges are supported through the exact signed head linked to
+that merged PR: the publisher requires identical complete head/merge trees and
+validates every release invariant against the merge. It reads immutable head
+objects through the API after branch deletion, without checking out head code.
+The tag remains on the approved merge; generic CLI publication remains strict
+when this verified PR context is absent.
 Output version/tag/SHA can feed separately authorized product tasks; Docker image
 publication and any installation into another environment remain separate.

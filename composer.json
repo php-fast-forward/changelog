@@ -103,6 +103,7 @@
     "scripts": {
         "test": "@test:unit",
         "test:unit": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration --no-coverage",
         "test:workflows": "@php tests/Workflow/verify.php",
         "test:packaging": "@php tests/Packaging/verify.php",
         "test:coverage": [

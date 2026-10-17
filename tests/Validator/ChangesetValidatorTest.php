@@ -14,6 +14,7 @@ use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Prophecy\PhpUnit\ProphecyTrait;
@@ -133,12 +134,15 @@ final class ChangesetValidatorTest extends TestCase
     }
 
     #[Test]
-    public function validateRejectsNestedMarkdownBeforeReadingIt(): void
+    #[TestWith(['/repo/.changelog/nested/change.md'])]
+    #[TestWith(['/repo/.changelog/./change.md'])]
+    #[TestWith(['/repo/.changelog/../change.md'])]
+    #[TestWith(['/repo/.changelog//change.md'])]
+    public function validateRejectsNestedMarkdownBeforeReadingIt(string $path): void
     {
         $store = $this->prophesize(ChangesetStoreInterface::class);
         $parser = $this->prophesize(ChangesetParserInterface::class);
         $reportFactory = $this->prophesize(ValidationReportFactoryInterface::class);
-        $path = '/repo/.changelog/nested/change.md';
         $errors = [$path => ['Changeset Markdown must be a direct child of its configured directory.']];
         $expected = new ValidationReport([], $errors, false);
         $store->paths('/repo/.changelog')->willReturn([$path])->shouldBeCalledOnce();

@@ -35,7 +35,6 @@ use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -498,112 +497,25 @@ final class AutomationRunnerTest extends TestCase
     }
 
     #[Test]
-    public function mergedPublicationRequiresAccountIdentityAndSignedHeadBoundToMerge(): void
+    public function mergedPublicationDelegatesEveryAuthorityIdentityToContextualPublisher(): void
     {
-        $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::exactly(2))->method('request')->willReturnCallback(
-            function (string $method, string $path): array {
-                self::assertSame('GET', $method);
-
-                return match ($path) {
-                    '/repos/owner/project/pulls/7' => $this->mergedPr(),
-                    '/users/app%5Bbot%5D' => $this->mergedPr()['user'],
-                };
-            },
-        );
-        $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspectHead')->with(
-            $this->options(),
-            $this->sha('b'),
-            'app[bot]',
-            $this->sha(),
-        )->willReturn(
-            true,
-        );
-        $publication = $this->createMock(PublicationServiceInterface::class);
-        $result = new PublicationResult('published', '1.2.3', 'v1.2.3', $this->sha(), 'https://example.test/release', [
-            'create_release',
-        ]);
-        $publication->expects(self::once())->method('publish')->with($this->options(), $this->sha(), false)->willReturn(
-            $result,
-        );
-        self::assertSame(
-            $result->summary(),
-            $this->runner(compact('github', 'policy', 'publication'))->run('publish', $this->publishInputs()),
-        );
+        $publication = $this->createMock(\FastForward\Changelog\Publication\MergedPublicationServiceInterface::class);
+        $result = new PublicationResult('dry-run', '1.2.3', 'v1.2.3', $this->sha(), null, ['create_tag']);
+        $publication->expects(self::never())->method('publish');
+        $publication->expects(self::once())->method('publishMerged')->with(
+            $this->options(), 7, $this->sha(), $this->sha('b'), 'stable', 'managed', 'app[bot]', true,
+        )->willReturn($result);
+        self::assertSame($result->summary(), $this->runner(compact('publication'))->run(
+            'publish', [...$this->publishInputs(), 'dry-run' => 'true'],
+        ));
     }
 
     #[Test]
-    #[DataProvider('invalidMergeEvidence')]
-    public function incompleteOrChangedMergeEvidenceStopsPublication(array $replacement): void
+    public function oldPublisherCannotSilentlyFallBackToGenericMergePublication(): void
     {
-        $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::once())->method('request')->with('GET', '/repos/owner/project/pulls/7')->willReturn(
-            array_replace_recursive($this->mergedPr(), $replacement),
-        );
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('immutable head/merge identities');
-        $this->runner(compact('github'))->run('publish', $this->publishInputs());
-    }
-
-    public static function invalidMergeEvidence(): iterable
-    {
-        yield 'different PR' => [['number' => 8]];
-        yield 'open PR' => [['state' => 'open']];
-        yield 'unmerged PR' => [['merged' => false]];
-        yield 'different merge' => [['merge_commit_sha' => str_repeat('c', 40)]];
-        yield 'different head' => [['head' => ['sha' => str_repeat('c', 40)]]];
-        yield 'fork head' => [['head' => ['repo' => ['full_name' => 'fork/project']]]];
-        yield 'different base repository' => [['base' => ['repo' => ['full_name' => 'other/project']]]];
-        yield 'unmanaged head branch' => [['head' => ['ref' => 'human-branch']]];
-        yield 'different base branch' => [['base' => ['ref' => 'develop']]];
-        yield 'human PR author' => [['user' => ['type' => 'User']]];
-    }
-
-    #[Test]
-    #[TestWith([null])]
-    #[TestWith([['login' => 'app[bot]', 'type' => 'Bot', 'id' => 999]])]
-    public function missingOrDifferentCurrentAccountCannotOwnMergedPr(?array $account): void
-    {
-        $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::exactly(2))->method('request')->willReturnOnConsecutiveCalls(
-            $this->mergedPr(),
-            $account,
-        );
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('signed automation ownership');
-        $this->runner(compact('github'))->run('publish', $this->publishInputs());
-    }
-
-    #[Test]
-    public function unsignedHeadFailsEvenAfterExactMergeAndAccountEvidence(): void
-    {
-        $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::exactly(2))->method('request')->willReturnOnConsecutiveCalls(
-            $this->mergedPr(),
-            $this->mergedPr()['user'],
-        );
-        $policy = $this->createMock(PullRequestPolicyInterface::class);
-        $policy->expects(self::once())->method('inspectHead')->with(
-            $this->options(),
-            $this->sha('b'),
-            'app[bot]',
-            $this->sha(),
-        )->willReturn(
-            false,
-        );
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('signed automation ownership');
-        $this->runner(compact('github', 'policy'))->run('publish', $this->publishInputs());
-    }
-
-    #[Test]
-    public function absentRemotePrCannotBePublished(): void
-    {
-        $github = $this->createMock(GitHubClientInterface::class);
-        $github->expects(self::once())->method('request')->willReturn(null);
-        $this->expectException(RuntimeException::class);
-        $this->runner(compact('github'))->run('publish', $this->publishInputs());
+        $this->expectExceptionMessage('does not support verified merged-PR');
+        $this->runner()->run('publish', $this->publishInputs());
     }
 
     #[Test]

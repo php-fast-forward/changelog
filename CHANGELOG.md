@@ -67,7 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve managed-version authorization in the ordinary CLI check and reject ambiguous category headings so approved fragment consumption validates consistently and custom presentation cannot silently reclassify historical notes.
 - Separate release and category headings with blank lines while keeping simple changelog entries compact and preserving multiline Markdown.
 - Promotes legacy Unreleased descriptions into the next version without leaving a pending section or duplicating category headings.
+- Publishes managed version PRs after ordinary squash merges using the approved signed head's evidence, including after branch deletion. The tag remains on the approved merge, with complete tree, release content and option validation before publication.
 - Start multiline release descriptions beside their list marker instead of displaying an empty bullet before the text, while preserving authored line breaks, paragraph spacing and nested Markdown.
 - Validate generated release PRs and update sticky changelog comments on self-hosted runners without requiring GitHub CLI or jq on the host.
 - Reject ambiguous Unreleased headings and unsupported historical release headings before consolidation, so custom template changes cannot duplicate history or misidentify an existing release.
 - Confirm refreshed version pull requests through a fresh read of the same pull request, so a stale GitHub update response cannot report a successful changelog transaction as failed.
+- Keeps discovered fragment paths consistent on Windows so release planning and application use the same canonical inventory and strict receipt format.

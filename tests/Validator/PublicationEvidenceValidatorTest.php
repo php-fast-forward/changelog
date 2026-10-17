@@ -10,6 +10,7 @@ use FastForward\Changelog\Changeset\ChangesetParseResult;
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use FastForward\Changelog\Git\GitCommitTreeReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
@@ -56,10 +57,97 @@ use Throwable;
 #[UsesClass(HistoryImporter::class)]
 #[UsesClass(PublicationEvidence::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[UsesClass(\FastForward\Changelog\Release\ReleaseMetadataParser::class)]
+#[UsesClass(\FastForward\Changelog\Automation\Policy\GitHubEvidence::class)]
 final class PublicationEvidenceValidatorTest extends TestCase
 {
     private const string BASE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     private const string APPROVED = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    private const string PR_HEAD = 'ffffffffffffffffffffffffffffffffffffffff';
+
+    /** Deleted branches and stale/no squash trailers do not require a local PR-head object or head checkout. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSquashUsesImmutableHeadProofAndTargetBlobs(bool $customTemplate): void
+    {
+        $options = new ReleaseOptions(
+            '/consumer',
+            template: $customTemplate ? 'custom.php' : 'keep-a-changelog',
+            repository: 'owner/repo',
+        );
+        $state = $this->mergedState($options);
+        $state['metadata']['output_sha256'] = str_repeat('0', 64);
+        self::assertArrayNotHasKey(self::PR_HEAD, $state['blobs']);
+        $validator = $this->validator($state);
+        $result = $validator->validateMerged($options, self::APPROVED, self::PR_HEAD);
+        self::assertSame(self::APPROVED, $result->sha);
+        self::assertSame('1.0.1', $result->version);
+        self::assertSame("Exact  notes\n", $result->notes);
+        self::assertNotContains(self::PR_HEAD, $state['resolved_refs']);
+        self::assertSame($customTemplate ? 1 : 0, $state['live_reads']);
+        self::assertContains([self::BASE, self::APPROVED], $state['ancestry_calls']);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('central history or settings');
+        $validator->validate($options, self::APPROVED);
+    }
+
+    /** API identity/tree/ancestry and full domain failures all precede manufacture of publication evidence. */
+    #[DataProvider('invalidMergedEvidence')]
+    public function testSquashProofRejectsTampering(string $mutation): void
+    {
+        $options = new ReleaseOptions('/consumer', template: 'custom.php', repository: 'owner/repo');
+        $state = $this->mergedState($options);
+        match ($mutation) {
+            'head-sha' => $state['api_head']['sha'] = self::BASE,
+            'merge-sha' => $state['api_merge']['sha'] = self::BASE,
+            'head-tree' => $state['api_head']['commit']['tree']['sha'] = self::BASE,
+            'merge-tree' => $state['api_merge']['tree']['sha'] = self::BASE,
+            'extra-file-tree' => $state['local_tree'] = self::BASE,
+            'invalid-tree' => $state['local_tree'] = 'not-a-tree',
+            'missing-message' => $state['api_head']['commit']['message'] = null,
+            'no-metadata' => $state['api_head']['commit']['message'] = 'Ordinary squash message',
+            'partial-metadata' => $state['api_head']['commit']['message'] = 'Changelog-Base: ' . self::BASE,
+            'base-ancestry' => $state['api_compare']['merge_base_commit']['sha'] = self::PR_HEAD,
+            'diverged-head' => $state['api_compare']['status'] = 'diverged',
+            'merge-ancestry' => $state['base_ancestor'] = false,
+            'settings' => $state['api_head']['commit']['message'] = str_replace(
+                $options->evidenceHash(),
+                str_repeat('0', 64),
+                $state['api_head']['commit']['message'],
+            ),
+            'remaining-fragment' => $state['tree'][self::APPROVED]['.changelog/a.md'] = '100644',
+            'dirty-template' => $state['live_template'] = 'Unapproved executable bytes',
+            'central' => $state['blobs'][self::APPROVED]['CHANGELOG.md'] .= 'Unexpected prose',
+        };
+        $failed = false;
+        try {
+            $this->validator($state)->validateMerged($options, self::APPROVED, self::PR_HEAD);
+        } catch (\RuntimeException|InvalidArgumentException) {
+            $failed = true;
+        }
+        self::assertTrue($failed, 'Tampered merged evidence must fail.');
+        self::assertSame([], $state['created']);
+    }
+
+    /** Supplies separate immutable-object and domain attacks. */
+    public static function invalidMergedEvidence(): iterable
+    {
+        foreach (['head-sha', 'merge-sha', 'head-tree', 'merge-tree', 'extra-file-tree', 'invalid-tree',
+            'missing-message', 'no-metadata', 'partial-metadata', 'base-ancestry', 'diverged-head',
+            'merge-ancestry', 'settings', 'remaining-fragment', 'dirty-template', 'central'] as $case) {
+            yield $case => [$case];
+        }
+    }
+
+    /** Legacy injected adapters cannot gain a context path by falling back to merge trailers. */
+    public function testMergedProofRequiresItsAdditionalCapabilities(): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('proof capabilities');
+        $this->validator($state)->validateMerged($options, self::APPROVED, self::PR_HEAD);
+    }
 
     /** Exact approved/base blobs, complete consumption, reachable tags and complete prior history define publication. */
     public function testCommittedEvidenceReconstructsWholeHistoryWithoutReadingWorkingFilesOrReceipt(): void
@@ -1013,7 +1101,21 @@ final class PublicationEvidenceValidatorTest extends TestCase
     /** Replaces every Git, file, template and domain boundary without process, filesystem or network access. */
     private function validator(array &$state): PublicationEvidenceValidator
     {
-        $git = $this->createMock(GitRepositoryInterface::class);
+        $git = ($state['merged'] ?? false)
+            ? $this->createMockForIntersectionOfInterfaces(
+                [GitRepositoryInterface::class, GitCommitTreeReaderInterface::class],
+            )
+            : $this->createMock(GitRepositoryInterface::class);
+        if ($state['merged'] ?? false) {
+            $git->method('treeSha')->willReturnCallback(static function (string $directory, string $reference) use (
+                &$state
+            ): string {
+                self::assertSame('/consumer', $directory);
+                self::assertSame(self::APPROVED, $reference);
+
+                return $state['local_tree'];
+            });
+        }
         $git->expects(self::never())->method('commitFragment');
         $git->method('resolveRef')->willReturnCallback(static function (string $directory, string $reference) use (
             &$state
@@ -1259,6 +1361,24 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 previous: $previous,
             ),
         );
+        $exceptions->method('failure')->willReturnCallback(
+            static fn(string $message): \RuntimeException => new \RuntimeException($message),
+        );
+        $github = null;
+        if ($state['merged'] ?? false) {
+            $github = $this->createStub(GitHubClientInterface::class);
+            $github->method('request')->willReturnCallback(static function (string $method, string $path) use (
+                &$state
+            ): array {
+                self::assertSame('GET', $method);
+
+                return match ($path) {
+                    '/repos/owner/repo/commits/' . self::PR_HEAD => $state['api_head'],
+                    '/repos/owner/repo/git/commits/' . self::APPROVED => $state['api_merge'],
+                    '/repos/owner/repo/compare/' . self::BASE . '...' . self::PR_HEAD => $state['api_compare'],
+                };
+            });
+        }
 
         return new PublicationEvidenceValidator(
             $git,
@@ -1277,6 +1397,22 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $releases,
                 $exceptions,
             ),
+            $github,
         );
+    }
+
+    /** Keeps the approved head absent from all local objects while the API retains its immutable PR-ref evidence. */
+    private function mergedState(ReleaseOptions $options): array
+    {
+        $state = $this->state($options);
+        $state['merged'] = true;
+        $state['local_tree'] = str_repeat('e', 40);
+        $state['api_head'] = ['sha' => self::PR_HEAD, 'commit' => ['tree' => ['sha' => $state['local_tree']], 'message'
+            => 'Changelog-Base: ' . self::BASE . "\nChangelog-Plan: " . $state['metadata']['plan_id']
+            . "\nChangelog-Output: " . $state['metadata']['output_sha256'] . "\nChangelog-Options: " . $options->evidenceHash()]];
+        $state['api_merge'] = ['sha' => self::APPROVED, 'tree' => ['sha' => $state['local_tree']]];
+        $state['api_compare'] = ['merge_base_commit' => ['sha' => self::BASE], 'status' => 'ahead'];
+
+        return $state;
     }
 }

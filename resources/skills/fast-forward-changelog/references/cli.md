@@ -258,6 +258,12 @@ Historical imports use the approved committed sections during publication;
 previous GitHub notes are not fetched again to reconstruct the approved history.
 A merge must resolve consistent transaction evidence; a squash must retain the
 trailers. Missing or ambiguous evidence fails. No tracked plan file is required.
+This is the generic CLI contract. The managed-PR reusable workflow additionally
+binds the exact signed PR head to its approved merge through GitHub evidence and
+identical complete Git trees. It can use that head's trailers after an ordinary
+squash, including after branch deletion; it still tags the approved merge and
+recomputes the full release against that merge's committed bytes. It never
+infers this context from a branch name or PR-body assertion.
 
 Existing conflicting tags are never moved; divergent release notes are never
 updated. A matching tag without its release or an uncertain create response is

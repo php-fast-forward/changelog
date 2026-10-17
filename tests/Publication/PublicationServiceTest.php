@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Publication;
 
+use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
@@ -11,6 +12,7 @@ use FastForward\Changelog\Publication\PublicationResult;
 use FastForward\Changelog\Publication\PublicationService;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface;
 use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -24,8 +26,116 @@ use Throwable;
 #[UsesClass(PublicationResult::class)]
 #[UsesClass(PublicationEvidence::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[UsesClass(\FastForward\Changelog\Automation\Policy\GitHubEvidence::class)]
 final class PublicationServiceTest extends TestCase
 {
+    /** Squash publication tags the merge, only after exact PR identity, signed ownership and contextual domain proof. */
+    public function testMergedPublicationKeepsMergeTargetAndCreateOnlyReconciliation(): void
+    {
+        $state = $this->state(['context' => true]);
+        $service = $this->service($state);
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        self::assertSame(
+            'published',
+            $service->publishMerged(
+                $options,
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+            )->state,
+        );
+        self::assertSame(str_repeat('b', 40), $state['tag']['object']['sha']);
+        self::assertSame(
+            'unchanged',
+            $service->publishMerged(
+                $options,
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+            )->state,
+        );
+        self::assertCount(2, $this->writes($state));
+    }
+
+    /** Read-only previews retain every authority guard while proposing the merge's missing remote objects. */
+    public function testMergedPublicationDryRunNeverWrites(): void
+    {
+        $state = $this->state(['context' => true]);
+        $result = $this->service($state)->publishMerged(
+            new ReleaseOptions('/consumer', repository: 'owner/repo'),
+            7,
+            str_repeat('b', 40),
+            str_repeat('f', 40),
+            automationActor: 'app[bot]',
+            dryRun: true,
+        );
+        self::assertSame('dry-run', $result->state);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** No forged PR relationship, ownership or domain failure reaches a write. */
+    #[DataProvider('invalidMergedPr')]
+    public function testInvalidMergedPrOrOwnerCannotPublish(
+        array $replacement,
+        bool $owned = true,
+        bool $invalidEvidence = false,
+        ?array $account = [],
+    ): void {
+        $state = $this->state(
+            ['context' => true, 'pr' => array_replace_recursive(
+                $this->mergedPr(),
+                $replacement,
+            ), 'owned' => $owned, 'invalid_evidence' => $invalidEvidence],
+        );
+        $state['account'] = [] === $account ? $this->mergedPr()['user'] : $account;
+        $failed = false;
+        try {
+            $this->service($state)->publishMerged(
+                new ReleaseOptions('/consumer', repository: 'owner/repo'),
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+            );
+        } catch (RuntimeException|InvalidArgumentException) {
+            $failed = true;
+        }
+        self::assertTrue($failed);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** Supplies adversarial authority bindings independently of domain/tree proofs. */
+    public static function invalidMergedPr(): iterable
+    {
+        foreach ([['number' => 8], ['state' => 'open'], ['merged' => false],
+            ['merge_commit_sha' => str_repeat('c', 40)], ['head' => ['sha' => str_repeat('c', 40)]],
+            ['head' => ['repo' => ['full_name' => 'fork/repo']]], ['base' => ['repo' => ['full_name' => 'other/repo']]],
+            ['head' => ['repo' => ['id' => 999]]], ['base' => ['repo' => ['id' => 0]]],
+            ['head' => ['ref' => 'human-branch']], ['base' => ['ref' => 'develop']],
+            ['user' => ['type' => 'User']], ['user' => ['login' => 'other[bot]']]] as $replacement) {
+            yield [$replacement];
+        }
+        yield 'invalid signature or scope' => [[], false];
+        yield 'invalid options/inventory/domain' => [[], true, true];
+        yield 'unavailable current account' => [[], true, false, null];
+        yield 'different Bot identity' => [[], true, false, ['login' => 'app[bot]', 'type' => 'Bot', 'id' => 999]];
+    }
+
+    /** Original injected interfaces remain valid for generic publishing and fail closed for the additional context path. */
+    public function testLegacyPublisherCapabilitiesCannotBecomeAMergedFallback(): void
+    {
+        $state = $this->state();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('contextual proof capabilities');
+        $this->service($state)->publishMerged(
+            new ReleaseOptions('/consumer', repository: 'owner/repo'),
+            7,
+            str_repeat('b', 40),
+            str_repeat('f', 40),
+        );
+    }
     /** Both create payloads MUST pin the approved SHA and exact central notes without generated notes. */
     public function testFreshPublicationCreatesExactTagAndReleaseThenRepeatsWithoutMutation(): void
     {
@@ -314,8 +424,10 @@ final class PublicationServiceTest extends TestCase
     /** Supplies only recording/stubbed boundaries; GET/POST behavior stays entirely in memory. */
     private function service(array &$state): PublicationService
     {
-        $evidence = $this->createStub(PublicationEvidenceValidatorInterface::class);
-        $evidence->method('validate')->willReturnCallback(static function (ReleaseOptions $options, string $sha) use (
+        $evidence = $this->createStub(
+            ($state['context'] ?? false) ? MergedPublicationEvidenceValidatorInterface::class : PublicationEvidenceValidatorInterface::class,
+        );
+        $prove = static function (ReleaseOptions $options, string $sha) use (
             &$state
         ): PublicationEvidence {
             self::assertSame(str_repeat('b', 40), $sha);
@@ -330,12 +442,30 @@ final class PublicationServiceTest extends TestCase
                 "Exact  notes\n",
                 'owner/repo',
             );
-        });
+        };
+        $evidence->method('validate')->willReturnCallback($prove);
+        if ($state['context'] ?? false) {
+            $evidence->method('validateMerged')->willReturnCallback(
+                static function (ReleaseOptions $options, string $merge, string $head) use (
+                    $prove
+                ): PublicationEvidence {
+                    self::assertSame(str_repeat('f', 40), $head);
+
+                    return $prove($options, $merge);
+                },
+            );
+        }
         $github = $this->createStub(GitHubClientInterface::class);
         $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (
             &$state
         ): ?array {
             $state['calls'][] = [$method, $path, $body];
+            if ('GET' === $method && '/repos/owner/repo/pulls/7' === $path) {
+                return $state['pr'] ?? $this->mergedPr();
+            }
+            if ('GET' === $method && '/users/app%5Bbot%5D' === $path) {
+                return array_key_exists('account', $state) ? $state['account'] : $this->mergedPr()['user'];
+            }
             if ('GET' === $method && str_contains($path, '/git/ref/tags/')) {
                 ++$state['tag_reads'];
                 if ($state['tag_reads'] === $state['move_at']) {
@@ -392,7 +522,37 @@ final class PublicationServiceTest extends TestCase
                 previous: $previous,
             ),
         );
+        $exceptions->method('invalid')->willReturnCallback(
+            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
+        );
+        $policy = null;
+        if ($state['context'] ?? false) {
+            $policy = $this->createStub(PullRequestPolicyInterface::class);
+            $policy->method('inspectHead')->willReturnCallback(
+                static function (ReleaseOptions $options, string $head, string $actor, string $merge) use (
+                    &$state
+                ): bool {
+                    self::assertSame(str_repeat('f', 40), $head);
+                    self::assertSame('app[bot]', $actor);
+                    self::assertSame(str_repeat('b', 40), $merge);
 
-        return new PublicationService($evidence, $github, $results, $exceptions);
+                    return $state['owned'] ?? true;
+                },
+            );
+        }
+
+        return new PublicationService($evidence, $github, $results, $exceptions, $policy);
+    }
+
+    /** Provides immutable authority metadata without treating mutable branch or PR prose as evidence. */
+    private function mergedPr(): array
+    {
+        return ['number' => 7, 'state' => 'closed', 'merged' => true, 'merge_commit_sha' => str_repeat('b', 40),
+            'user' => ['login' => 'app[bot]', 'type' => 'Bot', 'id' => 123],
+            'head' => ['sha' => str_repeat(
+                'f',
+                40,
+            ), 'ref' => 'changelog/version', 'repo' => ['full_name' => 'owner/repo', 'id' => 11]],
+            'base' => ['ref' => 'main', 'repo' => ['full_name' => 'owner/repo', 'id' => 11]]];
     }
 }

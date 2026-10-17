@@ -31,6 +31,7 @@ use FastForward\Clock\SystemClock;
 use FastForward\Config\ArrayConfig;
 use FastForward\Config\ConfigInterface;
 use FastForward\Container\Factory\AliasFactory;
+use FastForward\Container\Factory\InvokableFactory;
 use Interop\Container\ServiceProviderInterface;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
@@ -193,6 +194,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             \FastForward\Changelog\Git\GitRepositoryInterface::class => new AliasFactory(
                 \FastForward\Changelog\Git\GitRepository::class,
             ),
+            \FastForward\Changelog\Git\GitCommitTreeReaderInterface::class => new AliasFactory(
+                \FastForward\Changelog\Git\GitRepository::class,
+            ),
             \FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class => new AliasFactory(
                 \FastForward\Changelog\Process\Factory\ProcessFactory::class,
             ),
@@ -226,8 +230,39 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             \FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class => new AliasFactory(
                 \FastForward\Changelog\Validator\PublicationEvidenceValidator::class,
             ),
+            \FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface::class => new AliasFactory(
+                \FastForward\Changelog\Validator\PublicationEvidenceValidator::class,
+            ),
             \FastForward\Changelog\Publication\PublicationServiceInterface::class => new AliasFactory(
                 \FastForward\Changelog\Publication\PublicationService::class,
+            ),
+            \FastForward\Changelog\Publication\MergedPublicationServiceInterface::class => new AliasFactory(
+                \FastForward\Changelog\Publication\PublicationService::class,
+            ),
+            \FastForward\Changelog\Publication\PublicationService::class => new InvokableFactory(
+                \FastForward\Changelog\Publication\PublicationService::class,
+                \FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class,
+                GitHubClientInterface::class,
+                \FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface::class,
+                \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class,
+                \FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface::class,
+            ),
+            \FastForward\Changelog\Validator\PublicationEvidenceValidator::class => new InvokableFactory(
+                \FastForward\Changelog\Validator\PublicationEvidenceValidator::class,
+                \FastForward\Changelog\Git\GitRepositoryInterface::class,
+                \FastForward\Changelog\History\HistoryCodecInterface::class,
+                \FastForward\Changelog\Changeset\Parser\ChangesetParserInterface::class,
+                \FastForward\Changelog\Version\NextVersionResolverInterface::class,
+                \FastForward\Changelog\History\Import\HistoryImporterInterface::class,
+                \FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface::class,
+                \FastForward\Changelog\Template\TemplateResolverInterface::class,
+                \FastForward\Changelog\Filesystem\PackagePathResolverInterface::class,
+                \FastForward\Changelog\Filesystem\ManagedFileStoreInterface::class,
+                \FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface::class,
+                \FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface::class,
+                \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class,
+                \FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface::class,
+                GitHubClientInterface::class,
             ),
             \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class => new AliasFactory(
                 \FastForward\Changelog\Release\Factory\ReleaseExceptionFactory::class,

@@ -16,10 +16,13 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Validator;
 
+use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use FastForward\Changelog\Git\GitCommitTreeReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
+use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
@@ -28,6 +31,7 @@ use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterfac
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface;
+use FastForward\Changelog\Release\ReleaseMetadataParser;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
@@ -35,8 +39,10 @@ use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
 
 /** Recomputes release semantics from committed fragment bytes without relying on a generated repository file. */
-final readonly class PublicationEvidenceValidator implements PublicationEvidenceValidatorInterface
+final readonly class PublicationEvidenceValidator implements MergedPublicationEvidenceValidatorInterface
 {
+    private ReleaseMetadataParser $metadata;
+
     /** Injects read-only Git/domain proof and guarded custom-template boundaries without I/O. */
     public function __construct(
         private GitRepositoryInterface $git,
@@ -52,10 +58,59 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         private PublicationEvidenceFactoryInterface $evidence,
         private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseHistoryConsolidatorInterface $consolidator,
-    ) {}
+        private ?GitHubClientInterface $github = null,
+        ?ReleaseMetadataParser $metadata = null,
+    ) {
+        $this->metadata = $metadata ?? new ReleaseMetadataParser($exceptions);
+    }
 
     /** Validates exact blobs, complete base inventory, ancestry, recomputed impact/version and central note bytes. */
     public function validate(ReleaseOptions $options, string $approvedSha): PublicationEvidence
+    {
+        return $this->prove($options, $approvedSha);
+    }
+
+    /**
+     * Obtains the head only through immutable API objects, including after its branch was deleted.
+     * No head checkout, local head object, Git credential or executable PR content is required.
+     */
+    public function validateMerged(ReleaseOptions $options, string $mergeSha, string $headSha): PublicationEvidence
+    {
+        if (null === $this->github || !$this->git instanceof GitCommitTreeReaderInterface
+            || !GitHubEvidence::repository($options->repository)
+            || !GitHubEvidence::sha($mergeSha) || !GitHubEvidence::sha($headSha)) {
+            throw $this->exceptions->invalid(
+                'Merged publication requires exact commits and immutable API/tree proof capabilities.',
+            );
+        }
+        $root = '/repos/' . $options->repository;
+        $head = $this->github->request('GET', $root . '/commits/' . $headSha);
+        $merge = $this->github->request('GET', $root . '/git/commits/' . $mergeSha);
+        $tree = $this->git->treeSha($options->workingDirectory, $mergeSha);
+        if (($head['sha'] ?? null) !== $headSha || ($merge['sha'] ?? null) !== $mergeSha
+            || !GitHubEvidence::sha($tree)
+            || ($head['commit']['tree']['sha'] ?? null) !== $tree
+            || ($merge['tree']['sha'] ?? null) !== $tree
+            || !is_string($head['commit']['message'] ?? null)) {
+            throw $this->exceptions->invalid(
+                'The immutable approved head and merge must have identical complete Git trees.',
+            );
+        }
+        $data = $this->metadata->parse($head['commit']['message']);
+        if (null === $data) {
+            throw $this->exceptions->invalid('The approved PR head lacks generated release evidence.');
+        }
+        $comparison = $this->github->request('GET', $root . '/compare/' . $data['base_sha'] . '...' . $headSha);
+        if (($comparison['merge_base_commit']['sha'] ?? null) !== $data['base_sha']
+            || !in_array($comparison['status'] ?? null, ['ahead', 'identical'], true)) {
+            throw $this->exceptions->invalid('The approved PR head lacks its generated source-base ancestry.');
+        }
+
+        return $this->prove($options, $mergeSha, $data);
+    }
+
+    /** Recomputes every domain invariant on the target; contextual metadata never changes the tagged commit. */
+    private function prove(ReleaseOptions $options, string $approvedSha, ?array $metadata = null): PublicationEvidence
     {
         if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $approvedSha)
             || $this->git->resolveRef($options->workingDirectory, $approvedSha) !== $approvedSha) {
@@ -65,7 +120,11 @@ final readonly class PublicationEvidenceValidator implements PublicationEvidence
         if (null !== $central) {
             $this->regularFile($options, $approvedSha, $options->changelogFile);
         }
-        $data = $this->git->releaseMetadata($options->workingDirectory, $approvedSha, $options->changelogFile);
+        $data = $metadata ?? $this->git->releaseMetadata(
+            $options->workingDirectory,
+            $approvedSha,
+            $options->changelogFile,
+        );
         if (null === $data) {
             throw $this->exceptions->invalid(
                 'The approved commit lacks generated release evidence. Preserve the four Changelog trailers when committing or squashing a consolidation.',
