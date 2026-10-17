@@ -405,29 +405,42 @@ try {
         'publish' => ['write', 'read', '', ''],
         'history' => ['read', '', '', ''],
     ] as $operation => $permissions) {
-        $output = workflowGuard($auth['runs']['steps'][0]['run'], $directory, [
-            ...$authenticationEnvironment, 'FF_AUTH_OPERATION' => $operation,
-        ], 0);
-        $permissionNames = ['contents', 'pull-requests', 'issues', 'statuses'];
-        foreach (array_combine($permissionNames, $permissions) as $permission => $level) {
+        $event = match ($operation) {
+            'dependabot', 'status', 'comment', 'publish' => 'pull_request_target',
+            'history' => 'workflow_dispatch',
+            default => 'push',
+        };
+        foreach ([false, true] as $appEnabled) {
+            $output = workflowGuard($auth['runs']['steps'][0]['run'], $directory, [
+                ...$authenticationEnvironment, ...($appEnabled ? $appCredentials : []),
+                'FF_AUTH_OPERATION' => $operation, 'FF_AUTH_EVENT' => $event,
+                'FF_AUTH_ACTION' => 'publish' === $operation ? 'closed' : 'opened',
+            ], 0);
             verifyWorkflow(
-                str_contains($output, $permission . '=' . $level . "\n"),
-                'App permissions must match the exact operation.',
+                str_contains($output, 'app=' . ($appEnabled ? 'true' : 'false') . "\n"),
+                'Permission cases must exercise both fallback and enabled App authentication.',
+            );
+            $permissionNames = ['contents', 'pull-requests', 'issues', 'statuses'];
+            foreach (array_combine($permissionNames, $permissions) as $permission => $level) {
+                verifyWorkflow(
+                    str_contains($output, $permission . '=' . $level . "\n"),
+                    'App permissions must match the exact operation.',
+                );
+                verifyWorkflow(
+                    '${{ steps.scope.outputs.' . $permission . ' }}' === $mint['with']['permission-' . $permission],
+                    'Permission scope must reach the official token action.',
+                );
+            }
+            verifyWorkflow(
+                str_contains($output, "owner=fixture\nrepository=consumer\n"),
+                'Tokens must target only the selected repository.',
             );
             verifyWorkflow(
-                '${{ steps.scope.outputs.' . $permission . ' }}' === $mint['with']['permission-' . $permission],
-                'Permission scope must reach the official token action.',
+                str_contains($output, "vulnerability-alerts=\n"),
+                'Default operations must not request access to Dependabot alerts.',
             );
+            ++$assertions;
         }
-        verifyWorkflow(
-            str_contains($output, "owner=fixture\nrepository=consumer\n"),
-            'Tokens must target only the selected repository.',
-        );
-        verifyWorkflow(
-            str_contains($output, "vulnerability-alerts=\n"),
-            'Default operations must not request access to Dependabot alerts.',
-        );
-        ++$assertions;
     }
     foreach (['false' => '', 'true' => 'read'] as $requested => $permission) {
         $output = workflowGuard($auth['runs']['steps'][0]['run'], $directory, [
