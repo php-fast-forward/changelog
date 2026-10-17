@@ -10,11 +10,13 @@ use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
 #[CoversClass(GitRepository::class)]
+#[UsesClass(\FastForward\Changelog\Release\ReleaseMetadataParser::class)]
 final class GitRepositoryTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -74,6 +76,21 @@ final class GitRepositoryTest extends TestCase
     public function testResolveRefVerifiesTheExactCommitAndStripsTransportNewlines(): void
     {
         self::assertSame(self::SHA, $this->repository([$this->referenceResponse()])->resolveRef('/consumer'));
+    }
+
+    /** Complete tree IDs cover every path and mode, including changes outside the central history. */
+    public function testCompleteTreeIdentityUsesVerifiedCommitAndRejectsMalformedOutput(): void
+    {
+        $tree = str_repeat('b', 40);
+        self::assertSame($tree, $this->repository([
+            $this->referenceResponse(),
+            [['rev-parse', '--verify', '--end-of-options', self::SHA . '^{tree}'], $tree . "\n"],
+        ])->treeSha('/consumer', 'HEAD'));
+        $this->expectExceptionMessage('invalid complete tree identity');
+        $this->repository([
+            $this->referenceResponse(),
+            [['rev-parse', '--verify', '--end-of-options', self::SHA . '^{tree}'], 'not-a-tree'],
+        ])->treeSha('/consumer', 'HEAD');
     }
 
     #[DataProvider('invalidReferences')]

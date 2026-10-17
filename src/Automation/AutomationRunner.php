@@ -23,6 +23,7 @@ use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullReque
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServiceInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\Publication\MergedPublicationServiceInterface;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
@@ -76,7 +77,10 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         'history' => ['operation', 'dry-run', 'check'],
     ];
 
-    /** Receives substitutable domain and authority boundaries; no environment or I/O is observed here. */
+    /**
+     * Receives substitutable domain and authority boundaries; no environment or I/O is observed here.
+     * The unused GitHub argument retains constructor compatibility; publication owns its API authority.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private GitRepositoryInterface $git,
@@ -89,7 +93,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         private PublicationServiceInterface $publication,
         private ReleasePlannerInterface $planner,
         private ReleaseApplierInterface $applier,
-        private GitHubClientInterface $github,
+        GitHubClientInterface $github,
         private ReleaseExceptionFactoryInterface $exceptions,
         private PullRequestStatusServiceInterface $pullRequests,
     ) {}
@@ -238,29 +242,20 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
             throw $this->exceptions->invalid('The publish Action requires a complete approved target-sha.');
         }
         if ('' !== $this->text($inputs, 'pull-request')) {
-            $number = $this->number($inputs, 'pull-request');
-            $head = $this->text($inputs, 'expected-head-sha');
-            $actor = $this->text($inputs, 'automation-actor', 'github-actions[bot]');
-            $pr = $this->github->request('GET', '/repos/' . $options->repository . '/pulls/' . $number);
-            if (! GitHubEvidence::repository($options->repository) || ! GitHubEvidence::sha($head)
-                || null === $pr || ($pr['number'] ?? null) !== $number
-                || ($pr['state'] ?? null) !== 'closed' || true !== ($pr['merged'] ?? null)
-                || ($pr['merge_commit_sha'] ?? null) !== $target || ($pr['head']['sha'] ?? null) !== $head
-                || ($pr['head']['repo']['full_name'] ?? null) !== $options->repository
-                || ($pr['base']['repo']['full_name'] ?? null) !== $options->repository
-                || ($pr['head']['ref'] ?? null) !== $this->text($inputs, 'managed-branch', 'changelog/version')
-                || ($pr['base']['ref'] ?? null) !== $this->text($inputs, 'base-branch', 'main')
-                || ! GitHubEvidence::identity($pr['user'] ?? null, $actor, 'Bot')
-            ) {
-                throw $this->exceptions->failure(
-                    'Publication requires the merged configured version PR and its immutable head/merge identities.',
-                );
+            if (!$this->publication instanceof MergedPublicationServiceInterface) {
+                throw $this->exceptions->failure('The publisher does not support verified merged-PR publication.');
             }
-            $account = $this->github->request('GET', '/users/' . rawurlencode($actor));
-            if (! GitHubEvidence::identity($account, $actor, 'Bot', $pr['user']['id'])
-                || ! $this->policy->inspectHead($options, $head, $actor, $target)) {
-                throw $this->exceptions->failure('The merged version PR lacks signed automation ownership.');
-            }
+
+            return $this->publication->publishMerged(
+                $options,
+                $this->number($inputs, 'pull-request'),
+                $target,
+                $this->text($inputs, 'expected-head-sha'),
+                $this->text($inputs, 'base-branch', 'main'),
+                $this->text($inputs, 'managed-branch', 'changelog/version'),
+                $this->text($inputs, 'automation-actor', 'github-actions[bot]'),
+                $this->boolean($inputs, 'dry-run'),
+            )->summary();
         } elseif ('' !== $this->text($inputs, 'expected-head-sha')) {
             throw $this->exceptions->invalid('expected-head-sha requires pull-request.');
         }
