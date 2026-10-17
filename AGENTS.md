@@ -105,5 +105,5 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): distinguishes stable public reusables, repository workflows and lower-level actions; consumers copy the caller from resources without moving GitHub entrypoints.
-- [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and private runner settings; publication starts disabled.
+- [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; publication starts disabled.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

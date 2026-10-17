@@ -13,9 +13,9 @@ implementations in `.github/workflows`, as required by GitHub.
 ## Start with validation
 
 Copy the [caller example](../resources/workflows/changelog.yml) into the consumer's
-`.github/workflows/changelog.yml`. Replace its explicit `REVIEWED_COMMIT_SHA`
-placeholder with a full reviewed commit already integrated into this package's
-release line; do not select a temporary PR branch or unmerged PR commit. The
+`.github/workflows/changelog.yml`. Its full product commit is a reviewed revision
+already integrated into this package's release line. Update that pin deliberately;
+do not select a temporary PR branch or unmerged PR commit. The
 [example's setup notes](../resources/workflows/README.md) describe branch filters,
 runner selection and the optional token.
 
@@ -104,35 +104,50 @@ their normal event-driven CI. An optional App token may be supplied as
 
 ## Optional settings and composition
 
-`base-branch` defaults to the repository's default branch, supporting `main` and
-`master` without another file. The facade also accepts `fragment-directory`,
-`changelog-file`, `locale`, `tag-prefix`, `source`, `managed-branch`,
-`automation-actor`, `waiver-label` and `maintenance-label`. Keep these settings
-consistent across all operations. PR operations work at repository root; select
-nested packages through repository-relative managed paths.
+All facade inputs are optional. The copyable caller makes several choices
+explicit; omitted values use these reusable defaults:
 
-All changelog lifecycle reusable workflows also accept `runs-on`, a JSON string of runner
-labels. It defaults to `["ubuntu-latest"]` and is propagated to every nested job,
-including feedback comments and generated-head validation. A private consumer
-with an existing billing-fallback variable can add:
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `runs-on` | `'["ubuntu-latest"]'` | JSON array of Linux runner labels, propagated to every nested job. |
+| `base-branch` | `''` (repository default branch) | Release branch; adjust the caller's event filters to match. |
+| `fragment-directory` | `.changelog` | Repository-relative pending fragment directory. |
+| `changelog-file` | `CHANGELOG.md` | Repository-relative central history. |
+| `locale` | `en` | Language for generated headings and messages. |
+| `tag-prefix` | `v` | Prefix for version tags. |
+| `source` | `auto` | Historical release notes source: `auto`, `github` or `tags`. |
+| `managed-branch` | `changelog/version` | Branch for the single version PR. |
+| `automation-actor` | `github-actions[bot]` | Expected Bot identity for managed transactions. |
+| `waiver-label` | `changelog-not-required` | Label used by the verified maintainer waiver policy. |
+| `maintenance-label` | `changelog-maintenance` | Label used by the verified history-maintenance policy. |
+| `comment-mode` | `always` | Sticky feedback: `always`, `on-failure` or `never`. |
+| `prepare-release` | `true` | Prepare/update the version PR on base pushes or manual dispatch. |
+| `publish` | `false` | Enable publication from an approved, merged managed PR. |
+| `dry-run` | `false` | Preview version/publication without remote content writes. |
+
+The optional reusable secret `token` defaults to `github.token`. When supplying
+an approved App token for trusted operations, set `automation-actor` to its Bot
+identity; PR-head checks continue using the ordinary read-only token.
+
+Keep settings consistent across all operations. PR operations work at repository
+root; select nested packages through repository-relative managed paths.
+
+The public default is `ubuntu-latest`, without repository-specific variables.
+All individual lifecycle reusables also accept `runs-on`. A consumer with an
+existing authorized self-hosted runner can select its labels explicitly:
 
 ```yaml
     with:
-      runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
-      prepare-release: true
-      publish: false
+      runs-on: '["self-hosted", "Linux", "X64"]'
 ```
 
-For example, the variable may contain
-`["self-hosted","Linux","X64","local-ci"]`. The selected Linux runner must have
-Docker, Bash and Git available and be allowed to run the called public workflows.
+The selected Linux runner must have Docker, Bash and Git available and be allowed
+to run the called public workflows.
 PR metadata queries use the official GitHub Script action and the Actions runner's
 bundled JavaScript runtime; installing GitHub CLI or jq on a self-hosted runner is
 not required. Runner registration, isolation and repository access belong
-to the consumer's infrastructure. The workflow does not detect billing limits
-or change runner assignments; an existing fallback controller can update the
-variable. Use persistent runners only for work authorized under that runner's
-trust policy, including same-repository contributors.
+to the consumer's infrastructure. Use persistent runners only for work authorized
+under that runner's trust policy, including same-repository contributors.
 
 GitHub documents self-hosted access for called workflows owned by the same user
 or organization as the caller. Passing labels alone does not establish access

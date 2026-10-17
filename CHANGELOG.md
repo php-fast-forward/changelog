@@ -27,14 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update dependencies: `shivammathur/setup-php`. ([#28](https://github.com/php-fast-forward/changelog/pull/28), @dependabot[bot])
 - Preserve the Dependabot PR title in generated dependency notes, retaining the versions and update location supplied by Dependabot, and list the verified packages for grouped updates. Keep existing notes intact and avoid deriving release impact or security authority from editable PR text.
 - Runs all GitHub Actions from the self-contained Docker CLI under .github/actions, with direct commands, validated outputs and separate consumer data.
--
-  Makes GitHub automation the README's first adoption path, with a copyable caller
+- Makes GitHub automation the README's first adoption path, with a copyable caller
   pinned to a reviewed implementation. Documents both project and global CLI use,
   then directs agent skills and advanced integrations to their focused guides.
 - Uses Symfony Console Ask for the required add description, retries blank interactive answers without trimming Markdown spaces, and preserves unattended invalid-input handling. Direct AddCommand invocations no longer receive InputInterface.
 - Uses Symfony NotBlank constraints for interactive descriptions with configurable errors and preserved Markdown spaces, removing the field-specific ChangeDescriptionValidator class. AddCommand and CheckCommand take SymfonyStyle first, separated from their attributed input parameters.
 - Aligns README sections, examples and verified badges with the Fast Forward package documentation format.
 - Registers ChangelogServiceProvider by class name with lazy defaults and optional Fast Forward Config injection instead of provider constructor arguments.
+- Use the reusable workflow's Ubuntu default in public onboarding examples and document every optional lifecycle input without requiring repository-specific runner variables.
 - Distribute the uniquely named fast-forward-changelog skill from resources/skills, reserve agent directories for consumer-owned skills, exclude GitHub automation from Composer archives and retire unused host adapters and their Node synchronizer while retaining the four PHP development gates.
 - Improves PHP, Dockerfile and workflow readability with separated statement blocks, grouped command attributes and wrapped arguments; keeps the formatting rules in the project quality gate.
 - Moves semantic impact to `Version`, GitHub Actions outputs to `Automation\Output`, transport factories to `Http` and `Process`, and release-note rendering to `Release\Renderer`, with matching tests and updated PHP imports. Documents the SDK and development-tooling boundaries and excludes development scripts and formatter configuration from package archives.
@@ -50,8 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate real release dates and create missing parent directories before Git repository discovery (#1)
 - Treat prefixed versions as one identity and apply SemVer prerelease precedence when ordering releases (#1)
 - Recognize existing Changesets version-only release headings when adopting the CLI, preserving their exact historical Markdown while using the selected template for new releases. Keep empty paragraph separators free of generated indentation so multiline release notes pass whitespace checks without a post-processing script.
--
-  Accept the verified `github_actions` ecosystem from Dependabot metadata and normalize it to `github-actions`, allowing GitHub Actions dependency PRs to receive fragments while preserving contribution identity, scope and package validation.
+- Keeps an owned version PR unchanged across calendar days when fresh inputs reconstruct the same signed transaction, preserving its release date, exact history and fragment scope.
+- Accept the verified `github_actions` ecosystem from Dependabot metadata and normalize it to `github-actions`, allowing GitHub Actions dependency PRs to receive fragments while preserving contribution identity, scope and package validation.
 
   Validate the resulting Dependabot head and update its changelog status and sticky comment in the same trusted workflow run, including when the default GitHub token does not trigger another PR event.
 - Build the repository's privileged Dependabot automation from the immutable commit of its trusted workflow, rather than the PR event's potentially older base. Resolve the live comparison base separately before validating and commenting on the resulting contribution.
@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve managed-version authorization in the ordinary CLI check and reject ambiguous category headings so approved fragment consumption validates consistently and custom presentation cannot silently reclassify historical notes.
 - Separate release and category headings with blank lines while keeping simple changelog entries compact and preserving multiline Markdown.
 - Promotes legacy Unreleased descriptions into the next version without leaving a pending section or duplicating category headings.
+- Start multiline release descriptions beside their list marker instead of displaying an empty bullet before the text, while preserving authored line breaks, paragraph spacing and nested Markdown.
 - Validate generated release PRs and update sticky changelog comments on self-hosted runners without requiring GitHub CLI or jq on the host.
 - Reject ambiguous Unreleased headings and unsupported historical release headings before consolidation, so custom template changes cannot duplicate history or misidentify an existing release.
 - Confirm refreshed version pull requests through a fresh read of the same pull request, so a stale GitHub update response cannot report a successful changelog transaction as failed.

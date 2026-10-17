@@ -23,10 +23,14 @@ use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullReque
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
+use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use Throwable;
 
@@ -45,6 +49,10 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         private VersionPullRequestResultFactoryInterface $results,
         private VersionPullRequestExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputEvidence,
+        private HistoryCodecInterface $history,
+        private TemplateResolverInterface $templates,
+        private HistoryReleaseFactoryInterface $releases,
+        private ReleasePlanFactoryInterface $plans,
     ) {}
 
     /** Plans at the fresh base, verifies existing ownership, and mutates only the transaction's exact file scope. */
@@ -90,7 +98,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $plan = $this->planner->plan($options, 'version');
             $this->snapshot($options, $plan, $base);
             $this->require($plan->baseSha === $base, 'The planned base is stale; refresh the base and rerun planning.');
-            $old = null;
+            $evidence = [];
             if (null !== $head && $head !== $base) {
                 $owned = $this->policy->inspectHead($options, $head, $input->automationActor, $base);
                 if (null !== $pr) {
@@ -100,7 +108,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                     $owned,
                     'Existing managed head lacks signed Bot ownership or contains unexpected changes; it was preserved.',
                 );
-                $old = $this->identity($repo, $head);
+                $evidence = $this->evidence($repo, $head);
             } elseif (null !== $pr) {
                 $this->require(
                     $this->botCreatedPullRequest($options, $pr, $input->automationActor),
@@ -123,7 +131,12 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 ($data['id'] ?? null) === $plan->id && ($data['base_sha'] ?? null) === $base,
                 'The generated in-memory plan does not match the planned transaction.',
             );
-            if ($old === $plan->id) {
+            $stable = $this->preserveDate($plan, $head, $evidence);
+            if ($stable !== $plan) {
+                $plan = $stable;
+                $data = $this->receipts->decode($plan->receiptContents)->data;
+            }
+            if (($evidence['Plan'] ?? null) === $plan->id) {
                 if (null !== $pr) {
                     return $this->result('unchanged', $plan, $pr, $head);
                 }
@@ -343,17 +356,98 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         );
     }
 
-    /** Reads a small signed commit trailer after immutable-head ownership and scope validation. */
-    private function identity(string $repository, string $head): ?string
+    /**
+     * Reads unique scalar trailers after immutable-head ownership and scope validation.
+     * Missing, malformed or duplicate fields cannot authorize reuse of a prior date.
+     *
+     * @return array<string,string>
+     */
+    private function evidence(string $repository, string $head): array
     {
         $commit = $this->github->request('GET', '/repos/' . $repository . '/commits/' . $head);
         $message = $commit['commit']['message'] ?? '';
+        $evidence = [];
+        foreach (['Plan', 'Base', 'Output', 'Options'] as $name) {
+            $hash = 'Base' === $name ? '(?:[a-f0-9]{40}|[a-f0-9]{64})' : '[a-f0-9]{64}';
+            if (is_string($message)
+                && 1 === preg_match_all('/^Changelog-' . $name . ':.*$/m', $message)
+                && 1 === preg_match_all(
+                    '/^Changelog-' . $name . ': (' . $hash . ')$/m',
+                    $message,
+                    $matches,
+                )) {
+                $evidence[$name] = $matches[1][0];
+            }
+        }
 
-        return is_string($message) && 1 === preg_match(
-            '/^Changelog-Plan: ([a-f0-9]{64})$/m',
-            $message,
-            $match,
-        ) ? $match[1] : null;
+        return $evidence;
+    }
+
+    /**
+     * Reuses an owned release date only when fresh inputs reconstruct the entire signed transaction.
+     * The clock remains part of ordinary planning; only a candidate with identical base, options,
+     * canonical receipt ID and complete output bytes can replace the fresh plan. Recovery and
+     * maintenance retain their existing semantics. No old template or executable PR content is loaded.
+     *
+     * @param array<string,string> $evidence unique trailers from the owned immutable head
+     */
+    private function preserveDate(ReleasePlan $plan, ?string $head, array $evidence): ReleasePlan
+    {
+        if (null === $head || null === $plan->nextVersion || $plan->resuming
+            || ($evidence['Plan'] ?? null) === $plan->id
+            || ($evidence['Base'] ?? null) !== $plan->baseSha
+            || ($evidence['Options'] ?? null) !== $plan->options->evidenceHash()
+            || ! isset($evidence['Plan'], $evidence['Output'])) {
+            return $plan;
+        }
+        $contents = GitHubEvidence::content(
+            $this->github->request('GET', GitHubEvidence::contentsPath(
+                $plan->options->repository,
+                $plan->options->changelogFile,
+                $head,
+            )),
+        );
+        $this->require(null !== $contents, 'The existing managed changelog could not be read at its verified head.');
+        if (hash('sha256', $contents) !== $evidence['Output']) {
+            return $plan;
+        }
+        $this->inputEvidence->validateTemplate($plan->options, $plan->baseSha);
+        $template = $this->templates->resolve($plan->options);
+        $previous = $this->history->parse($contents, $template)->getRelease($plan->nextVersion);
+        if (null === $previous || null === $previous->getDate()) {
+            return $plan;
+        }
+        $document = $this->history->parse($plan->changelogContents, $template);
+        $releases = [];
+        foreach ($document->getReleases() as $release) {
+            $releases[] = $release->getVersion() === $plan->nextVersion
+                ? $this->releases->create(
+                    $release->getVersion(),
+                    $previous->getDate(),
+                    'release-plan',
+                    $release->getBody(),
+                    null,
+                    $release->getEnding(),
+                ) : $release;
+        }
+        $candidateContents = $this->history->render($document->withReleases($releases), $template, true);
+        $candidate = $this->plans->create(
+            $plan->options,
+            $plan->baseSha,
+            $plan->currentVersion,
+            $plan->nextVersion,
+            $plan->impact,
+            $plan->consumed,
+            $plan->historicalVersions,
+            $plan->changelogPath,
+            $plan->originalChangelog,
+            $candidateContents,
+            $this->history->notes($this->history->parse($candidateContents, $template), $plan->nextVersion),
+            $plan->receiptPath,
+            $plan->originalReceipt,
+        );
+
+        return $candidate->id === $evidence['Plan'] && $candidate->changelogContents === $contents ? $candidate : $plan;
     }
 
     /** Uses a non-forced descendant ref update; after a lost response only an exact GET confirmation counts. */
