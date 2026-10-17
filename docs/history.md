@@ -36,10 +36,14 @@ authored Markdown hard breaks remain unchanged.
 ## Release reference links
 
 When `version` promotes pending fragments into a concrete release and the
-effective GitHub repository is known, it also appends missing Markdown reference
+effective GitHub repository is known, it also inserts missing Markdown reference
 definitions for every maintained SemVer section. The oldest semantic version
 links to its GitHub release/tag page; each subsequent version links to the
 comparison with its semantic predecessor, independently of section order.
+New definitions follow the maintained section order: a new latest release goes
+before the older version links, and a missing intermediate version goes before
+its next retained footer reference. Existing definitions and unrelated links keep
+their relative order; their destinations are never rewritten.
 For `owner/repo` with the default `v` tag prefix:
 
 ```markdown
