@@ -48,8 +48,9 @@ standard-exception creation belong to their callers. Domain factories retain
 their validation and transaction rules. These are source responsibilities under
 the root contract, not new child instruction scopes.
 
-The source map records removed public FQCNs and constructor changes as a major
-migration for the initial release. Root → source map → affected API remains the
+The source map records public FQCN and constructor cleanup before the first
+public release, `0.1.0`, with migration tables for applications using earlier
+development commit pins. Root → source map → affected API remains the
 reading route. No host entrypoint or installed consumer skill is rewritten.
 
 The current hierarchy and target hierarchy both have one development root.

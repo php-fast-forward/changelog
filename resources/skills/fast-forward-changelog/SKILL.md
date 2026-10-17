@@ -2,12 +2,12 @@
 name: fast-forward-changelog
 description: Adopt Fast Forward Changelog GitHub automation, write and validate independent fragments, preview releases, and use its CLI or PHP services. Use for application changelog integration and approved release maintenance.
 license: MIT
-compatibility: Supports fast-forward/changelog ^1.0 (minimum 1.0.0). GitHub automation requires Linux with Docker, Bash and Git; no consumer PHP installation. Local CLI/PHP integration requires PHP ^8.5 and Composer. GitHub credentials are needed only for authorized remote operations.
+compatibility: Supports fast-forward/changelog ^0.1 (minimum 0.1.0). GitHub automation requires Linux with Docker, Bash and Git; no consumer PHP installation. Local CLI/PHP integration requires PHP ^8.5 and Composer. GitHub credentials are needed only for authorized remote operations.
 metadata:
   author: php-fast-forward
   source: original
   repository: https://github.com/php-fast-forward/changelog
-  api-baseline: fast-forward/changelog ^1.0 (minimum 1.0.0)
+  api-baseline: fast-forward/changelog ^0.1 (minimum 0.1.0)
 ---
 
 # Fast Forward Changelog
@@ -29,7 +29,7 @@ alone; failed or ambiguous evidence blocks preparation before writes.
 
 Read applicable application instructions and Git status first. Preserve existing
 work, repository policies, workflows, plugin choices and secrets. This skill
-supports the `fast-forward/changelog ^1.0` product contract from `1.0.0`; earlier
+supports the `fast-forward/changelog ^0.1` product contract from `0.1.0`; earlier
 versions are outside it. For CLI/API use, inspect
 `composer show fast-forward/changelog` and `vendor/bin/changelog list --raw`.
 A mismatch calls for compatible documentation or a separately authorized upgrade.
@@ -64,7 +64,7 @@ jobs:
       pull-requests: write
       issues: read
       statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@4934f391eb6022814599fec86f003216ef512d79
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@9361890c918f8662e2de8cfcbff41923be57c536
     with:
       base-branch: main
       source: tags

@@ -1,6 +1,6 @@
 # Optional Composer skill synchronization
 
-`fast-forward/changelog ^1.0` ships the complete
+`fast-forward/changelog ^0.1` ships the complete
 `resources/skills/fast-forward-changelog` package. It declares
 `extra.skills.source: resources/skills` and suggests `llm/skills` while retaining
 its `library` type, normal vendor path and CLI binary. The suggestion does not

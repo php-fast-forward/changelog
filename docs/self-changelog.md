@@ -9,10 +9,10 @@ the internal procedure. Read it directly from `resources`; the repository does
 not need a second copy in `.agents/skills`. In a source checkout, substitute
 `php bin/changelog` for the skill's consumer command `vendor/bin/changelog`.
 
-The current central `Unreleased` section is legacy pending content. The version
-transaction promotes those descriptions into the concrete release alongside
-the fragments and removes that heading. Keep both inputs until that reviewed
-transaction; new contributions add only independent fragments.
+Initial development notes, including the former central `Unreleased` content,
+were curated into independent first-delivery fragments before publication.
+The normal version transaction consolidates those summaries. New contributions
+add only independent fragments; do not recreate a central pending list.
 
 From the package checkout, install dependencies and create a fragment:
 

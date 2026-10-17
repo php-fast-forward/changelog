@@ -1,7 +1,7 @@
 # Install the Fast Forward Changelog skill
 
 The bundled `fast-forward-changelog` skill supports
-`fast-forward/changelog ^1.0` (minimum `1.0.0`). Inspect the installed version
+`fast-forward/changelog ^0.1` (minimum `0.1.0`). Inspect the installed version
 before using its optional CLI/API contract. Earlier runtimes require compatible
 instructions or a separately authorized upgrade. Its canonical source is
 `resources/skills/fast-forward-changelog`, including its MIT license, references
@@ -51,13 +51,15 @@ That is an alternative donor location, not an installation prerequisite.
 ## Immutable source, explicit host and global scope
 
 The documented route was checked with Skills CLI `1.7.2`; its Node requirement
-is `22.20.0+`. To select a reviewed immutable source instead of the default
-branch, use the complete product commit and canonical directory below. This
-variant also selects Codex and copy mode without the installer's prompts:
+is `22.20.0+`. To select an immutable source, choose a reviewed commit whose
+skill metadata supports the installed runtime. Set `CHANGELOG_SKILL_REVISION`
+to that full commit SHA before running this variant; older development commits
+may declare a different product contract. It also selects Codex and copy mode
+without the installer's prompts:
 
 ```sh
 npx --yes skills add \
-  https://github.com/php-fast-forward/changelog/tree/4934f391eb6022814599fec86f003216ef512d79/resources/skills/fast-forward-changelog \
+  "https://github.com/php-fast-forward/changelog/tree/${CHANGELOG_SKILL_REVISION:?Set the reviewed full commit SHA}/resources/skills/fast-forward-changelog" \
   --skill fast-forward-changelog --agent codex --copy --yes
 npx skills list --agent codex
 ```

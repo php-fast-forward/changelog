@@ -107,7 +107,7 @@
             "source": "resources/skills"
         },
         "branch-alias": {
-            "dev-main": "1.x-dev"
+            "dev-main": "0.1.x-dev"
         }
     },
     "scripts": {

@@ -53,11 +53,16 @@ used across Fast Forward PHP packages.
   generate host aliases or copies there. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
   remain explicit operations, separate from package distribution. Keep the skill's
-  `^1.0` consumer contract, references and executable examples aligned when changing
+  `^0.1` consumer contract, references and executable examples aligned when changing
   consumer integration; this source reference needs no installed copy or host alias.
 
 ## This Repository's Changelog
 
+- The first public release is planned as `0.1.0`. During initial `0.x` development,
+  use `patch` for compatible fixes and explicit `minor` for new or breaking
+  development changes, describing any affected contract. Reserve an explicit
+  `major` note for the maintainer's deliberate `1.0.0` stability milestone.
+  The CLI's generic impact calculation remains unchanged.
 - Read [the canonical skill](resources/skills/fast-forward-changelog/SKILL.md)
   before recording notes, validating contributions or maintaining releases here.
   It is also the internal procedure; no copy or host-discovery adapter is needed.
@@ -69,10 +74,10 @@ used across Fast Forward PHP packages.
   Preserve inherited pending notes and the central history in ordinary PRs.
   Leave optional `author` absent unless an actual contributor identity is known;
   do not infer a personal credit from the repository's organization.
-- `CHANGELOG.md` is consolidated version history. Its initial `Unreleased` is
-  legacy migration input: the version transaction promotes it into the concrete
-  release and removes the pending heading. Never add new notes there or recreate
-  it alongside fragments.
+- `CHANGELOG.md` is consolidated version history. Initial development notes,
+  including the former central `Unreleased` content, were curated into independent
+  first-delivery fragments before publication. Never add new pending notes to the
+  central file or recreate an `Unreleased` heading alongside fragments.
 - Explicit editorial maintenance may replace inherited pending notes only under
   the verified human maintenance policy, with new validated committed summaries
   and exact Git blob/mode evidence. Preserve the original notes in Git and map
