@@ -148,7 +148,7 @@ final class SquashPublicationTest extends TestCase
             $bot = ['login' => 'github-actions[bot]', 'type' => 'Bot', 'id' => 41898282];
             $calls = [];
             /** Emulates immutable GitHub objects from the disposable origin; every real HTTP/mutation is forbidden. */
-            $api = static function (string $method, string $path) use (
+            $api = static function (string $method, string $path, ?array $body = null) use (
                 $git,
                 $producer,
                 $base,
@@ -159,7 +159,14 @@ final class SquashPublicationTest extends TestCase
                 $bot,
                 &$calls
             ): ?array {
-                $calls[] = [$method, $path];
+                $calls[] = [$method, $path, $body];
+                if ('POST' === $method && '/graphql' === $path
+                    && ['query' => self::mergedQuery(), 'variables' => ['owner' => 'owner', 'name' => 'fixture', 'number' => 7]] === $body) {
+                    return ['data' => ['repository' => ['nameWithOwner' => 'owner/fixture', 'id' => 'opaque-fixture-repository',
+                        'pullRequest' => ['number' => 7, 'state' => 'MERGED', 'merged' => true,
+                            'headRefOid' => $head, 'headRefName' => 'changelog/version', 'baseRefName' => 'main',
+                            'mergeCommit' => ['oid' => $merge]]]]];
+                }
                 if ('GET' !== $method) {
                     throw new RuntimeException('This integration fixture forbids every HTTP mutation.');
                 }
@@ -168,9 +175,9 @@ final class SquashPublicationTest extends TestCase
                     return $bot;
                 }
                 if (($prefix . '/pulls/7') === $path) {
-                    $repo = ['id' => 11, 'full_name' => 'owner/fixture'];
+                    $repo = ['id' => 11, 'full_name' => 'owner/fixture', 'node_id' => 'opaque-fixture-repository'];
 
-                    return ['number' => 7, 'state' => 'closed', 'merged' => true, 'merge_commit_sha' => $merge, 'user' => $bot,
+                    return ['number' => 7, 'state' => 'closed', 'merged' => true, 'user' => $bot,
                         'head' => ['sha' => $head, 'ref' => 'changelog/version', 'repo' => $repo], 'base' => ['sha' => $base, 'ref' => 'main', 'repo' => $repo]];
                 }
                 if (($prefix . '/commits/' . $head) === $path) {
@@ -227,7 +234,7 @@ final class SquashPublicationTest extends TestCase
                     string $relativePath,
                     ?array $body = null,
                 ): ?array {
-                    return ($this->api)($method, $relativePath);
+                    return ($this->api)($method, $relativePath, $body);
                 }
                 /** No paginated operation belongs to the merged-publication proof. */
                 public function paginate(string $relativePath): array
@@ -275,8 +282,10 @@ final class SquashPublicationTest extends TestCase
             self::assertSame(['create_tag', 'create_release'], $result['actions']);
             self::assertSame([
             ],
-                array_values(array_filter($calls, static fn(array $call): bool => 'GET' !== $call[0])),
+                array_values(array_filter($calls, static fn(array $call): bool => 'GET' !== $call[0]
+                    && ['POST', '/graphql', ['query' => self::mergedQuery(), 'variables' => ['owner' => 'owner', 'name' => 'fixture', 'number' => 7]]] !== $call)),
             );
+            self::assertCount(1, array_filter($calls, static fn(array $call): bool => '/graphql' === $call[1]));
             $failed = false;
             try {
                 $consumerOptions = $runtime->get(ReleaseOptionsFactoryInterface::class)->create([
@@ -349,5 +358,27 @@ final class SquashPublicationTest extends TestCase
             }
         }
         $filesystem->remove($root);
+    }
+
+    /** Whitelists the complete fixed read query; no other POST or GraphQL operation can reach the synthetic API. */
+    private static function mergedQuery(): string
+    {
+        return <<<'GRAPHQL'
+query ChangelogMergedPullRequest($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    id
+    pullRequest(number: $number) {
+      number
+      state
+      merged
+      headRefOid
+      headRefName
+      baseRefName
+      mergeCommit { oid }
+    }
+  }
+}
+GRAPHQL;
     }
 }

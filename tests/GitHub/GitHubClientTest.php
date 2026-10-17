@@ -50,6 +50,45 @@ final class GitHubClientTest extends TestCase
         self::assertSame([], $this->client($http, '', 'https://enterprise.test/api/v3/')->request('GET', '/meta'));
     }
 
+    /** Only the exact GraphQL POST leaves the REST v3 prefix, preserving the configured HTTPS origin. */
+    #[Test]
+    #[TestWith(['POST', '/graphql', 'https://enterprise.test/api/v3', 'https://enterprise.test/api/graphql'])]
+    #[TestWith(['POST', '/graphql', 'https://enterprise.test/api/v3/', 'https://enterprise.test/api/graphql'])]
+    #[TestWith([
+        'POST',
+        '/graphql',
+        'https://enterprise.test/proxy/api/v3',
+        'https://enterprise.test/proxy/api/graphql',
+    ])]
+    #[TestWith(['GET', '/graphql', 'https://enterprise.test/api/v3', 'https://enterprise.test/api/v3/graphql'])]
+    #[TestWith([
+        'POST',
+        '/graphql?other=1',
+        'https://enterprise.test/api/v3',
+        'https://enterprise.test/api/v3/graphql?other=1',
+    ])]
+    #[TestWith(['POST', '/resource', 'https://enterprise.test/api/v3', 'https://enterprise.test/api/v3/resource'])]
+    #[TestWith(['POST', '/graphql', 'https://enterprise.test/api/v30', 'https://enterprise.test/api/v30/graphql'])]
+    #[TestWith(['POST', '/graphql', 'https://api.github.com', 'https://api.github.com/graphql'])]
+    public function routesOnlyExactEnterpriseGraphqlPosts(
+        string $method,
+        string $path,
+        string $api,
+        string $expectedUrl,
+    ): void {
+        $body = 'POST' === $method ? ['query' => 'query { viewer { login } }'] : null;
+        $options = ['headers' => ['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2026-03-10',
+            'User-Agent' => 'FastForward-Changelog'], 'max_redirects' => 0];
+        if (null !== $body) {
+            $options['json'] = $body;
+        }
+        $http = $this->createMock(HttpClientInterface::class);
+        $http->expects(self::once())->method('request')->with($method, $expectedUrl, $options)->willReturn(
+            $this->response(200, []),
+        );
+        self::assertSame([], $this->client($http, '', $api)->request($method, $path, $body));
+    }
+
     #[Test]
     #[TestWith([404])]
     #[TestWith([204])]

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Publication;
 
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
+use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
+use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
@@ -20,6 +22,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 use Throwable;
 
 #[CoversClass(PublicationService::class)]
@@ -27,8 +31,194 @@ use Throwable;
 #[UsesClass(PublicationEvidence::class)]
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(\FastForward\Changelog\Automation\Policy\GitHubEvidence::class)]
+#[UsesClass(GitHubClient::class)]
 final class PublicationServiceTest extends TestCase
 {
+    /** The real client keeps REST 2026 while GraphQL proves the merge identity removed from that payload. */
+    public function testRest2026PublicationUsesGraphqlMergeIdentityWithThePinnedHttpHeader(): void
+    {
+        $pr = $this->mergedPr();
+        unset($pr['merge_commit_sha']);
+        $state = $this->state(['context' => true, 'pr' => $pr, 'real_http' => true,
+            'graphql' => ['errors' => [], ...self::mergedProof()]]);
+        $result = $this->service($state)->publishMerged(
+            new ReleaseOptions('/consumer', repository: 'owner/repo'),
+            7,
+            str_repeat('b', 40),
+            str_repeat('f', 40),
+            automationActor: 'app[bot]',
+            dryRun: true,
+        );
+        self::assertSame('dry-run', $result->state);
+        self::assertSame(str_repeat('b', 40), $result->sha);
+        self::assertSame([], $this->writes($state));
+        self::assertSame(1, $state['policy_calls']);
+        self::assertSame(1, $state['evidence_calls']);
+    }
+
+    /** Large numeric REST IDs retain an opaque cross-API identity without decoding or narrowing it. */
+    #[DataProvider('opaqueRepositoryNodes')]
+    public function testLargeRestRepositoryIdsUseOpaqueNodeIdentity(string $node): void
+    {
+        $pr = $this->mergedPr();
+        unset($pr['merge_commit_sha']);
+        $pr['base']['repo']['id'] = $pr['head']['repo']['id'] = 3_000_000_000;
+        $pr['base']['repo']['node_id'] = $pr['head']['repo']['node_id'] = $node;
+        $proof = self::mergedProof();
+        $proof['data']['repository']['id'] = $node;
+        $state = $this->state(['context' => true, 'pr' => $pr, 'graphql' => $proof]);
+        $result = $this->service($state)->publishMerged(
+            new ReleaseOptions('/consumer', repository: 'owner/repo'),
+            7,
+            str_repeat('b', 40),
+            str_repeat('f', 40),
+            automationActor: 'app[bot]',
+            dryRun: true,
+        );
+        self::assertSame('dry-run', $result->state);
+        self::assertSame([], $this->writes($state));
+        self::assertSame(1, $state['policy_calls']);
+        self::assertSame(1, $state['evidence_calls']);
+    }
+
+    /** Opaque Node IDs are compared byte for byte even when they contain punctuation or look numeric. */
+    public static function opaqueRepositoryNodes(): iterable
+    {
+        yield 'opaque punctuation' => ['opaque:repository/node+unchanged='];
+        yield 'opaque numeric-looking string' => ['3000000000'];
+    }
+
+    /** Missing, differently typed or unequal GraphQL Node IDs cannot reach policy, domain proof or writes. */
+    #[DataProvider('invalidGraphqlNodeIds')]
+    public function testGraphqlNodeIdsNeverUseTypeCoercion(mixed $id): void
+    {
+        $pr = $this->mergedPr();
+        $pr['base']['repo']['id'] = $pr['head']['repo']['id'] = 3_000_000_000;
+        $pr['base']['repo']['node_id'] = $pr['head']['repo']['node_id'] = '3000000000';
+        $proof = self::mergedProof();
+        $proof['data']['repository']['id'] = $id;
+        $state = $this->state(['context' => true, 'pr' => $pr, 'graphql' => $proof]);
+        $failed = false;
+        try {
+            $this->service($state)->publishMerged(
+                new ReleaseOptions('/consumer', repository: 'owner/repo'),
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+                dryRun: true,
+            );
+        } catch (RuntimeException $error) {
+            $failed = true;
+            self::assertStringContainsString('GraphQL', $error->getMessage());
+        }
+        self::assertTrue($failed);
+        self::assertSame(0, $state['policy_calls']);
+        self::assertSame(0, $state['evidence_calls']);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** Rejects missing/wrong opaque values and non-string types instead of comparing loosely or decoding them. */
+    public static function invalidGraphqlNodeIds(): iterable
+    {
+        foreach ([null, '', 3_000_000_000, 3_000_000_000.0, true, false, [], 'different-opaque-node'] as $id) {
+            yield [$id];
+        }
+    }
+
+    /** Both REST sides must explicitly retain the same nonempty opaque Node ID before GraphQL is requested. */
+    #[DataProvider('missingRestNodeSides')]
+    public function testMissingRestNodeIdentityFailsBeforeGraphql(string $side): void
+    {
+        $pr = $this->mergedPr();
+        unset($pr[$side]['repo']['node_id']);
+        $state = $this->state(['context' => true, 'pr' => $pr]);
+        $failed = false;
+        try {
+            $this->service($state)->publishMerged(
+                new ReleaseOptions('/consumer', repository: 'owner/repo'),
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+                dryRun: true,
+            );
+        } catch (RuntimeException) {
+            $failed = true;
+        }
+        self::assertTrue($failed);
+        self::assertSame([['GET', '/repos/owner/repo/pulls/7', null]], $state['calls']);
+        self::assertSame(0, $state['policy_calls']);
+        self::assertSame(0, $state['evidence_calls']);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** Removing either protocol identity must not be treated as a legacy fallback. */
+    public static function missingRestNodeSides(): iterable
+    {
+        yield ['base'];
+        yield ['head'];
+    }
+
+    /** Every incomplete, failed or mismatched GraphQL relationship must fail before ownership/domain or mutations. */
+    #[DataProvider('invalidMergedGraphql')]
+    public function testInvalidGraphqlCannotAuthorizeTheMerge(?array $proof): void
+    {
+        $state = $this->state(['context' => true, 'graphql' => $proof]);
+        $failed = false;
+        try {
+            $this->service($state)->publishMerged(
+                new ReleaseOptions('/consumer', repository: 'owner/repo'),
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+                dryRun: true,
+            );
+        } catch (RuntimeException $error) {
+            $failed = true;
+            self::assertStringContainsString('GraphQL', $error->getMessage());
+        }
+        self::assertTrue($failed, 'GraphQL identity must be independently verified.');
+        self::assertSame(0, $state['policy_calls']);
+        self::assertSame(0, $state['evidence_calls']);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** Supplies partial/errors and each independently bound identity, including a valid-looking wrong merge. */
+    public static function invalidMergedGraphql(): iterable
+    {
+        yield 'unavailable' => [null];
+        yield 'missing data' => [[]];
+        yield 'null repository' => [['data' => ['repository' => null]]];
+        yield 'scalar repository' => [['data' => ['repository' => 'owner/repo']]];
+        $proof = self::mergedProof();
+        $legacy = $proof;
+        unset($legacy['data']['repository']['id']);
+        $legacy['data']['repository']['databaseId'] = 11;
+        $legacy['data']['repository']['fullDatabaseId'] = '11';
+        yield 'numeric identities alone are insufficient' => [$legacy];
+        yield 'partial data with errors' => [['errors' => [['message' => 'Partial result']], ...$proof]];
+        yield 'malformed errors' => [['errors' => null, ...$proof]];
+        foreach (['nameWithOwner' => 'fork/repo', 'id' => 'different-repository-node', 'pullRequest' => null] as $field => $value) {
+            $changed = $proof;
+            $changed['data']['repository'][$field] = $value;
+            yield 'repository ' . $field => [$changed];
+        }
+        foreach (['number' => 8, 'state' => 'CLOSED', 'merged' => false,
+            'headRefOid' => str_repeat('a', 40), 'headRefName' => 'human', 'baseRefName' => 'develop',
+            'mergeCommit' => null] as $field => $value) {
+            $changed = $proof;
+            $changed['data']['repository']['pullRequest'][$field] = $value;
+            yield 'pull request ' . $field => [$changed];
+        }
+        foreach ([null, 'abc', str_repeat('a', 40)] as $oid) {
+            $changed = $proof;
+            $changed['data']['repository']['pullRequest']['mergeCommit']['oid'] = $oid;
+            yield 'merge ' . ($oid ?? 'null') => [$changed];
+        }
+    }
+
     /** Squash publication tags the merge, only after exact PR identity, signed ownership and contextual domain proof. */
     public function testMergedPublicationKeepsMergeTargetAndCreateOnlyReconciliation(): void
     {
@@ -104,15 +294,31 @@ final class PublicationServiceTest extends TestCase
         }
         self::assertTrue($failed);
         self::assertSame([], $this->writes($state));
+        if (array_key_exists('merge_commit_sha', $replacement)) {
+            self::assertSame([['GET', '/repos/owner/repo/pulls/7', null]], $state['calls']);
+            self::assertSame(0, $state['policy_calls']);
+            self::assertSame(0, $state['evidence_calls']);
+        }
     }
 
     /** Supplies adversarial authority bindings independently of domain/tree proofs. */
     public static function invalidMergedPr(): iterable
     {
         foreach ([['number' => 8], ['state' => 'open'], ['merged' => false],
-            ['merge_commit_sha' => str_repeat('c', 40)], ['head' => ['sha' => str_repeat('c', 40)]],
+            ['merge_commit_sha' => str_repeat('c', 40)], ['merge_commit_sha' => null],
+            ['head' => ['sha' => str_repeat('c', 40)]],
             ['head' => ['repo' => ['full_name' => 'fork/repo']]], ['base' => ['repo' => ['full_name' => 'other/repo']]],
             ['head' => ['repo' => ['id' => 999]]], ['base' => ['repo' => ['id' => 0]]],
+            ['base' => ['repo' => ['id' => '3000000000']], 'head' => ['repo' => ['id' => '3000000000']]],
+            ['base' => ['repo' => ['id' => 3_000_000_000.0]], 'head' => ['repo' => ['id' => 3_000_000_000.0]]],
+            ['base' => ['repo' => ['node_id' => null]]],
+            ['base' => ['repo' => ['node_id' => '']], 'head' => ['repo' => ['node_id' => '']]],
+            ['base' => ['repo' => ['node_id' => 11]], 'head' => ['repo' => ['node_id' => 11]]],
+            ['base' => ['repo' => ['node_id' => false]], 'head' => ['repo' => ['node_id' => false]]],
+            ['base' => ['repo' => ['node_id' => []]], 'head' => ['repo' => ['node_id' => []]]],
+            ['head' => ['repo' => ['node_id' => null]]], ['head' => ['repo' => ['node_id' => '']]],
+            ['head' => ['repo' => ['node_id' => true]]], ['head' => ['repo' => ['node_id' => []]]],
+            ['head' => ['repo' => ['node_id' => 'different-repository-node']]],
             ['head' => ['ref' => 'human-branch']], ['base' => ['ref' => 'develop']],
             ['user' => ['type' => 'User']], ['user' => ['login' => 'other[bot]']]] as $replacement) {
             yield [$replacement];
@@ -385,7 +591,8 @@ final class PublicationServiceTest extends TestCase
         return array_replace([
             'tag' => null, 'release' => null, 'annotated' => [], 'calls' => [], 'tag_reads' => 0, 'move_at' => null,
             'maintenance' => false, 'invalid_evidence' => false, 'fail_tag' => false, 'fail_release' => false,
-            'lost_tag_response' => false, 'lost_release_response' => false],
+            'lost_tag_response' => false, 'lost_release_response' => false,
+            'policy_calls' => 0, 'evidence_calls' => 0],
             $changes,
         );
     }
@@ -405,7 +612,8 @@ final class PublicationServiceTest extends TestCase
     /** Filters only actual HTTP mutations recorded by deterministic doubles. */
     private function writes(array $state): array
     {
-        return array_values(array_filter($state['calls'], static fn(array $call): bool => 'GET' !== $call[0]));
+        return array_values(array_filter($state['calls'], static fn(array $call): bool => 'GET' !== $call[0]
+            && ! ('POST' === $call[0] && '/graphql' === $call[1])));
     }
 
     /** Captures a useful failure while allowing tests to inspect the unchanged remote world. */
@@ -431,6 +639,7 @@ final class PublicationServiceTest extends TestCase
             &$state
         ): PublicationEvidence {
             self::assertSame(str_repeat('b', 40), $sha);
+            ++$state['evidence_calls'];
             if ($state['invalid_evidence']) {
                 throw new InvalidArgumentException('invalid local evidence');
             }
@@ -462,6 +671,12 @@ final class PublicationServiceTest extends TestCase
             $state['calls'][] = [$method, $path, $body];
             if ('GET' === $method && '/repos/owner/repo/pulls/7' === $path) {
                 return $state['pr'] ?? $this->mergedPr();
+            }
+            if ('POST' === $method && '/graphql' === $path) {
+                self::assertSame(self::mergedQuery(), $body['query']);
+                self::assertSame(['owner' => 'owner', 'name' => 'repo', 'number' => 7], $body['variables']);
+
+                return array_key_exists('graphql', $state) ? $state['graphql'] : self::mergedProof();
             }
             if ('GET' === $method && '/users/app%5Bbot%5D' === $path) {
                 return array_key_exists('account', $state) ? $state['account'] : $this->mergedPr()['user'];
@@ -504,6 +719,33 @@ final class PublicationServiceTest extends TestCase
             }
             self::fail('Unexpected HTTP operation: ' . $method . ' ' . $path);
         });
+        if ($state['real_http'] ?? false) {
+            $recorded = $github;
+            $http = $this->createMock(HttpClientInterface::class);
+            $http->expects(self::exactly(5))->method('request')->willReturnCallback(
+                function (string $method, string $url, array $options) use ($recorded): ResponseInterface {
+                    self::assertSame([
+                        'Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2026-03-10',
+                        'User-Agent' => 'FastForward-Changelog', 'Authorization' => 'Bearer synthetic-token',
+                    ], $options['headers']);
+                    self::assertSame(0, $options['max_redirects']);
+                    self::assertStringStartsWith('https://api.github.com/', $url);
+                    $data = $recorded->request(
+                        $method,
+                        substr($url, strlen('https://api.github.com')),
+                        $options['json'] ?? null,
+                    );
+                    $response = $this->createStub(ResponseInterface::class);
+                    $response->method('getStatusCode')->willReturn(null === $data ? 404 : 200);
+                    $response->method('toArray')->willReturn($data ?? []);
+                    $response->method('getHeaders')->willReturn([]);
+
+                    return $response;
+                },
+            );
+            $httpErrors = $this->createStub(GitHubExceptionFactoryInterface::class);
+            $github = new GitHubClient($http, $httpErrors, 'synthetic-token');
+        }
         $results = $this->createStub(PublicationResultFactoryInterface::class);
         $results->method('create')->willReturnCallback(
             static fn(string $state, ?string $version, ?string $tag, string $sha, ?string $url, array $actions): PublicationResult => new PublicationResult(
@@ -535,6 +777,7 @@ final class PublicationServiceTest extends TestCase
                     self::assertSame(str_repeat('f', 40), $head);
                     self::assertSame('app[bot]', $actor);
                     self::assertSame(str_repeat('b', 40), $merge);
+                    ++$state['policy_calls'];
 
                     return $state['owned'] ?? true;
                 },
@@ -552,7 +795,38 @@ final class PublicationServiceTest extends TestCase
             'head' => ['sha' => str_repeat(
                 'f',
                 40,
-            ), 'ref' => 'changelog/version', 'repo' => ['full_name' => 'owner/repo', 'id' => 11]],
-            'base' => ['ref' => 'main', 'repo' => ['full_name' => 'owner/repo', 'id' => 11]]];
+            ), 'ref' => 'changelog/version', 'repo' => ['full_name' => 'owner/repo', 'id' => 11, 'node_id' => 'opaque-repository-node']],
+            'base' => ['ref' => 'main', 'repo' => ['full_name' => 'owner/repo', 'id' => 11, 'node_id' => 'opaque-repository-node']]];
+    }
+
+    /** Pins the one permitted query so a POST fixture can never silently accept a mutation. */
+    private static function mergedQuery(): string
+    {
+        return <<<'GRAPHQL'
+query ChangelogMergedPullRequest($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    id
+    pullRequest(number: $number) {
+      number
+      state
+      merged
+      headRefOid
+      headRefName
+      baseRefName
+      mergeCommit { oid }
+    }
+  }
+}
+GRAPHQL;
+    }
+
+    /** Represents complete identity evidence from the same repository and immutable managed PR head. */
+    private static function mergedProof(): array
+    {
+        return ['data' => ['repository' => ['nameWithOwner' => 'owner/repo', 'id' => 'opaque-repository-node',
+            'pullRequest' => ['number' => 7, 'state' => 'MERGED', 'merged' => true,
+                'headRefOid' => str_repeat('f', 40), 'headRefName' => 'changelog/version',
+                'baseRefName' => 'main', 'mergeCommit' => ['oid' => str_repeat('b', 40)]]]]];
     }
 }
