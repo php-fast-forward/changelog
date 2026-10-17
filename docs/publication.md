@@ -58,6 +58,14 @@ exact identities, in the configured repository and branches, under the configure
 Bot creator. The existing ownership policy verifies the head's Bot signature,
 transaction settings and complete central-history-plus-fragment-deletions scope.
 
+REST remains pinned to `2026-03-10`, which removes `merge_commit_sha` from PR
+responses. A fixed GraphQL query independently binds `mergeCommit.oid` to `M`,
+the same repository name and numeric ID, PR number, merged state, branches and
+original head. Missing, partial, failed or divergent evidence is rejected. A
+legacy REST merge field, when present, must also agree; webhook/event values
+alone cannot authorize the merge. See GitHub's
+[breaking changes](https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10).
+
 The contextual validator reads `H` through immutable GitHub object APIs. It does
 not check out or fetch head code, and works after automatic branch deletion even
 when `H` is absent from the local clone. Both API commit identities must match
@@ -102,7 +110,9 @@ A matching tag without its release is completed on retry. Uncertain responses
 are reconciled by authoritative reads; absent or conflicting results fail with
 a recoverable diagnostic. Repeating a complete publication returns unchanged.
 
-Dry-run performs proof and remote reads without POST, PATCH or DELETE.
+Dry-run performs proof and remote reads without mutations. Contextual evidence
+uses fixed GraphQL queries sent by POST; no GraphQL mutation, tag or Release
+write is permitted during that preview.
 Unit tests replace Git, filesystem, templates, factories and HTTP; they create
 no real release and use no user credentials.
 
