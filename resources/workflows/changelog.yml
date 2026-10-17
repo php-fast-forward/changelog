@@ -26,7 +26,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@e85adf33154b735941a9a903c1a1d4dfb331d6fb
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b02a255a3445b2bea86d090d98961cdfe35e57a
 
     with:
       runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
