@@ -13,7 +13,7 @@ used across Fast Forward PHP packages.
 - Exact release transactions: [`src/Release/`](src/Release/)
 - Approved-commit publication: [`src/Publication/`](src/Publication/)
 - Filesystem, Git and GitHub boundaries: [`src/Filesystem/`](src/Filesystem/), [`src/Git/`](src/Git/), [`src/GitHub/`](src/GitHub/)
-- Generic transport construction: [`src/Http/`](src/Http/), [`src/Process/`](src/Process/)
+- Process construction boundary: [`src/Process/`](src/Process/); HTTP client and secure entropy construction belong to the service provider.
 - Trusted automation and Docker actions: [`src/Automation/`](src/Automation/), [`.github/actions/`](.github/actions/)
 - GitHub orchestration: [`.github/workflows/`](.github/workflows/); `changelog*` are public reusables and `repository-*` belong to this package.
 - Packaged CLI image: [`Dockerfile`](Dockerfile), [runtime guide](docs/docker.md)
@@ -82,6 +82,10 @@ used across Fast Forward PHP packages.
 - Keep runtime dependencies independent of `fast-forward/dev-tools`.
 - Keep invokable commands thin; focused services own changelog behavior.
 - Construct collaborators through factories/composition and inject every side-effect boundary.
+- Use interface-to-class aliases and autowiring for ordinary service construction.
+  Keep factories only for domain validation/transformation or replaceable operations
+  with runtime inputs. Create pure values and standard exceptions directly; do not
+  introduce wrapper factories merely to mock construction in tests.
 - Preserve deterministic rendering and exact historical Markdown.
 - Ordinary contributions add unique fragments. Approved consolidation consumes
   only its validated set and updates the single central history through services.
@@ -97,7 +101,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 
 ## Child DOX Index
 
-- [Source namespaces](docs/source-layout.md): domain and transport ownership, canonical PHP imports and the major namespace migration; ordinary folders share the root contract.
+- [Source namespaces](docs/source-layout.md): domain and transport ownership, canonical PHP imports and the major namespace/factory migration; ordinary folders share the root contract.
 - [Integration dependencies](docs/integration-dependencies.md): records verified Git/GitHub candidate versions and adoption criteria without claiming SDK installation or behavioral equivalence.
 - [Development scripts](scripts/README.md): maps the four used PHP quality helpers; production CLI and images do not invoke them.
 - [Published changelog skill](resources/skills/fast-forward-changelog/SKILL.md): uniquely named portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.

@@ -2,10 +2,9 @@
 
 ## Maintained development line
 
-Fast Forward Changelog is currently a pre-release project without published
-releases. Security fixes are developed on `main`. A supported release policy
-will be recorded here when the project publishes releases; this document does
-not establish a support period for future versions.
+Security fixes are developed on `main`. Report the exact affected package
+version or source commit. This policy does not establish a support period for
+individual tagged versions.
 
 ## Private vulnerability reports
 

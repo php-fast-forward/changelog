@@ -33,6 +33,67 @@ version heading is not part of this import grammar. Multiline fragment paragraph
 remain indented within their list item without adding spaces to empty separators;
 authored Markdown hard breaks remain unchanged.
 
+## Release reference links
+
+When `version` promotes pending fragments into a concrete release and the
+effective GitHub repository is known, it also appends missing Markdown reference
+definitions for every maintained SemVer section. The oldest semantic version
+links to its GitHub release/tag page; each subsequent version links to the
+comparison with its semantic predecessor, independently of section order.
+For `owner/repo` with the default `v` tag prefix:
+
+```markdown
+[1.1.0]: https://github.com/owner/repo/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0
+```
+
+Existing active Markdown definitions remain authoritative; examples inside code
+or HTML comments do not define links. Their URLs, optional titles, casing, whitespace and line
+endings are preserved byte for byte. Retained headings using `[v1.0.0]` or
+`[V1.0.0]` keep that reference label; new headings use their canonical version.
+The complete configured tag is URL-encoded, including namespace slashes or build
+metadata. SemVer precedence includes existing prereleases; distinct build
+identities with equal precedence use lexical order for a deterministic predecessor.
+
+Without a known repository, no links are added. `format`, `backfill` and plans
+without a new concrete release do not add definitions. No `Unreleased` link is
+created. Constructing these URLs does not query GitHub or prove that a tag or
+release has been published; publication remains a separate approved operation.
+The pure `HistoryReferenceBuilder` owns this completion, while the codec keeps
+parsing, rendering and exact note extraction. Publication reconstructs the same
+deterministic footer when checking the approved central bytes.
+
+## Entry references and attribution
+
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) calls for readable
+changes, grouped categories and linkable versions and sections. It does not
+require a pull-request reference, prescribe its position or parentheses, or
+require author names. The following is this library's presentation convention,
+compatible with those principles rather than an additional rule of the standard:
+
+```markdown
+- Adds missing release comparison links. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
+```
+
+The description comes first; optional issue/PR references follow in parentheses.
+The renderer emits inline links when the repository is known and plain numeric
+references otherwise. Existing reference-style links such as `([#39])` with a
+matching footer definition have the same visible result and remain unchanged.
+The PR is the primary delivery reference; an explicitly supplied issue is
+additional problem context. The visible label stays short rather than exposing
+the complete URL. When no PR or explicitly supplied issue is known, retain only
+the description. Do not infer a commit reference or generate commit links in the
+footer. Existing historical links remain preserved during consolidation.
+Multiline descriptions retain their paragraphs, with references on the final
+indented paragraph of the same list item.
+
+Ordinary fragments omit `author`. The renderer adds an author only when that
+optional metadata was explicitly supplied; there is no separate global author
+visibility flag. Existing historical attributions are preserved rather than
+removed by release preparation. Contribution checks require neither author
+nor PR metadata, and a missing PR number does not require a later edit or commit.
+Automatic PR-origin discovery is not part of the current renderer contract.
+
 ## Plain Markdown boundaries
 
 A level-two release heading outside a fenced code block starts a new release.
@@ -100,8 +161,8 @@ privileged workflows. The codec/template factory themselves load no files.
 The default follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and its [Brazilian Portuguese presentation](https://keepachangelog.com/pt-BR/1.1.0/).
 Verified provenance and the upstream MIT notice remain in
-[template provenance](../src/Template/PROVENANCE.md) and
-[LICENSE.keep-a-changelog](../src/Template/LICENSE.keep-a-changelog).
+[template provenance](https://github.com/php-fast-forward/changelog/blob/main/src/Template/PROVENANCE.md) and
+[LICENSE.keep-a-changelog](https://github.com/php-fast-forward/changelog/blob/main/src/Template/LICENSE.keep-a-changelog).
 
 ## Notes
 
@@ -114,3 +175,7 @@ over Git tags; reachable stable Git tags provide the fallback only when no
 stable maintained section exists. An explicit version may select a prerelease.
 `--output=notes/release.md` exports to a new project-relative file. Existing files,
 the consolidated changelog and all fragment-directory paths are refused.
+
+---
+
+[Documentation index](index.md)

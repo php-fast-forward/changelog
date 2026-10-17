@@ -71,21 +71,20 @@ requires approval for workflows on generated PRs; this does not enable release p
 
 ## 🛠️ CLI
 
-For local authoring and release maintenance, install a release or reviewed
-revision containing these commands. PHP `^8.5` and Composer are required.
-Until that release is published, select `fast-forward/changelog:dev-main` for the current CLI.
-Choose a project installation:
+For local authoring and release maintenance, the Composer distribution exposes
+`vendor/bin/changelog`; a global Composer installation exposes `changelog`.
+PHP `^8.5` and Composer are required. Select a compatible release or reviewed
+immutable source revision under the consuming project's installation policy.
+Run from the project you want to maintain:
 
 ```sh
-composer require --dev fast-forward/changelog:dev-main
 vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
 vendor/bin/changelog check --no-interaction
 ```
 
-Or install globally and run from the repository you want to maintain:
+For a global installation:
 
 ```sh
-composer global require fast-forward/changelog:dev-main
 changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
 changelog check --no-interaction
 ```
@@ -103,9 +102,19 @@ The portable [fast-forward-changelog skill](resources/skills/fast-forward-change
 supports the `fast-forward/changelog ^1.0` contract and leads with GitHub automation,
 then local CLI and optional PHP service integration. Its source is
 `resources/skills/fast-forward-changelog`; a consumer installs it as
-`.agents/skills/fast-forward-changelog`. See [installation and host compatibility](docs/skills.md)
-or the optional [`llm/skills ^1.15` project synchronization](docs/composer-skills.md).
-Installing instructions does not install the PHP CLI or establish native activation.
+`.agents/skills/fast-forward-changelog`. Install it directly from GitHub with
+Node.js `22.20.0+`, npm and Git; PHP and Composer are not needed
+to copy the skill:
+
+```sh
+npx skills add php-fast-forward/changelog --skill fast-forward-changelog
+```
+
+The installer discovers the canonical package under `resources/skills`, then
+detects the current agent or asks for the host. See
+[scope, updates and host compatibility](docs/skills.md) or the optional
+[`llm/skills ^1.15` Composer synchronization](docs/composer-skills.md).
+Copying instructions does not install the PHP CLI or establish native activation.
 
 ## 🔌 Further integration
 
@@ -125,6 +134,6 @@ MIT © 2026 [Felipe Sayao Lobato Abreu](https://github.com/coisa). See [LICENSE]
 
 ## 🔗 Links
 
-[Documentation](docs/index.rst) · [Packagist](https://packagist.org/packages/fast-forward/changelog) ·
+[Documentation](docs/index.md) · [Packagist](https://packagist.org/packages/fast-forward/changelog) ·
 [Issues](https://github.com/php-fast-forward/changelog/issues) · [Support](SUPPORT.md) ·
 [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md)

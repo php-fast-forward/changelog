@@ -16,19 +16,31 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Filesystem;
 
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
 
 /** Guards every managed-file ancestor through the injected Symfony filesystem. */
 final readonly class ManagedFileStore implements ManagedFileStoreInterface
 {
-    /** Injects I/O and diagnostic construction; construction performs no path access. */
+    /**
+     * Injects I/O and diagnostic construction; construction performs no path access.
+     *
+     * @param Filesystem $filesystem Symfony filesystem boundary used for managed file operations.
+     */
     public function __construct(
         private Filesystem $filesystem,
-        private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
 
-    /** Reads exact contents while treating an absent regular target as null. */
+    /**
+     * Reads exact contents while treating an absent regular target as null.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return string|null Exact regular-file bytes, or null when the guarded target does not exist.
+     *
+     * @throws \RuntimeException                                            When path syntax or symbolic ancestry violates the managed-file policy.
+     * @throws \Symfony\Component\Filesystem\Exception\IOExceptionInterface When an existing target cannot be read.
+     */
     public function read(string $path): ?string
     {
         $path = $this->guard($path);
@@ -36,7 +48,16 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
         return $this->filesystem->exists($path) ? $this->filesystem->readFile($path) : null;
     }
 
-    /** Removes only the caller-selected journal after repeated ancestry checks; an absent target is a no-op. */
+    /**
+     * Removes only the caller-selected journal after repeated ancestry checks; an absent target is a no-op.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return void Completion after the selected files are removed or confirmed absent.
+     *
+     * @throws \RuntimeException                                            When path syntax or symbolic ancestry violates the managed-file policy.
+     * @throws \Symfony\Component\Filesystem\Exception\IOExceptionInterface When a target cannot be read as a file or removed.
+     */
     public function remove(string $path): void
     {
         $path = $this->guard($path);
@@ -49,7 +70,17 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
         $this->filesystem->remove($path);
     }
 
-    /** Rechecks ancestry after parent creation and delegates the atomic replacement to Symfony. */
+    /**
+     * Rechecks ancestry after parent creation and delegates the atomic replacement to Symfony.
+     *
+     * @param string $path     Caller-selected managed path, validated before filesystem effects.
+     * @param string $contents Exact managed-file bytes supplied by the caller.
+     *
+     * @return void Completion after guarded replacement of the caller-selected managed file.
+     *
+     * @throws \RuntimeException                                            When path syntax or symbolic ancestry violates the managed-file policy.
+     * @throws \Symfony\Component\Filesystem\Exception\IOExceptionInterface When parent creation or atomic replacement fails.
+     */
     public function write(string $path, string $contents): void
     {
         $path = $this->guard($path);
@@ -61,7 +92,15 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
         $this->filesystem->dumpFile($path, $contents);
     }
 
-    /** Rejects relative, traversal and symbolic paths including Windows drive and UNC ancestors. */
+    /**
+     * Rejects relative, traversal and symbolic paths including Windows drive and UNC ancestors.
+     *
+     * @param string $path Absolute managed target whose ancestry must reject symbolic links and traversal.
+     *
+     * @return string Guarded path with forward slashes and a normalized uppercase Windows drive letter.
+     *
+     * @throws \RuntimeException When the path is relative, contains traversal or has symbolic ancestry.
+     */
     private function guard(string $path): string
     {
         $normalized = str_replace('\\', '/', $path);
@@ -69,7 +108,7 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
             || in_array('.', explode('/', $normalized), true)
             || (! str_starts_with($normalized, '/') && 1 !== preg_match('~^[A-Za-z]:/~', $normalized))
             || (str_starts_with($normalized, '//') && 1 !== preg_match('~^//[^/]+/[^/]+/~', $normalized))) {
-            throw $this->exceptions->failure('Unsafe managed path: ' . $path);
+            throw new RuntimeException('Unsafe managed path: ' . $path);
         }
         if (1 === preg_match('~^[a-z]:/~', $normalized)) {
             $normalized = strtoupper($normalized[0]) . substr($normalized, 1);
@@ -77,7 +116,7 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
         $ancestor = $normalized;
         do {
             if (null !== $this->filesystem->readlink($ancestor)) {
-                throw $this->exceptions->failure('Symbolic managed path or ancestor: ' . $ancestor);
+                throw new RuntimeException('Symbolic managed path or ancestor: ' . $ancestor);
             }
             if (1 === preg_match('~^(?:[A-Za-z]:/|//[^/]+/[^/]+/?)$~D', $ancestor)) {
                 break;

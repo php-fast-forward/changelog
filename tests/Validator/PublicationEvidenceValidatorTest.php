@@ -14,19 +14,16 @@ use FastForward\Changelog\Git\GitCommitTreeReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
-use FastForward\Changelog\History\Import\Factory\HistoryImportResultFactoryInterface;
 use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
-use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
@@ -41,7 +38,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use Throwable;
 
 #[CoversClass(PublicationEvidenceValidator::class)]
 #[UsesClass(\FastForward\Changelog\Release\ReleaseHistoryConsolidator::class)]
@@ -51,6 +47,7 @@ use Throwable;
 #[UsesClass(VersionImpact::class)]
 #[UsesClass(VersionResolution::class)]
 #[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryCodec::class)]
 #[UsesClass(HistoryRelease::class)]
 #[UsesClass(HistoryImportResult::class)]
@@ -126,7 +123,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
             $failed = true;
         }
         self::assertTrue($failed, 'Tampered merged evidence must fail.');
-        self::assertSame([], $state['created']);
     }
 
     /** Supplies separate immutable-object and domain attacks. */
@@ -166,8 +162,56 @@ final class PublicationEvidenceValidatorTest extends TestCase
         self::assertSame('[prior]: https://example.test/prior', $state['rendered_references']);
         self::assertSame(0, $state['live_reads']);
         self::assertNotContains('HEAD', $state['resolved_refs']);
-        self::assertCount(1, $state['created']);
+        self::assertSame('owner/repo', $evidence->repository);
         self::assertNotContains('.changelog/release-plan.json', $state['read_paths']);
+    }
+
+    /** Exact link completion is accepted alongside the independently reconstructed pre-feature form. */
+    public function testPublicationAcceptsCanonicalReleaseReferences(): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $state['approved_doc'] = new HistoryReferenceBuilder()->complete($state['approved_doc'], 'owner/repo');
+        $this->refreshApproved($state);
+
+        $evidence = $this->validator($state)->validate($options, self::APPROVED);
+
+        self::assertSame('1.0.1', $evidence->version);
+        self::assertSame("Exact  notes\n", $evidence->notes);
+        self::assertSame($state['approved_doc']->getReferences(), $state['rendered_references']);
+        self::assertSame(0, $state['live_reads']);
+    }
+
+    /** Rebinding trailers cannot authorize arbitrary, incomplete or altered reference footers. */
+    #[TestWith(['changed-destination'])]
+    #[TestWith(['missing-generated-link'])]
+    #[TestWith(['changed-existing-link'])]
+    #[TestWith(['extra-reference'])]
+    #[TestWith(['extra-prose'])]
+    public function testPublicationRejectsNonCanonicalReferenceChanges(string $mutation): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $references = new HistoryReferenceBuilder()->complete($state['approved_doc'], 'owner/repo')->getReferences();
+        $references = match ($mutation) {
+            'changed-destination' => str_replace('v1.0.0...v1.0.1', 'main...v1.0.1', $references),
+            'missing-generated-link' => str_replace(
+                "[1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0\n",
+                '',
+                $references,
+            ),
+            'changed-existing-link' => str_replace(
+                'https://example.test/prior',
+                'https://example.test/changed',
+                $references,
+            ),
+            'extra-reference' => $references . "[arbitrary]: https://example.test/extra\n",
+            'extra-prose' => $references . 'Unexpected prose',
+        };
+        $state['approved_doc'] = $state['approved_doc']->withReferences($references);
+        $this->refreshApproved($state);
+
+        $this->failure($options, $state, 'canonical consolidation');
     }
 
     /** Originally absent history and complete SHA-256 identities remain valid with exact committed evidence. */
@@ -360,14 +404,21 @@ final class PublicationEvidenceValidatorTest extends TestCase
     }
 
     /** The actual Markdown codec preserves prior linked CRLF headings and imported fenced bodies without remote access. */
-    public function testRealMarkdownSnapshotsRetainExactPriorPresentationAndImportedBodies(): void
-    {
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function testRealMarkdownSnapshotsRetainExactPriorPresentationAndImportedBodies(
+        bool $completeReferences,
+        bool $existingFooter,
+    ): void {
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: 'github');
         $state = $this->state($options);
         $codec = $this->codec();
         $template = $this->template();
         $prior = "## [1.0.0](https://example.test/previous) - 2026-09-01\r\n\r\n### Fixed\r\n\r\n- Exact previous prose.\r\n\r\n";
-        $original = "# Preserved introduction\r\n\r\n" . $prior . "[prior]: https://example.test/prior\r\n";
+        $footer = $existingFooter ? "[prior]: https://example.test/prior\r\n" : '';
+        $original = "# Preserved introduction\r\n\r\n" . $prior . $footer;
         $state['base_doc'] = $codec->parse($original, $template);
         $state['blobs'][self::BASE]['CHANGELOG.md'] = $original;
         $older = $this->historicalSnapshots($state);
@@ -379,6 +430,9 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 "Exact  notes\n",
             ), ...$state['base_doc']->getReleases(), ...$older],
         );
+        if ($completeReferences) {
+            $state['approved_doc'] = new HistoryReferenceBuilder()->complete($state['approved_doc'], 'owner/repo');
+        }
         $central = $codec->render($state['approved_doc'], $template, true);
         $state['blobs'][self::APPROVED]['CHANGELOG.md'] = $central;
         $state['metadata']['output_sha256'] = hash('sha256', $central);
@@ -389,7 +443,16 @@ final class PublicationEvidenceValidatorTest extends TestCase
         self::assertSame("\nExact  notes\n\n", $evidence->notes);
         self::assertStringContainsString($prior, $central);
         self::assertStringContainsString($older[0]->getBody(), $central);
-        self::assertStringEndsWith("[prior]: https://example.test/prior\r\n", $central);
+        if ($existingFooter) {
+            self::assertStringContainsString($footer, $central);
+        }
+        if ($completeReferences) {
+            self::assertStringContainsString(
+                '[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1',
+                $central,
+            );
+            self::assertStringContainsString('[0.5.0]: https://github.com/owner/repo/releases/tag/v0.5.0', $central);
+        }
         self::assertStringNotContainsString('<!-- fast-forward-changelog:', $central);
     }
 
@@ -926,7 +989,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertStringContainsString($message, $error->getMessage());
         }
-        self::assertSame([], $state['created']);
     }
 
     /** Builds baseline and approved trees with no generated file in the fragment directory. */
@@ -945,7 +1007,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 'sha256',
                 $central,
             ), 'options_sha256' => $options->evidenceHash()],
-            'resolved' => self::APPROVED, 'head' => self::APPROVED, 'resolved_refs' => [], 'created' => [], 'ancestry_calls' => [], 'read_paths' => [],
+            'resolved' => self::APPROVED, 'head' => self::APPROVED, 'resolved_refs' => [], 'ancestry_calls' => [], 'read_paths' => [],
             'base_ancestor' => true, 'parser_valid' => true, 'parser_calls' => 0, 'history_parse_calls' => 0, 'tags_calls' => 0, 'current' => '1.0.0', 'next' => '1.0.1', 'impact' => VersionImpact::Patch, 'resolution_errors' => [],
             'base_doc' => $base, 'approved_doc' => $approved, 'source' => $options->source, 'current_calls' => 0, 'format_doc' => null, 'rendered_notes' => "Exact  notes\n", 'rendered_versions' => [], 'rendered_prefix' => null, 'rendered_references' => null,
             'live_template' => '<?php return [];', 'live_reads' => 0, 'template_resolves' => 0, 'resolved_ids' => [], 'reachable' => [], 'outside_fragment' => false,
@@ -1073,12 +1135,8 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $ending,
             ),
         );
-        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new HistoryCodec($documents, $releases, $exceptions);
+        return new HistoryCodec($documents, $releases);
     }
 
     /** Provides one deterministic ordinary-Markdown presentation shared by the mock and real-codec fixtures. */
@@ -1222,19 +1280,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $body,
             ),
         );
-        $results = $this->createStub(HistoryImportResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(HistoryDocument $document, array $missing, string $current): HistoryImportResult => new HistoryImportResult(
-                $document,
-                $missing,
-                $current,
-            ),
-        );
-        $historyExceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $historyExceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
-        $pureImporter = new HistoryImporter($github, $documents, $importReleases, $results, $historyExceptions);
+        $pureImporter = new HistoryImporter($github, $documents, $importReleases);
         $importer = $this->createMock(HistoryImporterInterface::class);
         $importer->method('currentVersion')->willReturnCallback(static function (array $tags, string $prefix) use (
             &$state,
@@ -1344,26 +1390,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $ending,
             ),
         );
-        $evidence = $this->createStub(PublicationEvidenceFactoryInterface::class);
-        $evidence->method('create')->willReturnCallback(
-            static function (string $sha, ?string $version, ?string $tag, string $notes, ?string $repository) use (
-                &$state
-            ): PublicationEvidence {
-                $state['created'][] = [$sha, $version, $tag, $notes, $repository];
-
-                return new PublicationEvidence($sha, $version, $tag, $notes, $repository);
-            },
-        );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException(
-                $message,
-                previous: $previous,
-            ),
-        );
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message): \RuntimeException => new \RuntimeException($message),
-        );
         $github = null;
         if ($state['merged'] ?? false) {
             $github = $this->createStub(GitHubClientInterface::class);
@@ -1391,11 +1417,8 @@ final class PublicationEvidenceValidatorTest extends TestCase
             $paths,
             $files,
             $releases,
-            $evidence,
-            $exceptions,
             new \FastForward\Changelog\Release\ReleaseHistoryConsolidator(
                 $releases,
-                $exceptions,
             ),
             $github,
         );

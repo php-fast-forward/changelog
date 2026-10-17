@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\GitHub;
 
-use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClient;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -275,12 +274,7 @@ final class GitHubClientTest extends TestCase
         string $api = 'https://api.github.com',
         int $maxPages = 100,
     ): GitHubClient {
-        $errors = $this->createStub(GitHubExceptionFactoryInterface::class);
-        $errors->method('failure')->willReturnCallback(
-            static fn(string $message): RuntimeException => new RuntimeException($message),
-        );
-
-        return new GitHubClient($http, $errors, $token, $api, $maxPages);
+        return new GitHubClient($http, $token, $api, $maxPages);
     }
 
     private function response(int $status, array $data = [], array $headers = []): ResponseInterface

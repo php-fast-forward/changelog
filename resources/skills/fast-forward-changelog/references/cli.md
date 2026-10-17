@@ -54,8 +54,21 @@ constructing trusted PR context from user-controlled arguments.
    vendor/bin/changelog check --no-interaction
    ```
 
-   `--issue=123`, `--pull-request=456`, and `--author=login` are optional. Create a
-   fragment before its PR exists without placeholders. Login may have a leading
+   `--issue`, `--pull-request`, and `--author` are optional. Supply
+   `--pull-request=<number>` only when this contribution's origin is already known. Verify
+   the repository, head branch and complete head SHA through the application's
+   existing GitHub tooling, read-only API or browser; copy the positive number
+   from that actual PR's canonical URL or metadata. Do not derive it from an
+   issue, branch name or commit message. With `PULL_REQUEST` set to that verified
+   number:
+
+   ```sh
+   vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+   ```
+
+   When the number is unknown, author without the field. Contribution checks do
+   not require it, and opening a PR does not require a follow-up fragment edit
+   or commit. Login may have a leading
    `@`; serialization stores the canonical login without it.
 4. Inspect the exact created path and content. Generated names are collision
    resistant and never overwrite another fragment. An optional explicit
@@ -179,11 +192,23 @@ heading. Matching categories are combined without rewriting description bytes.
 Backfill and format retain pending content; new contributions belong exclusively
 to independent `.changelog/` fragments.
 
+When a concrete version is prepared with a known GitHub `owner/name`, missing
+footer definitions are completed for all maintained SemVer versions. The oldest
+version points to `releases/tag/<tag>`; each later version points to
+`compare/<previous-tag>...<tag>` by semantic precedence. The configured prefix is
+included and each complete tag is URL-encoded. Existing definitions and retained
+`v`/`V` heading labels remain unchanged. No destinations are invented without a
+known repository; `backfill`, `format` and no-op plans do not add references or
+create an `Unreleased` link. These URLs do not establish publication authority.
+
 ## Historical notes and presentation
 
-Backfill and format are explicit maintainer maintenance operations, normally
-performed by the history workflow in its own reviewable PR. An ordinary change
-request does not authorize those operations. Choose history evidence explicitly
+Backfill and format are explicit maintainer maintenance operations. The history
+workflow previews them or applies them only on its disposable runner; it does
+not commit, push or create a maintenance PR. To retain reviewed changes, apply
+them in an authorized local checkout and submit the central-history diff through
+the application's normal PR process. An ordinary change request does not
+authorize those operations. Choose history evidence explicitly
 when needed. `--source=tags` uses actual stable
 Git tags without fetching GitHub notes. `--source=github --repository=owner/repo`
 uses GitHub published notes for versions established by Git tags. With an explicit

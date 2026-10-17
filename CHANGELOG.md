@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pull requests can trigger application CI without approving each update.
   Trusted jobs create separate repository-scoped installation tokens while
   ordinary PR-head checks retain their read-only token.
+- Adds missing Keep a Changelog version links during release preparation, preserving existing references and comparing consecutive release tags. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
 - Adopt one reusable changelog lifecycle with exact-head validation, automatic validation of generated branches and configurable sticky PR feedback for successful, failed and recovered checks. Publication remains opt-in during consumer validation.
 - Supports configurable version PR titles containing the current and next planned versions. A title-only update preserves the signed transaction and branch head, while the PR description clarifies that publication after merge depends on the consumer workflow.
 - Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags.
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Distribute the repository skill from one real GitHub package, with relative links for other hosts and explicit validation of Windows checkout behavior.
 - Documents the versioned consumer skill with GitHub adoption, executable PHP examples and explicit installation lifecycle choices.
 - Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
+- Broadens verified Symfony component compatibility and refreshes the locked development tools. Console still requires Symfony 8.1; the compatible Container range preserves explicit factory failures. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
 - Adds contextual Dash artwork organizing change fragments into a release history.
 - Update dependencies: `shivammathur/setup-php`. ([#28](https://github.com/php-fast-forward/changelog/pull/28), @dependabot[bot])
 - Preserve the Dependabot PR title in generated dependency notes, retaining the versions and update location supplied by Dependabot, and list the verified packages for grouped updates. Keep existing notes intact and avoid deriving release impact or security authority from editable PR text.
@@ -49,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Distribute the uniquely named fast-forward-changelog skill from resources/skills, reserve agent directories for consumer-owned skills, exclude GitHub automation from Composer archives and retire unused host adapters and their Node synchronizer while retaining the four PHP development gates.
 - Improves PHP, Dockerfile and workflow readability with separated statement blocks, grouped command attributes and wrapped arguments; keeps the formatting rules in the project quality gate.
 - Moves semantic impact to `Version`, GitHub Actions outputs to `Automation\Output`, transport factories to `Http` and `Process`, and release-note rendering to `Release\Renderer`, with matching tests and updated PHP imports. Documents the SDK and development-tooling boundaries and excludes development scripts and formatter configuration from package archives.
+- Removes redundant value, exception and construction factory classes and interfaces. Service composition uses interface aliases and autowiring; consumers using the removed pre-release factory contracts or constructor arguments must migrate to direct value creation and the retained domain factories. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
+- Improves source readability with named release phases and descriptive PHPDoc, and builds browsable guides and API documentation with phpDocumentor. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
 - Adds a standalone fragment-based changelog and release lifecycle for Composer projects. The add/check/status/version/notes/publish/backfill/format commands replace the legacy Unreleased editing workflow, share their PHP domain with GitHub Actions, and support deterministic release plans, localized history, verified version pull requests and recoverable publication. This repository now records its own changes with the same CLI and consolidates CHANGELOG.md through its release workflow.
 - Distinguish public reusable workflows from repository automation, provide a single consumer caller example, standardize Action names and YAML formatting, use verified external Action version tags and the standard coverage comment, and validate both highest and lowest runtime dependency bounds. Keep PHP diagnostics on stderr so older compatible dependencies cannot corrupt CLI JSON output.
 
@@ -83,3 +87,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verifies the approved merge through GraphQL when GitHub REST 2026 omits its merge commit field, preserving exact PR, repository, branch, head and Bot checks before publishing the unchanged release transaction, including repository IDs above 32 bits. Routes Enterprise Server GraphQL queries to their same-origin endpoint while retaining REST paths.
 - Confirm refreshed version pull requests through a fresh read of the same pull request, so a stale GitHub update response cannot report a successful changelog transaction as failed.
 - Keeps discovered fragment paths consistent on Windows so release planning and application use the same canonical inventory and strict receipt format.
+
+[1.0.0]: https://github.com/php-fast-forward/changelog/releases/tag/v1.0.0

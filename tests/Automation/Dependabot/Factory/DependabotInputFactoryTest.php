@@ -7,7 +7,6 @@ namespace FastForward\Changelog\Tests\Automation\Dependabot\Factory;
 use FastForward\Changelog\Automation\Dependabot\DependabotInput;
 use FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactory;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
-use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -116,11 +115,6 @@ final class DependabotInputFactoryTest extends TestCase
 
     private function factory(): DependabotInputFactory
     {
-        $errors = $this->createStub(GitHubExceptionFactoryInterface::class);
-        $errors->method('failure')->willReturnCallback(
-            static fn(string $message): RuntimeException => new RuntimeException($message),
-        );
-
-        return new DependabotInputFactory($errors);
+        return new DependabotInputFactory();
     }
 }

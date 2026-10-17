@@ -35,6 +35,8 @@ enum Category: string
 
     /**
      * Returns the canonical Markdown heading for this category.
+     *
+     * @return string Canonical English Markdown category heading.
      */
     public function heading(): string
     {
@@ -47,6 +49,8 @@ enum Category: string
      * Removed entries imply major. Added, changed and deprecated entries imply
      * minor; fixes and security entries imply patch. Explicit fragment impact
      * MAY override this default in either direction.
+     *
+     * @return VersionImpact Category default used only when no explicit fragment impact was supplied.
      */
     public function inferredImpact(): VersionImpact
     {

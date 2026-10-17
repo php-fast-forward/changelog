@@ -9,7 +9,7 @@ it.
 | --- | --- | --- |
 | `lint.php` | `composer lint` → `quality` → `check` | Validate syntax of package-owned PHP files. |
 | `php-files.php` | Syntax checker and quality fixtures | Share the bounded owned-file inventory, excluding vendor and unrelated paths. |
-| `phpdoc.php` | `composer phpdoc` → `quality` → `check` | Require method summaries declared by AGENTS.md; semantic accuracy remains a review responsibility. |
+| `phpdoc.php` | `composer phpdoc` → `quality` → `check` | Use the PHP AST to require method summaries, exactly one described tag per declared parameter, and described returns for non-constructor methods; constructors cannot declare a return tag. Semantic accuracy remains a review responsibility. |
 | `verify-quality.php` | `composer quality:verify` → `quality` → `check` | Exercise isolated success/rejection cases so a broken gate cannot silently pass. |
 
 There are no Node scripts, npm dependencies or skill-alias generation steps in

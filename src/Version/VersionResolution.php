@@ -36,6 +36,8 @@ final readonly class VersionResolution
 
     /**
      * Determines whether version resolution succeeded.
+     *
+     * @return bool Whether a numeric next version exists without calculation diagnostics.
      */
     public function isValid(): bool
     {

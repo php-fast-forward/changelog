@@ -22,7 +22,10 @@ final readonly class HistoryImportResult
 {
     /**
      * Stores complete import evidence without changing existing release values.
-     * @param list<string> $missingVersions only versions newly inserted by this import
+     *
+     * @param HistoryDocument $document        Maintained history whose release bodies, introduction and references must be preserved.
+     * @param list<string>    $missingVersions only versions newly inserted by this import
+     * @param string          $currentVersion  Validated current stable version used as the numeric release baseline.
      */
     public function __construct(
         public HistoryDocument $document,

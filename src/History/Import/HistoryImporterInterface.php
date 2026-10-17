@@ -24,7 +24,13 @@ interface HistoryImporterInterface
 {
     /**
      * Preserves existing sections and returns the highest matching Git version, or 0.0.0.
-     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags explicit Git evidence
+     *
+     * @param HistoryDocument                                                      $document Maintained history whose release bodies, introduction and references must be preserved.
+     * @param ReleaseOptions                                                       $options  Validated consumer paths, presentation settings and source-selection policy.
+     * @param TemplateInterface                                                    $template Validated structural presentation used to recognize or render history headings.
+     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags     explicit Git evidence
+     *
+     * @return HistoryImportResult Preserved history plus only missing stable tagged sections and the resolved Git baseline.
      */
     public function import(
         HistoryDocument $document,
@@ -35,7 +41,11 @@ interface HistoryImporterInterface
 
     /**
      * Resolves a stable tag baseline with the same import policy, without accessing GitHub.
-     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags explicit Git evidence
+     *
+     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags      explicit Git evidence
+     * @param string                                                               $tagPrefix Exact prefix removed from candidate stable Git tag identities.
+     *
+     * @return string Highest supported stable tag version, or 0.0.0 when no matching tag exists.
      */
     public function currentVersion(array $tags, string $tagPrefix = 'v'): string;
 }

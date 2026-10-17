@@ -16,9 +16,9 @@ declare(strict_types=1);
 namespace FastForward\Changelog\History;
 
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 use JsonException;
 
 /** Preserves Markdown history while localizing only recognized structural headings. */
@@ -26,11 +26,15 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 {
     private const string END_RELEASE = '<!-- fast-forward-changelog:end-release -->';
 
-    /** Composes construction and diagnostic boundaries without performing I/O. */
+    /**
+     * Composes construction and diagnostic boundaries without performing I/O.
+     *
+     * @param HistoryDocumentFactoryInterface $documentFactory Constructs ordered history with unique canonical release identities and unchanged surrounding bytes.
+     * @param HistoryReleaseFactoryInterface  $releaseFactory  Constructs strict semantic sections with validated dates and preserved raw presentation.
+     */
     public function __construct(
         private HistoryDocumentFactoryInterface $documentFactory,
         private HistoryReleaseFactoryInterface $releaseFactory,
-        private HistoryExceptionFactoryInterface $exceptionFactory,
     ) {}
 
     /**
@@ -40,14 +44,38 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * Markdown, references and footer boilerplate MUST remain byte-preserved.
      * Legacy boundaries require an Unreleased alias or a numeric version token;
      * bare Changesets version headings retain their original source bytes.
-     * recognized malformed headings MUST fail, with semantic validation owned
+     * Recognized malformed headings MUST fail, with semantic validation owned
      * by the release factory rather than silently treating releases as prose.
      * Unrecognized level-two headings with numeric-dot-triple version shapes
      * MUST fail so changing templates cannot hide history from later imports.
      * Legacy reference footers require only definitions and blank lines through
      * EOF; following prose is ambiguous and MUST remain inside release notes.
+     *
+     * @param string                 $markdown Complete central-history Markdown, including its introduction and reference footer.
+     * @param TemplateInterface|null $template Optional selected template used to recognize custom headings alongside built-in syntax.
+     *
+     * @return HistoryDocument Parsed history with lossless release bodies, introductory Markdown and reference footer.
+     *
+     * @throws \InvalidArgumentException When release grammar, legacy markers, semantic identities or dates are malformed or ambiguous.
      */
     public function parse(string $markdown, ?TemplateInterface $template = null): HistoryDocument
+    {
+        [$sections, $referenceOffsets] = $this->scanSections($markdown, $template);
+        $lastContent = [] === $sections ? 0 : array_last($sections)['content'];
+        $footerOffset = $this->referenceFooterOffset($markdown, $lastContent, $referenceOffsets);
+
+        return $this->documentFromSections($markdown, $sections, $footerOffset);
+    }
+
+    /**
+     * Scans release boundaries while retaining protected-body and code-fence state.
+     *
+     * @param string                 $markdown Complete history bytes, including original line endings.
+     * @param TemplateInterface|null $template Selected heading grammar; null uses historical aliases.
+     *
+     * @return array{0:list<array<string,mixed>>,1:array<int,true>} Release offsets and terminal-reference candidates.
+     */
+    private function scanSections(string $markdown, ?TemplateInterface $template): array
     {
         $sections = [];
         $referenceOffsets = [];
@@ -63,28 +91,15 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             $offset += strlen($line);
 
             if ($protected) {
-                if (null !== $protectedEnd) {
-                    if ($lineOffset < $protectedEnd) {
-                        continue;
-                    }
-
-                    if ($lineOffset !== $protectedEnd || self::END_RELEASE !== rtrim($line, "\r\n")) {
-                        throw $this->exceptionFactory->invalid(
-                            'A release body_length must end exactly at its closing delimiter.',
-                        );
-                    }
-
+                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, $fence)) {
                     $sections[array_key_last($sections)]['body_end'] = $lineOffset;
+
+                    if (null === $protectedEnd) {
+                        $legacyClosed = true;
+                    }
+
                     $protected = false;
                     $protectedEnd = null;
-
-                    continue;
-                }
-
-                if ($this->outsideFence($line, $fence) && self::END_RELEASE === rtrim($line, "\r\n")) {
-                    $sections[array_key_last($sections)]['body_end'] = $lineOffset;
-                    $protected = false;
-                    $legacyClosed = true;
                 }
 
                 continue;
@@ -95,16 +110,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             if ($legacyClosed && self::END_RELEASE === rtrim($line, "\r\n")) {
-                throw $this->exceptionFactory->invalid(
+                throw new InvalidArgumentException(
                     'A legacy release has ambiguous closing delimiters; preserve its source before migration.',
                 );
             }
 
             if (1 === preg_match('/^<!-- fast-forward-changelog:release (.+) -->\r?\n?\z/', $line, $matches)) {
                 if (null !== $pending) {
-                    throw $this->exceptionFactory->invalid(
-                        'A release marker must be followed by one level-two heading.',
-                    );
+                    throw new InvalidArgumentException('A release marker must be followed by one level-two heading.');
                 }
 
                 $pending = ['offset' => $lineOffset, 'metadata' => $this->metadata($matches[1])];
@@ -117,28 +130,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                     continue;
                 }
 
-                if (! str_starts_with($line, '## ')) {
-                    throw $this->exceptionFactory->invalid(
-                        'A release marker must be followed by one level-two heading.',
-                    );
-                }
-
-                $metadata = $pending['metadata'];
-                $sections[] = [
-                    'offset' => $pending['offset'], 'content' => $offset, 'body_end' => null,
-                    'version' => $metadata['version'], 'date' => $metadata['date'], 'source' => $metadata['date_source'],
-                ];
+                [$section, $protectedEnd] = $this->markedSection($pending, $line, $offset, strlen($markdown));
+                $sections[] = $section;
                 $pending = null;
                 $protected = true;
-                if (null !== $metadata['body_length']) {
-                    if ($metadata['body_length'] > strlen($markdown) - $offset) {
-                        throw $this->exceptionFactory->invalid(
-                            'A release body_length exceeds the available Markdown bytes.',
-                        );
-                    }
-
-                    $protectedEnd = $offset + $metadata['body_length'];
-                }
 
                 continue;
             }
@@ -157,12 +152,86 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         }
 
         if (null !== $pending || $protected) {
-            throw $this->exceptionFactory->invalid(null !== $protectedEnd
+            throw new InvalidArgumentException(null !== $protectedEnd
                 ? 'A release body_length requires its closing delimiter at the exact declared byte offset.'
                 : 'A marked release must have its heading and end-release delimiter.');
         }
 
-        $lastContent = [] === $sections ? 0 : array_last($sections)['content'];
+        return [$sections, $referenceOffsets];
+    }
+
+    /**
+     * Recognizes a protected body's closing delimiter at its permitted boundary.
+     *
+     * @param string                                  $line        Current source line, including its original newline.
+     * @param int                                     $offset      Byte offset at which the current line begins.
+     * @param int|null                                $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
+     * @param array{character:string,length:int}|null $fence       Mutable active fence state, updated by reference as source lines open or close code blocks.
+     *
+     * @return bool Whether this line closes the current protected body.
+     */
+    private function closesProtectedBody(string $line, int $offset, ?int $expectedEnd, ?array &$fence): bool
+    {
+        if (null !== $expectedEnd) {
+            if ($offset < $expectedEnd) {
+                return false;
+            }
+
+            if ($offset !== $expectedEnd || self::END_RELEASE !== rtrim($line, "\r\n")) {
+                throw new InvalidArgumentException('A release body_length must end exactly at its closing delimiter.');
+            }
+
+            return true;
+        }
+
+        return $this->outsideFence($line, $fence) && self::END_RELEASE === rtrim($line, "\r\n");
+    }
+
+    /**
+     * Builds one marked section after validating its heading and declared body length.
+     *
+     * @param array{offset:int,metadata:array<string,mixed>} $pending        Marker offset and decoded metadata.
+     * @param string                                         $line           First nonblank line after the marker.
+     * @param int                                            $contentOffset  Byte offset immediately after the release heading.
+     * @param int                                            $documentLength Total available Markdown byte length.
+     *
+     * @return array{0:array<string,mixed>,1:?int} Section offsets and its optional exact body boundary.
+     */
+    private function markedSection(array $pending, string $line, int $contentOffset, int $documentLength): array
+    {
+        if (! str_starts_with($line, '## ')) {
+            throw new InvalidArgumentException('A release marker must be followed by one level-two heading.');
+        }
+
+        $metadata = $pending['metadata'];
+        $section = [
+            'offset' => $pending['offset'], 'content' => $contentOffset, 'body_end' => null,
+            'version' => $metadata['version'], 'date' => $metadata['date'], 'source' => $metadata['date_source'],
+        ];
+        $bodyEnd = null;
+
+        if (null !== $metadata['body_length']) {
+            if ($metadata['body_length'] > $documentLength - $contentOffset) {
+                throw new InvalidArgumentException('A release body_length exceeds the available Markdown bytes.');
+            }
+
+            $bodyEnd = $contentOffset + $metadata['body_length'];
+        }
+
+        return [$section, $bodyEnd];
+    }
+
+    /**
+     * Finds the terminal reference-only footer without moving following prose.
+     *
+     * @param string          $markdown         Complete original history bytes.
+     * @param int             $lastContent      Byte offset after the last recognized release heading.
+     * @param array<int,true> $referenceOffsets Reference-definition offsets observed outside protected regions.
+     *
+     * @return int First footer-definition offset, or the document length when none qualifies.
+     */
+    private function referenceFooterOffset(string $markdown, int $lastContent, array $referenceOffsets): int
+    {
         $footerOffset = strlen($markdown);
         $tailOffset = $footerOffset;
 
@@ -178,6 +247,20 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
         }
 
+        return $footerOffset;
+    }
+
+    /**
+     * Constructs releases from exact source slices and preserves the surrounding document.
+     *
+     * @param string                    $markdown     Complete original history bytes.
+     * @param list<array<string,mixed>> $sections     Validated release headings and body offsets in source order.
+     * @param int                       $footerOffset Start of the global reference footer.
+     *
+     * @return HistoryDocument Ordered releases, untouched prefix and raw footer.
+     */
+    private function documentFromSections(string $markdown, array $sections, int $footerOffset): HistoryDocument
+    {
         $releases = [];
 
         foreach ($sections as $index => $section) {
@@ -209,6 +292,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * release headings or terminal reference definitions fail before any writes.
      * Incremental collection preserves stored sections, adding only boundary
      * whitespace around newly rendered releases so headings remain separate.
+     *
+     * @param HistoryDocument   $document             Maintained history whose release bodies, introduction and references must be preserved.
+     * @param TemplateInterface $template             Validated structural presentation used to recognize or render history headings.
+     * @param bool              $preservePresentation Whether incremental rendering must retain existing headings and framing.
+     *
+     * @return string Complete maintained Markdown with localized structure or exact retained presentation, including the original reference footer.
+     *
+     * @throws \InvalidArgumentException When an unfenced body boundary, dangling code fence or terminal reference definition prevents a safe round trip.
      */
     public function render(
         HistoryDocument $document,
@@ -266,13 +357,22 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         return $output . $document->getReferences();
     }
 
-    /** Returns the exact stored body of the requested release without outer structure. */
+    /**
+     * Returns the exact stored body of the requested release without outer structure.
+     *
+     * @param HistoryDocument $document Maintained history whose release bodies, introduction and references must be preserved.
+     * @param string          $version  Canonical release identity to render or select; lookup accepts one conventional v prefix.
+     *
+     * @return string Exact selected release body without its outer heading or document reference footer.
+     *
+     * @throws \InvalidArgumentException When the requested release section is absent from the maintained history.
+     */
     public function notes(HistoryDocument $document, string $version): string
     {
         $release = $document->getRelease($version);
 
         if (null === $release) {
-            throw $this->exceptionFactory->invalid('The requested release is absent from CHANGELOG.md: ' . $version);
+            throw new InvalidArgumentException('The requested release is absent from CHANGELOG.md: ' . $version);
         }
 
         return $release->getBody();
@@ -281,7 +381,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Splits Markdown while retaining every original line-ending byte.
      *
-     * @return list<string>
+     * @param string $markdown Complete central-history Markdown, including its introduction and reference footer.
+     *
+     * @return list<string> Source lines retaining their complete original newline bytes.
      */
     private function lines(string $markdown): array
     {
@@ -291,7 +393,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Determines whether a line is outside a CommonMark-style fenced block.
      *
-     * @param array{character:string,length:int}|null $fence active fence state
+     * @param string                                  $line  Current source Markdown line, including its original line ending.
+     * @param array{character:string,length:int}|null $fence Mutable active fence state, updated by reference as source lines open or close code blocks.
+     *
+     * @return bool Whether the current line is ordinary content outside a fence; delimiter lines return false and update the supplied state.
      */
     private function outsideFence(string $line, ?array &$fence): bool
     {
@@ -324,7 +429,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * Bare version-only headings delegate semantic validation to the release
      * factory; arbitrary labels or trailing prose remain outside that grammar.
      *
-     * @return array{version:string,date:?string}|null
+     * @param string                 $line     Current source Markdown line, including its original line ending.
+     * @param TemplateInterface|null $template Optional selected template used to recognize custom headings alongside built-in syntax.
+     *
+     * @return array{version:string,date:?string}|null Recognized release identity and optional date, or null for ordinary non-release Markdown.
      */
     private function plainHeading(string $line, ?TemplateInterface $template): ?array
     {
@@ -367,7 +475,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                     $line,
                     $matches,
                 )) {
-                    throw $this->exceptionFactory->invalid(
+                    throw new InvalidArgumentException(
                         'A legacy release heading must use a bracketed version, optional link and optional ISO date.',
                     );
                 }
@@ -389,7 +497,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         if (1 === preg_match('/^##[ \t]+/', $line)
             && 1 === preg_match('/(?<![0-9])[0-9]++\.[0-9]++\.[0-9]++/u', $line)) {
-            throw $this->exceptionFactory->invalid(
+            throw new InvalidArgumentException(
                 'An unrecognized level-two heading resembles a release; keep the matching release template or migrate historical release headings before changing templates. For Markdown prose or examples, fence or nest this heading.',
             );
         }
@@ -397,7 +505,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         return null;
     }
 
-    /** Refuses Markdown that cannot retain exact release boundaries in a plain changelog. */
+    /**
+     * Refuses Markdown that cannot retain exact release boundaries in a plain changelog.
+     *
+     * @param string            $body     Raw release body bytes, preserving Markdown whitespace and code fences.
+     * @param TemplateInterface $template Validated structural presentation used to recognize or render history headings.
+     *
+     * @return void Completion only when the body cannot be mistaken for outer release boundaries or a terminal document footer.
+     */
     private function assertPlainBody(string $body, TemplateInterface $template): void
     {
         $fence = null;
@@ -412,7 +527,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
             if (null !== $this->plainHeading($line, $template)
                 || 1 === preg_match('/^<!-- fast-forward-changelog:(?:release |end-release)/', $line)) {
-                throw $this->exceptionFactory->invalid(
+                throw new InvalidArgumentException(
                     'A plain changelog body cannot contain an unfenced release heading or legacy release delimiter; fence or nest this Markdown example.',
                 );
             }
@@ -423,10 +538,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         }
 
         if (null !== $fence) {
-            throw $this->exceptionFactory->invalid('An unclosed code fence prevents safe historical reformatting.');
+            throw new InvalidArgumentException('An unclosed code fence prevents safe historical reformatting.');
         }
         if ($terminalReference) {
-            throw $this->exceptionFactory->invalid(
+            throw new InvalidArgumentException(
                 'A plain changelog body cannot end with an unindented reference definition that is ambiguous with the global footer; place it before following prose or inside a nested example.',
             );
         }
@@ -435,14 +550,16 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Decodes a typed release marker without inventing missing provenance.
      *
-     * @return array{version:string,date:?string,date_source:?string,body_length:?int}
+     * @param string $json Complete JSON payload from one legacy release marker, interpreted only as typed metadata.
+     *
+     * @return array{version:string,date:?string,date_source:?string,body_length:?int} Typed legacy marker fields, retaining unknown dates and an optional exact protected-body byte length.
      */
     private function metadata(string $json): array
     {
         try {
             $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            throw $this->exceptionFactory->invalid('A release marker must contain valid JSON metadata.');
+            throw new InvalidArgumentException('A release marker must contain valid JSON metadata.');
         }
 
         if (! is_array($data) || ! isset($data['version']) || ! is_string($data['version'])
@@ -451,7 +568,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             || (array_key_exists('body_length', $data) && (! is_int($data['body_length']) || $data['body_length'] < 0))
             || [] !== array_diff(array_keys($data), ['version', 'date', 'date_source', 'body_length'])
         ) {
-            throw $this->exceptionFactory->invalid(
+            throw new InvalidArgumentException(
                 'A release marker must contain a version, nullable date metadata and an optional nonnegative integer body_length.',
             );
         }
@@ -460,7 +577,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             'date_source' => $data['date_source'] ?? null, 'body_length' => $data['body_length'] ?? null];
     }
 
-    /** Replaces known or marked introduction text while retaining unknown prose. */
+    /**
+     * Replaces known or marked introduction text while retaining unknown prose.
+     *
+     * @param string            $prefix   Original introductory Markdown, including recognized or legacy marked presentation.
+     * @param TemplateInterface $template Validated structural presentation used to recognize or render history headings.
+     *
+     * @return string Localized recognized introduction with unknown surrounding prose retained; unrelated introductions remain untouched.
+     */
     private function formatPrefix(string $prefix, TemplateInterface $template): string
     {
         $introduction = rtrim($template->introduction(), "\r\n") . "\n\n";
@@ -484,7 +608,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         return '' === trim($prefix) ? $introduction . $prefix : $prefix;
     }
 
-    /** Localizes recognized categories while retaining all other Markdown byte content. */
+    /**
+     * Localizes recognized categories while retaining all other Markdown byte content.
+     *
+     * @param string            $body     Raw release body bytes, preserving Markdown whitespace and code fences.
+     * @param TemplateInterface $template Validated structural presentation used to recognize or render history headings.
+     *
+     * @return string Body with recognized category headings localized and legacy technical markers removed, preserving all other Markdown bytes.
+     */
     private function formatBody(string $body, TemplateInterface $template): string
     {
         $categories = [
@@ -501,9 +632,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         foreach ($this->lines($body) as $line) {
             if (null !== $pending && '' !== trim($line) && ! str_starts_with($line, '### ')) {
-                throw $this->exceptionFactory->invalid(
-                    'A category marker must be followed by one level-three heading.',
-                );
+                throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
             }
 
             if (! $this->outsideFence($line, $fence)) {
@@ -541,7 +670,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         }
 
         if (null !== $pending) {
-            throw $this->exceptionFactory->invalid('A category marker must be followed by one level-three heading.');
+            throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
         }
 
         return $output;

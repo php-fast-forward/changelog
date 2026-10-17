@@ -52,6 +52,50 @@ function verify(bool $condition, string $message): void
     }
 }
 
+/** Overrides one explicit factory without depending on the provider's private map grouping. */
+function failSelectedFactory(string $source): string
+{
+    $offset = 0;
+    $function = false;
+    $selected = false;
+    $start = null;
+    $depth = 0;
+
+    foreach (token_get_all($source) as $token) {
+        $text = is_array($token) ? $token[1] : $token;
+
+        if (is_array($token) && T_FUNCTION === $token[0]) {
+            $function = true;
+        } elseif ($function && is_array($token) && T_STRING === $token[0]) {
+            $selected = 'getFactories' === $text;
+            $function = false;
+        } elseif ($selected && is_array($token) && T_RETURN === $token[0] && null === $start) {
+            $start = $offset + strlen($text);
+        } elseif (null !== $start && is_string($token)) {
+            if (in_array($token, ['[', '{', '('], true)) {
+                ++$depth;
+            } elseif (in_array($token, [']', '}', ')'], true)) {
+                --$depth;
+            } elseif (';' === $token && 0 === $depth) {
+                $expression = substr($source, $start, $offset - $start);
+
+                return substr_replace(
+                    $source,
+                    ' array_replace(' . trim($expression)
+                    . ", [\\FastForward\\Changelog\\Console\\Command\\StatusCommand::class"
+                    . " => static fn(): never => throw new \\RuntimeException('fixture selected graph')])",
+                    $start,
+                    $offset - $start,
+                );
+            }
+        }
+
+        $offset += strlen($text);
+    }
+
+    throw new RuntimeException('The installed provider must expose its explicit factory declarations.');
+}
+
 /** Runs structured fixture arguments, using RTK locally or explicit direct execution in CI. */
 function execute(array $arguments, string $directory, array $environment, int $expected = 0): array
 {
@@ -372,14 +416,7 @@ function exercise(string $installation, string $consumer, array $environment): v
 
     $provider = $installed . '/src/Container/ServiceProvider/ChangelogServiceProvider.php';
     $originalProvider = file_get_contents($provider);
-    $poisoned = str_replace(
-        "return [\n",
-        "return [\n            \\FastForward\\Changelog\\Console\\Command\\StatusCommand::class => static fn(): never => throw new \\RuntimeException('fixture selected graph'),\n",
-        $originalProvider,
-        $replacements,
-    );
-    verify(1 === $replacements, 'The lazy-loading probe could not identify the provider factory map.');
-    file_put_contents($provider, $poisoned);
+    file_put_contents($provider, failSelectedFactory($originalProvider));
     try {
         cli($binary, $consumer, $environment, ['list', '--raw']);
         cli($binary, $consumer, $environment, ['--help']);

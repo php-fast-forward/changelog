@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Publication;
 
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
-use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Publication\PublicationResult;
 use FastForward\Changelog\Publication\PublicationService;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface;
 use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
@@ -24,7 +21,6 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
-use Throwable;
 
 #[CoversClass(PublicationService::class)]
 #[UsesClass(PublicationResult::class)]
@@ -743,30 +739,8 @@ final class PublicationServiceTest extends TestCase
                     return $response;
                 },
             );
-            $httpErrors = $this->createStub(GitHubExceptionFactoryInterface::class);
-            $github = new GitHubClient($http, $httpErrors, 'synthetic-token');
+            $github = new GitHubClient($http, 'synthetic-token');
         }
-        $results = $this->createStub(PublicationResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(string $state, ?string $version, ?string $tag, string $sha, ?string $url, array $actions): PublicationResult => new PublicationResult(
-                $state,
-                $version,
-                $tag,
-                $sha,
-                $url,
-                $actions,
-            ),
-        );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException(
-                $message,
-                previous: $previous,
-            ),
-        );
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
         $policy = null;
         if ($state['context'] ?? false) {
             $policy = $this->createStub(PullRequestPolicyInterface::class);
@@ -784,7 +758,7 @@ final class PublicationServiceTest extends TestCase
             );
         }
 
-        return new PublicationService($evidence, $github, $results, $exceptions, $policy);
+        return new PublicationService($evidence, $github, $policy);
     }
 
     /** Provides immutable authority metadata without treating mutable branch or PR prose as evidence. */

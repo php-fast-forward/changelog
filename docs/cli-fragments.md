@@ -23,6 +23,19 @@ be supplied with or without a leading `@`; the parser writes the canonical
 login without that prefix. The body retains meaningful Markdown whitespace.
 See [the complete fragment schema](specification/fragment-format.md).
 
+Optionally supply `--pull-request=<number>` when this contribution's origin is
+already known. Read
+the actual PR with existing GitHub tooling, API or browser, verify its repository,
+head branch and complete head SHA, then copy its positive number from the
+canonical PR URL or trusted metadata. With `PULL_REQUEST` set to that number:
+
+```sh
+vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+```
+
+Unknown metadata stays absent. Contribution checks do not require a PR number,
+and opening the PR does not require a follow-up edit or commit to its fragment.
+
 ## Names, collisions and scoped commits
 
 Default names contain an injected random identifier, such as
@@ -118,8 +131,11 @@ are the schema authority, and filesystem/Git/identifier generation are injected
 boundaries. Business services do not construct their collaborators.
 
 `CheckServiceInterface::check($options, $since, $centralChangeAuthorized,
-$waiverAuthorized)` returns `ValidationReport`. The optional authorization
-booleans belong to verified automation context. `changesets` contains the valid
+$waiverAuthorized, $authorizationKind)` returns `ValidationReport`. The optional
+authorization booleans and kind belong to verified automation context; the kind
+defaults to `ordinary`. Central authorization alone cannot permit consumed
+fragment deletions: those also require the verified managed-version kind.
+`changesets` contains the valid
 pending inventory, `errors` contains independently keyed diagnostics and
 `isValid()` is true only when every selected check passes. A report's pending
 inventory count must never be interpreted as its new-PR-contribution count.
@@ -128,7 +144,12 @@ inventory count must never be interpreted as its new-PR-contribution count.
 `requireFragment=false` for inventory checking; all discovered fragments remain
 subject to path and schema validation. This mode does not invent a waiver.
 
-`IdentifierGeneratorFactoryInterface::create()` uses a secure engine by default.
-Tests provide a `Random\Engine` double through the factory; service construction
-requests no random bytes, and unit tests need no filesystem, Git process, network,
-HOME configuration or real entropy reads.
+`IdentifierGeneratorInterface` resolves to `RandomIdentifierGenerator` with an
+injected `Random\Randomizer`. The provider supplies a secure engine; tests can
+inject a randomizer backed by a deterministic `Random\Engine` double. Service
+construction requests no random bytes, and unit tests need no filesystem, Git
+process, network, HOME configuration or real entropy reads.
+
+---
+
+[Documentation index](index.md)

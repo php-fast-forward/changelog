@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Automation\Policy;
 
-use FastForward\Changelog\Automation\Policy\Factory\PullRequestAuthorizationFactoryInterface;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestAuthorization;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicy;
@@ -563,18 +562,8 @@ final class PullRequestPolicyTest extends TestCase
         } else {
             $github->method('paginate')->willReturn($timeline);
         }
-        $results = $this->createStub(PullRequestAuthorizationFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(bool $waiver, bool $central, string $kind, array $diagnostics, ?string $head = null): PullRequestAuthorization => new PullRequestAuthorization(
-                $waiver,
-                $central,
-                $kind,
-                $diagnostics,
-                $head,
-            ),
-        );
 
-        return new PullRequestPolicy($github, $results);
+        return new PullRequestPolicy($github);
     }
 
     /** Models GitHub's signed App/Bot commits with its canonical web-flow committer. */

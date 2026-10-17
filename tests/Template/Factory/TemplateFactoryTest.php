@@ -6,7 +6,6 @@ namespace FastForward\Changelog\Tests\Template\Factory;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
@@ -135,11 +134,7 @@ final class TemplateFactoryTest extends TestCase
                 $ending,
             ),
         );
-        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
-        $codec = new HistoryCodec($documents, $releases, $exceptions);
+        $codec = new HistoryCodec($documents, $releases);
         $version = '1.2.3-beta.1+build.7';
         $date = '2026-10-03';
         $body = "Exact release notes.\n";
@@ -292,12 +287,8 @@ final class TemplateFactoryTest extends TestCase
                 $ending,
             ),
         );
-        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new HistoryCodec($documents, $releases, $exceptions);
+        return new HistoryCodec($documents, $releases);
     }
 
 }

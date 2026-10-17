@@ -7,7 +7,6 @@ namespace FastForward\Changelog\Tests\History;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
@@ -927,12 +926,8 @@ final class HistoryCodecTest extends TestCase
                 ),
             );
         }
-        $errors = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $errors->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new HistoryCodec($documents, $releases, $errors);
+        return new HistoryCodec($documents, $releases);
     }
 
     /** Returns a presentation double without invoking the concrete template factory. */

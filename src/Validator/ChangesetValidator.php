@@ -18,8 +18,8 @@ namespace FastForward\Changelog\Validator;
 
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
-use FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface;
 use FastForward\Changelog\Validation\ValidationReport;
+use RuntimeException;
 
 /**
  * Coordinates discovery, reading, and independent fragment parsing.
@@ -31,11 +31,14 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
 {
     /**
      * Composes mockable domain and I/O boundaries.
+     *
+     * @param ChangesetStoreInterface  $store  Replaceable fragment discovery and regular-file reading boundary.
+     * @param ChangesetParserInterface $parser Schema parser that retains per-fragment diagnostics instead of silently
+     *                                         dropping invalid input.
      */
     public function __construct(
         private ChangesetStoreInterface $store,
         private ChangesetParserInterface $parser,
-        private ValidationReportFactoryInterface $reportFactory,
     ) {}
 
     /**
@@ -43,13 +46,24 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
      *
      * Inventory validation may accept an empty directory; it never suppresses
      * diagnostics for a discovered invalid fragment.
+     *
+     * @param  string           $directory       Explicit consumer directory used for repository or fragment operations.
+     * @param  bool             $waived          Whether the caller supplies an authorized fragment-presence waiver; malformed fragments still
+     *                                           fail.
+     * @param  bool             $requireFragment Whether an empty explicit fragment selection must produce a presence error.
+     * @return ValidationReport Aggregate valid fragment values, exact content hashes and all discovered diagnostics.
+     * @throws RuntimeException When the fragment discovery or file-reading boundary fails rather than returning a
+     *                          validation result.
      */
-    public function validate(string $directory, bool $waived = false, bool $requireFragment = true): ValidationReport
-    {
+    public function validate(
+        string $directory,
+        bool $waived = false,
+        bool $requireFragment = true,
+    ): ValidationReport {
         $paths = $this->store->paths($directory);
 
         if (null === $paths) {
-            return $this->reportFactory->create(
+            return new ValidationReport(
                 [],
                 [$directory => ['Changeset directory MUST be regular rather than a symbolic link.']],
                 $waived,
@@ -65,7 +79,15 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
      * This entrypoint MUST be used for ordinary pull requests so fragments that
      * already exist on the base cannot invalidate a waiver or enter the report.
      *
-     * @param list<string> $paths exact candidates selected by the caller
+     * @param  string           $directory       Configured discovery root; explicit candidates must be direct children of this
+     *                                           directory.
+     * @param  list<string>     $paths           Exact fragment candidate paths selected by the caller, without adding inherited files.
+     * @param  bool             $waived          Whether the caller supplies an authorized fragment-presence waiver; malformed fragments still
+     *                                           fail.
+     * @param  bool             $requireFragment Whether an empty explicit fragment selection must produce a presence error.
+     * @return ValidationReport Validation of only the supplied candidates, preserving valid siblings and every failure.
+     * @throws RuntimeException When the fragment discovery or file-reading boundary fails rather than returning a
+     *                          validation result.
      */
     public function validatePaths(
         string $directory,
@@ -112,11 +134,16 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
             $errors[$result->id] = $result->errors;
         }
 
-        return $this->reportFactory->create($changesets, $errors, $waived, ...([] === $hashes ? [] : [$hashes]));
+        return new ValidationReport($changesets, $errors, $waived, ...([] === $hashes ? [] : [$hashes]));
     }
 
     /**
      * Determines whether a discovered path is one direct child of the root.
+     *
+     * @param  string $directory Explicit consumer directory used for repository or fragment operations.
+     * @param  string $path      Discovered candidate path, using the same consumer-root representation as the configured
+     *                           directory.
+     * @return bool   Whether the path is exactly one direct child after separator normalization.
      */
     private function isDirectFragmentPath(string $directory, string $path): bool
     {

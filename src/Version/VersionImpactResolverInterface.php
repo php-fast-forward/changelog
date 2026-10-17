@@ -27,6 +27,8 @@ interface VersionImpactResolverInterface
      * Returns the greatest impact or null when no fragments are supplied.
      *
      * @param list<Changeset> $changesets validated pending fragments
+     *
+     * @return VersionImpact|null Greatest persisted fragment impact, or null for an empty collection.
      */
     public function resolve(array $changesets): ?VersionImpact;
 }

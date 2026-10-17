@@ -22,7 +22,13 @@ use FastForward\Config\PhpFileConfig;
 /** Uses Fast Forward Config's actual lazy PHP-array API for custom presentation. */
 final readonly class ConfigSourceFactory implements ConfigSourceFactoryInterface
 {
-    /** Creates a nonpersistent source; no defaults file is generated or required. */
+    /**
+     * Creates a nonpersistent source; no defaults file is generated or required.
+     *
+     * @param string $absolutePath Absolute path of the explicitly selected trusted PHP presentation file.
+     *
+     * @return ConfigInterface Nonpersistent PHP source object; loading the selected file remains a later explicit operation.
+     */
     public function create(string $absolutePath): ConfigInterface
     {
         return new PhpFileConfig($absolutePath, persistent: false);

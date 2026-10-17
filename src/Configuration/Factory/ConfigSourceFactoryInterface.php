@@ -21,6 +21,12 @@ use FastForward\Config\ConfigInterface;
 /** Creates a lazy source for an explicitly selected trusted PHP presentation template. */
 interface ConfigSourceFactoryInterface
 {
-    /** Constructs without reading or writing the source; loading is an explicit later operation. */
+    /**
+     * Constructs without reading or writing the source; loading is an explicit later operation.
+     *
+     * @param string $absolutePath Absolute path of the explicitly selected trusted PHP presentation file.
+     *
+     * @return ConfigInterface Nonpersistent PHP source object; loading the selected file remains a later explicit operation.
+     */
     public function create(string $absolutePath): ConfigInterface;
 }

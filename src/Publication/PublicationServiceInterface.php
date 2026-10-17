@@ -17,10 +17,28 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Publication;
 
 use FastForward\Changelog\Release\ReleaseOptions;
+use InvalidArgumentException;
+use RuntimeException;
 
 /** Publishes only proved explicit commit evidence, with a read-only dry-run contract. */
 interface PublicationServiceInterface
 {
-    /** Reconciles a tag and exact release notes without ever moving an existing conflicting tag. */
-    public function publish(ReleaseOptions $options, string $approvedSha, bool $dryRun = false): PublicationResult;
+    /**
+     * Reconciles a tag and exact release notes without ever moving an existing conflicting tag.
+     *
+     * @param  ReleaseOptions           $options     Trusted consumer paths, rendering settings and repository selection for this
+     *                                               operation.
+     * @param  string                   $approvedSha Complete approved commit identity whose exact committed transaction is required.
+     * @param  bool                     $dryRun      Whether to return the proposed transaction without creating or updating remote content.
+     * @return PublicationResult        Verified maintenance, dry-run, published or unchanged result for the approved commit.
+     * @throws InvalidArgumentException When complete approved transaction or contextual merge evidence is absent or
+     *                                  inconsistent.
+     * @throws RuntimeException         When immutable API authority or matching create-only publication state cannot be
+     *                                  confirmed.
+     */
+    public function publish(
+        ReleaseOptions $options,
+        string $approvedSha,
+        bool $dryRun = false,
+    ): PublicationResult;
 }

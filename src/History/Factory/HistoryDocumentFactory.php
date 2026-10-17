@@ -22,7 +22,17 @@ use InvalidArgumentException;
 /** Constructs documents after rejecting duplicate or unsupported section values. */
 final class HistoryDocumentFactory implements HistoryDocumentFactoryInterface
 {
-    /** Validates section identities before storing raw introduction and footer bytes. */
+    /**
+     * Validates section identities before storing raw introduction and footer bytes.
+     *
+     * @param list<\FastForward\Changelog\History\HistoryRelease> $releases   Historical sections in the caller-selected presentation order.
+     * @param string                                              $prefix     Raw introductory Markdown preceding the first release boundary.
+     * @param string                                              $references Raw terminal Markdown reference definitions and preserved following text.
+     *
+     * @return HistoryDocument History value with unique canonical section identities and unchanged introduction and footer.
+     *
+     * @throws InvalidArgumentException When a section is not a HistoryRelease or repeats a canonical version identity.
+     */
     public function create(array $releases = [], string $prefix = '', string $references = ''): HistoryDocument
     {
         $versions = [];

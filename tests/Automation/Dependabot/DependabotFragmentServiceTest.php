@@ -7,13 +7,12 @@ namespace FastForward\Changelog\Tests\Automation\Dependabot;
 use FastForward\Changelog\Automation\Dependabot\DependabotFragmentResult;
 use FastForward\Changelog\Automation\Dependabot\DependabotFragmentService;
 use FastForward\Changelog\Automation\Dependabot\DependabotInput;
-use FastForward\Changelog\Automation\Dependabot\Factory\DependabotFragmentResultFactoryInterface;
 use FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactoryInterface;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
-use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
 use FastForward\Changelog\Changeset\Renderer\ChangesetRenderer;
+use FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Tests\Automation\Policy\PolicyFixtureTrait;
@@ -53,11 +52,11 @@ final class DependabotFragmentServiceTest extends TestCase
     private array $descriptions = [];
 
     #[Test]
-    public function createsOneChangedPatchUsingCoreFactoriesAndCreateOnlyContentsApi(): void
+    public function createsOneChangedPatchUsingCanonicalRenderingAndCreateOnlyContentsApi(): void
     {
         $input = $this->input();
         $result = $this->service($input)->synchronize($this->options(), $input);
-        self::assertSame('created', $result->status);
+        self::assertSame('created', $result->status, implode(' ', $result->diagnostics));
         self::assertSame('.changelog/dependabot-7.md', $result->path);
         self::assertSame(str_repeat('c', 40), $result->commitSha);
         self::assertSame(
@@ -641,33 +640,24 @@ final class DependabotFragmentServiceTest extends TestCase
 
             return $value;
         });
-        $changesets = $this->createStub(ChangesetFactoryInterface::class);
-        $changesets->method('create')->willReturnCallback(
-            function (
-                string $id,
-                Category $category,
-                ?int $issue,
-                ?int $pr,
-                ?string $author,
-                string $description,
-                ?VersionImpact $type,
-            ): Changeset {
-                $this->changes = [$id, $category, $issue, $pr, $author, $description, $type];
-                $this->descriptions[] = $description;
+        $canonicalRenderer = new ChangesetRenderer();
+        $renderer = $this->createStub(ChangesetRendererInterface::class);
+        $renderer->method('render')->willReturnCallback(function (Changeset $changeset) use (
+            $canonicalRenderer
+        ): string {
+            $this->changes = [
+                $changeset->id,
+                $changeset->category,
+                $changeset->issue,
+                $changeset->pullRequest,
+                $changeset->author,
+                $changeset->description,
+                $changeset->type,
+            ];
+            $this->descriptions[] = $changeset->description;
 
-                return new Changeset($id, $category, $issue, $pr, $author, $description, $type);
-            },
-        );
-        $renderer = new ChangesetRenderer();
-        $results = $this->createStub(DependabotFragmentResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(string $status, string $path, ?string $commit = null, array $diagnostics = []): DependabotFragmentResult => new DependabotFragmentResult(
-                $status,
-                $path,
-                $commit,
-                $diagnostics,
-            ),
-        );
+            return $canonicalRenderer->render($changeset);
+        });
         $inputs = $this->createMock(DependabotInputFactoryInterface::class);
         $validation = $inputs->expects(self::once())->method('create')->with(
             $input->pullRequest,
@@ -685,6 +675,6 @@ final class DependabotFragmentServiceTest extends TestCase
             $validation->willReturn($input);
         }
 
-        return new DependabotFragmentService($github, $changesets, $renderer, $results, $inputs);
+        return new DependabotFragmentService($github, $renderer, $inputs);
     }
 }

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Release;
 
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseReceiptFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodec;
 use FastForward\Changelog\Release\ReleaseReceipt;
 use InvalidArgumentException;
@@ -14,7 +12,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use Throwable;
 
 #[CoversClass(ReceiptCodec::class)]
 #[UsesClass(ReleaseReceipt::class)]
@@ -213,18 +210,6 @@ final class ReceiptCodecTest extends TestCase
     /** Creates the real pure codec with mocked object and diagnostic construction. */
     private function codec(): ReceiptCodec
     {
-        $receipts = $this->createStub(ReleaseReceiptFactoryInterface::class);
-        $receipts->method('create')->willReturnCallback(
-            static fn(array $data): ReleaseReceipt => new ReleaseReceipt($data),
-        );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException(
-                $message,
-                previous: $previous,
-            ),
-        );
-
-        return new ReceiptCodec($receipts, $exceptions);
+        return new ReceiptCodec();
     }
 }

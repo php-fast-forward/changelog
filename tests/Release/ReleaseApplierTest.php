@@ -7,7 +7,6 @@ namespace FastForward\Changelog\Tests\Release;
 use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseApplier;
 use FastForward\Changelog\Release\ReleaseJournalPathResolverInterface;
@@ -15,7 +14,6 @@ use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleaseReceipt;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -23,7 +21,6 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\SharedLockInterface;
-use Throwable;
 
 #[CoversClass(ReleaseApplier::class)]
 #[UsesClass(ReleasePlan::class)]
@@ -572,19 +569,6 @@ final class ReleaseApplierTest extends TestCase
 
             return $lock;
         });
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException(
-                $message,
-                previous: $previous,
-            ),
-        );
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException(
-                $message,
-                previous: $previous,
-            ),
-        );
         $inputs = $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
         $inputs->method('validate')->willReturnCallback(static function (ReleasePlan $received) use (
             $approved,
@@ -599,6 +583,6 @@ final class ReleaseApplierTest extends TestCase
         $journals = $this->createStub(ReleaseJournalPathResolverInterface::class);
         $journals->method('resolve')->willReturn('/consumer/.git/changelog-release-plan.json');
 
-        return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $exceptions, $inputs, $journals);
+        return new ReleaseApplier($git, $fragments, $locks, $files, $codec, $inputs, $journals);
     }
 }

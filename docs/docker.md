@@ -1,6 +1,6 @@
 # Packaged Docker CLI
 
-The root [Dockerfile](../Dockerfile) installs the locked production dependencies
+The root [Dockerfile](https://github.com/php-fast-forward/changelog/blob/main/Dockerfile) installs the locked production dependencies
 at build time and runs `/usr/local/bin/changelog` directly. PHP 8.5 and Git
 are included. Composer, development tools and action scripts are absent from the
 runtime image. PHP and Composer use explicit full version tags without digests.
@@ -76,7 +76,7 @@ GitHub tokens.
 ## Action layout and runner paths
 
 The six public Docker Actions live in
-[`.github/actions/`](../.github/actions/): `check`, `pr-status`, `dependabot`,
+[`.github/actions/`](https://github.com/php-fast-forward/changelog/tree/main/.github/actions): `check`, `pr-status`, `dependabot`,
 `version`, `publish` and `history`. Each uses `../../../Dockerfile`, passes direct
 CLI args and forwards its token through the environment. The `github-auth` and
 `setup-docker` composites are internal workflow helpers. Docker Actions run on
@@ -110,7 +110,7 @@ reviewed immutable commit during validation.
 
 ## Versioned GHCR publication
 
-[Publish Docker CLI](../.github/workflows/repository-image.yml) accepts an existing
+[Publish Docker CLI](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) accepts an existing
 semantic release tag. The repository publication workflow calls it explicitly
 after approved release publication, supplying its exact approved SHA. Failed
 image jobs can be rerun from that publication run. This single launch path
@@ -130,13 +130,13 @@ to `ghcr.io/php-fast-forward/changelog:<version>` with provenance, SBOM and
 repository/version/commit labels. Only the publication job receives
 `packages: write`. Image tags use the full version, without moving aliases.
 
-Community Actions use explicit version tags. Consumer references to this package
-use reviewed immutable commits until a release is available. Docker base images
-also use full version tags.
+Community Actions use explicit full version tags. Consumer references to this
+package use reviewed immutable commits. Docker base images also use full version
+tags.
 
-Current Action metadata builds the shared Dockerfile during initial development.
-After the first release image exists and is publicly accessible, consumers can
-use the prebuilt CLI directly:
+The Action metadata builds the shared Dockerfile. Consumers may instead run a
+prebuilt CLI after verifying the selected versioned image exists and is accessible
+to their runner. The following example assumes that image is available:
 
 ```yaml
 - uses: docker://ghcr.io/php-fast-forward/changelog:1.0.0
@@ -148,8 +148,8 @@ use the prebuilt CLI directly:
 
 The published image avoids installing dependencies or rebuilding the application
 in each consumer job. The GitHub CLI commands and runner output contract are the
-same as the Dockerfile-backed Actions. Do not point development metadata at an
-image that has not been published yet.
+same as the Dockerfile-backed Actions. Select an existing image deliberately;
+building the local Dockerfile does not publish it to a registry.
 
 A new GHCR package may initially be private. After its first publication, set its
 visibility to public in the package settings for anonymous external pulls; the
@@ -160,7 +160,7 @@ authentication and package access. See [the Container registry guide](https://do
 
 Repository workflows prepare public base images through Google's Docker Hub
 cache on disposable GitHub-hosted Linux runners. The internal
-[`setup-docker`](../.github/actions/setup-docker/action.yml) action preserves
+[`setup-docker`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/setup-docker/action.yml) action preserves
 other daemon settings and existing mirror order, adds the public cache, and
 preloads only images declared by the trusted runtime Dockerfile. The Buildx
 publisher uses the same mirror. Dockerfile references and full image versions
@@ -168,11 +168,11 @@ stay unchanged; missing cache entries fall back to Docker Hub. The helper
 skips cache configuration and preloading on self-hosted runners, preserving their
 existing daemon without a restart. It rejects unsupported hosted environments
 and does not configure developer machines. See the [runner input and access
-requirements](reusable-lifecycle.md#optional-settings-and-composition).
+requirements](reusable-lifecycle.md).
 See [Google's cache contract](https://docs.cloud.google.com/artifact-registry/docs/pull-cached-dockerhub-images)
 and [BuildKit registry mirrors](https://docs.docker.com/build/buildkit/configure/).
 
-Run the [actual-image verifier](../tests/Container/verify.md) after building. It
+Run the [actual-image verifier](https://github.com/php-fast-forward/changelog/blob/main/tests/Container/verify.md) after building. It
 uses disposable Git repositories, synthetic credentials and network-disabled
 containers. Native unit/coverage checks still run on Linux and Windows. Linux
 CI also invokes a real local Docker action and checks its runner outputs.
@@ -192,3 +192,7 @@ metadata, workflows and documentation together. Pushing an image to a registry
 or publishing real tags/releases requires the corresponding authorization.
 The repository workflow publishes images for existing release tags; creating a
 real release tag still follows the existing release approval boundary.
+
+---
+
+[Documentation index](index.md)

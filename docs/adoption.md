@@ -1,23 +1,37 @@
 # Adopt Fast Forward Changelog
 
-Install the runtime, record independent fragments in ordinary PRs, then let an
+Choose GitHub automation or the local CLI, record independent fragments in
+ordinary PRs, then let an
 approved version PR consolidate the single `CHANGELOG.md`. Published GitHub notes
 come from that approved document at its exact merge commit.
+
+The [GitHub lifecycle](reusable-lifecycle.md) and the consumer skill can be adopted
+without installing a PHP runtime in the application. Install the instructions
+directly from GitHub using Node.js `22.20.0+`, npm and Git:
+
+```sh
+npx skills add php-fast-forward/changelog --skill fast-forward-changelog
+```
+
+This project-scoped copy requires no Composer installation. Choose the actual
+host and review the installed files; see [skill installation](skills.md)
+for an immutable source revision, updates, explicit global scope and activation checks. The local CLI and PHP
+API routes below have their own runtime requirements.
 
 ## Install and verify the runtime
 
 The runtime requires PHP 8.5 or later and Composer. In an authorized consumer
-checkout, install a release or reviewed source revision containing the nine
-commands documented here:
+checkout, select a compatible release or reviewed immutable source revision
+containing the eight contributor/maintainer commands documented here. After
+installing it through Composer:
 
 ```sh
-composer require --dev fast-forward/changelog
 vendor/bin/changelog list --raw
 vendor/bin/changelog add --help
 ```
 
 The current compatibility range keeps `fast-forward/container` on `~1.6.0`.
-The 1.7–1.9 resolution path can retry a failed explicit concrete factory through
+The 1.7–1.10 resolution path can retry a failed explicit concrete factory through
 autowiring, hiding the selected command's construction failure. The production
 packaging fixture detects that regression. Broaden this range only after an
 upstream correction passes that same fixture; the installed development lock
@@ -28,15 +42,8 @@ operate on the consumer working directory, including when the package itself is
 installed elsewhere; `--cwd=/path/to/project` selects it explicitly. A skill
 installation is separate and does not install PHP, Composer or this runtime.
 The published skill is `resources/skills/fast-forward-changelog`; `.agents/skills`
-is reserved for skills consumed by a project. To discover an explicitly reviewed
-local checkout without installing into another environment:
-
-```sh
-npx --yes skills@1.7.0 add /path/to/changelog/resources/skills/fast-forward-changelog --list
-```
-
-See [skill distribution and evidence](skills.md) for separately authorized
-project copy installation and host limitations.
+is reserved for skills consumed by a project. The independent GitHub installation
+above can copy the instructions before any runtime is installed.
 
 For consumers using Composer to manage skills, the optional
 [Composer installer guide](composer-skills.md) installs the packaged canonical
@@ -66,7 +73,11 @@ vendor/bin/changelog check --since=origin/main --no-interaction
 The `--since` check evaluates committed Git differences; run it after committing
 the contribution and fetching/selecting the intended baseline. Review the exact
 created fragment. PR, issue and author metadata are optional, so author before a
-PR exists without placeholders. A generated fragment always persists its category
+PR exists without placeholders. When its origin is already known, you may supply
+the verified `--pull-request=<number>`; confirm the repository, head branch and
+exact head SHA before copying the number from the actual PR URL or trusted
+metadata. Contribution checks do not require a PR number, and opening the PR
+does not require a follow-up fragment edit. A generated fragment always persists its category
 and effective type. For a dependency change preserving the public API, use
 `--category=changed --type=patch`. Category defaults and restricted frontmatter
 are documented in [fragment format](specification/fragment-format.md).
@@ -110,9 +121,6 @@ The prompt preserves Markdown spaces and removes only the terminal's Enter
 delimiter. Explicit message arguments bypass the prompt; existing domain
 validation still rejects invalid descriptions before creating a fragment.
 
-Commands that receive `SymfonyStyle` declare it first in `__invoke()`, followed
-by a blank line before the attributed input parameters.
-
 `--no-interaction` disables prompts. A message argument is required for unattended
 `add`. All commands accept the shared settings below; their use does not imply
 every setting affects every operation.
@@ -130,6 +138,10 @@ Common short options are `-C` for `--cwd`, `-l` for `--locale`, `-T` for
 | `notes` | `-o` output file |
 | `publish` | `-t` approved target, `-d` dry run |
 | `github` | `-S` since, `-p` PR, `-t` approved target; machine-operation settings keep their explicit long forms |
+
+`github` is the internal automation entrypoint used by the Actions and reusable
+workflows. Its explicit metadata contract is described in the
+[Docker runtime guide](docker.md).
 
 `-s` (history source) and `-S` (contribution baseline) are distinct. Template
 uses uppercase `-T` so command-specific `-t` remains available. `-c` means
@@ -199,6 +211,12 @@ after an interruption, preserving the journal and remaining fragments. Changed
 inputs block stale recovery. See [transaction and recovery
 contracts](release-receipts.md).
 
+A concrete `version` consolidation with a known GitHub repository completes
+missing release references: the oldest version links to its release/tag page,
+and subsequent versions link to comparisons. Existing links are preserved;
+without a repository, no destinations are invented. History-only operations do
+not add links. See [the exact footer contract](history.md).
+
 Backfill and format preserve pending fragments. Maintenance PRs commit only
 the central history; recovery journals remain outside the versioned tree and are
 removed after success.
@@ -255,7 +273,12 @@ through the package's container service provider, or inject these interfaces int
 the consumer's own PSR-11 container. Constructors perform no filesystem, Git,
 network, clock or credential observation. Factories construct values/collaborators.
 
-Register the provider by class name; it has no constructor arguments:
+Register the provider by class name; it has no constructor arguments. This
+composition excerpt shows default and explicitly configured containers. The
+complete [contribution program](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/examples/contribution.php)
+loads the consumer autoloader, writes one fragment and checks its exact bytes;
+the [PHP recipe guide](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/references/php-api.md)
+documents its invocation, expected output and collision behavior.
 
 ```php
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
@@ -288,7 +311,7 @@ their existing injected contracts.
 | --- | --- |
 | `ReleaseOptionsFactoryInterface` | `create(array $values = []): ReleaseOptions`; defaults then explicit values, unknown settings rejected |
 | `FragmentWriterInterface` | `add($options, $message, $category='changed', $type=null, $name=null, $issue=null, $pullRequest=null, $author=null, $commit=false, $commitMessage='chore: record changelog fragment'): string`; absolute created path |
-| `CheckServiceInterface` | `check($options, $since=null, $centralChangeAuthorized=false, $waiverAuthorized=false): ValidationReport`; authorization belongs to verified automation context |
+| `CheckServiceInterface` | `check($options, $since=null, $centralChangeAuthorized=false, $waiverAuthorized=false, $authorizationKind='ordinary'): ValidationReport`; authorization flags and kind belong to verified automation context |
 | `ReleasePlannerInterface` | `plan($options, $operation='version'): ReleasePlan`; version/backfill/format exact evidence without mutation |
 | `ReleaseApplierInterface` | `apply($plan): bool` and read-only `isApplied($plan): bool`; exact journal/snapshot/inventory transaction |
 | `HistoryCodecInterface` | `parse($markdown, $template=null)`, `render($document, $template, $preservePresentation=false)`, `notes($document, $version)`; pure Markdown/history boundary |
@@ -310,9 +333,14 @@ Paste this into an authorized agent session in the consumer repository:
 
 ```text
 Adote Fast Forward Changelog neste projeto usando uma revisão imutável revisada.
-Instale o CLI local via Composer e a skill changelog em escopo de projeto por cópia.
+Instale a skill diretamente do GitHub via npx skills, em escopo de projeto por cópia.
+Use o workflow Docker sem Composer local; instale o CLI via Composer somente se esse uso local fizer parte da tarefa.
 Use fragmentos independentes; valide contribuições contra a base do PR e preserve trabalho alheio.
 Configure os workflows reutilizáveis com mínimos privilégios e PR de versão revisável.
 Não edite CHANGELOG.md manualmente nem publique tags/releases sem autorização explícita para o SHA aprovado.
 Mostre os arquivos criados, verificações executadas e limites de instalação/ativação observados.
 ```
+
+---
+
+[Documentation index](index.md)

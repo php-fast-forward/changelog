@@ -26,10 +26,19 @@ interface CheckServiceInterface
      *
      * Existing fragments cannot satisfy the addition gate. Authorization flags and
      * kind MUST come from verified automation context, not user-supplied skip flags
-     * or an editable label/body. Receipt changes and fragment consumption require
-     * both central authorization and the exact managed-version kind. Maintenance
-     * and waivers never authorize those changes or hide malformed fragments.
+     * or an editable label/body. Fragment consumption requires both central
+     * authorization and the exact managed-version kind. The legacy tracked receipt
+     * path remains protected for compatibility; new transactions never create it.
+     * Maintenance and waivers never hide malformed fragments or authorize consumption.
      * Local checking without since allows an empty store.
+     *
+     * @param ReleaseOptions $options                 Validated consumer paths, presentation settings and source-selection policy.
+     * @param string|null    $since                   Optional committed Git baseline used to inspect this contribution's exact delta.
+     * @param bool           $centralChangeAuthorized Whether independently verified policy permits central-history edits for this exact checkout.
+     * @param bool           $waiverAuthorized        Whether verified maintainer policy permits no new fragment without hiding other validation failures.
+     * @param string         $authorizationKind       Verified policy kind; managed-version alone permits consumption and maintenance permits only its narrow attribution correction.
+     *
+     * @return ValidationReport Complete pending inventory and independent diagnostics; inventory size is not a count of this PR's newly contributed fragments.
      */
     public function check(
         ReleaseOptions $options,

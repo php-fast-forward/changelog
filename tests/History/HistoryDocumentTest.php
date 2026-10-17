@@ -29,5 +29,10 @@ final class HistoryDocumentTest extends TestCase
         self::assertSame([], $changed->getReleases());
         self::assertSame([$release], $document->getReleases());
         self::assertSame('prefix', $changed->getPrefix());
+        $referenced = $document->withReferences("[1.0.0]: https://example.test/tag\n");
+        self::assertSame("[1.0.0]: https://example.test/tag\n", $referenced->getReferences());
+        self::assertSame('references', $document->getReferences());
+        self::assertSame([$release], $referenced->getReleases());
+        self::assertSame('prefix', $referenced->getPrefix());
     }
 }

@@ -97,3 +97,7 @@ PR workflows without `action_required`, exact-head Changelog status, sticky
 feedback and a repeated preparation with no additional commit. Configuring an
 App or passing isolated workflow tests is not proof that these native events
 have already run successfully.
+
+---
+
+[Documentation index](index.md)

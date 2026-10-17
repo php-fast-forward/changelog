@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Automation\VersionPullRequest\Factory;
 
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestException;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestResult;
@@ -17,8 +15,6 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(VersionPullRequestInputFactory::class)]
-#[CoversClass(VersionPullRequestResultFactory::class)]
-#[CoversClass(VersionPullRequestExceptionFactory::class)]
 #[CoversClass(VersionPullRequestInput::class)]
 #[CoversClass(VersionPullRequestResult::class)]
 #[UsesClass(VersionPullRequestException::class)]
@@ -27,7 +23,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     #[Test]
     public function retainsTypedDefaultsCustomPresentationAndRemoteOutcome(): void
     {
-        $factory = new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory());
+        $factory = new VersionPullRequestInputFactory();
         $default = $factory->create();
         self::assertSame('main', $default->baseBranch);
         self::assertSame('changelog/version', $default->managedBranch);
@@ -37,7 +33,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
         $custom = $factory->create('support/1.x', 'changelog/support-1.x', 'my-app[bot]', 'Update history', true);
         self::assertTrue($custom->dryRun);
         self::assertSame('my-app[bot]', $custom->automationActor);
-        $value = new VersionPullRequestResultFactory()->create(
+        $value = new VersionPullRequestResult(
             'updated',
             7,
             'https://github.com/o/r/pull/7',
@@ -55,8 +51,8 @@ final class VersionPullRequestFactoriesTest extends TestCase
         self::assertNull($value->version);
         self::assertTrue($value->maintenance);
         self::assertSame(['maintenance'], $value->diagnostics);
-        self::assertNull(new VersionPullRequestResultFactory()->create('none')->prNumber);
-        self::assertSame('diagnostic', new VersionPullRequestExceptionFactory()->create('diagnostic')->getMessage());
+        self::assertNull(new VersionPullRequestResult('none')->prNumber);
+        self::assertSame('diagnostic', new VersionPullRequestException('diagnostic')->getMessage());
     }
 
     /** Templates have a separate finite bound; final rendering still applies the ordinary PR title limit. */
@@ -65,7 +61,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     {
         $title = str_repeat('a', 1007) . '{current_version}';
 
-        $input = new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create(title: $title);
+        $input = new VersionPullRequestInputFactory()->create(title: $title);
 
         self::assertSame(1024, strlen($input->title));
         self::assertSame($title, $input->title);
@@ -78,7 +74,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     public function rejectsUnsafeTitleTemplates(string $title): void
     {
         $this->expectException(VersionPullRequestException::class);
-        new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create(
+        new VersionPullRequestInputFactory()->create(
             title: 'oversized' === $title ? str_repeat('a', 1008) . '{current_version}' : $title,
         );
     }
@@ -99,7 +95,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     public function rejectsUnsafeAutomationSettings(string $base, string $branch, string $actor, string $title): void
     {
         $this->expectException(VersionPullRequestException::class);
-        new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create(
+        new VersionPullRequestInputFactory()->create(
             'long' === $base ? str_repeat('a', 256) : $base,
             $branch,
             $actor,

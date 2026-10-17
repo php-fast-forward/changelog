@@ -6,11 +6,8 @@ namespace FastForward\Changelog\Tests\Automation\VersionPullRequest;
 
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestException;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestResult;
@@ -41,7 +38,6 @@ use RuntimeException;
 #[UsesClass(VersionPullRequestException::class)]
 #[UsesClass(VersionPullRequestInput::class)]
 #[UsesClass(VersionPullRequestInputFactory::class)]
-#[UsesClass(VersionPullRequestExceptionFactory::class)]
 #[UsesClass(VersionPullRequestResult::class)]
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(ReleasePlan::class)]
@@ -771,25 +767,8 @@ final class VersionPullRequestServiceTest extends TestCase
         if (isset($settings['input_failure'])) {
             $inputs->method('create')->willThrowException(new VersionPullRequestException('invalid input'));
         } else {
-            $inputs = new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory());
+            $inputs = new VersionPullRequestInputFactory();
         }
-        $results = $this->createStub(VersionPullRequestResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(string $status, ?int $number = null, ?string $url = null, ?string $sha = null, ?string $id = null, ?string $version = null, bool $maintenance = false, array $diagnostics = []): VersionPullRequestResult => new VersionPullRequestResult(
-                $status,
-                $number,
-                $url,
-                $sha,
-                $id,
-                $version,
-                $maintenance,
-                $diagnostics,
-            ),
-        );
-        $exceptions = $this->createStub(VersionPullRequestExceptionFactoryInterface::class);
-        $exceptions->method('create')->willReturnCallback(
-            static fn(string $message): VersionPullRequestException => new VersionPullRequestException($message),
-        );
         $inputEvidence = $this->createStub(ReleaseInputEvidenceValidatorInterface::class);
         $inputEvidence->method('validate')->willReturnCallback(function (ReleasePlan $received) use (
             $plan,
@@ -810,8 +789,6 @@ final class VersionPullRequestServiceTest extends TestCase
             $paths,
             $policy,
             $inputs,
-            $results,
-            $exceptions,
             $inputEvidence,
             $this->createStub(HistoryCodecInterface::class),
             $this->createStub(TemplateResolverInterface::class),

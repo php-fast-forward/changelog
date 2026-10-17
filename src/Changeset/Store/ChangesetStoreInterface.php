@@ -29,6 +29,10 @@ interface ChangesetStoreInterface
      * Returns the directory-scoped resource shared by add and version transactions.
      *
      * The directory MUST be absolute and contain no parent traversal.
+     *
+     * @param string $directory Absolute fragment-discovery directory shared by cooperating transactions.
+     *
+     * @return string Stable directory-scoped lock resource shared by fragment creation and release application.
      */
     public function lockResource(string $directory): string;
 
@@ -37,6 +41,10 @@ interface ChangesetStoreInterface
      *
      * Implementations MUST return `Available`, `Existing`, or `UnsafePath` and
      * MUST apply the same symbolic-path policy used by the locked write.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return WriteResult Whether the exact path is available, already exists or violates the managed-path policy.
      *
      * @throws IOExceptionInterface when the path cannot be inspected
      */
@@ -51,6 +59,8 @@ interface ChangesetStoreInterface
      * Paths MUST use forward-slash separators for stable inventory keys across
      * platforms, while retaining invalid segments for validation diagnostics.
      *
+     * @param string $directory Absolute fragment-discovery directory shared by cooperating transactions.
+     *
      * @return list<string>|null absolute Markdown paths;
      *                           null when the discovery root is unsafe
      *
@@ -61,6 +71,8 @@ interface ChangesetStoreInterface
 
     /**
      * Reads one fragment without interpreting its contents.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
      *
      * @return string|null contents, or null when the path or any ancestor is symbolic
      *
@@ -77,6 +89,11 @@ interface ChangesetStoreInterface
      * The result MUST distinguish successful creation, an existing ID, an
      * unsafe symbolic path, and failure to acquire the serialization lock.
      *
+     * @param string $path     Caller-selected managed path, validated before filesystem effects.
+     * @param string $contents Exact managed-file bytes supplied by the caller.
+     *
+     * @return WriteResult Creation outcome distinguishing a written fragment, a collision, an unsafe path or lock failure.
+     *
      * @throws IOExceptionInterface when the directory or file cannot be written
      */
     public function write(string $path, string $contents): WriteResult;
@@ -87,11 +104,12 @@ interface ChangesetStoreInterface
      * The caller MUST hold lockResource(directory) across its release transaction.
      * Missing targets are idempotent; unsafe selections fail before any removal.
      *
-     * @throws \InvalidArgumentException when an explicit path is unsafe
-     *
      * @param list<string> $paths exact paths selected by a release plan
      *
-     * @throws IOExceptionInterface when a selected path cannot be removed
+     * @return void Completion after the selected files are removed or confirmed absent.
+     *
+     * @throws \InvalidArgumentException when an explicit path is unsafe
+     * @throws IOExceptionInterface      when a selected path cannot be removed
      */
     public function remove(array $paths): void;
 }

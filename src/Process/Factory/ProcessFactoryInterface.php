@@ -14,11 +14,19 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Process\Factory;
 
+use Symfony\Component\Process\Exception\LogicException;
 use Symfony\Component\Process\Process;
 
 /** Replaces process construction so unit tests cannot start Git or inherit host credentials. */
 interface ProcessFactoryInterface
 {
-    /** Returns an unstarted process for one argv sequence and the explicit consumer root. */
+    /**
+     * Returns an unstarted process for one argv sequence and the explicit consumer root.
+     *
+     * @param  list<string>   $command Executable and structured argv entries used to construct an unstarted process.
+     * @return Process        Unstarted structured process using the configured consumer root and filtered automation
+     *                        credentials.
+     * @throws LogicException When the PHP runtime does not provide proc_open for Symfony Process construction.
+     */
     public function create(array $command): Process;
 }
