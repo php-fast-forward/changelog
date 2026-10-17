@@ -1,5 +1,9 @@
 # Source namespaces
 
+Use this reference when integrating PHP services or migrating an application
+from an earlier source snapshot. Start with [PHP adoption](adoption.md) for the
+complete recipe, then locate its contracts in the map below.
+
 Namespaces follow the responsibility expressed by a type's contract. A changeset
 value, a release transaction and a GitHub automation policy remain in their own
 domains. The composition root selects shared HTTP transport, secure randomness
@@ -55,7 +59,7 @@ The namespace cleanup changes public PHP names before the first public release,
 commit pins move to the release API. Use the new imports and container service
 keys. Existing CLI names, long options,
 JSON, Markdown and release evidence remain unchanged. The additional short
-options are documented in [adoption](adoption.md). No PHP compatibility aliases
+options are documented in the [CLI reference](cli-fragments.md). No PHP compatibility aliases
 are introduced.
 
 | Previous namespace/type | Canonical namespace/type |

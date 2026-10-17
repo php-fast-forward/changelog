@@ -1,18 +1,19 @@
 # Git and GitHub dependency assessment
 
-Verified on 2026-10-09 against the lockfile, adapter contracts, unit tests and
-Composer registry metadata and the published candidate versions below. This is
-a static compatibility and
-responsibility assessment; candidate SDKs were not installed or behaviorally
-certified. The runtime already uses Symfony Process 8.1.7 and Symfony HttpClient
-8.1.8 for process execution and HTTP. Keep those engines and the injected
-`GitRepositoryInterface` and `GitHubClientInterface` boundaries for this release.
+This contributor reference explains why the package retains its Git/GitHub
+adapters. It is not a prerequisite for CLI or workflow adoption. Current runtime
+requirements are in [dependencies](dependencies.md).
+
+The candidate assessment below was recorded on 2026-10-09 from manifests and
+source contracts. Those SDK versions were not installed or behaviorally certified.
+The runtime uses Symfony Process/HttpClient behind injected
+`GitRepositoryInterface` and `GitHubClientInterface` boundaries.
 
 ## Candidate decisions
 
 | Candidate | Verified fit | Decision |
 | --- | --- | --- |
-| Symfony Process and HttpClient, already installed | Structured argv, process lifecycle, HTTP/JSON transport and replaceable collaborators. | Retain. Generic factories now live in `Process` and `Http`; Git/GitHub adapters express the caller's domain contract. |
+| Symfony Process and HttpClient | Structured argv, process lifecycle, HTTP/JSON transport and replaceable collaborators. | Retain. Process construction remains in `Process`; the provider composes HTTP transport. Git/GitHub adapters own the changelog-specific evidence contract. |
 | [gitonomy/gitlib 1.6.0](https://github.com/gitonomy/gitlib/blob/v1.6.0/composer.json) | Accepts Symfony Process 8, provides Git objects and uses the same process engine. Default discovery recognizes `.git` directories; its detached-HEAD parser expects 40 hexadecimal characters. | Compatible candidate, but worktree Git files and SHA-256 evidence need explicit adaptation. No demonstrated reduction of the changelog-specific adapter. |
 | [czproject/git-php 4.6.0](https://github.com/czproject/git-php/tree/v4.6.0) | Its manifest supports PHP 8.0 through 8.5. It provides Git operations, a configurable runner and environment. Its CLI runner uses `proc_open`; its result offers normalized line output and exact string output. | Compatible with the current PHP 8.5 runtime, but its range would narrow the package's PHP 8.x allowance. Exact-byte reads, NUL records, credential policy and scoped `commit --only` remain integration responsibilities. |
 | [knplabs/github-api 3.16.1](https://github.com/KnpLabs/php-github-api/tree/v3.16.1) | REST/GraphQL helpers, pagination and replaceable PSR-17/18 transport; Symfony can provide transport. Additional HTTP client/cache/discovery packages and a message/factory implementation are required. | A reasonable candidate for broader API use, but not a drop-in replacement for the current contract. Retain the bounded adapter until a focused prototype demonstrates a net gain. |

@@ -1,284 +1,125 @@
 # Adopt Fast Forward Changelog
 
-Choose GitHub automation or the local CLI, record independent fragments in
-ordinary PRs, then let an
-approved version PR consolidate the single `CHANGELOG.md`. Published GitHub notes
-come from that approved document at its exact merge commit.
+Contributors add independent `.changelog/*.md` fragments. The GitHub workflow
+checks those contributions and prepares one version PR that consolidates
+`CHANGELOG.md`. Publication uses the approved version PR's exact merge commit.
 
-The [GitHub lifecycle](reusable-lifecycle.md) and the consumer skill can be adopted
-without installing a PHP runtime in the application. Install the instructions
-directly from GitHub using Node.js `22.20.0+`, npm and Git:
-
-```sh
-npx skills add php-fast-forward/changelog --skill fast-forward-changelog
-```
-
-This project-scoped copy requires no Composer installation. Choose the actual
-host and review the installed files; see [skill installation](skills.md)
-for an immutable source revision, updates, explicit global scope and activation checks. The local CLI and PHP
-API routes below have their own runtime requirements.
-
-## Install and verify the runtime
-
-The runtime requires PHP 8.5 or later and Composer. In an authorized consumer
-checkout, select a compatible release or reviewed immutable source revision
-containing the eight contributor/maintainer commands documented here. After
-installing it through Composer:
-
-```sh
-vendor/bin/changelog list --raw
-vendor/bin/changelog add --help
-```
-
-The current compatibility range keeps `fast-forward/container` on `~1.6.0`.
-The 1.7–1.10 resolution path can retry a failed explicit concrete factory through
-autowiring, hiding the selected command's construction failure. The production
-packaging fixture detects that regression. Broaden this range only after an
-upstream correction passes that same fixture; the installed development lock
-alone does not establish downstream compatibility.
-
-An existing global Composer installation exposes `changelog` instead. Commands
-operate on the consumer working directory, including when the package itself is
-installed elsewhere; `--cwd=/path/to/project` selects it explicitly. A skill
-installation is separate and does not install PHP, Composer or this runtime.
-The published skill is `resources/skills/fast-forward-changelog`; `.agents/skills`
-is reserved for skills consumed by a project. The independent GitHub installation
-above can copy the instructions before any runtime is installed.
-
-For consumers using Composer to manage skills, the optional
-[Composer installer guide](composer-skills.md) installs the packaged canonical
-resources with explicit trust and copy steps. It adds no runtime dependency.
-
-There is no `init` step or mandatory local configuration. Defaults are
-`.changelog/`, `CHANGELOG.md`, English Keep a Changelog presentation, tag prefix
-`v`, history source `auto` and baseline `HEAD`. `add` creates the fragment directory
-only when needed. Public flags provide settings; an optional explicitly selected
-trusted PHP template changes presentation.
-
-Without an explicit repository setting, a canonical GitHub `origin` URL supplies
-`owner/name`. Inferred identity keeps default `auto` history on local Git tags,
-without a GitHub request. Explicit `--repository` retains the existing `auto`
-source behavior, and explicit `--source=tags` or `--source=github` takes precedence.
-
-## First ordinary contribution
-
-Run a complete unattended authoring/check route:
-
-```sh
-vendor/bin/changelog add "Corrects Markdown parsing while preserving meaningful spaces." --category=fixed --no-interaction
-vendor/bin/changelog check --no-interaction
-vendor/bin/changelog check --since=origin/main --no-interaction
-```
-
-The `--since` check evaluates committed Git differences; run it after committing
-the contribution and fetching/selecting the intended baseline. Review the exact
-created fragment. PR, issue and author metadata are optional, so author before a
-PR exists without placeholders. When its origin is already known, you may supply
-the verified `--pull-request=<number>`; confirm the repository, head branch and
-exact head SHA before copying the number from the actual PR URL or trusted
-metadata. Contribution checks do not require a PR number, and opening the PR
-does not require a follow-up fragment edit. A generated fragment always persists its category
-and effective type. For a dependency change preserving the public API, use
-`--category=changed --type=patch`. Category defaults and restricted frontmatter
-are documented in [fragment format](specification/fragment-format.md).
-
-New names never overwrite existing fragments. Explicit `--name=parser-spaces.md`
-must be a direct lowercase dash slug with `.md`. Meaningful Markdown body spaces
-are preserved. Hidden, nested and symbolic candidates fail; direct
-`.changelog/AGENTS.md` is reserved. Existing pending fragments inherited from the
-baseline do not count as this PR's contribution. Ordinary PRs add a new valid
-fragment and do not alter the consolidated document or inherited fragments.
-The version workflow owns writing `CHANGELOG.md` and opens a separate version PR;
-ordinary contribution agents do not run `version` to apply their own changes.
-An existing `Unreleased` section is preserved legacy content. New pending changes
-are represented only by independent `.changelog/` fragments.
-
-Commit only with explicit intent. `add --commit` commits solely its generated
-fragment; `--commit-message` sets the message. It does not push. Otherwise review
-and stage that exact path yourself. Never stage every pending fragment or use
-`git add .` to record a single contribution. If creation succeeds but commit
-fails, preserve the reported path and index, repair the Git condition and commit
-that same fragment instead of creating a duplicate.
-
-## Public CLI
-
-| Command | Example invocation | Observable behavior |
-| --- | --- | --- |
-| `add` | `add "Description" --category=fixed` | Creates one validated unique fragment; commit is opt-in |
-| `check` | `check --since=origin/main` | Validates inventory and the contribution delta |
-| `status` | `status --json --source=tags` | Prints a release plan without managed writes |
-| `version` | `version --dry-run --source=tags` | Previews consolidation; omit dry-run to apply an authorized transaction |
-| `notes` | `notes 1.2.3` | Returns exact central body bytes; default selection is the highest maintained stable SemVer, independent of section order; optional `--output=notes.md` creates a new output file without replacing existing or maintained files |
-| `backfill` | `backfill --dry-run --source=tags` | Previews adding only missing historical versions |
-| `format` | `format --dry-run --locale=pt-BR` | Previews presentation changes while preserving descriptions/history |
-| `publish` | `publish --target-sha=<approved-full-sha> --repository=owner/repo --dry-run` | Proves committed evidence and reads remote state before creating missing objects |
-
-`add` declares its required message with Symfony Console's `Ask` attribute.
-Interactive execution asks for an absent message and retries blank answers.
-The prompt uses Symfony Validator's `NotBlank` constraint with a configurable
-message and validation-only `trim`; it needs no field-specific validator service.
-The prompt preserves Markdown spaces and removes only the terminal's Enter
-delimiter. Explicit message arguments bypass the prompt; existing domain
-validation still rejects invalid descriptions before creating a fragment.
-
-`--no-interaction` disables prompts. A message argument is required for unattended
-`add`. All commands accept the shared settings below; their use does not imply
-every setting affects every operation.
-
-Common short options are `-C` for `--cwd`, `-l` for `--locale`, `-T` for
-`--template`, `-b` for `--base-ref`, `-r` for `--repository` and `-s` for
-`--source`. Specific command options use:
-
-| Command | Short options |
+| What you need | Start here |
 | --- | --- |
-| `add` | `-c` category, `-t` impact, `-f` filename, `-i` issue, `-p` PR, `-a` author, `-m` commit message |
-| `check` | `-S` since, `-p` PR |
-| `status` | `-j` JSON |
-| `version`, `backfill`, `format` | `-d` dry run, `-c` check |
-| `notes` | `-o` output file |
-| `publish` | `-t` approved target, `-d` dry run |
-| `github` | `-S` since, `-p` PR, `-t` approved target; machine-operation settings keep their explicit long forms |
+| Changelog automation on GitHub | [Reusable lifecycle](reusable-lifecycle.md) |
+| Local authoring and maintenance | Run the CLI with CPX, below. |
+| Instructions for an agent | [Install the optional skill](skills.md) |
+| Services inside an existing PHP application | PHP API, below. |
 
-`github` is the internal automation entrypoint used by the Actions and reusable
-workflows. Its explicit metadata contract is described in the
-[Docker runtime guide](docker.md).
+## GitHub automation
 
-`-s` (history source) and `-S` (contribution baseline) are distinct. Template
-uses uppercase `-T` so command-specific `-t` remains available. `-c` means
-category in `add` and check mode in mutation commands. Symfony's `-h`, `-q`,
-`-v`, `-V` and `-n` retain their normal global meanings. A commit message does
-not enable `--commit`.
+Copy the [consumer workflow](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml)
+to `.github/workflows/changelog.yml`. The [README](https://github.com/php-fast-forward/changelog/blob/main/README.md)
+shows the complete caller; [setup and permissions](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md)
+explain its event filters and credentials. The jobs need Linux, Docker, Bash and
+Git. They do not install consumer PHP, Composer dependencies or Node.js.
+
+Start with `publish: false`. Open a contribution PR and verify its check and
+sticky comment, then inspect the generated `changelog/version` PR. It should
+update central history and delete the consumed fragments, without plan files,
+generated metadata comments or a new `Unreleased` section. The workflow does
+not merge that PR. Enable publication only after validating the pilot and the
+[approved-commit publication contract](publication.md).
+
+Jobs default to `ubuntu-latest`; `runs-on` accepts other Linux runner labels.
+Optional [GitHub App credentials](github-app.md) allow generated PR workflows
+to run without the approval required by the default `GITHUB_TOKEN` route.
+See [all lifecycle inputs](reusable-lifecycle.md)
+and the [automation map](automation-map.md) for individual operations.
+
+For a monorepo, run automation from the Git repository root and configure paths
+such as `packages/example/.changelog` and `packages/example/CHANGELOG.md`.
+Local CLI calls may instead select the package's working directory.
+
+## Run the CLI with CPX
+
+Use PHP `^8.5`, Git and [CPX](https://github.com/laravel/cpx). CPX resolves the
+CLI in a separate installation; the application does not need to require
+`fast-forward/changelog`. Put `--skip-local` before the package to select that
+copy instead of a matching project-local executable.
+
+From the project you want to maintain:
 
 ```sh
-vendor/bin/changelog add "Fixes the parser." -c fixed -t patch -f parser-fix.md -n
-vendor/bin/changelog version -C /path/to/project -s tags -d -n
-vendor/bin/changelog notes 1.2.3 -o release-notes.md -n
+cpx --skip-local fast-forward/changelog:^0.1 list --raw
+cpx --skip-local fast-forward/changelog:^0.1 help add
+cpx --skip-local fast-forward/changelog:^0.1 add \
+  "Fixes Markdown parsing." --category=fixed --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
 ```
 
-| Flag | Default / contract |
-| --- | --- |
-| `--cwd` | Consumer working directory, default `.` |
-| `--fragment-directory` | Project-relative `.changelog` |
-| `--changelog-file` | Project-relative `CHANGELOG.md` |
-| `--locale` | `en` or `pt-BR`, default `en` |
-| `--template` | `keep-a-changelog` or an explicitly trusted project PHP file; Git-bound files must match the selected base before execution |
-| `--base-ref` | Git planning baseline, default `HEAD` |
-| `--tag-prefix` | Stable tag prefix, default `v` |
-| `--repository` | Explicit GitHub `owner/name`, otherwise inferred from a canonical GitHub `origin` when available; GitHub operations require an effective identity |
-| `--source` | `auto`, `github`, or `tags`; inferred repository identity keeps `auto` local |
+The first command lists the available commands. `help add` explains authoring.
+`add` creates one unique `.changelog/*.md` file, and `check` validates the pending
+inventory. No `init` or local configuration file is required. Creation does not
+edit `CHANGELOG.md`, commit or push. Invalid unattended input exits nonzero
+without creating a note.
+See [fragment authoring](cli-fragments.md) for naming, metadata, commit options
+and diagnostics.
 
-`add` also accepts `--type`, `--name`, `--issue`, `--pull-request`, `--author`,
-`--commit` and `--commit-message`. `check` accepts `--since` and an optional
-`--pull-request` for independently verified PR authorization at that exact checkout.
-There is no editable-label or CLI skip escape. `publish` accepts `--target-sha`
-(default resolved checkout HEAD) and `--dry-run`; always supply the exact approved
-SHA in automation. `version`, `backfill` and `format` accept `--dry-run` and
-`--check`. Normal success exits 0, invalid arguments exit 2, and operational
-failures exit 1. Mutation `--check` also exits 1 when files would change: distinguish
-drift from failure using its output/diagnostic. `status --json` prints the same
-machine plan used by consolidation; stdout is suitable for automation.
+Run from another directory by passing the CLI's `--cwd` after the package:
 
-## Release and history workflow
+```sh
+cpx --skip-local fast-forward/changelog:^0.1 check \
+  --cwd=/path/to/project --no-interaction
+```
 
-For a single consumer entrypoint with configurable PR comments and validation of
-generated heads, use [the reusable lifecycle](reusable-lifecycle.md). Start with
-publication disabled and complete a pilot before enabling release publication.
+After committing the contribution and fetching the intended baseline, compare
+its committed changes with:
 
-The normal route is contribution PR → version workflow → reviewed version PR →
-publication at the approved merge SHA. Applying `version`, `backfill` or `format`
-locally requires an explicit maintainer release/maintenance task; it is not part
-of an ordinary contribution. These commands also power their dedicated workflows.
+```sh
+cpx --skip-local fast-forward/changelog:^0.1 check \
+  --since=origin/main --no-interaction
+```
 
-Preview `status`, then `version --dry-run` with the same settings. Review the
-machine plan's current/next version, effective impact, consumed paths, historical
-additions, notes and affected files. Its plan ID proves consistency and does
-not provide approval.
+An inherited note does not count as a new contribution. Ordinary PRs add their
+own valid fragments and preserve central history and inherited fragments.
+PR, issue and author metadata are optional; no follow-up edit is required just
+because a PR has been opened.
 
-Fresh Git-backed release application compares the original central bytes, the
-complete pending fragment inventory and every accepted hash with the selected
-base before writing its journal. The selected custom PHP template must also be
-a regular tracked file with those exact base bytes before it executes. Commit
-the intended release inputs to the selected base before applying. Unrelated
-dirty files and staged work remain independent; read-only status and fragment
-previews can still inspect uncommitted contributions. Outside Git, explicitly
-trusted local templates remain supported.
+CPX separates dependency installations, not PHP runtimes: PHP `^8.5` is still
+required. The [Docker CLI](docker.md) supplies its own runtime. Existing Composer
+CLI installations remain usable as `vendor/bin/changelog`, or `changelog` on
+the global binary path; the command arguments are the same.
 
-An authorized version operation writes a local recovery journal outside the
-versioned tree, writes the planned central snapshot, then removes only the
-validated fragments and deletes the journal. Review the central file and fragment
-deletions in the version PR; no plan file is committed. Retry the same settings
-after an interruption, preserving the journal and remaining fragments. Changed
-inputs block stale recovery. See [transaction and recovery
-contracts](release-receipts.md).
+## Preview a release
 
-A concrete `version` consolidation with a known GitHub repository completes
-missing release references: the oldest version links to its release/tag page,
-and subsequent versions link to comparisons. Existing links are preserved;
-without a repository, no destinations are invented. History-only operations do
-not add links. See [the exact footer contract](history.md).
+```sh
+cpx --skip-local fast-forward/changelog:^0.1 status --json --source=tags
+cpx --skip-local fast-forward/changelog:^0.1 version --dry-run --source=tags
+```
 
-Backfill and format preserve pending fragments. Maintenance PRs commit only
-the central history; recovery journals remain outside the versioned tree and are
-removed after success.
-History uses actual stable Git
-tags as version authority; GitHub can supply published notes/dates for those tags.
-Annotated tag dates have explicit provenance, lightweight tags with unavailable
-publication dates remain undated, and missing notes receive a localized message.
-Existing notes, prose, code fences and references are retained. `--source=tags`
-avoids GitHub historical-note requests. `--locale=pt-BR` translates recognized
-structural headings and package messages, leaving descriptions untouched. See
-[history/template contracts and a complete custom PHP example](history.md).
+Both calls are read-only. Review the current/next version, effective impact,
+consumed paths and rendered notes. A plan is evidence of the proposed output,
+not approval to apply or publish it. The normal route remains contribution PR
+→ version workflow → reviewed version PR → publication at the approved merge.
 
-Publication takes the exact approved merge SHA, validates base/fragment/SemVer/
-central evidence, and uses only its exact central section body. It refuses any
-remaining pending Markdown at that commit, including newer fragments that were
-not consumed by the plan. Tags pointing elsewhere and divergent published notes
-are never changed. A partial tag without release can be completed by retrying the
-same SHA. Maintenance consolidations create no tag/release. Custom PHP presentation
-also requires the approved checkout and unchanged tracked template bytes.
-See [publication contracts](publication.md).
-
-## Consumer automation surfaces
-
-Reuse the shipped entrypoints at a reviewed immutable repository commit:
-
-| Docker Action | Reusable workflow | Responsibility |
-| --- | --- | --- |
-| `.github/actions/check` | `.github/workflows/changelog-check.yml` | Contribution and trusted-policy check |
-| `.github/actions/pr-status` | `.github/workflows/changelog-pr-status.yml` | Trusted PR feedback and commit status |
-| `.github/actions/dependabot` | `.github/workflows/changelog-dependabot.yml` | Author one dependency-update fragment |
-| `.github/actions/version` | `.github/workflows/changelog-version.yml` | Prepare a reviewable version PR |
-| `.github/actions/publish` | `.github/workflows/changelog-publish.yml` | Publish an approved consolidation SHA |
-| `.github/actions/history` | `.github/workflows/changelog-history.yml` | Prepare historical backfill/format maintenance |
-
-Read the selected action/workflow's inputs and permission contract before wiring
-it. Keep ordinary PR checks unprivileged; use trusted base code for operations
-holding write credentials. Independently verify maintainer waiver issuer and
-version-PR provenance; a label name, bot-looking author or PR body is insufficient.
-Select credentials that permit the repository's required checks on generated PRs,
-and keep their secrets in the consumer's normal approved mechanism. The version
-PR must pass review/current-head checks before its merge SHA reaches publication.
-Package checkout/installation must target a reviewed immutable revision; adopting
-this guide does not claim any workflow has been deployed in a consumer repository.
-For monorepos, run GitHub automation from the repository root and configure
-repository-relative package paths, such as `packages/example/.changelog` and
-`packages/example/CHANGELOG.md`. Local CLI calls may instead use the package's
-nested working directory. Do not pass nested local cwd semantics to the GitHub
-automation interfaces: their repository API paths are rooted at the Git tree.
+For an authorized local operation, read [transactions and recovery](release-receipts.md)
+before applying a plan. Use the [history guide](history.md) for backfill, formatting,
+localization and custom templates. [Publication](publication.md) documents exact
+commit evidence, retries and refusal of divergent tags or notes. The
+[CLI reference](cli-fragments.md) lists all commands and shared options.
 
 ## PHP API
 
-CLI and automation share injected services. Obtain the standalone composition
-through the package's container service provider, or inject these interfaces into
-the consumer's own PSR-11 container. Constructors perform no filesystem, Git,
-network, clock or credential observation. Factories construct values/collaborators.
+Use Composer only when the application needs the library's classes in its own
+dependency graph:
 
-Register the provider by class name; it has no constructor arguments. This
-composition excerpt shows default and explicitly configured containers. The
-complete [contribution program](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/examples/contribution.php)
-loads the consumer autoloader, writes one fragment and checks its exact bytes;
-the [PHP recipe guide](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/references/php-api.md)
-documents its invocation, expected output and collision behavior.
+```sh
+composer require 'fast-forward/changelog:^0.1'
+```
+
+PHP `^8.5` and the declared runtime dependencies apply. In particular, Console
+requires Symfony `^8.1`; an application restricted to Console 7.4 should use CPX
+or Docker for the standalone CLI. See [dependency compatibility](dependencies.md).
+
+CLI and automation share injected domain services. The provider has no
+constructor arguments. This composition excerpt shows default and optional
+configuration; it is not a complete application:
 
 ```php
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
@@ -287,59 +128,28 @@ use function FastForward\Container\container;
 
 $container = container(ChangelogServiceProvider::class);
 
-// Optional consumer configuration; either initializer order is supported.
 $container = container(
     config(['changelog' => ['working_directory' => '/path/to/project']]),
     ChangelogServiceProvider::class,
 );
 ```
 
-The provider captures settings lazily in the shared `changelog.config` entry.
-Optional `changelog.*` keys are `working_directory` (current process directory),
-`temporary_directory` (canonical system temporary directory), `installed_version`
-(`null`, the resolver's development fallback), `token` (empty), `api_url`
-(`https://api.github.com`) and `github_output_file` (`null`, no runner output).
-Explicit configuration entries, including empty tokens and nullable values,
-override defaults. An unavailable process directory fails with a diagnostic.
-Defaults do not read environment credentials or execute a local config file.
-The executable captures Composer metadata and GitHub environment values and
-injects them through Fast Forward Config. The provider resolves configured
-paths and credentials only through the container; service constructors retain
-their existing injected contracts.
+Keep the application's existing command loader. Use domain services through
+that application or the standalone container; do not replace its loader just
+to add changelog behavior. Constructors perform no filesystem, Git, network,
+clock or credential observation. Configuration is explicit and captured lazily.
 
-| Interface | Contract |
-| --- | --- |
-| `ReleaseOptionsFactoryInterface` | `create(array $values = []): ReleaseOptions`; defaults then explicit values, unknown settings rejected |
-| `FragmentWriterInterface` | `add($options, $message, $category='changed', $type=null, $name=null, $issue=null, $pullRequest=null, $author=null, $commit=false, $commitMessage='chore: record changelog fragment'): string`; absolute created path |
-| `CheckServiceInterface` | `check($options, $since=null, $centralChangeAuthorized=false, $waiverAuthorized=false, $authorizationKind='ordinary'): ValidationReport`; authorization flags and kind belong to verified automation context |
-| `ReleasePlannerInterface` | `plan($options, $operation='version'): ReleasePlan`; version/backfill/format exact evidence without mutation |
-| `ReleaseApplierInterface` | `apply($plan): bool` and read-only `isApplied($plan): bool`; exact journal/snapshot/inventory transaction |
-| `HistoryCodecInterface` | `parse($markdown, $template=null)`, `render($document, $template, $preservePresentation=false)`, `notes($document, $version)`; pure Markdown/history boundary |
-| `HistoryImporterInterface` | `import($document, $options, $template, $tags)` and `currentVersion($tags, $tagPrefix='v')`; actual stable tag evidence |
-| `PublicationServiceInterface` | `publish($options, string $approvedSha, bool $dryRun=false): PublicationResult`; complete SHA required at service boundary |
+The complete [contribution program](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/examples/contribution.php)
+loads the consumer autoloader, creates a fragment and checks its bytes. The
+[PHP recipe](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/references/php-api.md)
+documents configuration keys, success, failure and collision behavior.
+The generated API reference supplies exact signatures; the domain guides explain
+[release transactions](release-receipts.md), [history](history.md) and
+[publication](publication.md). [Source namespaces and migration tables](source-layout.md)
+help applications adopting earlier commit snapshots.
 
-`ReleaseOptions` carries workingDirectory, fragmentDirectory, changelogFile,
-locale, template, baseRef, tagPrefix, repository and source. `ReleasePlan::summary()`
-exposes id/mode/base_sha/current_version/next_version/impact/consumed/
-historical_versions/notes/affected_files/commit_message/resuming. `ValidationReport::isValid()`
-checks its diagnostic map; valid pending inventory is not a new-contribution
-count. Exact accepted input hashes are transaction evidence. Publication results
-expose state/version/tag/sha/url/actions with `summary()`. See the linked domain
-documents for construction boundaries, local plan serialization and failure recovery.
-
-## A short adoption prompt
-
-Paste this into an authorized agent session in the consumer repository:
-
-```text
-Adote Fast Forward Changelog neste projeto usando uma revisão imutável revisada.
-Instale a skill diretamente do GitHub via npx skills, em escopo de projeto por cópia.
-Use o workflow Docker sem Composer local; instale o CLI via Composer somente se esse uso local fizer parte da tarefa.
-Use fragmentos independentes; valide contribuições contra a base do PR e preserve trabalho alheio.
-Configure os workflows reutilizáveis com mínimos privilégios e PR de versão revisável.
-Não edite CHANGELOG.md manualmente nem publique tags/releases sem autorização explícita para o SHA aprovado.
-Mostre os arquivos criados, verificações executadas e limites de instalação/ativação observados.
-```
+Installing the [agent skill](skills.md) copies instructions. It does not install
+the runtime; CPX executes the CLI, and Composer integration exposes PHP classes.
 
 ---
 

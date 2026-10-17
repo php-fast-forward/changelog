@@ -1,5 +1,5 @@
 # Copy to the consumer's .github/workflows/changelog.yml.
-# Uses a reviewed, integrated product commit; update deliberately after validation.
+# Uses release v0.1.0; review a new version before updating this reference.
 name: Changelog
 
 on:
@@ -26,7 +26,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@v0.1.0
 
     with:
       base-branch: main

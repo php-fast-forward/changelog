@@ -42,8 +42,8 @@ used across Fast Forward PHP packages.
 - Public and private methods MUST explain contracts in PHPDoc, including
   relevant invariants, observable effects and failure conditions.
 - Preserve unrelated work and stage only reviewed task files. External Actions
-  use verified full version tags, as requested by the maintainer. References to
-  this package from consumers use reviewed immutable commits until release;
+  use verified full version tags, as requested by the maintainer. Consumers select
+  a published full version or reviewed immutable commit;
   repository-local reusable calls test the caller's exact revision. Merging requires review and
   passing checks for the current head. Installing elsewhere or publishing real
   tags/releases requires separate user authorization; retain authority already
@@ -58,7 +58,7 @@ used across Fast Forward PHP packages.
 
 ## This Repository's Changelog
 
-- The first public release is planned as `0.1.0`. During initial `0.x` development,
+- The first public release, `0.1.0`, is published. During initial `0.x` development,
   use `patch` for compatible fixes and explicit `minor` for new or breaking
   development changes, describing any affected contract. Reserve an explicit
   `major` note for the maintainer's deliberate `1.0.0` stability milestone.
@@ -66,8 +66,8 @@ used across Fast Forward PHP packages.
 - Read [the canonical skill](resources/skills/fast-forward-changelog/SKILL.md)
   before recording notes, validating contributions or maintaining releases here.
   It is also the internal procedure; no copy or host-discovery adapter is needed.
-- In this source checkout use `php bin/changelog` in place of the consumer's
-  `vendor/bin/changelog`. Inspect `php bin/changelog list --raw` and command help
+- In this source checkout use `php bin/changelog` instead of the consumer's CPX
+  invocation or installed binary. Inspect `php bin/changelog list --raw` and command help
   before choosing flags. Validate pending notes with `php bin/changelog check`
   and compare a contribution with `php bin/changelog check --since=origin/main`.
 - Add one unique `.changelog/*.md` fragment per coherent observable change.
@@ -83,9 +83,20 @@ used across Fast Forward PHP packages.
   and exact Git blob/mode evidence. Preserve the original notes in Git and map
   them to the summaries for review. This does not authorize publication or edits
   to already published releases; ordinary contribution rules remain in force.
-- Let the workflow prepare the single `changelog/version` PR. A prepared version
+- Let the workflow prepare one managed version PR per configured release line;
+  this repository currently uses `main` and `changelog/version`. A prepared version
   and green checks are not publication authority: review its exact head, history
   and fragment deletions before any separately authorized merge/release.
+- Consumers maintaining parallel `1.x`/`2.x` lines MUST select the matching
+  `base-branch` and a different `managed-branch` for each line. Backport selected
+  fixes rather than merging a later major's complete history into an older line.
+  Confirm the planned current and next major during review: branch names do not
+  impose a SemVer range; only stable tags ancestral to the selected base establish
+  its baseline. See [parallel maintenance](docs/automation-map.md#parallel-maintenance-lines).
+- Keep concrete release tags immutable. Optional `v1`/`v2` channel refs identify
+  already published commits; they are not maintenance branches and cannot replace
+  concrete tags as version evidence. Configuring or moving channels is a separate
+  operation with its own reviewed workflow and publication authority.
 
 ## Design Notes
 
@@ -119,6 +130,6 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
-- [Automation map](docs/automation-map.md): maps stable public reusables/Actions, repository-prefixed internal workflows and helpers; defines consumption paths and shared-archive boundaries.
+- [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
 - [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; publication starts disabled.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

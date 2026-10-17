@@ -1,5 +1,11 @@
 # Publication from an approved commit
 
+Use this guide when enabling release publication or diagnosing a refused run.
+For the GitHub lifecycle, validate with `publish: false`, review the generated
+version PR, then enable `publish: true` when publication is intended. Merging
+that approved version PR starts verification and tag/release creation.
+The [setup guide](reusable-lifecycle.md) owns the caller configuration.
+
 Publication receives the complete approved commit SHA. It never chooses a moving
 branch or calculates a second release. `CHANGELOG.md` at that exact commit is
 the source of the GitHub Release body. No tracked release-plan file is required.
@@ -120,13 +126,7 @@ supported merge history. They do not infer a PR or silently enter the contextual
 path. Existing injected service/validator interfaces remain compatible; adapters
 without the additional contextual capability fail closed for that operation.
 
-Run the separate disposable Git integration fixture with
-`composer test:integration`. The existing test matrix runs this separate suite
-without coverage on Linux amd64, Linux arm64 and Windows. It retains
-the head only in an origin PR ref, deletes the generated branch, clones main/tags
-without that head, and verifies missing/stale squash metadata and a committed
-custom template. Each case isolates inherited Git variables and global config
-in a PHPUnit subprocess. Its HTTP adapter is synthetic and forbids every mutation.
+Contributor tests for these contracts are described in [quality checks](foundation.md).
 
 ## Remote reconciliation
 
@@ -145,8 +145,6 @@ a recoverable diagnostic. Repeating a complete publication returns unchanged.
 Dry-run performs proof and remote reads without mutations. Contextual evidence
 uses fixed GraphQL queries sent by POST; no GraphQL mutation, tag or Release
 write is permitted during that preview.
-Unit tests replace Git, filesystem, templates, factories and HTTP; they create
-no real release and use no user credentials.
 
 See [local recovery](release-receipts.md), [managed PRs](version-pull-request.md)
 and [workflow contracts](github-actions.md).

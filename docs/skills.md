@@ -1,18 +1,9 @@
 # Install the Fast Forward Changelog skill
 
-The bundled `fast-forward-changelog` skill supports
-`fast-forward/changelog ^0.1` (minimum `0.1.0`). Inspect the installed version
-before using its optional CLI/API contract. Earlier runtimes require compatible
-instructions or a separately authorized upgrade. Its canonical source is
-`resources/skills/fast-forward-changelog`, including its MIT license, references
-and executable example. Composer archives ship that complete payload.
-
-Shipping files, copying into a discovery root, loading in a refreshed host
-session and completing a task are different operations. Installing the skill
-does not install the PHP CLI. `.agents/skills` remains a consumer-owned location;
-this library creates no host aliases or project/global copies automatically.
-Use the flat `fast-forward-changelog` directory: the public name must match its
-immediate parent, without category nesting or a `php-` prefix.
+Use this guide to give an agent the `fast-forward-changelog` instructions for
+`fast-forward/changelog ^0.1` (minimum `0.1.0`). Installing the instructions does
+not install the runtime: [CPX executes the local CLI](adoption.md), while PHP
+service integration uses Composer.
 
 ## Install directly from GitHub
 
@@ -48,7 +39,9 @@ For an existing Composer installation, the source may instead be
 `./vendor/fast-forward/changelog/resources/skills/fast-forward-changelog`.
 That is an alternative donor location, not an installation prerequisite.
 
-## Immutable source, explicit host and global scope
+## Advanced installation choices
+
+### Select a revision, host or global scope
 
 The documented route was checked with Skills CLI `1.7.2`; its Node requirement
 is `22.20.0+`. To select an immutable source, choose a reviewed commit whose
@@ -69,18 +62,23 @@ than host-directory symlinks. Add `--global` explicitly to installation and list
 only when global scope is intended. Installing the Composer plugin globally does
 not select a global host target.
 
-## Optional project synchronization
+### Optional Composer synchronization
 
 The [Composer installation guide](composer-skills.md) documents the optional
 `llm/skills ^1.15` project route, narrow donor trust, first synchronization,
 updates and removal limits. It is development tooling and needs the consumer's
 plugin approval. A Composer suggestion is not an installation or approval.
 
-## Guarded manual copy
+### Guarded manual copy
 
 Prefer project scope for a team. From an authorized consumer, copy the whole
 package from a reviewed checkout and refuse an existing destination,
 including a dangling symlink:
+
+The canonical source is `resources/skills/fast-forward-changelog`, including its
+license, references and example. Preserve the complete flat directory: its name
+matches the public skill name. `.agents/skills` is consumer-owned; the package
+creates no host aliases or copies automatically.
 
 ```sh
 skill_source="/path/to/changelog/resources/skills/fast-forward-changelog"
@@ -126,9 +124,7 @@ on the next sync until the donor/trust policy changes.
 Record the product revision and installer version. Review the new donor, archive
 local changes outside discovery and repeat the selected installation route.
 Use the immutable-source variant when the exact revision must remain fixed.
-Installing the Composer plugin globally
-does not select a global host target. Removal selects only the intended
-name and scope:
+Removal selects only the intended name and scope:
 
 ```sh
 npx --yes skills remove fast-forward-changelog --agent codex --yes
@@ -143,8 +139,9 @@ copies and installer listings do not establish native activation or task quality
 ## Distribution verification
 
 Run `composer test:packaging` for archive or payload changes. The fixture compares
-every skill file and executes its PHP example against an installed no-dev
-consumer. `.gitattributes` excludes repository agent configuration, development
+every skill file, executes its PHP example and checks contribution arguments
+through the installed no-dev CLI. Those runtime checks do not invoke CPX.
+`.gitattributes` excludes repository agent configuration, development
 scripts, tests and docs from archives; source clones have different contents.
 Official [Agent Skills format validation](https://agentskills.io/specification#validation)
 and [Skills CLI](https://github.com/vercel-labs/skills) documentation supplement

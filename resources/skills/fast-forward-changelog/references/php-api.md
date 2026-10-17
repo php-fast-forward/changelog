@@ -2,7 +2,10 @@
 
 Load when the application needs programmatic access beyond the CLI or workflows.
 Supports `fast-forward/changelog ^0.1` (minimum `0.1.0`), PHP `^8.5` and its
-Composer-resolved runtime dependencies. Inspect the installed package first.
+Composer-resolved runtime dependencies. This route imports classes into the
+application and therefore requires its own Composer installation; CPX executes
+the CLI separately and does not provide an application autoloader. Inspect
+`composer show fast-forward/changelog` first.
 Keep the application's existing command-loader arrangement; use domain services
 without replacing it. The application does not need another loader or framework
 to access these services.

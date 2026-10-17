@@ -2,9 +2,9 @@
 
 Load when extending the ordinary caller, using monorepo paths, diagnosing
 feedback or rehearsing releases. The supported contract is
-`fast-forward/changelog ^0.1` (minimum `0.1.0`). Pin a reviewed immutable
-repository commit containing the desired reusable workflow; never substitute a
-moving branch or an unmerged implementation PR. Reusables stay directly in
+`fast-forward/changelog ^0.1` (minimum `0.1.0`). Select a published version or a
+reviewed full commit containing the desired reusable workflow, rather than a
+temporary implementation PR. Reusables stay directly in
 `.github/workflows`; copy only a caller into the application.
 
 ## Settings and advanced composition
@@ -16,7 +16,7 @@ The six public Docker Actions stay in `.github/actions`; `github-auth` and
 `setup-docker` are internal helpers. See the product's automation map for these
 boundaries. Resource paths are copyable assets, not executable reusable URLs.
 
-The facade accepts `base-branch`, `fragment-directory`, `changelog-file`,
+The lifecycle accepts `base-branch`, `fragment-directory`, `changelog-file`,
 `locale`, `tag-prefix`, `source`, `resolve-pull-requests`, `managed-branch`, `automation-actor`, `app-client-id`,
 `waiver-label` and `maintenance-label`. Preserve consistent values across
 operations. `base-branch` otherwise follows the repository default branch.
@@ -49,7 +49,7 @@ Check/PR-feedback operations carry the same setting for the approved ownership
 fingerprint without resolving fragment origins. Preserve its value across all
 operations when composing them independently. `source: tags` controls historical
 notes independently and does not suppress enabled PR-origin API reads. Set
-`resolve-pull-requests: false` on the facade to retain explicit references only;
+`resolve-pull-requests: false` on the lifecycle to retain explicit references only;
 local CLI commands use that disabled default unless their flag is selected.
 
 Publication recomputes the origin proof and requires the approved central notes
@@ -67,7 +67,7 @@ Comments escape untrusted fragment content and do not waive the contribution gat
 Moved, retargeted or closed PRs do not receive stale feedback. Cancellation does
 not post a comment; uncertain validation leaves a blocking pending status.
 
-Use individual reusables only when the facade does not fit the consumer's
+Use individual reusables only when the lifecycle does not fit the consumer's
 orchestration. The corresponding lower-level Docker actions are available under
 `.github/actions/<operation>` at the same product pin.
 
@@ -95,7 +95,7 @@ permissions, exact PR head/base, signed automation ownership and required status
 Require `Fast Forward Changelog` with up-to-date checks; a green default-branch
 run is not proof for a generated head.
 
-The facade validates its generated version head in the same run. Other
+The lifecycle validates its generated version head in the same run. Other
 application CI still follows GitHub token/event restrictions. `GITHUB_TOKEN`
 created PR events require approval. To trigger ordinary downstream workflows
 automatically, install an approved App for the consumer repository and supply
