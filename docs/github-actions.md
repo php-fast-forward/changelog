@@ -42,7 +42,17 @@ time. See [the image and direct CLI contract](docker.md).
 | `repository` | Caller repository | GitHub `owner/name`; normally omit this override. |
 | `source` | `auto` | Backfill source: `auto`, `github` or `tags`. |
 
-The optional `secrets.token` defaults to `github.token`. Each job requests its
+The trusted write/feedback workflows also accept optional `app-client-id` and
+`secrets.app-private-key`. Each job can generate a separate scoped installation
+token to trigger downstream PR CI automatically. The read-only contribution
+workflow does not accept the App key. Configure the Bot identity consistently;
+see [credentials, permissions and migration](github-app.md).
+
+Alternatively supply an already issued Bot token as `secrets.token`. Do not
+combine it with the App pair. Without either route, jobs use `github.token`.
+The older pinned examples below demonstrate the default route; select a reviewed
+revision containing App authentication before using the new optional inputs.
+Each job requests its
 own minimum permissions, and the caller must permit those permissions. A caller
 cannot grant permissions withheld by repository or organization policy. Creating
 PRs with `GITHUB_TOKEN` also requires the repository's

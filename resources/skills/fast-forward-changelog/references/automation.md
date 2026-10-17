@@ -10,7 +10,7 @@ moving branch or an unmerged implementation PR. Reusables stay directly in
 ## Settings and advanced composition
 
 The facade accepts `base-branch`, `fragment-directory`, `changelog-file`,
-`locale`, `tag-prefix`, `source`, `managed-branch`, `automation-actor`,
+`locale`, `tag-prefix`, `source`, `managed-branch`, `automation-actor`, `app-client-id`,
 `waiver-label` and `maintenance-label`. Preserve consistent values across
 operations. `base-branch` otherwise follows the repository default branch.
 Jobs default to `ubuntu-latest`; the optional `runs-on` input accepts a JSON
@@ -58,10 +58,26 @@ run is not proof for a generated head.
 
 The facade validates its generated version head in the same run. Other
 application CI still follows GitHub token/event restrictions. `GITHUB_TOKEN`
-created PR events may require approval; an approved App token can trigger
-ordinary downstream workflows. Configure its Bot identity consistently and
-verify the resulting platform runs. A successful local fixture does not prove
-consumer runner scheduling, branch protection or native GitHub permissions.
+created PR events require approval. To trigger ordinary downstream workflows
+automatically, install an approved App for the consumer repository and supply
+its Client ID as `app-client-id`, its PEM private key as
+`secrets.app-private-key` and its actual `<slug>[bot]` as `automation-actor`.
+Each trusted job creates and revokes its own repository-scoped token; PR-head
+checks do not receive the key. Alternatively supply an already issued Bot token
+as `secrets.token`; do not mix both routes. A personal token cannot replace the
+signed Bot ownership contract. No secret belongs in a job output or source file.
+See the [credential and permission guide](https://github.com/php-fast-forward/changelog/blob/main/docs/github-app.md).
+
+Changing the configured Bot does not transfer an existing PR's creator. Keep
+old commits, prepare and validate the replacement on a distinct managed branch,
+then close the old PR without merging it.
+Existing sticky comments are also author-specific: after changing Bots, review
+and retire old feedback explicitly instead of expecting the new identity to
+update it. Subsequent runs reuse the App's own sticky.
+Do not refresh a generated version
+with a generic human merge of its base: version preparation must recreate the
+validated signed transaction. A successful local fixture does not prove
+consumer scheduling, native authentication or branch protection.
 
 Keep `publish: false` in a pilot. `dry-run: true` previews version/publication
 operations without their remote content writes; status and comment feedback

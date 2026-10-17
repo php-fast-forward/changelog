@@ -5,6 +5,11 @@ on:
   workflow_call:
     inputs:
 
+      app-client-id:
+        description: Optional GitHub App client ID; requires app-private-key.
+        type: string
+        default: ''
+
       runs-on:
         description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
@@ -89,6 +94,10 @@ on:
         default: false
     secrets:
 
+      app-private-key:
+        description: Optional GitHub App private key; mutually exclusive with token.
+        required: false
+
       token:
         description: 'Optional scoped App token; otherwise uses github.token.'
         required: false
@@ -139,16 +148,6 @@ jobs:
             exit 1
           fi
 
-      - name: Check Out Consumer Data
-        uses: actions/checkout@v6.1.0
-        with:
-          repository: ${{ inputs.repository || github.repository }}
-          ref: refs/heads/${{ inputs.base-branch }}
-          token: ${{ secrets.token || github.token }}
-          path: project
-          fetch-depth: 0
-          persist-credentials: false
-
       - name: Check Out The Called Workflow Runtime
         uses: actions/checkout@v6.1.0
         with:
@@ -156,6 +155,28 @@ jobs:
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .changelog-runtime
           fetch-depth: 1
+          persist-credentials: false
+
+      - name: Authenticate Trusted GitHub Operations
+        id: auth
+        uses: ./.changelog-runtime/.github/actions/github-auth
+        with:
+          app-client-id: ${{ inputs.app-client-id }}
+          app-private-key: ${{ secrets.app-private-key }}
+          token: ${{ secrets.token }}
+          fallback-token: ${{ github.token }}
+          repository: ${{ inputs.repository || github.repository }}
+          operation: history
+          base-branch: ${{ inputs.base-branch }}
+
+      - name: Check Out Consumer Data
+        uses: actions/checkout@v6.1.0
+        with:
+          repository: ${{ inputs.repository || github.repository }}
+          ref: refs/heads/${{ inputs.base-branch }}
+          token: ${{ steps.auth.outputs.token }}
+          path: project
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Prepare The Trusted Runtime Base Image Cache
@@ -176,7 +197,7 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           repository: ${{ inputs.repository || github.repository }}
           source: ${{ inputs.source }}
-          token: ${{ secrets.token || github.token }}
+          token: ${{ steps.auth.outputs.token }}
           operation: ${{ inputs.operation }}
           dry-run: ${{ inputs.dry-run }}
           check: ${{ inputs.check }}

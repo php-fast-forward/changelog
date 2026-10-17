@@ -70,6 +70,10 @@ permissions and event evidence. The facade supplies that orchestration for
 ordinary adoption. [`setup-docker`](../.github/actions/setup-docker/action.yml)
 is an internal optional cache helper; it does not implement a changelog operation
 and skips persistent self-hosted daemons.
+[`github-auth`](../.github/actions/github-auth/action.yml) is the internal
+authentication helper used only from the trusted runtime. It selects the
+default/custom token or creates a repository-scoped App token inside the job;
+it does not expose tokens as workflow outputs or alter PR-head permissions.
 
 Runtime code and action implementations stay in their current paths. Resources
 hold consumer examples and the [published skill](../resources/skills/fast-forward-changelog/SKILL.md),

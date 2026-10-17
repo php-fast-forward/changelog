@@ -27,10 +27,13 @@ PR feedback runs the pinned trusted implementation against PR data, without
 executing consumer PHP templates or Composer scripts. Use the event set intact
 to keep read-only checks separate from trusted feedback and publication routing.
 
-The default `github.token` is sufficient when repository policy allows Actions
-to create PRs. If an approved App token is needed for downstream CI events, pass
-it as the optional reusable secret `token` and configure `automation-actor` to
-the same Bot identity. Do not add a token value to this file.
+The default `github.token` can create the managed PR when repository policy
+allows it; that PR's downstream workflows require approval. To run them
+automatically, configure `app-client-id`, the optional secret `app-private-key`
+and `automation-actor` with the App's Bot login. Each trusted job creates its own
+token. An already issued compatible Bot token can instead be passed as
+`secrets.token`; do not combine both routes or put credential values in YAML.
+See [App credentials and installation](../../docs/github-app.md).
 
 To rehearse checks and comments without preparing a version PR, set
 `prepare-release: false`. Enable real publication only after reviewing the
