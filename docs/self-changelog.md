@@ -36,7 +36,7 @@ verified human maintenance policy described in [policies](policies.md).
 | Contribution PR | Read-only contribution check, exact-head status and sticky feedback from trusted code. |
 | Dependabot PR | A verified dependency fragment, followed by validation of the resulting head. |
 | Push to `main` | Create or refresh the single `changelog/version` PR. |
-| Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication can start the image workflow. |
+| Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication starts image publication and the released-major branch update. |
 
 The [automation map](automation-map.md) lists the repository CI, documentation,
 lifecycle and image jobs. The lifecycle uses the public Docker Actions;
@@ -66,6 +66,27 @@ or history maintenance locally is an explicit maintainer operation, separate
 from an ordinary contribution. Follow [transactions and recovery](release-receipts.md)
 and [publication](publication.md); never bypass checks to force a stale plan.
 For image-only failures after a published release, use [Docker recovery](docker.md).
+
+## Released major branches and recovery
+
+After publication, the repository workflow updates the matching `v<major>`
+branch, such as `v0`, to the exact published stable release commit. This explicit
+call works with `GITHUB_TOKEN`; it does not wait for a tag event to start another
+workflow. Concrete release tags remain immutable. These channels are distinct
+from maintenance branches where fixes and fragments accumulate.
+
+For recovery, open **Repository: Release Channels**, select `main`, and supply
+the newest published full tag for that major and its exact 40-character commit
+SHA. The updater verifies the release and tag before any write. An existing
+channel must identify an older published release of the same major and permit
+a fast-forward. Conflicting tags, unrelated branches and stale selectors cannot
+overwrite the current ref. See the [operation and recovery contract](https://github.com/php-fast-forward/changelog/blob/main/.github/update-release-channels.md).
+
+Numeric branches appear as development versions in Composer. With Composer's
+default stable minimum-stability, constraints select concrete releases.
+The automation channel `@v0` can cross breaking
+`0.x` minors, whereas Composer/CPX `^0.1` stays below `0.2`. Choose a full tag
+or SHA when automatic channel advancement is unsuitable.
 
 ---
 

@@ -43,7 +43,7 @@ used across Fast Forward PHP packages.
   relevant invariants, observable effects and failure conditions.
 - Preserve unrelated work and stage only reviewed task files. External Actions
   use verified full version tags, as requested by the maintainer. Consumers select
-  a published full version or reviewed immutable commit;
+  a published full version, reviewed immutable commit or verified release channel;
   repository-local reusable calls test the caller's exact revision. Merging requires review and
   passing checks for the current head. Installing elsewhere or publishing real
   tags/releases requires separate user authorization; retain authority already
@@ -97,6 +97,15 @@ used across Fast Forward PHP packages.
   already published commits; they are not maintenance branches and cannot replace
   concrete tags as version evidence. Configuring or moving channels is a separate
   operation with its own reviewed workflow and publication authority.
+- This repository updates `v<major>` branches through
+  `repository-release-channels.yml`, called explicitly after effective publication.
+  These refs select published stable commits, never the current `main` tip.
+  Manual recovery runs from `main` with the existing full tag and exact released
+  SHA; verify the resulting ref. Preserve its old-SHA condition and fast-forward
+  check, and never replace an unrelated branch or abbreviated tag.
+- A channel update does not authorize another release. `@v0` can cross breaking
+  development minors; keep the skill/CPX constraint aligned with its declared
+  product contract rather than assuming it has the same range.
 
 ## Design Notes
 
@@ -131,5 +140,6 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
+- [Release-channel operation](.github/update-release-channels.md): maintains published major branches with exact tag/commit evidence and conditional ref updates; never creates releases or moves concrete tags.
 - [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; publication starts disabled.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.
