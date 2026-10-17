@@ -66,7 +66,8 @@ final readonly class PublicationService implements MergedPublicationServiceInter
         $pr = $this->github->request('GET', '/repos/' . $options->repository . '/pulls/' . $pullRequest);
         if (null === $pr || ($pr['number'] ?? null) !== $pullRequest
             || ($pr['state'] ?? null) !== 'closed' || true !== ($pr['merged'] ?? null)
-            || ($pr['merge_commit_sha'] ?? null) !== $mergeSha || ($pr['head']['sha'] ?? null) !== $headSha
+            || (array_key_exists('merge_commit_sha', $pr) && $pr['merge_commit_sha'] !== $mergeSha)
+            || ($pr['head']['sha'] ?? null) !== $headSha
             || ($pr['head']['repo']['full_name'] ?? null) !== $options->repository
             || ($pr['base']['repo']['full_name'] ?? null) !== $options->repository
             || !is_int($pr['base']['repo']['id'] ?? null) || $pr['base']['repo']['id'] < 1
@@ -77,6 +78,15 @@ final readonly class PublicationService implements MergedPublicationServiceInter
                 'Publication requires the merged configured version PR and its immutable head/merge identities.',
             );
         }
+        $this->assertMergeIdentity(
+            $options->repository,
+            $pullRequest,
+            $mergeSha,
+            $headSha,
+            $pr['base']['repo']['id'],
+            $baseBranch,
+            $managedBranch,
+        );
         $account = $this->github->request('GET', '/users/' . rawurlencode($automationActor));
         if (!GitHubEvidence::identity($account, $automationActor, 'Bot', $pr['user']['id'])
             || !$this->policy->inspectHead($options, $headSha, $automationActor, $mergeSha)) {
@@ -84,6 +94,56 @@ final readonly class PublicationService implements MergedPublicationServiceInter
         }
 
         return $this->write($this->evidence->validateMerged($options, $mergeSha, $headSha), $dryRun);
+    }
+
+    /**
+     * Corroborates the complete REST relationship with GraphQL's exact merged commit before any write.
+     * REST 2026 removes merge_commit_sha; absent/error/partial GraphQL evidence never becomes authority.
+     * @see https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10
+     */
+    private function assertMergeIdentity(
+        string $repository,
+        int $pullRequest,
+        string $mergeSha,
+        string $headSha,
+        int $repositoryId,
+        string $baseBranch,
+        string $managedBranch,
+    ): void {
+        [$owner, $name] = explode('/', $repository, 2);
+        $proof = $this->github->request('POST', '/graphql', [
+            'query' => <<<'GRAPHQL'
+query ChangelogMergedPullRequest($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    databaseId
+    pullRequest(number: $number) {
+      number
+      state
+      merged
+      headRefOid
+      headRefName
+      baseRefName
+      mergeCommit { oid }
+    }
+  }
+}
+GRAPHQL,
+            'variables' => ['owner' => $owner, 'name' => $name, 'number' => $pullRequest],
+        ]);
+        $project = $proof['data']['repository'] ?? null;
+        $pr = is_array($project) ? ($project['pullRequest'] ?? null) : null;
+        if (null === $proof || (array_key_exists('errors', $proof) && [] !== $proof['errors'])
+            || ! is_array($project) || ! is_array($pr)
+            || ($project['nameWithOwner'] ?? null) !== $repository || ($project['databaseId'] ?? null) !== $repositoryId
+            || ($pr['number'] ?? null) !== $pullRequest || ($pr['state'] ?? null) !== 'MERGED'
+            || true !== ($pr['merged'] ?? null) || ($pr['headRefOid'] ?? null) !== $headSha
+            || ($pr['headRefName'] ?? null) !== $managedBranch || ($pr['baseRefName'] ?? null) !== $baseBranch
+            || ($pr['mergeCommit']['oid'] ?? null) !== $mergeSha) {
+            throw $this->exceptions->failure(
+                'GraphQL must corroborate the exact merged PR, repository, branches, head and merge commit.',
+            );
+        }
     }
 
     /** Shares create-only reconciliation only after one of the complete public proof paths succeeds. */
