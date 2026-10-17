@@ -52,33 +52,37 @@ final class VersionPullRequestServiceTest extends TestCase
     private array $pullRequestSnapshots = [];
     private array $referencePolicies = [];
 
-    /** Enabling discovery replaces a provably owned old transaction and proves the new head under the enabled policy. */
-    public function testReferencePolicyUpgradeReplacesOnlyTheVerifiedOwnedPendingHead(): void
+    /** Changing discovery replaces only a provably owned transaction and proves its replacement under the selected policy. */
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testReferencePolicyChangeReplacesOnlyTheVerifiedOwnedPendingHead(bool $enabled): void
     {
         $result = $this->synchronizeFixture(
-            ['existing' => true, 'resolve_references' => true, 'legacy_reference_policy' => true],
+            ['existing' => true, 'resolve_references' => $enabled, 'legacy_reference_policy' => true],
         );
 
         self::assertSame('updated', $result->status);
-        self::assertSame([true, false, true], $this->referencePolicies);
+        self::assertSame([$enabled, !$enabled, $enabled], $this->referencePolicies);
         self::assertStringContainsString(
             'Changelog-Options: ' . new ReleaseOptions(
                 '/consumer',
                 repository: 'owner/project',
-                resolvePullRequests: true,
+                resolvePullRequests: $enabled,
             )->evidenceHash(),
             $this->writes('commits')[0][2]['message'],
         );
         self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
     }
 
-    /** An unowned legacy head cannot be rescued merely by enabling the new option. */
-    public function testReferencePolicyUpgradeCannotAdoptAnUnownedBranch(): void
+    /** Switching either direction cannot adopt an unowned branch. */
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testReferencePolicyChangeCannotAdoptAnUnownedBranch(bool $enabled): void
     {
-        $result = $this->synchronizeFixture(['existing' => true, 'resolve_references' => true, 'unowned' => true]);
+        $result = $this->synchronizeFixture(['existing' => true, 'resolve_references' => $enabled, 'unowned' => true]);
 
         self::assertSame('refused', $result->status);
-        self::assertSame([true, false], $this->referencePolicies);
+        self::assertSame([$enabled, !$enabled], $this->referencePolicies);
         self::assertSame([], $this->writes('commits'));
         self::assertSame([], $this->writes('refs/heads'));
     }
@@ -793,7 +797,7 @@ final class VersionPullRequestServiceTest extends TestCase
             $this->referencePolicies[] = $received->resolvePullRequests;
 
             if (isset($settings['legacy_reference_policy']) && str_repeat('a', 40) === $sha
-                && $received->resolvePullRequests) {
+                && $received->resolvePullRequests === $settings['resolve_references']) {
                 return false;
             }
 

@@ -341,11 +341,11 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         if (null !== $head && $head !== $base) {
             $owned = $this->policy->inspectHead($options, $head, $input->automationActor, $base);
 
-            // A signed transaction prepared before opt-in can be replaced, never published under the new policy.
+            // A signed transaction under the other reference policy can be replaced, never published under this one.
             // All other settings and the full independent Bot/scope proof remain identical.
-            if (! $owned && $options->resolvePullRequests) {
+            if (! $owned) {
                 $previous = get_object_vars($options);
-                $previous['resolvePullRequests'] = false;
+                $previous['resolvePullRequests'] = ! $options->resolvePullRequests;
                 $owned = $this->policy->inspectHead(
                     new ReleaseOptions(...$previous),
                     $head,

@@ -67,7 +67,9 @@ final class GitFragmentOriginTest extends TestCase
     protected function tearDown(): void
     {
         if (isset($this->temporary)) {
-            new Filesystem()->remove($this->temporary);
+            $filesystem = new Filesystem();
+            $filesystem->chmod($this->temporary, 0777, 0000, true);
+            $filesystem->remove($this->temporary);
         }
     }
 
@@ -199,16 +201,23 @@ final class GitFragmentOriginTest extends TestCase
         );
     }
 
-    public function testNestedConsumerAndGlobNewlineNamesAreLiteral(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedConsumerAndGlobNamesAreLiteral(bool $newline): void
     {
-        $path = "packages/library/.changelog/fix[1]\nname.md";
+        if ($newline && 'Windows' === PHP_OS_FAMILY) {
+            self::markTestSkipped('Windows filenames cannot contain control characters.');
+        }
+
+        $name = 'fix[1]' . ($newline ? "\n" : '') . 'name.md';
+        $path = 'packages/library/.changelog/' . $name;
         $this->write($path, self::BYTES);
         $origin = $this->commit($path);
 
         self::assertSame($origin, $this->repository()->fragmentOrigin(
             $this->directory . '/packages/library',
             $origin,
-            ".changelog/fix[1]\nname.md",
+            '.changelog/' . $name,
             hash('sha256', self::BYTES),
         ));
     }
@@ -229,7 +238,9 @@ final class GitFragmentOriginTest extends TestCase
         $parent = $this->head();
         $this->write(self::PATH, self::BYTES);
         $base = $this->commit(self::PATH);
-        unlink($this->directory . '/.git/objects/' . substr($parent, 0, 2) . '/' . substr($parent, 2));
+        $object = $this->directory . '/.git/objects/' . substr($parent, 0, 2) . '/' . substr($parent, 2);
+        chmod($object, 0600);
+        self::assertTrue(unlink($object));
         $this->expectException(RuntimeException::class);
 
         $this->repository()->fragmentOrigin($this->directory, $base, self::PATH, hash('sha256', self::BYTES));
