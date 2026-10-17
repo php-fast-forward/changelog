@@ -79,13 +79,12 @@ final class ReleaseChannelFixture
     /** Executes structured Git arguments with isolated HOME/configuration and a synthetic identity. */
     public function git(array $arguments, bool $optional = false): ?string
     {
-        $command = 'true' === getenv('GITHUB_ACTIONS') ? ['git'] : ['rtk', 'proxy', 'git'];
         $environment = ['PATH' => getenv('PATH'), 'HOME' => $this->directory . '/home',
             'USERPROFILE' => $this->directory . '/home', 'GIT_CONFIG_NOSYSTEM' => '1',
             'GIT_CONFIG_GLOBAL' => $this->directory . '/gitconfig', 'GIT_TERMINAL_PROMPT' => '0',
             'GIT_AUTHOR_NAME' => 'Synthetic fixture', 'GIT_AUTHOR_EMAIL' => 'fixture@example.invalid',
             'GIT_COMMITTER_NAME' => 'Synthetic fixture', 'GIT_COMMITTER_EMAIL' => 'fixture@example.invalid'];
-        $process = proc_open([...$command, ...$arguments], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $process = proc_open(['git', ...$arguments], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes, $this->directory, $environment, ['bypass_shell' => true]);
         if (! is_resource($process)) {
             throw new RuntimeException('Could not start disposable Git.');

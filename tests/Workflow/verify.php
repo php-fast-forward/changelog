@@ -994,7 +994,9 @@ try {
     $filesystem->remove($channelDirectory);
 }
 $channelFixtures = new Process([PHP_BINARY, $root . '/vendor/bin/phpunit', '--no-configuration',
-    '--bootstrap', $root . '/vendor/autoload.php', '--no-coverage', $root . '/tests/Workflow/ReleaseChannelUpdaterTest.php'], $root, [
+    '--bootstrap', $root . '/vendor/autoload.php', '--no-coverage',
+    '--do-not-record-test-run-history', '--do-not-cache-test-index',
+    $root . '/tests/Workflow/ReleaseChannelUpdaterTest.php'], $root, [
         'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'GH_HOST' => false,
     ]);
 $channelFixtures->setTimeout(120);
