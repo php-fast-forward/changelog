@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-10-16
+## [1.0.0] - 2026-10-17
 
 ### Added
 
@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Accept the verified `github_actions` ecosystem from Dependabot metadata and normalize it to `github-actions`, allowing GitHub Actions dependency PRs to receive fragments while preserving contribution identity, scope and package validation.
 
   Validate the resulting Dependabot head and update its changelog status and sticky comment in the same trusted workflow run, including when the default GitHub token does not trigger another PR event.
+- Build the repository's privileged Dependabot automation from the immutable commit of its trusted workflow, rather than the PR event's potentially older base. Resolve the live comparison base separately before validating and commenting on the resulting contribution.
 - Preloads trusted Dockerfile base images through the public Docker Hub cache on disposable GitHub-hosted Linux runners, reducing build failures from upstream registry limits and timeouts.
 - Reject invalid UTF-8 and unclosed structural code fences before a fragment can pass contribution checks, and retain the verified container 1.6 resolution contract so fresh installations cannot silently bypass a failed explicit command factory.
 - Allow verified maintainer maintenance to remove an incorrect optional author from a pending fragment only when committed regular-file modes and every other byte remain unchanged. Ordinary contributions and waivers cannot change inherited fragments.
