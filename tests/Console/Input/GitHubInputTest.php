@@ -19,7 +19,7 @@ final class GitHubInputTest extends TestCase
     {
         self::assertSame(['working-directory' => '.', 'fragment-directory' => '.changelog',
             'changelog-file' => 'CHANGELOG.md', 'locale' => 'en', 'template' => 'keep-a-changelog',
-            'base-ref' => 'HEAD', 'tag-prefix' => 'v', 'source' => 'auto'], new GitHubInput()->values());
+            'base-ref' => 'HEAD', 'tag-prefix' => 'v', 'source' => 'auto', 'resolve-pull-requests' => 'false'], new GitHubInput()->values());
     }
 
     /** Explicit empty strings, false text and JSON remain distinguishable from omitted flags. */
@@ -34,6 +34,7 @@ final class GitHubInputTest extends TestCase
         $input->securityAlertNumbers = '[7, 9]';
         $input->includeDev = 'false';
         $input->includeActions = 'true';
+        $input->release->resolvePullRequests = 'true';
         $values = $input->values();
         self::assertSame('/consumer', $values['working-directory']);
         self::assertSame('owner/package', $values['repository']);
@@ -43,6 +44,7 @@ final class GitHubInputTest extends TestCase
         self::assertSame('[7, 9]', $values['security-alert-numbers']);
         self::assertSame('false', $values['include-dev']);
         self::assertSame('true', $values['include-actions']);
+        self::assertSame('true', $values['resolve-pull-requests']);
         self::assertArrayNotHasKey('target-sha', $values);
     }
 }

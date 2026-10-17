@@ -92,7 +92,46 @@ optional metadata was explicitly supplied; there is no separate global author
 visibility flag. Existing historical attributions are preserved rather than
 removed by release preparation. Contribution checks require neither author
 nor PR metadata, and a missing PR number does not require a later edit or commit.
-Automatic PR-origin discovery is not part of the current renderer contract.
+
+## Resolve missing pull-request references
+
+Version preparation can resolve a fragment's missing `pull_request` from Git and
+GitHub evidence. The local CLI keeps this disabled by default; opt in with
+`--resolve-pull-requests`. The version/publish Actions and reusable lifecycle
+enable `resolve-pull-requests: true` by default. Existing callers need no new
+field; set it to `false` consistently when keeping references entirely explicit.
+
+The resolver matches the fragment's exact committed bytes and canonical regular
+path against first-parent Git history at the selected base. It accepts a merged
+PR only after checking its repository and commit ancestry, including independent
+GitHub merge identity. Titles, branch names and commit prose do not establish
+that origin. Explicit PR, issue and author metadata remains authoritative.
+Discovery adds no author, issue or commit link.
+Local previews compare the accepted fragment hashes with the committed blobs;
+publication reconstructs from the immutable source base independently of the
+current worktree.
+
+Resolved references enrich values in memory before rendering; source fragments
+are not rewritten to add metadata. Normal version consolidation still consumes
+its validated fragments. A complete lookup with no qualifying merged PR leaves
+the description alone. Outside Git, or without committed matching bytes, origin
+lookup adds no reference and does not relax the normal release-input checks.
+Unavailable, incomplete or ambiguous API evidence fails preparation before any
+journal or managed-file write.
+
+`--source=tags` controls historical release-note imports independently of this
+setting. It does not disable PR-origin API reads when resolution is enabled.
+The codec and Markdown renderer remain pure; planning and publication supply
+the verified reference before calling them.
+
+The setting participates in the transaction fingerprint. Publication recomputes
+the same Git/API evidence and requires the approved central bytes to match
+exactly. A changed or unprovable association blocks publication; regenerate and
+review the version PR rather than editing approved output or moving a tag.
+Likewise, enabling resolution for an already prepared PR requires regeneration
+with that setting before approval. An interrupted local transaction resumes its
+saved exact output without another origin lookup, under the same validated
+settings and recovery journal.
 
 ## Plain Markdown boundaries
 

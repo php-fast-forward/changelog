@@ -30,6 +30,7 @@ use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication\MergedPublicationServiceInterface;
 use FastForward\Changelog\Publication\PublicationService;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
+use FastForward\Changelog\Release\Reference\PullRequestReferenceResolver;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Release\ReleaseJournalPathResolver;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -85,6 +86,7 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(TemplateResolver::class)]
 #[UsesClass(NextVersionResolver::class)]
+#[UsesClass(PullRequestReferenceResolver::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     /** Resets synthetic defaults before each test; unit tests never observe the real host. */
@@ -111,6 +113,8 @@ final class ChangelogServiceProviderTest extends TestCase
             VersionPullRequestServiceInterface::class,
             VersionPullRequestInputFactoryInterface::class,
             ReleaseDateValidatorInterface::class,
+            \FastForward\Changelog\Git\GitFragmentOriginReaderInterface::class,
+            \FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class,
         ] as $required) {
             self::assertArrayHasKey($required, $factories);
         }

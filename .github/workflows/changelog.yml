@@ -40,6 +40,11 @@ on:
         type: string
         default: 'auto'
 
+      resolve-pull-requests:
+        description: 'Resolve verified fragment PR references during versioning and publication.'
+        type: boolean
+        default: true
+
       managed-branch:
         type: string
         default: 'changelog/version'
@@ -130,6 +135,7 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
       managed-branch: ${{ inputs.managed-branch }}
+      resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       automation-actor: ${{ inputs.automation-actor }}
       waiver-label: ${{ inputs.waiver-label }}
       maintenance-label: ${{ inputs.maintenance-label }}
@@ -185,6 +191,7 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
       managed-branch: ${{ inputs.managed-branch }}
+      resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       automation-actor: ${{ inputs.automation-actor }}
       waiver-label: ${{ inputs.waiver-label }}
       maintenance-label: ${{ inputs.maintenance-label }}
@@ -216,6 +223,7 @@ jobs:
       locale: ${{ inputs.locale }}
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
+      resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       dry-run: ${{ inputs.dry-run }}
     secrets:
       token: ${{ secrets.token }}
@@ -245,6 +253,7 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
       managed-branch: ${{ inputs.managed-branch }}
+      resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       automation-actor: ${{ inputs.automation-actor }}
       waiver-label: ${{ inputs.waiver-label }}
       maintenance-label: ${{ inputs.maintenance-label }}
@@ -279,6 +288,7 @@ jobs:
       locale: ${{ inputs.locale }}
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
+      resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       dry-run: ${{ inputs.dry-run }}
     secrets:
       token: ${{ secrets.token }}

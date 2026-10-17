@@ -47,6 +47,11 @@ inputs:
     required: false
     default: "auto"
 
+  resolve-pull-requests:
+    description: "Resolve missing fragment PR references from verified Git and GitHub evidence."
+    required: false
+    default: "true"
+
   token:
     description: "GitHub token with the minimum permissions required by this operation."
     required: false
@@ -120,6 +125,7 @@ runs:
     - "--tag-prefix=${{ inputs.tag-prefix }}"
     - "--repository=${{ inputs.repository }}"
     - "--source=${{ inputs.source }}"
+    - "--resolve-pull-requests=${{ inputs.resolve-pull-requests }}"
     - "--base-branch=${{ inputs.base-branch }}"
     - "--managed-branch=${{ inputs.managed-branch }}"
     - "--automation-actor=${{ inputs.automation-actor }}"

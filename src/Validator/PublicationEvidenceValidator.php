@@ -30,6 +30,7 @@ use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
+use FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface;
 use FastForward\Changelog\Release\ReleaseMetadataParser;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -48,31 +49,32 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
     /**
      * Injects read-only Git/domain proof and guarded custom-template boundaries without I/O.
      *
-     * @param GitRepositoryInterface              $git          Replaceable repository boundary for immutable blobs, identities, ancestry and
-     *                                                          local Git operations.
-     * @param HistoryCodecInterface               $history      Parser and renderer that preserves historical Markdown and its exact
-     *                                                          section boundaries.
-     * @param ChangesetParserInterface            $parser       Schema parser that retains per-fragment diagnostics instead of silently
-     *                                                          dropping invalid input.
-     * @param NextVersionResolverInterface        $versions     Pure semantic-version resolver for the complete accepted fragment
-     *                                                          set.
-     * @param HistoryImporterInterface            $importer     Historical release importer and stable tag precedence resolver.
-     * @param ReleaseNotesRendererInterface       $notes        Renderer for deterministic user-facing notes from the accepted
-     *                                                          fragment values.
-     * @param TemplateResolverInterface           $templates    Resolver for built-in or explicitly verified consumer presentation
-     *                                                          templates.
-     * @param PackagePathResolverInterface        $paths        Consumer-root path resolver used to constrain managed file access.
-     * @param ManagedFileStoreInterface           $files        Replaceable managed-file reader used to compare checkout bytes with
-     *                                                          committed evidence.
-     * @param HistoryReleaseFactoryInterface      $releases     Constructor for immutable history sections with explicit date
-     *                                                          provenance and endings.
-     * @param ReleaseHistoryConsolidatorInterface $consolidator Canonical promotion operation that preserves already
-     *                                                          published historical Markdown.
-     * @param ?GitHubClientInterface              $github       Optional immutable-object API reader; contextual merged-head proof is
-     *                                                          unavailable without it.
-     * @param ?ReleaseMetadataParser              $metadata     Optional strict commit-trailer parser or contextual metadata proven by
-     *                                                          the approved PR head.
-     * @param HistoryReferenceBuilder             $references   Pure concrete-release link completion shared with release planning.
+     * @param GitRepositoryInterface                $git          Replaceable repository boundary for immutable blobs, identities, ancestry and
+     *                                                            local Git operations.
+     * @param HistoryCodecInterface                 $history      Parser and renderer that preserves historical Markdown and its exact
+     *                                                            section boundaries.
+     * @param ChangesetParserInterface              $parser       Schema parser that retains per-fragment diagnostics instead of silently
+     *                                                            dropping invalid input.
+     * @param NextVersionResolverInterface          $versions     Pure semantic-version resolver for the complete accepted fragment
+     *                                                            set.
+     * @param HistoryImporterInterface              $importer     Historical release importer and stable tag precedence resolver.
+     * @param ReleaseNotesRendererInterface         $notes        Renderer for deterministic user-facing notes from the accepted
+     *                                                            fragment values.
+     * @param TemplateResolverInterface             $templates    Resolver for built-in or explicitly verified consumer presentation
+     *                                                            templates.
+     * @param PackagePathResolverInterface          $paths        Consumer-root path resolver used to constrain managed file access.
+     * @param ManagedFileStoreInterface             $files        Replaceable managed-file reader used to compare checkout bytes with
+     *                                                            committed evidence.
+     * @param HistoryReleaseFactoryInterface        $releases     Constructor for immutable history sections with explicit date
+     *                                                            provenance and endings.
+     * @param PullRequestReferenceResolverInterface $pullRequests Recomputes opted-in PR provenance from the exact committed source before accepting release notes.
+     * @param ReleaseHistoryConsolidatorInterface   $consolidator Canonical promotion operation that preserves already
+     *                                                            published historical Markdown.
+     * @param ?GitHubClientInterface                $github       Optional immutable-object API reader; contextual merged-head proof is
+     *                                                            unavailable without it.
+     * @param ?ReleaseMetadataParser                $metadata     Optional strict commit-trailer parser or contextual metadata proven by
+     *                                                            the approved PR head.
+     * @param HistoryReferenceBuilder               $references   Pure concrete-release link completion shared with release planning.
      */
     public function __construct(
         private GitRepositoryInterface $git,
@@ -86,6 +88,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         private ManagedFileStoreInterface $files,
         private HistoryReleaseFactoryInterface $releases,
         private ReleaseHistoryConsolidatorInterface $consolidator,
+        private PullRequestReferenceResolverInterface $pullRequests,
         private ?GitHubClientInterface $github = null,
         ?ReleaseMetadataParser $metadata = null,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
@@ -269,6 +272,9 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             in_array($options->tagPrefix . $current, array_column($reachable, 'name'), true),
         );
         $changesets = $this->consumedChangesets($options, $base, $approvedSha, $selected);
+        if ($options->resolvePullRequests) {
+            $changesets = $this->pullRequests->resolve($options, $base, $changesets);
+        }
         $resolved = $this->versions->resolve($current, $changesets);
 
         if (! $resolved->isValid()) {

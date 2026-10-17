@@ -422,6 +422,7 @@ final class VersionPullRequestDateStabilityTest extends TestCase
             $plans,
             $inputEvidence,
             $journals,
+            $this->createStub(\FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class),
         );
         $github = $this->createStub(GitHubClientInterface::class);
         $github->method('paginate')->willReturnCallback(

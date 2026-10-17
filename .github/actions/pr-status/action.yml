@@ -38,6 +38,9 @@ inputs:
   source:
     description: Historical source setting, matching the approved transaction.
     default: 'auto'
+  resolve-pull-requests:
+    description: PR-resolution setting for ownership checks; no fragment origin lookup occurs.
+    default: 'true'
   managed-branch:
     description: Exclusive generated version branch.
     default: 'changelog/version'
@@ -74,6 +77,7 @@ runs:
     - --cwd=${{ inputs.working-directory }}
     - --repository=${{ inputs.repository }}
     - --source=${{ inputs.source }}
+    - --resolve-pull-requests=${{ inputs.resolve-pull-requests }}
     - --locale=${{ inputs.locale }}
     - --tag-prefix=${{ inputs.tag-prefix }}
     - --pull-request=${{ inputs.pull-request }}

@@ -136,7 +136,7 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
      */
     private function assertSchema(array $evidence): void
     {
-        if ([] !== array_diff(array_keys($evidence), self::FIELDS) || [] !== array_diff(
+        if ([] !== array_diff(array_keys($evidence), [...self::FIELDS, 'resolve_pull_requests']) || [] !== array_diff(
             self::FIELDS,
             array_keys($evidence),
         )) {
@@ -144,6 +144,9 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         }
         if (1 !== $evidence['schema']) {
             throw new InvalidArgumentException('Unsupported release receipt schema.');
+        }
+        if (array_key_exists('resolve_pull_requests', $evidence) && true !== $evidence['resolve_pull_requests']) {
+            throw new InvalidArgumentException('Release receipt PR discovery must be true when present.');
         }
         if (null !== $evidence['base_sha'] && (! is_string($evidence['base_sha']) || 1 !== preg_match(
             '~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D',

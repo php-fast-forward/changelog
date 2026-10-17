@@ -21,6 +21,12 @@ completes missing footer links: the oldest version's release/tag and comparisons
 for subsequent versions. Existing references remain intact; unknown repositories
 produce no invented destinations. Keep real release publication disabled during adoption.
 
+Version automation also resolves missing fragment PR references from verified
+Git history and merged-PR evidence by default. It enriches the rendered notes in
+memory without adding metadata to the fragment or inventing an author or commit
+link. Explicit metadata stays intact. No qualifying PR leaves the description
+alone; failed or ambiguous evidence blocks preparation before writes.
+
 Read applicable application instructions and Git status first. Preserve existing
 work, repository policies, workflows, plugin choices and secrets. This skill
 supports the `fast-forward/changelog ^1.0` product contract from `1.0.0`; earlier
@@ -154,6 +160,14 @@ If the PR number is unknown, keep the field absent. Contribution checks do not
 require it, and opening a PR does not require a follow-up fragment edit or
 commit. Unknown metadata must never block authoring or be filled with an
 invented number.
+
+The version workflow discovers eligible missing PR references after the
+contribution is merged; ordinary fragments need no later edit. Its optional
+`resolve-pull-requests` input defaults to `true` and must match across preparation,
+ownership checks and publication. Set it to `false` consistently to keep only
+explicit references. Local CLI commands keep discovery disabled unless
+`--resolve-pull-requests` is selected. This is independent of `source: tags`:
+tag-based historical imports do not suppress enabled PR-origin API reads.
 
 Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
 history. `status` is read-only. Successful commands exit `0`; invalid arguments

@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Console\Input;
 
+use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\Option;
 
 /** Maps the shared public settings without loading config or observing host state. */
@@ -46,13 +47,27 @@ final class ReleaseInput
     #[Option(description: 'Historical evidence source: auto, github or tags.', shortcut: 's')]
     public string $source = 'auto';
 
+    #[Option(
+        description: 'Prove missing PR links through GitHub: optional true or false, independently of the history source.',
+    )]
+    public bool|string $resolvePullRequests = false;
+
     /**
      * Returns exactly the settings accepted by the shared options factory.
      *
-     * @return array<string,string|null> Shared options-factory settings using their canonical camelCase keys.
+     * @return array<string,string|bool|null> Shared options-factory settings using their canonical camelCase keys.
+     *
+     * @throws InvalidArgumentException When the optional boolean flag receives a value other than true or false.
      */
     public function values(): array
     {
-        return get_object_vars($this);
+        $values = get_object_vars($this);
+        $values['resolvePullRequests'] = match ($this->resolvePullRequests) {
+            true, 'true' => true,
+            false, 'false' => false,
+            default => throw new InvalidArgumentException('Resolve pull requests must be true or false.'),
+        };
+
+        return $values;
     }
 }

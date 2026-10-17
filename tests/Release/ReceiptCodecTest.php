@@ -19,6 +19,29 @@ final class ReceiptCodecTest extends TestCase
 {
     use ReceiptFixtureTrait;
 
+    /** The optional enabled policy is canonical and identity-bound; old receipts remain unchanged. */
+    public function testReferencePolicyRoundTripsWithoutMigratingLegacyReceiptIdentities(): void
+    {
+        $codec = $this->codec();
+        $legacy = $codec->encode(self::evidence());
+        $enabled = $codec->encode([...self::evidence(), 'resolve_pull_requests' => true]);
+
+        self::assertArrayNotHasKey('resolve_pull_requests', $codec->decode($legacy)->data);
+        self::assertTrue($codec->decode($enabled)->data['resolve_pull_requests']);
+        self::assertNotSame($codec->decode($legacy)->data['id'], $codec->decode($enabled)->data['id']);
+        self::assertSame(
+            $enabled,
+            $codec->encode(array_reverse([...self::evidence(), 'resolve_pull_requests' => true], true)),
+        );
+    }
+
+    /** Explicit false is excluded so there is only one offline schema-one representation. */
+    public function testNonCanonicalReferencePolicyCannotEnterTheJournal(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->codec()->encode([...self::evidence(), 'resolve_pull_requests' => false]);
+    }
+
     /** Encoding MUST order fields and consumed map before computing one stable identity. */
     public function testCanonicalEncodingRoundTripsAndRetainsExactNotes(): void
     {

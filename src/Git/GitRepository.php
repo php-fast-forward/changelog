@@ -22,7 +22,7 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /** Runs structured Git argv without shell interpolation or global cwd mutation. */
-final readonly class GitRepository implements GitRepositoryInterface, GitCommitTreeReaderInterface
+final readonly class GitRepository implements GitRepositoryInterface, GitCommitTreeReaderInterface, GitFragmentOriginReaderInterface
 {
     private ReleaseMetadataParser $metadata;
 
@@ -461,6 +461,159 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         }
 
         return $files;
+    }
+
+    /**
+     * Proves a fragment's immutable first-parent origin without consulting commit messages or remote services.
+     *
+     * A historical base is valid even when the fragment was consumed by a later committed transaction.
+     * Local index/worktree changes cannot affect the selected commit's immutable origin proof.
+     *
+     * @param string $directory Explicit consumer directory relative to which the canonical fragment path is interpreted.
+     * @param string $baseSha   Complete immutable commit that must contain the exact accepted regular-file bytes.
+     * @param string $path      Canonical consumer-relative path whose current byte sequence is being attributed.
+     * @param string $sha256    Lowercase SHA-256 digest of the exact accepted fragment contents.
+     *
+     * @return string|null Complete introducing commit, or null when the committed path is absent, mismatching or has no proved origin.
+     *
+     * @throws InvalidArgumentException When the path, complete commit identity or content digest is invalid.
+     * @throws RuntimeException         When Git evidence is incomplete, shallow, malformed, unsafe or exceeds the bounded scan.
+     */
+    public function fragmentOrigin(string $directory, string $baseSha, string $path, string $sha256): ?string
+    {
+        $this->validatePath($path);
+        if (1 !== preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $baseSha)
+            || 1 !== preg_match('/\A[a-f0-9]{64}\z/', $sha256)) {
+            throw new InvalidArgumentException(
+                'Fragment origin requires a complete commit identity and SHA-256 digest.',
+            );
+        }
+        $shallow = rtrim($this->fragmentGit($directory, ['rev-parse', '--is-shallow-repository']), "\r\n");
+        if ('false' !== $shallow) {
+            throw new RuntimeException('Fragment origin requires complete non-shallow Git history.');
+        }
+        $prefix = rtrim($this->fragmentGit($directory, ['rev-parse', '--show-prefix']), "\r\n");
+        if ('' !== $prefix) {
+            if (! str_ends_with($prefix, '/')) {
+                throw new RuntimeException('Git returned a malformed consumer path prefix.');
+            }
+            try {
+                $this->validatePath(substr($prefix, 0, -1));
+            } catch (InvalidArgumentException $error) {
+                throw new RuntimeException('Git returned an unsafe consumer path prefix.', previous: $error);
+            }
+        }
+        $root = $this->repositoryRoot($directory);
+        $repositoryPath = $prefix . $path;
+        $base = $this->resolveRef($root, $baseSha);
+        if ($base !== $baseSha) {
+            throw new RuntimeException('Git resolved a different fragment base commit.');
+        }
+        if ($this->fragmentHashAt($root, $base, $repositoryPath) !== $sha256) {
+            return null;
+        }
+
+        return $this->fragmentOriginInHistory($root, $base, $repositoryPath, $sha256);
+    }
+
+    /**
+     * Scans at most 1000 path-changing commits and compares each candidate to its actual first parent.
+     *
+     * @param string $directory Git repository root used for all structured history queries.
+     * @param string $baseSha   Verified complete immutable commit containing the accepted fragment blob.
+     * @param string $path      Literal repository-relative path, including the consumer prefix when nested.
+     * @param string $sha256    Exact accepted content digest that every traversed current-byte candidate must retain.
+     *
+     * @return string|null Introducing transition identity, or null when Git reports no proving transition.
+     *
+     * @throws RuntimeException When the history list, first-parent evidence or candidate bytes are malformed or incomplete.
+     */
+    private function fragmentOriginInHistory(string $directory, string $baseSha, string $path, string $sha256): ?string
+    {
+        $raw = $this->fragmentGit($directory, [
+            'log', '--first-parent', '--full-history', '--no-renames', '--format=%H', '-z', '--no-patch',
+            '--no-notes', '--no-show-signature', '--max-count=1001', $baseSha, '--', $path,
+        ]);
+        if ('' === $raw) {
+            return null;
+        }
+        $commits = explode("\0", $raw);
+        if ('' !== array_pop($commits) || count($commits) > 1000 || count(array_unique($commits)) !== count($commits)
+            || ! array_all(
+                $commits,
+                static fn(string $sha): bool => 1 === preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha),
+            )) {
+            throw new RuntimeException('Fragment origin history is malformed or exceeds 1000 path changes.');
+        }
+        foreach ($commits as $commit) {
+            if ($this->fragmentHashAt($directory, $commit, $path) !== $sha256) {
+                throw new RuntimeException('Fragment origin history does not retain the accepted current bytes.');
+            }
+            $rawParents = rtrim($this->fragmentGit(
+                $directory,
+                ['show', '-s', '--no-notes', '--no-show-signature', '--format=%P', $commit, '--'],
+            ), "\r\n");
+            $parents = '' === $rawParents ? [] : explode(' ', $rawParents);
+            if (! array_all(
+                $parents,
+                static fn(string $sha): bool => 1 === preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha),
+            )
+                || in_array($commit, $parents, true)) {
+                throw new RuntimeException('Git returned malformed fragment origin parents.');
+            }
+            if ([] === $parents || $this->fragmentHashAt($directory, $parents[0], $path) !== $sha256) {
+                return $commit;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Hashes raw committed regular-file bytes after validating one exact NUL-delimited tree entry.
+     *
+     * @param string $directory Git repository root used for literal-path tree queries.
+     * @param string $commit    Complete immutable candidate or first-parent commit identity.
+     * @param string $path      Canonical repository-relative fragment path selected by the origin proof.
+     *
+     * @return string|null SHA-256 of the raw regular blob, or null when no regular file exists at that path.
+     *
+     * @throws RuntimeException When Git cannot read a required object or returns malformed or out-of-scope tree metadata.
+     */
+    private function fragmentHashAt(string $directory, string $commit, string $path): ?string
+    {
+        $entry = $this->fragmentGit($directory, ['ls-tree', '-z', $commit, '--', $path]);
+        if ('' === $entry) {
+            return null;
+        }
+        if (1 !== preg_match(
+            '/\A([0-9]{6}) (blob|tree|commit) ([a-f0-9]{40}|[a-f0-9]{64})\t([^\x00]+)\x00\z/sD',
+            $entry,
+            $record,
+        )
+            || $record[4] !== $path) {
+            throw new RuntimeException('Git returned malformed fragment origin tree metadata.');
+        }
+        if (! in_array($record[1], ['100644', '100755'], true) || 'blob' !== $record[2]) {
+            return null;
+        }
+
+        return hash('sha256', $this->fragmentGit($directory, ['cat-file', 'blob', $record[3]]));
+    }
+
+    /**
+     * Disables replacement objects and pathspec interpretation for exact, read-only origin evidence.
+     *
+     * @param string       $directory Explicit Git directory selected by the caller or Git's root discovery.
+     * @param list<string> $arguments Structured Git subcommand and literal arguments, never shell text.
+     *
+     * @return string Exact Git stdout without newline, path or content normalization.
+     *
+     * @throws RuntimeException When a Git command fails or a required commit, tree, blob or parent is unavailable.
+     */
+    private function fragmentGit(string $directory, array $arguments): string
+    {
+        return (string) $this->run($directory, ['--no-replace-objects', '--literal-pathspecs', ...$arguments]);
     }
 
     /**

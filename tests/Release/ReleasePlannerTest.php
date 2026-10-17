@@ -86,6 +86,50 @@ final class ReleasePlannerTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+    /** PR discovery receives accepted raw hashes and changes presentation without changing authored version inputs. */
+    public function testConsolidationAddsOnlyVerifiedPresentationReferences(): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', resolvePullRequests: true);
+        $references = $this->createMock(
+            \FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class,
+        );
+        $renderer = $this->createMock(ReleaseNotesRendererInterface::class);
+        [$planner, $parts] = $this->planner(
+            ['fragments' => true, 'pullRequests' => $references, 'renderer' => $renderer],
+        );
+        $enriched = new Changeset('new.md', Category::Fixed, null, 111, null, 'Description');
+        $references->expects(self::once())->method('resolve')->with(
+            $options,
+            self::SHA,
+            self::callback(
+                static fn(array $changes): bool => 1 === count($changes) && null === $changes[0]->pullRequest,
+            ),
+            ['/consumer/.changelog/new.md' => hash('sha256', 'accepted bytes')],
+        )->willReturn([$enriched]);
+        $renderer->expects(self::once())->method('render')->with(
+            [$enriched],
+            $parts['template'],
+            'owner/repo',
+        )->willReturn(
+            'Verified reference.',
+        );
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame($parts['plan'], $planner->plan($options));
+    }
+
+    /** Recovery must never silently change its network/reference policy after its exact output was saved. */
+    public function testRecoveryRejectsAChangedReferencePolicyBeforeDiscovery(): void
+    {
+        $receipt = new ReleaseReceipt([...$this->receipt()->data, 'resolve_pull_requests' => true]);
+        [$planner, $parts] = $this->planner(['receipt' => $receipt]);
+        $parts['plans']->expects(self::never())->method('create');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('PR discovery differs');
+
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+
     private const string INTRODUCTION = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n"
         . "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\n"
         . "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n";
@@ -826,6 +870,7 @@ final class ReleasePlannerTest extends TestCase
             new ReleasePlanFactory($receipts),
             $this->createStub(ReleaseInputEvidenceValidatorInterface::class),
             $journals,
+            $this->createStub(\FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class),
         );
     }
 
@@ -957,8 +1002,10 @@ final class ReleasePlannerTest extends TestCase
                 [],
             ),
         );
-        $renderer = $this->createStub(ReleaseNotesRendererInterface::class);
-        $renderer->method('render')->willReturn('Rendered fragments');
+        $renderer = $settings['renderer'] ?? $this->createStub(ReleaseNotesRendererInterface::class);
+        if (!isset($settings['renderer'])) {
+            $renderer->method('render')->willReturn('Rendered fragments');
+        }
         $releases = ($settings['releaseMock'] ?? false) ? $this->createMock(
             HistoryReleaseFactoryInterface::class,
         ) : $this->createStub(
@@ -1004,6 +1051,9 @@ final class ReleasePlannerTest extends TestCase
             $plans,
             $inputs,
             $journals,
+            $settings['pullRequests'] ?? $this->createStub(
+                \FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class,
+            ),
         ),
             compact(
                 'document',
