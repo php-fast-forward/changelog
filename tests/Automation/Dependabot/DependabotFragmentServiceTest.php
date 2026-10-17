@@ -13,7 +13,7 @@ use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
-use FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface;
+use FastForward\Changelog\Changeset\Renderer\ChangesetRenderer;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Tests\Automation\Policy\PolicyFixtureTrait;
@@ -31,12 +31,26 @@ use RuntimeException;
 #[UsesClass(DependabotFragmentResult::class)]
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(Changeset::class)]
+#[UsesClass(ChangesetRenderer::class)]
 final class DependabotFragmentServiceTest extends TestCase
 {
     use PolicyFixtureTrait;
 
+    private const string LEGACY_FRAGMENT = <<<'MARKDOWN'
+    ---
+    category: changed
+    type: patch
+    pull_request: 7
+    author: "dependabot[bot]"
+    ---
+
+    Update dependencies: `package/name`.
+
+    MARKDOWN;
+
     private array $calls = [];
     private array $changes = [];
+    private array $descriptions = [];
 
     #[Test]
     public function createsOneChangedPatchUsingCoreFactoriesAndCreateOnlyContentsApi(): void
@@ -63,7 +77,7 @@ final class DependabotFragmentServiceTest extends TestCase
         self::assertSame('/repos/owner/project/contents/.changelog/dependabot-7.md', $writes[0][1]);
         self::assertSame([
             'message' => 'chore(changelog): add Dependabot fragment for #7', 'content' => base64_encode(
-                'generated',
+                self::LEGACY_FRAGMENT,
             ), 'branch' => 'dependabot/composer/package-1'],
             $writes[0][2],
         );
@@ -78,13 +92,279 @@ final class DependabotFragmentServiceTest extends TestCase
     public function identicalExistingContentIsIdempotentWithoutAnotherCommit(): void
     {
         $input = $this->input(type: 'direct:development', ecosystem: 'github-actions');
-        $result = $this->service($input, existing: $this->file('generated'))->synchronize(
+        $result = $this->service($input, existing: $this->file(str_replace(
+            'Update dependencies:',
+            'Atualizar dependências:',
+            self::LEGACY_FRAGMENT,
+        )))->synchronize(
             $this->options('pt-BR'),
             $input,
         );
         self::assertSame('unchanged', $result->status);
         self::assertNull($result->commitSha);
         self::assertSame('Atualizar dependências: `package/name`.', $this->changes[5]);
+        self::assertSame([], $this->writes());
+    }
+
+    /** Retains the complete verified PR title, including versions and directory, as useful release text. */
+    #[Test]
+    public function usesThePullRequestTitleWithVersionsAndDirectoryWithoutInventingMetadata(): void
+    {
+        $input = new DependabotInput(7, str_repeat('a', 40), [
+            'shivammathur/setup-php',
+        ], 'direct:production', 'github-actions');
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/github_actions/setup-php');
+        $pr['title'] = 'build(deps): bump shivammathur/setup-php from 2.36.0 to 2.37.1 in /.github/workflows';
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options(), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame(
+            $pr['title'] . "\n\nUpdate dependencies: `shivammathur/setup-php`.",
+            $this->changes[5],
+        );
+        self::assertSame(Category::Changed, $this->changes[1]);
+        self::assertSame(VersionImpact::Patch, $this->changes[6]);
+        self::assertSame('.changelog/dependabot-7.md', $result->path);
+    }
+
+    /** Groups retain the collected package list even when their title does not contain individual versions. */
+    #[Test]
+    public function describesGroupedPackagesUsingOnlyTheTrustedMetadata(): void
+    {
+        $input = new DependabotInput(7, str_repeat('a', 40), [
+            'vendor/one',
+            'vendor/two',
+        ], 'direct:production', 'composer');
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/production');
+        $pr['title'] = 'build(deps): bump the production group with 2 updates in /apps/api';
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options(), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame(
+            $pr['title'] . "\n\nUpdate dependencies: `vendor/one`, `vendor/two`.",
+            $this->changes[5],
+        );
+    }
+
+    /** Untrusted title formatting cannot create Markdown blocks, HTML, mentions or external autolinks. */
+    #[Test]
+    #[TestWith([
+        "# release\n\n- [click](javascript:evil) <img src=x> @team **major** `code` ~~gone~~",
+        '\# release - \[click\](javascript:evil) &lt;img src=x&gt; &#64;team \*\*major\*\* \`code\` \~\~gone\~\~',
+    ])]
+    #[TestWith([
+        "\t build(deps):  bump\r\npackage\t2.0.0\u{2028}\u{00a0}/app\u{2029}",
+        'build(deps): bump package 2.0.0 /app',
+    ])]
+    #[TestWith(['1. update', '1\. update'])]
+    #[TestWith(['1) update', '1\) update'])]
+    #[TestWith(['- update', '\- update'])]
+    #[TestWith(['+ update', '\+ update'])]
+    #[TestWith(['---', '\---'])]
+    #[TestWith(['> quote', '&gt; quote'])]
+    #[TestWith([
+        'Update https://example.test and www.example.test @bot & <x>',
+        'Update https&#58;//example.test and www&#46;example.test &#64;bot &amp; &lt;x&gt;',
+    ])]
+    #[TestWith(['literal &lt;tag&gt; and $math$', 'literal &amp;lt;tag&amp;gt; and \$math\$'])]
+    public function rendersTitlesAsOneLiteralParagraph(string $title, string $expected): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = $title;
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options(), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame($expected . "\n\nUpdate dependencies: `package/name`.", $this->changes[5]);
+    }
+
+    /** Missing, malformed or unbounded titles retain the localized package-based description. */
+    #[Test]
+    #[TestWith([null, 'en', 'Update dependencies: `package/name`.'])]
+    #[TestWith([123, 'pt-BR', 'Atualizar dependências: `package/name`.'])]
+    #[TestWith([[], 'en', 'Update dependencies: `package/name`.'])]
+    #[TestWith(['', 'pt-BR', 'Atualizar dependências: `package/name`.'])]
+    #[TestWith(["\0 \r\n\t", 'en', 'Update dependencies: `package/name`.'])]
+    #[TestWith(["\xff", 'pt-BR', 'Atualizar dependências: `package/name`.'])]
+    public function unusableTitlesFallBackWithoutLosingPackageNames(
+        mixed $title,
+        string $locale,
+        string $expected,
+    ): void {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = $title;
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options($locale), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame($expected, $this->changes[5]);
+    }
+
+    /** A title exceeding the bounded display budget cannot inject an unbounded generated description. */
+    #[Test]
+    public function oversizedTitlesUseTheLocalizedFallback(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = str_repeat('x', 1025);
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options('pt-BR'), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame('Atualizar dependências: `package/name`.', $this->changes[5]);
+    }
+
+    /** Titles are display text, and cannot grant security classification, version impact or paths. */
+    #[Test]
+    public function aSecurityOrBreakingTitleCannotChangeTrustedReleaseMetadata(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'security: major breaking update ../outside';
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options(), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame('.changelog/dependabot-7.md', $result->path);
+        self::assertSame(Category::Changed, $this->changes[1]);
+        self::assertSame(VersionImpact::Patch, $this->changes[6]);
+        self::assertSame(7, $this->changes[3]);
+        self::assertSame('dependabot[bot]', $this->changes[4]);
+        self::assertCount(
+            0,
+            array_filter($this->calls, static fn(array $call): bool => str_contains($call[1], '/dependabot/alerts/')),
+        );
+    }
+
+    /** Identical title and metadata render the same bytes and never create a second commit. */
+    #[Test]
+    public function anIdenticalDescriptiveFragmentRemainsIdempotent(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): bump package/name from 1.0.0 to 1.1.0';
+        $existing = str_replace(
+            'Update dependencies:',
+            $pr['title'] . "\n\nUpdate dependencies:",
+            self::LEGACY_FRAGMENT,
+        );
+
+        $result = $this->service($input, existing: $this->file($existing), prs: [$pr])->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame('unchanged', $result->status);
+        self::assertNull($result->commitSha);
+        self::assertSame([], $this->writes());
+    }
+
+    /** Only exact deterministic legacy bytes are accepted for backward-compatible reruns, without rewriting. */
+    #[Test]
+    public function aLegacyFragmentIsRecognizedWithoutReplacingItWithTheNewTitle(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): bump package/name from 1.0.0 to 1.1.0';
+
+        $result = $this->service($input, existing: $this->file(self::LEGACY_FRAGMENT), prs: [$pr])->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame('unchanged', $result->status);
+        self::assertSame([
+            $pr['title'] . "\n\nUpdate dependencies: `package/name`.",
+            'Update dependencies: `package/name`.',
+        ], $this->descriptions);
+        self::assertNull($result->commitSha);
+        self::assertSame([], $this->writes());
+    }
+
+    /** Retitling a PR must not overwrite an existing generated description with different bytes. */
+    #[Test]
+    public function aChangedTitlePreservesThePreviouslyCommittedFragment(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): bump package/name from 1.0.0 to 1.2.0';
+        $existing = str_replace(
+            'Update dependencies:',
+            "build(deps): bump package/name from 1.0.0 to 1.1.0\n\nUpdate dependencies:",
+            self::LEGACY_FRAGMENT,
+        );
+
+        $result = $this->service($input, existing: $this->file($existing), prs: [$pr])->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame('refused', $result->status);
+        self::assertNotEmpty($result->diagnostics);
+        self::assertSame([], $this->writes());
+    }
+
+    /** Even a one-byte manual edit or changed identity is not deterministic legacy output. */
+    #[Test]
+    #[TestWith(['description'])]
+    #[TestWith(['identity'])]
+    #[TestWith(['whitespace'])]
+    public function editedLegacyFragmentsAreNeverAdoptedOrOverwritten(string $case): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): update package/name';
+        $existing = match ($case) {
+            'description' => str_replace('Update dependencies:', 'Manual update:', self::LEGACY_FRAGMENT),
+            'identity' => str_replace('pull_request: 7', 'pull_request: 8', self::LEGACY_FRAGMENT),
+            'whitespace' => self::LEGACY_FRAGMENT . ' ',
+        };
+
+        $result = $this->service($input, existing: $this->file($existing), prs: [$pr])->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame('refused', $result->status);
+        self::assertSame([], $this->writes());
+    }
+
+    /** A deterministic fragment in another locale is not an exact match for this operation's legacy output. */
+    #[Test]
+    public function aLegacyFragmentFromAnotherLocaleIsPreservedWithoutAdoption(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): update package/name';
+
+        $result = $this->service($input, existing: $this->file(self::LEGACY_FRAGMENT), prs: [$pr])->synchronize(
+            $this->options('pt-BR'),
+            $input,
+        );
+
+        self::assertSame('refused', $result->status);
+        self::assertSame([], $this->writes());
+    }
+
+    /** A retitle racing with creation changes the presentation snapshot even when the commit SHA stays fixed. */
+    #[Test]
+    public function aTitleEditedBeforeCreationCannotWriteStaleReleaseText(): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): bump package/name from 1.0.0 to 1.1.0';
+        $fresh = $pr;
+        $fresh['title'] = 'build(deps): bump package/name from 1.0.0 to 1.2.0';
+
+        $result = $this->service($input, prs: [$pr, $fresh])->synchronize($this->options(), $input);
+
+        self::assertSame('conflict', $result->status);
+        self::assertNull($result->commitSha);
+        self::assertStringContainsString('snapshot or metadata changed', implode(' ', $result->diagnostics));
         self::assertSame([], $this->writes());
     }
 
@@ -373,12 +653,12 @@ final class DependabotFragmentServiceTest extends TestCase
                 ?VersionImpact $type,
             ): Changeset {
                 $this->changes = [$id, $category, $issue, $pr, $author, $description, $type];
+                $this->descriptions[] = $description;
 
                 return new Changeset($id, $category, $issue, $pr, $author, $description, $type);
             },
         );
-        $renderer = $this->createStub(ChangesetRendererInterface::class);
-        $renderer->method('render')->willReturn('generated');
+        $renderer = new ChangesetRenderer();
         $results = $this->createStub(DependabotFragmentResultFactoryInterface::class);
         $results->method('create')->willReturnCallback(
             static fn(string $status, string $path, ?string $commit = null, array $diagnostics = []): DependabotFragmentResult => new DependabotFragmentResult(

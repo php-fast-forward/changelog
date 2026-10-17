@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
 - Adds contextual Dash artwork organizing change fragments into a release history.
 - Update dependencies: `shivammathur/setup-php`. ([#28](https://github.com/php-fast-forward/changelog/pull/28), @dependabot[bot])
+- Preserve the Dependabot PR title in generated dependency notes, retaining the versions and update location supplied by Dependabot, and list the verified packages for grouped updates. Keep existing notes intact and avoid deriving release impact or security authority from editable PR text.
 - Runs all GitHub Actions from the self-contained Docker CLI under .github/actions, with direct commands, validated outputs and separate consumer data.
 -
   Makes GitHub automation the README's first adoption path, with a copyable caller
