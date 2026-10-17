@@ -504,6 +504,75 @@ $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(
 $filesystem->mkdir($directory);
 
 try {
+    $imageGuard = <<<'JS'
+        const snapshot = JSON.parse(process.env.FF_IMAGE_CONTEXT);
+        const condition = process.env.FF_IMAGE_CONDITION.replace(
+          /\b(?:github|needs)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
+          path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
+        );
+        core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
+        JS;
+    $approvedImage = str_repeat('a', 40);
+    $imageContext = [
+        'github' => [
+            'event_name' => 'pull_request_target', 'repository' => 'fixture/consumer',
+            'event' => [
+                'action' => 'closed',
+                'pull_request' => [
+                    'merged' => true, 'merge_commit_sha' => $approvedImage,
+                    'head' => ['ref' => 'changelog/version', 'repo' => ['full_name' => 'fixture/consumer']],
+                    'base' => ['ref' => 'main'],
+                ],
+            ],
+        ],
+        'needs' => ['changelog' => [
+            'result' => 'success',
+            'outputs' => [
+                'published-version' => '1.2.3', 'published-tag' => 'v1.2.3', 'published-sha' => $approvedImage,
+            ],
+        ]],
+    ];
+    foreach ([
+        [[], true],
+        [['github.event_name' => 'pull_request'], false],
+        [['github.event_name' => 'push'], false],
+        [['github.event_name' => 'workflow_dispatch'], false],
+        [['github.event.action' => 'opened'], false],
+        [['github.event.pull_request.merged' => false], false],
+        [['github.event.pull_request.head.repo.full_name' => 'fork/consumer'], false],
+        [['github.event.pull_request.head.ref' => 'feature/untrusted'], false],
+        [['github.event.pull_request.head.ref' => "changelog/version' || true || '"], false],
+        [['github.event.pull_request.base.ref' => 'release'], false],
+        [['github.event.pull_request.merge_commit_sha' => str_repeat('b', 40)], false],
+        [['github.event.pull_request' => null], false],
+        [['needs.changelog.result' => 'failure'], false],
+        [['needs.changelog.result' => 'skipped'], false],
+        [['needs.changelog.outputs.published-version' => ''], false],
+        [['needs.changelog.outputs.published-tag' => ''], false],
+        [['needs.changelog.outputs.published-sha' => ''], false],
+        [['needs.changelog.outputs.published-sha' => str_repeat('b', 40)], false],
+    ] as [$overrides, $expected]) {
+        $snapshot = $imageContext;
+        foreach ($overrides as $path => $value) {
+            $segments = explode('.', $path);
+            $last = array_pop($segments);
+            $cursor = &$snapshot;
+            foreach ($segments as $segment) {
+                $cursor = &$cursor[$segment];
+            }
+            $cursor[$last] = $value;
+            unset($cursor);
+        }
+        $evaluated = workflowScriptGuard($imageGuard, $directory, [
+            'FF_IMAGE_CONTEXT' => json_encode($snapshot, JSON_THROW_ON_ERROR),
+            'FF_IMAGE_CONDITION' => $image['if'],
+        ], [], 0);
+        verifyWorkflow(
+            ['eligible' => $expected] === $evaluated['outputs'] && [] === $evaluated['requests'],
+            'Complete opaque outputs cannot authorize an image outside the exact approved merged-PR event.',
+        );
+        ++$assertions;
+    }
     $movedBase = str_repeat('e', 40);
     $resolved = workflowScriptGuard(
         $feedback['jobs']['status']['steps'][0]['with']['script'],

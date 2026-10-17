@@ -17,6 +17,10 @@ Repository contracts preserve required check names, route PRs through the read-o
 module and trusted events through the facade, and bind image inputs only to
 publication outputs. Lock checks prevent a caller from holding the same group
 as its nested release operation; the public modules own trusted-operation locks.
+The image caller's actual Boolean `if` condition is evaluated with JSON-resolved
+context references in an isolated Node process. Cases reject forged publication
+outputs on ineligible events and mismatched merge SHAs; they do not substitute
+for GitHub's expression engine or the native CodeQL result.
 PHP unit tests separately cover validation, exact committed blobs, status writes,
 failure output, policy and bounded Markdown previews.
 

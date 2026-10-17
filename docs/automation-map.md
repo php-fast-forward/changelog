@@ -57,7 +57,9 @@ context. A facade caller must permit its nested jobs' maximum permissions even
 when an event skips them, so the two event routes are deliberately separate.
 After an effective publication, `published-tag` and `published-sha`
 connect to the internal image workflow. Preparation and skipped publication do
-not start an image publication. The four previous internal changelog callers are
+not start an image publication. The image caller also requires the closed,
+merged, same-repository managed PR and a published SHA equal to its merge event.
+The four previous internal changelog callers are
 replaced together, avoiding competing runs for the same event.
 
 Version and publication retain their shared repository/base lock inside the
