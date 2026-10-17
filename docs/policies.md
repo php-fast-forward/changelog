@@ -39,6 +39,26 @@ permit replacing the author, changing impact, descriptions, references, paths
 or permissions, or consuming fragments. Ordinary PRs, waivers, unbound kinds
 and missing Git evidence cannot grant this exception.
 
+Verified human maintenance can also curate pending notes before consolidation:
+modify or delete inherited regular fragments while adding at least one new valid
+summary fragment in the same committed PR. Only direct canonical fragment filenames
+qualify; nested, hidden and reserved/non-fragment Markdown paths gain no exception.
+This is an explicit editorial review,
+not release consumption or publication authority. Git retains the original notes.
+The entire remaining inventory and the new contributions must be valid. At least
+one summary must be an actual added regular HEAD blob absent from the comparison
+base, with bytes matching validation. Copies, renames and uncommitted summaries
+cannot unlock curation. Modified notes must retain their regular-file mode and
+match the validated HEAD hash; deleted notes must exist as regular base blobs and
+be absent at HEAD. Inherited renames, type changes, symlinks and tracked receipt
+changes remain rejected. The same live maintain/admin grant and exact-head binding
+apply; an editable label or waiver alone grants none of these operations.
+
+Keep this operation separate from the managed version PR. Curate the pending
+inventory first, review and merge that PR, then let the normal version workflow
+consolidate the reviewed summaries. Do not edit generated transaction trailers or
+rewrite already published versions as part of pending-note curation.
+
 GitHub maps the maintain role to the legacy permission value write, so the
 permission value alone cannot distinguish these roles. These rules use the
 [collaborator permission API](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)

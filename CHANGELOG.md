@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   ([#34](https://github.com/php-fast-forward/changelog/pull/34))
 - Adds missing Keep a Changelog version links during release preparation, preserving existing references and comparing consecutive release tags. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
+- Allows verified human editorial maintenance to replace pending fragments with new committed, validated summaries while preserving exact Git blob and file-mode checks, ordinary contribution protections and independent release-publication evidence. ([#41](https://github.com/php-fast-forward/changelog/pull/41))
 - Adopt one reusable changelog lifecycle with exact-head validation, automatic validation of generated branches and configurable sticky PR feedback for successful, failed and recovered checks. Publication remains opt-in during consumer validation. ([#23](https://github.com/php-fast-forward/changelog/pull/23))
 - Supports configurable version PR titles containing the current and next planned versions. A title-only update preserves the signed transaction and branch head, while the PR description clarifies that publication after merge depends on the consumer workflow. ([#35](https://github.com/php-fast-forward/changelog/pull/35))
 - Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags. ([#18](https://github.com/php-fast-forward/changelog/pull/18))

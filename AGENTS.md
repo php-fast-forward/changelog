@@ -73,6 +73,11 @@ used across Fast Forward PHP packages.
   legacy migration input: the version transaction promotes it into the concrete
   release and removes the pending heading. Never add new notes there or recreate
   it alongside fragments.
+- Explicit editorial maintenance may replace inherited pending notes only under
+  the verified human maintenance policy, with new validated committed summaries
+  and exact Git blob/mode evidence. Preserve the original notes in Git and map
+  them to the summaries for review. This does not authorize publication or edits
+  to already published releases; ordinary contribution rules remain in force.
 - Let the workflow prepare the single `changelog/version` PR. A prepared version
   and green checks are not publication authority: review its exact head, history
   and fragment deletions before any separately authorized merge/release.
