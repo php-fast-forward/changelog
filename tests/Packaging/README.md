@@ -30,8 +30,9 @@ temporary consumer repositories.
 
 The checks cover:
 
-- A synthetic Git archive retaining the canonical skill and license byte for
-  byte, while excluding repository automation, host configuration and dev files.
+- A synthetic Git archive retaining every canonical skill file byte for byte, while excluding repository automation, host configuration and dev files.
+- The shipped PHP contribution example with success, missing input, collision
+  and I/O failure, plus the skill's inline CLI commands and read-only preview.
 - The runtime dependency graph and native local/global Composer proxies, including
   a nested autoloader that must not override Composer's selected autoloader.
 - A synthetic autoload warning retained on stderr while machine output remains a
