@@ -18,6 +18,12 @@ namespace FastForward\Changelog\Automation\VersionPullRequest;
 /** Contains exclusive automation settings supplied by trusted composition, never head configuration. */
 final readonly class VersionPullRequestInput
 {
+    /** Bounds literal and fully resolved PR titles without permitting presentation controls. */
+    public const int MAX_TITLE_BYTES = 256;
+
+    /** Allows bounded placeholder templates to shrink before applying the final title limit. */
+    public const int MAX_TEMPLATE_BYTES = 1024;
+
     /** Captures the managed branch policy; its factory MUST validate Git refs and presentation limits. */
     public function __construct(
         public string $baseBranch = 'main',

@@ -139,14 +139,19 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 $plan = $stable;
                 $data = $this->receipts->decode($plan->receiptContents)->data;
             }
+            $title = strtr($input->title, [
+                '{current_version}' => $plan->currentVersion,
+                '{next_version}' => $plan->nextVersion ?? $plan->currentVersion,
+            ]);
+            $this->require(
+                strlen($title) <= VersionPullRequestInput::MAX_TITLE_BYTES,
+                'The resolved version PR title must be at most 256 bytes.',
+            );
             $input = $this->inputs->create(
                 $input->baseBranch,
                 $input->managedBranch,
                 $input->automationActor,
-                strtr($input->title, [
-                    '{current_version}' => $plan->currentVersion,
-                    '{next_version}' => $plan->nextVersion ?? $plan->currentVersion,
-                ]),
+                $title,
                 $input->dryRun,
             );
             if (($evidence['Plan'] ?? null) === $plan->id) {
@@ -159,7 +164,13 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 $this->inputEvidence->validate($plan);
                 $this->preflight($options, $input, $base, $head);
                 $writing = true;
-                $pr = $this->writePullRequest($repo, $input, $pr, $head, $this->body($options, $plan, $data));
+                $pr = $this->writePullRequest(
+                    $repo,
+                    $input,
+                    $pr,
+                    $head,
+                    null === $pr ? $this->body($options, $plan, $data) : null,
+                );
 
                 return $this->result($hadPr ? 'updated' : 'created', $plan, $pr, $head);
             }
@@ -495,13 +506,14 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
      * Creates or refreshes the one PR without retrying a mutation. Existing PR writes are confirmed
      * through their trusted number because a successful PATCH may still return the previous head;
      * an uncertain create is recovered by its exclusive branch query. Unconfirmed identities or titles fail closed.
+     * A null body preserves existing human PR text during a title-only refresh; new PRs receive generated text.
      */
     private function writePullRequest(
         string $repository,
         VersionPullRequestInput $input,
         ?array $pr,
         string $head,
-        string $body,
+        ?string $body,
     ): array {
         try {
             $response = null === $pr
@@ -513,7 +525,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 : $this->github->request(
                     'PATCH',
                     '/repos/' . $repository . '/pulls/' . $pr['number'],
-                    ['title' => $input->title, 'body' => $body],
+                    ['title' => $input->title] + (null === $body ? [] : ['body' => $body]),
                 );
         } catch (Throwable) {
             $response = null === $pr ? $this->pullRequest($repository, $input) : null;

@@ -59,6 +59,30 @@ final class VersionPullRequestFactoriesTest extends TestCase
         self::assertSame('diagnostic', new VersionPullRequestExceptionFactory()->create('diagnostic')->getMessage());
     }
 
+    /** Templates have a separate finite bound; final rendering still applies the ordinary PR title limit. */
+    #[Test]
+    public function acceptsBoundedTemplatesLongerThanLiteralTitles(): void
+    {
+        $title = str_repeat('a', 1007) . '{current_version}';
+
+        $input = new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create(title: $title);
+
+        self::assertSame(1024, strlen($input->title));
+        self::assertSame($title, $input->title);
+    }
+
+    /** Known placeholders do not permit unbounded templates or presentation controls. */
+    #[Test]
+    #[TestWith(['oversized'])]
+    #[TestWith(["{current_version}\nsecret"])]
+    public function rejectsUnsafeTitleTemplates(string $title): void
+    {
+        $this->expectException(VersionPullRequestException::class);
+        new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory())->create(
+            title: 'oversized' === $title ? str_repeat('a', 1008) . '{current_version}' : $title,
+        );
+    }
+
     #[Test]
     #[TestWith(['main', 'main', 'github-actions[bot]', 'title'])]
     #[TestWith(['../main', 'changelog/version', 'github-actions[bot]', 'title'])]

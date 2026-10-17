@@ -150,9 +150,10 @@ The versions come from the validated release plan. For example, a `1.2.0` baseli
 and a `1.3.0` release produce `chore(release): 1.2.0 → 1.3.0`. A first release uses
 the initial `0.0.0` baseline. Historical maintenance has no next release, so both
 placeholders resolve to the current version. Literal titles keep their bytes;
-only these two placeholders are expanded. The result must remain a single line
-of at most 256 bytes. Updating only the configured title refreshes the owned PR
-without creating another commit or changing its release plan. `dry-run` previews
+only these two placeholders are expanded. Templates may use at most 1024 bytes;
+literal and fully resolved titles must remain a single line of at most 256 bytes.
+Updating only the configured title refreshes the owned PR without changing its
+body, creating another commit or changing its release plan. `dry-run` previews
 that update without writing it.
 
 The individual `changelog-version.yml` workflow and Docker version action use

@@ -20,7 +20,7 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 /** Validates automation-only branch and identity settings before privileged use. */
 interface VersionPullRequestInputFactoryInterface
 {
-    /** Rejects unsafe refs, equal branches, invalid Bot logins and multiline/oversized PR titles. */
+    /** Rejects unsafe refs, Bot logins and controls; bounds literal titles to 256 bytes and version templates to 1024 bytes. */
     public function create(
         string $baseBranch = 'main',
         string $managedBranch = 'changelog/version',
