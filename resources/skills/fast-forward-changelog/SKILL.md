@@ -146,7 +146,8 @@ the same check. Do not use an editable label as waiver authority.
 - Load [PHP integration](references/php-api.md) when an application needs injected
   services. It includes the complete [contribution program](examples/contribution.php)
   with an explicit consumer autoloader and working directory. PHP services are
-  additional entrypoints; retain the CLI's command loader for console execution.
+  additional entrypoints. Keep the application's existing command-loader
+  arrangement; use domain services without replacing it.
 
 Do not treat an ordinary fragment task as authority to consolidate, commit, push,
 merge, install elsewhere, publish tags/releases or change host configuration.
