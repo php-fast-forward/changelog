@@ -52,12 +52,14 @@ function verify(bool $condition, string $message): void
     }
 }
 
-/** Injects a failing command constructor without depending on the provider's private map layout. */
-function failCommandConstruction(string $source): string
+/** Overrides one explicit factory without depending on the provider's private map grouping. */
+function failSelectedFactory(string $source): string
 {
     $offset = 0;
     $function = false;
-    $constructor = false;
+    $selected = false;
+    $start = null;
+    $depth = 0;
 
     foreach (token_get_all($source) as $token) {
         $text = is_array($token) ? $token[1] : $token;
@@ -65,21 +67,33 @@ function failCommandConstruction(string $source): string
         if (is_array($token) && T_FUNCTION === $token[0]) {
             $function = true;
         } elseif ($function && is_array($token) && T_STRING === $token[0]) {
-            $constructor = '__construct' === $text;
+            $selected = 'getFactories' === $text;
             $function = false;
-        } elseif ($constructor && '{' === $token) {
-            return substr_replace(
-                $source,
-                "\n        throw new \\RuntimeException('fixture selected graph');\n",
-                $offset + 1,
-                0,
-            );
+        } elseif ($selected && is_array($token) && T_RETURN === $token[0] && null === $start) {
+            $start = $offset + strlen($text);
+        } elseif (null !== $start && is_string($token)) {
+            if (in_array($token, ['[', '{', '('], true)) {
+                ++$depth;
+            } elseif (in_array($token, [']', '}', ')'], true)) {
+                --$depth;
+            } elseif (';' === $token && 0 === $depth) {
+                $expression = substr($source, $start, $offset - $start);
+
+                return substr_replace(
+                    $source,
+                    ' array_replace(' . trim($expression)
+                    . ", [\\FastForward\\Changelog\\Console\\Command\\StatusCommand::class"
+                    . " => static fn(): never => throw new \\RuntimeException('fixture selected graph')])",
+                    $start,
+                    $offset - $start,
+                );
+            }
         }
 
         $offset += strlen($text);
     }
 
-    throw new RuntimeException('The installed status command must expose its lazy constructor.');
+    throw new RuntimeException('The installed provider must expose its explicit factory declarations.');
 }
 
 /** Runs structured fixture arguments, using RTK locally or explicit direct execution in CI. */
@@ -400,9 +414,9 @@ function exercise(string $installation, string $consumer, array $environment): v
         cli($binary, $consumer, $environment, ['help', $command]);
     }
 
-    $statusCommand = $installed . '/src/Console/Command/StatusCommand.php';
-    $originalCommand = file_get_contents($statusCommand);
-    file_put_contents($statusCommand, failCommandConstruction($originalCommand));
+    $provider = $installed . '/src/Container/ServiceProvider/ChangelogServiceProvider.php';
+    $originalProvider = file_get_contents($provider);
+    file_put_contents($provider, failSelectedFactory($originalProvider));
     try {
         cli($binary, $consumer, $environment, ['list', '--raw']);
         cli($binary, $consumer, $environment, ['--help']);
@@ -414,7 +428,7 @@ function exercise(string $installation, string $consumer, array $environment): v
         cli($binary, $consumer, $environment, ['add', 'Graph failures stay isolated.', '--name=lazy-isolation.md']);
         unlink($consumer . '/.changelog/lazy-isolation.md');
     } finally {
-        file_put_contents($statusCommand, $originalCommand);
+        file_put_contents($provider, $originalProvider);
     }
 
     $poison = "<?php\nfile_put_contents(__DIR__ . '/executed-php-config', 'unexpected');\nthrow new RuntimeException('Implicit PHP configuration must not run.');\n";

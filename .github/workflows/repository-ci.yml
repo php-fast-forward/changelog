@@ -51,6 +51,99 @@ jobs:
           CHANGELOG_PACKAGING_DIRECT: '1'
           CHANGELOG_PACKAGING_DEPENDENCIES: ${{ matrix.dependencies }}
 
+  component-compatibility:
+    name: Symfony ${{ matrix.components }} Component Minimums
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        components: ['7.4', '8.0']
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up PHP
+        uses: shivammathur/setup-php@2.37.1
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
+
+      - name: Isolate Composer State
+        run: |
+          echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
+          echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
+
+      - name: Resolve The Compatible Minimum Graph
+        env:
+          SYMFONY_COMPONENT_VERSION: ${{ matrix.components }}
+        run: |
+          # Minimize runtime requirements and their dependencies; retain locked test tools.
+          # Console retains its separate 8.1 minimum for native Ask constraints.
+          composer update \
+            container-interop/service-provider \
+            fast-forward/clock \
+            fast-forward/config \
+            fast-forward/container \
+            psr/clock \
+            psr/container \
+            symfony/console \
+            symfony/filesystem \
+            symfony/finder \
+            symfony/http-client \
+            symfony/lock \
+            symfony/process \
+            symfony/validator \
+            thecodingmachine/safe \
+            symfony/yaml \
+            --with-dependencies \
+            --prefer-lowest \
+            --with="symfony/filesystem:${SYMFONY_COMPONENT_VERSION}.*" \
+            --with="symfony/finder:${SYMFONY_COMPONENT_VERSION}.*" \
+            --with="symfony/http-client:${SYMFONY_COMPONENT_VERSION}.*" \
+            --with="symfony/lock:${SYMFONY_COMPONENT_VERSION}.*" \
+            --with="symfony/process:${SYMFONY_COMPONENT_VERSION}.*" \
+            --with="symfony/validator:${SYMFONY_COMPONENT_VERSION}.*" \
+            --no-plugins \
+            --no-scripts \
+            --no-interaction \
+            --no-progress \
+            --prefer-dist
+
+      - name: Verify Actual Platform Requirements
+        run: composer check-platform-reqs --no-plugins
+
+      - name: Test Unit Contracts On The Minimum Graph
+        run: >-
+          vendor/bin/phpunit
+          --testsuite unit
+          --no-coverage
+          --fail-on-deprecation
+          --fail-on-phpunit-deprecation
+
+      - name: Test Real Git And HTTP Integration
+        run: >-
+          vendor/bin/phpunit
+          --testsuite integration
+          --no-coverage
+          --fail-on-deprecation
+          --fail-on-phpunit-deprecation
+
+      - name: Verify CLI And Provider Composition
+        run: |
+          php bin/changelog list --raw
+
+          compatibility_project=$(mktemp -d "$RUNNER_TEMP/changelog-compatibility.XXXXXX")
+
+          php resources/skills/fast-forward-changelog/examples/contribution.php \
+            "$PWD/vendor/autoload.php" \
+            "$compatibility_project"
+
   tests:
     name: PHP 8.5 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

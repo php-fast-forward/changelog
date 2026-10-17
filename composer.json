@@ -44,17 +44,17 @@
         "composer-runtime-api": "^2.0",
         "container-interop/service-provider": "^0.4.1",
         "fast-forward/clock": "^1.0",
-        "fast-forward/config": "^1.4",
+        "fast-forward/config": "^1.7",
         "fast-forward/container": "~1.6.0",
         "psr/clock": "^1.0",
         "psr/container": "^1.0 || ^2.0",
         "symfony/console": "^8.1",
-        "symfony/filesystem": "^8.1",
-        "symfony/finder": "^8.1",
-        "symfony/http-client": "^8.1",
-        "symfony/lock": "^8.1",
-        "symfony/process": "^8.1",
-        "symfony/validator": "^8.1",
+        "symfony/filesystem": "^7.4 || ^8.0",
+        "symfony/finder": "^7.4 || ^8.0",
+        "symfony/http-client": "^7.4 || ^8.0",
+        "symfony/lock": "^7.4 || ^8.0",
+        "symfony/process": "^7.4 || ^8.0",
+        "symfony/validator": "^7.4 || ^8.0",
         "thecodingmachine/safe": "^3.4"
     },
     "require-dev": {
@@ -65,14 +65,19 @@
         "phpspec/prophecy-phpunit": "^2.5",
         "phpdocumentor/shim": "^3.10",
         "phpstan/phpdoc-parser": "^2.3",
-        "phpunit/php-code-coverage": "^13.0",
-        "phpunit/phpunit": "^13.0",
-        "rector/rector": "^2.6",
-        "symfony/yaml": "^8.1",
+        "phpunit/php-code-coverage": "^14.4",
+        "phpunit/phpunit": "^13.4",
+        "rector/rector": "^2.7",
+        "symfony/yaml": "^7.4 || ^8.0",
         "symplify/easy-coding-standard": "^13.3"
     },
     "suggest": {
         "llm/skills": "Optionally synchronize the bundled agent skill in consumer projects."
+    },
+    "conflict": {
+        "php-di/php-di": "<7.0.7",
+        "symfony/polyfill-php83": "<1.30",
+        "symfony/translation-contracts": "<2.5.3 || >=3.0,<3.4.2"
     },
     "minimum-stability": "stable",
     "autoload": {
