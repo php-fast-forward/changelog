@@ -191,7 +191,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
     /**
      * Accepts strict stable semantic identities, including build metadata but no prereleases.
      *
-     * @param string $version Canonical release identity to render or select; lookup accepts one conventional v prefix.
+     * @param string $version Candidate canonical version after the exact configured tag prefix has been removed.
      *
      * @return bool Whether the supplied identity is strict stable SemVer with optional build metadata and no prerelease.
      */

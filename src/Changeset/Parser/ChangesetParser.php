@@ -90,15 +90,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             return $this->resultFactory->invalid($id, $errors);
         }
 
-        $closingLine = null;
-
-        foreach (array_slice($lines, 1, null, true) as $index => $line) {
-            if ('---' === $line) {
-                $closingLine = $index;
-
-                break;
-            }
-        }
+        $closingLine = array_find_key(array_slice($lines, 1, null, true), fn($line) => '---' === $line);
 
         if (null === $closingLine) {
             $errors[] = 'Fragment frontmatter must have a closing delimiter.';

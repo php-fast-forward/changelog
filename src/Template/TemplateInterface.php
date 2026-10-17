@@ -35,7 +35,7 @@ interface TemplateInterface
     /**
      * Returns one release heading using a canonical version and optional date.
      *
-     * @param string      $version Canonical release identity to render or select; lookup accepts one conventional v prefix.
+     * @param string      $version Canonical release identity substituted into the validated heading pattern.
      * @param string|null $date    Observed calendar date in YYYY-MM-DD form, or null when unavailable.
      *
      * @return string Validated structural heading with the supplied version and optional date substituted.

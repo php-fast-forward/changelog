@@ -50,7 +50,7 @@ final readonly class HistoryRelease
     /**
      * Returns the observed date without inventing one for undated history.
      *
-     * @return string|null Observed calendar date, or null when no publication date is known.
+     * @return string|null Stored calendar date, or null when no date is recorded.
      */
     public function getDate(): ?string
     {

@@ -105,9 +105,7 @@ final readonly class NotesCommand
                 $template = $this->templates->resolve($options);
                 $document = $this->history->parse($contents, $template);
                 $version = $this->latestStableVersion($document);
-                if (null === $version) {
-                    $version = $this->latestTaggedVersion($options);
-                }
+                $version ??= $this->latestTaggedVersion($options);
             }
             $template ??= $this->templates->resolve($options);
             $document ??= $this->history->parse($contents, $template);

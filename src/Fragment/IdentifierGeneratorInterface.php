@@ -22,7 +22,7 @@ interface IdentifierGeneratorInterface
     /**
      * Returns a complete canonical lowercase-dash filename including .md.
      *
-     * @return string Canonical change-<128-bit lowercase hex>.md filename.
+     * @return string Complete canonical lowercase-dash fragment filename ending in .md.
      */
     public function generate(): string;
 }

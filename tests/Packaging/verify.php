@@ -52,6 +52,36 @@ function verify(bool $condition, string $message): void
     }
 }
 
+/** Injects a failing command constructor without depending on the provider's private map layout. */
+function failCommandConstruction(string $source): string
+{
+    $offset = 0;
+    $function = false;
+    $constructor = false;
+
+    foreach (token_get_all($source) as $token) {
+        $text = is_array($token) ? $token[1] : $token;
+
+        if (is_array($token) && T_FUNCTION === $token[0]) {
+            $function = true;
+        } elseif ($function && is_array($token) && T_STRING === $token[0]) {
+            $constructor = '__construct' === $text;
+            $function = false;
+        } elseif ($constructor && '{' === $token) {
+            return substr_replace(
+                $source,
+                "\n        throw new \\RuntimeException('fixture selected graph');\n",
+                $offset + 1,
+                0,
+            );
+        }
+
+        $offset += strlen($text);
+    }
+
+    throw new RuntimeException('The installed status command must expose its lazy constructor.');
+}
+
 /** Runs structured fixture arguments, using RTK locally or explicit direct execution in CI. */
 function execute(array $arguments, string $directory, array $environment, int $expected = 0): array
 {
@@ -370,16 +400,9 @@ function exercise(string $installation, string $consumer, array $environment): v
         cli($binary, $consumer, $environment, ['help', $command]);
     }
 
-    $provider = $installed . '/src/Container/ServiceProvider/ChangelogServiceProvider.php';
-    $originalProvider = file_get_contents($provider);
-    $poisoned = str_replace(
-        "return [\n",
-        "return [\n            \\FastForward\\Changelog\\Console\\Command\\StatusCommand::class => static fn(): never => throw new \\RuntimeException('fixture selected graph'),\n",
-        $originalProvider,
-        $replacements,
-    );
-    verify(1 === $replacements, 'The lazy-loading probe could not identify the provider factory map.');
-    file_put_contents($provider, $poisoned);
+    $statusCommand = $installed . '/src/Console/Command/StatusCommand.php';
+    $originalCommand = file_get_contents($statusCommand);
+    file_put_contents($statusCommand, failCommandConstruction($originalCommand));
     try {
         cli($binary, $consumer, $environment, ['list', '--raw']);
         cli($binary, $consumer, $environment, ['--help']);
@@ -391,7 +414,7 @@ function exercise(string $installation, string $consumer, array $environment): v
         cli($binary, $consumer, $environment, ['add', 'Graph failures stay isolated.', '--name=lazy-isolation.md']);
         unlink($consumer . '/.changelog/lazy-isolation.md');
     } finally {
-        file_put_contents($provider, $originalProvider);
+        file_put_contents($statusCommand, $originalCommand);
     }
 
     $poison = "<?php\nfile_put_contents(__DIR__ . '/executed-php-config', 'unexpected');\nthrow new RuntimeException('Implicit PHP configuration must not run.');\n";

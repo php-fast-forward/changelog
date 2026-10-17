@@ -33,7 +33,7 @@ final readonly class RandomIdentifierGenerator implements IdentifierGeneratorInt
     /**
      * Returns a canonical filename carrying 128 bits of independent entropy.
      *
-     * @return string Canonical change-<128-bit lowercase hex>.md filename.
+     * @return string Canonical fragment filename containing 128 independently generated bits encoded as lowercase hexadecimal.
      */
     public function generate(): string
     {
