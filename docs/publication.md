@@ -65,6 +65,8 @@ original head. Missing, partial, failed or divergent evidence is rejected. A
 legacy REST merge field, when present, must also agree; webhook/event values
 alone cannot authorize the merge. See GitHub's
 [breaking changes](https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10).
+For an Enterprise Server API base ending in `/api/v3`, the exact GraphQL POST
+uses the same origin's `/api/graphql` endpoint; REST routes remain unchanged.
 
 The contextual validator reads `H` through immutable GitHub object APIs. It does
 not check out or fetch head code, and works after automatic branch deletion even

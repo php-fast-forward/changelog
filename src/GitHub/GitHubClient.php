@@ -78,12 +78,16 @@ final readonly class GitHubClient implements GitHubClientInterface
 
     /**
      * Handles HTTP status before JSON decoding and drops raw transport error details.
+     * Exact GraphQL POSTs use Enterprise Server's same-origin endpoint outside the REST v3 prefix.
      * @param  array<string,mixed>|null                     $body JSON request payload
      * @return array{0:?array,1:array<string,list<string>>} decoded data and controlled header access
      */
     private function exchange(string $method, string $relativePath, ?array $body = null): array
     {
         $url = $this->url($relativePath);
+        if ('POST' === $method && '/graphql' === $relativePath && str_ends_with($url, '/api/v3/graphql')) {
+            $url = substr($url, 0, -strlen('/v3/graphql')) . '/graphql';
+        }
         if (1 !== preg_match('/\A[A-Z]+\z/', $method) || 1 === preg_match('/[\x00-\x20\x7f]/', $this->token)) {
             throw $this->exceptions->failure('GitHub method or credential settings are invalid.');
         }
