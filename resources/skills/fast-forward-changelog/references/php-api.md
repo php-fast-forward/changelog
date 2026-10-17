@@ -33,9 +33,12 @@ first; a second run deliberately fails on the existing filename without
 replacing its bytes. An invalid/missing target or autoloader exits `2`; service
 or validation failures remain nonzero with diagnostics.
 
-For an existing application, inject those same interfaces from its PSR-11
-container or reuse the provider in its existing composition. The caller supplies
-the working directory to the options factory; explicit values override its
+For an existing application, expose only the needed domain services through its
+existing factories. The provider also declares Symfony `CommandLoaderInterface`:
+when the application already owns that binding, keep the changelog composition
+standalone as in the example. If integrating the provider directly, preserve the
+application's existing binding deliberately. The caller supplies the working
+directory to the options factory; explicit values override its
 built-in defaults. Unknown keys, unsafe managed paths and malformed values throw
 `InvalidArgumentException`. Writer schema errors throw `InvalidArgumentException`;
 I/O and filename collisions throw `RuntimeException`. Do not catch a failed write
