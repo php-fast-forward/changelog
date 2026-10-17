@@ -1,6 +1,6 @@
 # Changelog in this repository
 
-This package uses its own CLI and local Docker Actions. Ordinary changes add
+This package uses its own public reusable lifecycle and Docker Actions. Ordinary changes add
 one pending fragment; the managed version PR updates `CHANGELOG.md` after those
 changes reach `main`. Contributors do not maintain a central `Unreleased` list.
 
@@ -36,14 +36,16 @@ explains why their implementations remain in `.github/workflows`.
 
 | Repository workflow | Trigger | Package operation |
 | --- | --- | --- |
-| [`check-changelog`](../.github/workflows/check-changelog.yml) | PR to `main`, including label changes | Check the exact contribution head with read permissions. |
-| [`dependabot-changelog`](../.github/workflows/dependabot-changelog.yml) | Dependabot PR to `main` | Collect verified metadata, create or retain one deterministic fragment, and validate the current head with status and sticky feedback in the same trusted run. Native test workflows may still require approval. |
-| [`release-changelog`](../.github/workflows/release-changelog.yml) | Push to `main` | Plan from the fresh base and create or update `changelog/version`. |
-| [`publish-changelog`](../.github/workflows/publish-changelog.yml) | Merge of the same-repository managed version PR into `main` | Verify its Bot, signed head and committed consolidation, reconcile the approved tag/release, then call the versioned GHCR build. |
-| [`docker-cli`](../.github/workflows/docker-cli.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
+| [`repository-ci`](../.github/workflows/repository-ci.yml) | PR, push and manual checks | Validate quality, supported runners and installed package behavior. |
+| [`repository-changelog`](../.github/workflows/repository-changelog.yml) | PR to `main`, including label changes | Call the public contribution module with read-only permissions and no write secret. |
+| `repository-changelog` | Trusted PR event | Update exact-head status and sticky feedback; Dependabot additionally authors its deterministic fragment. Native test workflows may still require approval. |
+| `repository-changelog` | Push to `main` | Prepare or update the single `changelog/version` PR. |
+| `repository-changelog` | Merge of the managed version PR into `main` | Verify approved consolidation, publish its tag/release and pass successful publication outputs to the image workflow. |
+| [`repository-image`](../.github/workflows/repository-image.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
 
-The workflows call `./.github/actions/...` from the selected trusted checkout.
-Every Action uses the shared root Dockerfile, whose image includes PHP 8.5,
+The public lifecycle selects the appropriate reusable operation. Each operation
+calls its Action from the selected trusted runtime checkout. The six public
+Docker Actions use the shared root Dockerfile, whose image includes PHP 8.5,
 Git, this package and its locked production dependencies. The container runs
 `bin/changelog github <operation>` directly. The installed package stays at
 `/usr/local`, separate from the mounted consumer checkout. Action outputs

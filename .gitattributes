@@ -2,7 +2,13 @@
 *.php                   text eol=lf
 /bin/changelog          text eol=lf
 
-/.github/               export-ignore
+# Keep the six public Docker Actions and their root build context in GitHub dist archives.
+/.github/workflows      export-ignore
+/.github/ISSUE_TEMPLATE export-ignore
+/.github/FUNDING.yml    export-ignore
+/.github/PULL_REQUEST_TEMPLATE.md export-ignore
+/.github/actions/github-auth export-ignore
+/.github/actions/setup-docker export-ignore
 /.agents/               export-ignore
 /.claude/               export-ignore
 /docs/                  export-ignore
