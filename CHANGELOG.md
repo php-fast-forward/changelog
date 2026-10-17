@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Distribute the repository skill from one real GitHub package, with relative links for other hosts and explicit validation of Windows checkout behavior.
 - Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
 - Adds contextual Dash artwork organizing change fragments into a release history.
+- Update dependencies: `shivammathur/setup-php`. ([#28](https://github.com/php-fast-forward/changelog/pull/28), @dependabot[bot])
 - Runs all GitHub Actions from the self-contained Docker CLI under .github/actions, with direct commands, validated outputs and separate consumer data.
 -
   Makes GitHub automation the README's first adoption path, with a copyable caller
