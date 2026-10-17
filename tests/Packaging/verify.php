@@ -174,6 +174,7 @@ function cli(string $binary, string $consumer, array $environment, array $argume
 /** Checks both installed runtime dependencies and the mirrored package bootstrap. */
 function runtimeGraph(string $installation): void
 {
+    global $packageRoot;
     $data = json_decode(
         file_get_contents($installation . '/vendor/composer/installed.json'),
         true,
@@ -208,12 +209,15 @@ function runtimeGraph(string $installation): void
         'resources/skills' === ($metadata['extra']['skills']['source'] ?? null),
         'The canonical skill donor path is missing.',
     );
-    foreach (['SKILL.md', 'LICENSE'] as $resource) {
-        verify(
-            is_file($package . '/resources/skills/fast-forward-changelog/' . $resource),
-            'The installed package is missing canonical skill resource: ' . $resource,
-        );
-    }
+    verify(
+        isset($metadata['suggest']['llm/skills']),
+        'Optional skill discovery must remain a suggestion.',
+    );
+    verify(
+        snapshot($packageRoot . '/resources/skills/fast-forward-changelog')
+        === snapshot($package . '/resources/skills/fast-forward-changelog'),
+        'The complete installed skill payload differs from the candidate source.',
+    );
     verify(
         str_starts_with(
             file_get_contents($package . '/resources/skills/fast-forward-changelog/SKILL.md'),
@@ -265,8 +269,11 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
             'Development surface leaked into the archive: ' . $excluded,
         );
     }
-    foreach (['SKILL.md', 'LICENSE'] as $file) {
+    $skillFiles = snapshot($packageRoot . '/resources/skills/fast-forward-changelog');
+    verify(count($skillFiles) >= 6, 'The skill requires its license, references and executable example.');
+    foreach (array_keys($skillFiles) as $file) {
         $relative = 'resources/skills/fast-forward-changelog/' . $file;
+        verify(!is_link($packageRoot . '/' . $relative), 'Skill resources must be regular files: ' . $file);
         verify(in_array($relative, $entries, true), 'Canonical skill is absent from the archive: ' . $file);
         $contents = execute(['tar', '-xOf', $archive, $relative], $source, $environment);
         verify(
@@ -653,6 +660,52 @@ PHP;
     fwrite(STDOUT, "Consumer behavior PASS: {$consumer}\n");
 }
 
+/** Executes the shipped example and documented CLI against disposable consumer data, retaining failures. */
+function exerciseSkill(string $installation, string $consumer, array $environment): void
+{
+    mkdir($consumer, 0700, true);
+    $binary = $installation . '/vendor/bin/changelog';
+    $autoload = $installation . '/vendor/autoload.php';
+    $example = $installation . '/vendor/fast-forward/changelog/resources/skills/fast-forward-changelog/examples/contribution.php';
+    $before = snapshot($consumer);
+    execute([PHP_BINARY, $example, $autoload], $consumer, $environment, 2);
+    execute([PHP_BINARY, $example, $autoload, $consumer . '/absent'], $consumer, $environment, 2);
+    verify($before === snapshot($consumer), 'Rejected example input must not create consumer files.');
+    $result = execute([PHP_BINARY, $example, $autoload, $consumer], $installation, $environment);
+    verify("Contribution example PASS\n" === $result['stdout'], 'The installed example did not verify its output.');
+    $after = snapshot($consumer);
+    verify(['.changelog/php-api-example.md'] === array_keys($after), 'The example must create only its fragment.');
+    $collision = execute([PHP_BINARY, $example, $autoload, $consumer], $installation, $environment, 255);
+    verify(str_contains($collision['stderr'], 'existing'), 'The example must expose its filename collision.');
+    verify($after === snapshot($consumer), 'The example collision changed the consumer output.');
+    cli($binary, $consumer, $environment, ['check']);
+    unlink($consumer . '/.changelog/php-api-example.md');
+
+    $git = static fn(array $arguments): array => execute(['git', ...$arguments], $consumer, $environment);
+    $git(['init', '--initial-branch=main']);
+    $git(['commit', '--allow-empty', '--message', 'Synthetic contribution baseline']);
+    $git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+    cli($binary, $consumer, $environment, [
+        'add', 'Preserves meaningful Markdown spaces when parsing fragments.', '--category=fixed',
+    ]);
+    cli($binary, $consumer, $environment, ['check']);
+    $git(['add', '--', '.changelog']);
+    $git(['commit', '--message', 'Synthetic documented contribution']);
+    cli($binary, $consumer, $environment, ['check', '--since=origin/main']);
+    $beforePreview = snapshot($consumer);
+    summary(cli($binary, $consumer, $environment, ['status', '--json', '--source=tags']));
+    verify($beforePreview === snapshot($consumer), 'The documented status command wrote consumer data.');
+
+    $blocked = $consumer . '/blocked';
+    mkdir($blocked, 0700);
+    file_put_contents($blocked . '/.changelog', "Existing application file.\n");
+    $blockedBefore = snapshot($blocked);
+    $failure = execute([PHP_BINARY, $example, $autoload, $blocked], $installation, $environment, 255);
+    verify(str_contains($failure['stderr'], 'Cannot create fragment'), 'Example I/O failure lost its diagnostic.');
+    verify($blockedBefore === snapshot($blocked), 'Example I/O failure modified the existing application file.');
+    fwrite(STDOUT, "Installed skill example and inline contribution commands PASS.\n");
+}
+
 /** Verifies that non-Git consolidation keeps recovery state outside the consumer and cleans it on success. */
 function exerciseNonGit(string $installation, string $consumer, array $environment): void
 {
@@ -724,6 +777,7 @@ try {
     );
     execute(['composer', 'check-platform-reqs', '--no-dev'], $local, $localEnv);
     runtimeGraph($local);
+    exerciseSkill($local, $fixtureRoot . '/skill-consumer', $localEnv);
     exercise($local, $fixtureRoot . '/local-consumer', $localEnv);
     exerciseNonGit($local, $fixtureRoot . '/non-git-consumer', $localEnv);
     $diagnosticAutoload = $fixtureRoot . '/diagnostic-autoload.php';

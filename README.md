@@ -98,10 +98,11 @@ The [CLI guide](docs/adoption.md) also covers `status`, `version`, `notes`,
 ## 🧠 Agent skill
 
 The portable [fast-forward-changelog skill](resources/skills/fast-forward-changelog/SKILL.md)
-teaches agents the same fragment and release workflow. Its source is
+supports the `fast-forward/changelog ^1.0` contract and leads with GitHub automation,
+then local CLI and optional PHP service integration. Its source is
 `resources/skills/fast-forward-changelog`; a consumer installs it as
 `.agents/skills/fast-forward-changelog`. See [installation and host compatibility](docs/skills.md)
-or the optional [Composer skill installer](docs/composer-skills.md).
+or the optional [`llm/skills ^1.15` project synchronization](docs/composer-skills.md).
 Installing instructions does not install the PHP CLI or establish native activation.
 
 ## 🔌 Further integration

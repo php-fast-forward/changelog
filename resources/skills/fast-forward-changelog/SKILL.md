@@ -1,294 +1,171 @@
 ---
 name: fast-forward-changelog
-description: Record independent Fast Forward Changelog fragments, check contributions, inspect release plans, maintain history, and publish an approved commit. Use this package's workflow and verified release facts.
+description: Adopt Fast Forward Changelog GitHub automation, write and validate independent fragments, preview releases, and use its CLI or PHP services. Use for application changelog integration and approved release maintenance.
 license: MIT
-compatibility: Requires an installed fast-forward/changelog CLI on PHP 8.5+, or an existing global changelog command. Git is needed for contribution comparison and releases; authorized GitHub access is needed only for GitHub history, policy checks and publication.
+compatibility: Supports fast-forward/changelog ^1.0 (minimum 1.0.0). GitHub automation requires Linux with Docker, Bash and Git; no consumer PHP installation. Local CLI/PHP integration requires PHP ^8.5 and Composer. GitHub credentials are needed only for authorized remote operations.
 metadata:
   author: php-fast-forward
   source: original
   repository: https://github.com/php-fast-forward/changelog
+  api-baseline: fast-forward/changelog ^1.0 (minimum 1.0.0)
 ---
 
 # Fast Forward Changelog
 
-Produce one independently reviewable change fragment for each coherent change,
-then let the version workflow collect approved fragments into `CHANGELOG.md`.
-Use this procedure when contributing changes, checking a PR, previewing a release,
-backfilling history, formatting the central document, or publishing approved notes.
-Ordinary contribution agents create fragments and check them; they never edit
-`CHANGELOG.md` or apply a version transaction as part of a normal feature PR.
-Do not manufacture release facts, infer impact solely from commit messages, or
-manually maintain a second release history.
+Adopt one GitHub lifecycle that checks contributions, maintains a PR comment,
+authors verified Dependabot fragments and prepares one `changelog/version` PR.
+Ordinary contributions add independent `.changelog/*.md` files. The version PR
+consolidates them into the single `CHANGELOG.md` and deletes only the consumed
+fragments. Keep real release publication disabled during adoption.
 
-## Prerequisites and authority
+Read applicable application instructions and Git status first. Preserve existing
+work, repository policies, workflows, plugin choices and secrets. This skill
+supports the `fast-forward/changelog ^1.0` product contract from `1.0.0`; earlier
+versions are outside it. For CLI/API use, inspect
+`composer show fast-forward/changelog` and `vendor/bin/changelog list --raw`.
+A mismatch calls for compatible documentation or a separately authorized upgrade.
+Installing this skill copies instructions; it does not install the runtime or
+activate a host session.
 
-Read applicable repository instructions and inspect existing Git status before
-changing files. Use the consumer repository as the working directory. The package
-defaults to `.changelog/`, `CHANGELOG.md`, English Keep a Changelog presentation,
-stable tags prefixed `v`, and Git baseline `HEAD`.
+## Start with GitHub automation
 
-When no repository setting is explicit, a canonical GitHub `origin` supplies
-`owner/name`. That inferred identity keeps default `auto` history on local tags
-without GitHub requests. Explicit `--repository` retains `auto` source behavior;
-explicit `--source=tags` or `--source=github` selects that source directly.
+Create `.github/workflows/changelog.yml` in the application, using this caller.
+Its `uses` points to a reviewed immutable implementation commit. Review the
+selected revision and update the pin deliberately when adopting another version.
+GitHub requires reusable implementations directly in `.github/workflows`;
+`resources/workflows/changelog.yml` in the library is a copyable caller.
 
-Use `vendor/bin/changelog` after a project Composer installation; use `changelog`
-when a global Composer installation is already available. Verify the installed
-CLI with `vendor/bin/changelog list --raw` and the relevant command's `--help`.
-The supported workflow commands are `add`, `check`, `status`, `version`, `notes`,
-`backfill`, `format`, and `publish`. If the runtime is missing or older, report that
-prerequisite and obtain existing installation authority before installing it.
-Installing this skill copies instructions only and does not install the PHP CLI.
+```yaml
+name: Changelog
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, closed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  changelog:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      statuses: write
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b02a255a3445b2bea86d090d98961cdfe35e57a
+    with:
+      runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
+      base-branch: main
+      source: tags
+      comment-mode: always
+      prepare-release: true
+      publish: false
+```
 
-There is no initialization command or mandatory local configuration file.
-`add` creates the fragment directory only when needed. Flags provide settings;
-an optional custom PHP template is executable code and must be explicitly trusted.
-Do not use a fragment request as authorization to commit, push, publish a tag,
-create a GitHub Release, or alter user-wide configuration. Honor authority already
-given in the current task without asking for the same permission again.
+Adjust both branch filters and `base-branch` to the release branch. Linux runners
+need Docker, Bash and Git; the caller needs no PHP, Composer, Node installation or
+custom shell script. `CI_LINUX_RUNNER` is optional JSON runner labels. Validate
+runner-group access before using an existing self-hosted runner; this workflow
+does not configure runners or detect billing limits.
 
-## Write a contribution
+Allow Actions to create PRs according to application policy. The default token
+uses each job's narrowed permissions; PR-head checks remain read-only and trusted
+base code handles privileged operations. If an approved App token is needed to
+trigger downstream CI, pass `secrets.token` and set `automation-actor` to that
+App's Bot identity. Use existing secret storage, never embed a token in YAML.
+No checkout of untrusted PR code belongs in a privileged custom job.
 
-1. Read the actual change and describe its observable effect in concise Markdown.
-   Preserve significant spaces, code blocks and links. Do not invent issue/PR
-   numbers, author identity, release dates, security claims or outcomes.
-2. Select a category and effective SemVer impact. An explicit type may be lower
-   than the category default when the reviewed change justifies that choice.
+Open a small pilot PR containing a fragment like the next example. Verify the
+exact head's `Fast Forward Changelog` status, its sticky comment and independent
+application checks. Exercise missing/malformed notes and a Dependabot PR, then
+inspect the managed version PR: only central history and consumed deletions,
+without technical plan files, generated comments or a new `Unreleased` section.
+`prepare-release: false` limits an initial pilot to contribution feedback.
+Require the exact status in branch protection with current-head checks.
+The workflow never merges its version PR; `publish: false` remains in place until
+publication is separately authorized for the approved consolidation.
 
-   | Category | Default type | Meaning |
-   | --- | --- | --- |
-   | `added` | `minor` | New functionality |
-   | `changed` | `minor` | Existing behavior changed |
-   | `deprecated` | `minor` | Behavior scheduled for removal |
-   | `removed` | `major` | Behavior removed |
-   | `fixed` | `patch` | Defect corrected |
-   | `security` | `patch` | Verified security correction |
+## Record and check an ordinary contribution
 
-   `--type` accepts `major`, `minor`, or `patch`; the strongest effective type
-   across all pending fragments determines the next release. A dependency update
-   preserving the public API can use `changed` with explicit `patch`.
-3. Run `add` with a message argument for unattended work:
-
-   ```sh
-   vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-   vendor/bin/changelog add "Updates a dependency while preserving the public API." --category=changed --type=patch --no-interaction
-   vendor/bin/changelog check --no-interaction
-   ```
-
-   `--issue=123`, `--pull-request=456`, and `--author=login` are optional. Create a
-   fragment before its PR exists without placeholders. Login may have a leading
-   `@`; serialization stores the canonical login without it.
-4. Inspect the exact created path and content. Generated names are collision
-   resistant and never overwrite another fragment. An optional explicit
-   `--name=markdown-spaces.md` must be a lowercase dash-separated slug plus `.md`,
-   with no directory, hidden prefix or traversal. An explicit collision fails.
-
-The generated fragment has restricted scalar frontmatter and the original body:
+Choose a unique lowercase dash-separated filename and create, for example,
+`.changelog/preserve-markdown-spaces.md`:
 
 ```markdown
 ---
-category: changed
+category: fixed
 type: patch
 ---
 
-Updates a dependency while preserving the public API.
+Preserves meaningful Markdown spaces when parsing fragments.
 ```
 
-Every generated fragment persists `category` and effective `type`. Optional
-`issue`/`pull_request` are positive integers and `author` is a GitHub login.
-Unknown metadata fails. Legacy `version` is a read compatibility alias migrated
-to `type` on serialization; conflicting `version` and `type` fail. Do not write
-legacy metadata in new fragments. Only direct Markdown fragments are accepted;
-nested, hidden and symbolic candidates fail validation. Direct
-`.changelog/AGENTS.md` is reserved and is never a contribution.
+Read the actual change before choosing its observable description. Preserve
+Markdown bytes and existing notes. Do not invent a release date, issue/PR number,
+author or security outcome. Optional `issue` and `pull_request` are positive
+integers; `author` is an actual GitHub login. Omit unknown identities.
 
-## Commit only on explicit intent
+| Category | Default SemVer impact |
+| --- | --- |
+| `added`, `changed`, `deprecated` | `minor` |
+| `removed` | `major` |
+| `fixed`, `security` | `patch` |
 
-Without commit intent, leave the fragment as a reviewed local file. With existing
-authorization to commit it, use the scoped option:
+Persist both `category` and effective `type`. Explicit `major`, `minor` or `patch`
+can override the category default when justified, such as a compatible dependency
+update using `changed`/`patch`. Unknown metadata, conflicting legacy fields,
+nested/hidden fragments and symlinks fail. `.changelog/AGENTS.md` is reserved.
+
+With an existing local CLI, the equivalent first-use commands are:
 
 ```sh
-vendor/bin/changelog add "Fixes the documented parser behavior." --category=fixed --commit --commit-message="chore: document parser fix" --no-interaction
+vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+vendor/bin/changelog check --no-interaction
+vendor/bin/changelog status --json --source=tags --no-interaction
 ```
 
-The CLI commits only the generated fragment and never pushes. Verify the created
-path and commit afterwards. Do not stage every pending fragment or run `git add .`:
-other contributors' fragments and unrelated staged/unstaged work are independent.
-If the commit fails after creation, retain the reported path, inspect the index,
-repair the specific Git condition and commit that file explicitly. Do not recreate
-the entry or discard unrelated work to recover.
+Inspect the generated path: creation adds exactly one fragment without changing
+central history. Empty local inventory is valid; inherited notes do not satisfy
+a new contribution.
+Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
+history. `status` is read-only. Successful commands exit `0`; invalid arguments
+exit `2`, validation/operational failures exit `1`. Fix all diagnostics and rerun
+the same check. Do not use an editable label as waiver authority.
 
-## Check a pull-request contribution
-
-Local `check` validates the full pending inventory; an empty local inventory is
-valid. Compare a PR to an explicit fetched baseline when contribution evidence
-is required:
+After the intended contribution is committed under existing task authority,
+compare its committed PR changes with a fetched, explicit baseline:
 
 ```sh
 vendor/bin/changelog check --since=origin/main --no-interaction
 ```
 
-An inherited pending fragment does not satisfy a new contribution. A valid added
-fragment, new copy destination, or rename of a non-fragment into the fragment
-directory can qualify. Modification, deletion, type change or rename of an
-inherited fragment fails an ordinary PR. Ordinary PRs must not edit or rename the
-central changelog. Fix every independent diagnostic and rerun the same check.
+This comparison reads the committed baseline-to-`HEAD` diff. An untracked or
+uncommitted fragment is checked by local `check` but cannot satisfy this committed
+contribution check. Without commit authority, leave the reviewed local fragment
+and report that the PR comparison awaits its authorized commit.
 
-Trusted automation may inspect `--pull-request=<number>` together with `--since`
-and `--repository=owner/repo` at the exact inspected PR head. Maintainer waivers
-require verified issuer authority; editable labels or PR text alone do not grant
-it. There is no user-controlled skip flag. A waiver can excuse a missing new
-fragment and cannot suppress malformed metadata or unauthorized modifications.
+## Select additional operations
 
-A verified maintainer maintenance grant can remove an incorrect optional
-`author` line from an inherited fragment. It cannot replace that value or alter
-any other byte, path or regular-file mode; validation must match the committed
-head. This is a narrowly scoped correction, separate from ordinary contributions
-and waivers. Do not invent a contributor identity to fill the removed value.
+- Load [the CLI procedure](references/cli.md) for all local commands, explicit
+  fragment commits, release previews, history/templates, recovery or approved
+  publication. `version --check` uses exit `1` for drift as well as failure;
+  inspect its output. Dry runs establish no publication authority.
+- Load [automation settings](references/automation.md) for monorepos, optional
+  individual workflows, credentials, generated-head checks and pilot acceptance.
+- Load [PHP integration](references/php-api.md) when an application needs injected
+  services. It includes the complete [contribution program](examples/contribution.php)
+  with an explicit consumer autoloader and working directory. PHP services are
+  additional entrypoints. Keep the application's existing command-loader
+  arrangement; use domain services without replacing it.
 
-## Preview and consolidate a release
+Do not treat an ordinary fragment task as authority to consolidate, commit, push,
+merge, install elsewhere, publish tags/releases or change host configuration.
+Retain authority already given in the current task. Publication uses the exact
+approved merge SHA and verified committed transaction evidence; never infer
+release facts from a moving branch, PR text or commit message alone.
 
-An ordinary contributor may inspect the read-only plan with `status`. The version
-workflow owns consolidation and opens its own reviewable version PR. Run the
-following version commands only when explicitly tasked with maintaining that
-workflow or performing a maintainer-authorized release transaction:
-
-```sh
-vendor/bin/changelog status --json --source=tags --no-interaction
-vendor/bin/changelog version --dry-run --source=tags --no-interaction
-vendor/bin/changelog version --check --source=tags --no-interaction
-```
-
-`status` prints the machine plan without writes. `--dry-run` describes changes
-without writes. `--check` returns exit 1 when managed files would change and exit
-0 when already current. Normal success is exit 0; invalid arguments are exit 2
-and operational failures are exit 1. `version --check` therefore uses exit 1 for
-both drift and failure; inspect its machine output or diagnostic to distinguish.
-
-Review current/next version, impact, consumed paths, exact notes and affected
-files. Stable tag build metadata may remain in the baseline; the next resolved
-version is numeric. With existing consolidation authority, run the same settings
-without `--dry-run`/`--check`:
-
-```sh
-vendor/bin/changelog version --source=tags --no-interaction
-```
-
-For a Git-backed release, the central document, complete pending fragment set and
-accepted byte hashes must match the selected base before any journal write.
-Keep intended release inputs committed at that base. Unrelated dirty files and
-staged work remain allowed; use read-only status and fragment previews while
-preparing an uncommitted contribution. A selected custom PHP template must also
-match its regular base blob before execution and application.
-
-This writes a recovery journal outside the versioned tree, updates the central
-history and removes exactly the validated fragments. It deletes the journal
-when application finishes. Review only `CHANGELOG.md` and the consumed-fragment
-deletions in the version PR: no release-plan file is added to `.changelog/`.
-New history is readable Markdown without generated metadata comments. If
-interrupted, preserve the local journal and remaining fragments and retry the
-same settings. Changed inputs block stale recovery; inspect the diagnostic
-rather than editing the journal or deleting newer inputs to force a retry.
-The machine summary includes `commit_message` with the same scalar trailers
-used by version automation. If explicitly tasked with committing a local
-consolidation for later publication, commit only its `affected_files` with that
-exact message; never invent the hashes or stage unrelated work.
-Existing `Unreleased` sections are legacy pending content: version consolidation
-moves their descriptions into the new concrete version and removes the pending
-heading. Matching categories are combined without rewriting description bytes.
-Backfill and format retain pending content; new contributions belong exclusively
-to independent `.changelog/` fragments.
-
-## Historical notes and presentation
-
-Backfill and format are explicit maintainer maintenance operations, normally
-performed by the history workflow in its own reviewable PR. An ordinary change
-request does not authorize those operations. Choose history evidence explicitly
-when needed. `--source=tags` uses actual stable
-Git tags without fetching GitHub notes. `--source=github --repository=owner/repo`
-uses GitHub published notes for versions established by Git tags. With an explicit
-repository, `auto` uses available configured sources; an inferred repository keeps
-`auto` on local tags. Missing historical notes get an explicit localized
-message. Unknown dates remain unknown; neither commit time nor today's date is
-invented as a historical publication date. Existing sections retain their notes.
-
-```sh
-vendor/bin/changelog backfill --dry-run --source=tags --no-interaction
-vendor/bin/changelog backfill --source=tags --no-interaction
-vendor/bin/changelog format --dry-run --locale=pt-BR --source=tags --no-interaction
-vendor/bin/changelog format --locale=pt-BR --source=tags --no-interaction
-vendor/bin/changelog notes 1.2.3 --no-interaction
-```
-
-Backfill and format preserve all pending fragments. Maintenance PRs commit only
-the central changelog. Recovery journals remain outside the versioned tree and
-are removed on success.
-Formatting changes recognized
-structural headings and keeps prose, fenced code, notes, dates and references;
-it does not translate descriptions. `notes` reads the exact maintained body,
-without the outer version heading. `--output=release-notes.md` writes that body
-only when an output file is requested. Without a version argument, notes selects
-the highest stable SemVer maintained in the document, independently of section
-order or dates. Unreleased and prerelease sections do not become the default;
-explicit versions may still select prereleases. Build metadata breaks equal-core
-version ties lexically. An actual reachable stable Git baseline is used only
-when no stable maintained section exists.
-
-Defaults need no file. For explicitly requested presentation customization,
-create a trusted project `changelog-template.php` containing:
-
-```php
-<?php
-return [
-    'release_heading' => '## Release {version}',
-    'release_heading_dated' => '## Release {version} on {date}',
-    'category_headings' => ['fixed' => '### Corrections'],
-];
-```
-
-In Git, the selected template must already be a reviewed regular file in the
-selected base and match its exact working bytes before execution. Outside Git,
-an explicitly trusted local PHP template remains supported. Then preview
-`vendor/bin/changelog format --template=changelog-template.php
---dry-run --no-interaction`. Category keys remain the six canonical identifiers;
-release headings require level two and `{version}`, dated headings also `{date}`,
-and category headings require level three. Unknown settings fail. Custom PHP
-executes code: use an approved tracked template in privileged workflows.
-
-## Publish the approved consolidation
-
-Publication requires existing authority and the exact approved merge commit,
-not a moving branch or an editable PR-body assertion. Keep GitHub credentials in
-the caller's normal authorized secret mechanism, never in fragments or this skill.
-Preview with the full approved SHA:
-
-```sh
-vendor/bin/changelog publish --repository=owner/repo --target-sha="$APPROVED_SHA" --dry-run --no-interaction
-```
-
-Set `APPROVED_SHA` to the full approved merge SHA from the task's verified evidence.
-With publication authority for that exact result, repeat without `--dry-run`.
-The CLI resolves
-`--target-sha` (default checked-out HEAD); supply the approved full SHA explicitly
-to avoid accidentally selecting later commits. Publication reconstructs the
-consolidation from scalar commit trailers, source-base fragment blobs and the
-approved central history. It checks ancestry, option/output fingerprints,
-complete fragment removal, recalculated version/impact and exact central notes.
-Historical imports use the approved committed sections during publication;
-previous GitHub notes are not fetched again to reconstruct the approved history.
-A merge must resolve consistent transaction evidence; a squash must retain the
-trailers. Missing or ambiguous evidence fails. No tracked plan file is required.
-
-Existing conflicting tags are never moved; divergent release notes are never
-updated. A matching tag without its release or an uncertain create response is
-recovered through verified remote reads. Repeat the same SHA to finish a partial
-publication. Maintenance consolidations create no tag or release. Built-in presentation
-can target an older approved SHA; custom PHP additionally requires that exact
-checked-out HEAD and unchanged tracked template bytes.
-
-## Finish with evidence
-
-Report created paths, validations and exact Git/PR/release identities actually
-observed. Distinguish local implementation, committed/pushed changes, merged PR,
-installed runtime/skill, and published release. Do not claim native agent loading
-or release publication from a structural validator, file copy or dry run.
+Report changed paths, executed checks and exact observed Git/PR/release identities.
+Keep file distribution, installation, native discovery, session activation and
+successful model task execution as distinct observations.
