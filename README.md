@@ -48,7 +48,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@v0.1.0
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@v0
 
     with:
       base-branch: main
@@ -57,6 +57,9 @@ jobs:
       prepare-release: true
       publish: false
 ```
+
+The `v0` branch follows published `0.x` releases, including potentially breaking
+minor updates. Select a full release tag or SHA when you need a fixed revision.
 
 Each contribution PR adds a fragment. This workflow checks it, updates one PR
 comment and creates notes for Dependabot updates. After contributions merge,

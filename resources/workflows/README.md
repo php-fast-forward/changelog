@@ -6,9 +6,9 @@ GitHub does not execute the example while it remains in `resources/workflows`.
 
 Before enabling it:
 
-1. The example selects release `v0.1.0`. Review the workflow and release notes
-   when choosing another version; use a published release or a reviewed full
-   commit, rather than a temporary PR branch.
+1. The example follows published `0.x` releases through the `v0` branch.
+   Minor updates can change contracts. Select a complete release tag or reviewed
+   full commit when you need a fixed implementation.
 2. Adjust both event branch filters and `base-branch` if the consumer's release
    branch is not `main`.
 3. Keep `publish: false` during validation. The example checks contributions,

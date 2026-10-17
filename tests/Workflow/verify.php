@@ -283,8 +283,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    11 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and four repository workflows must remain distinct.',
+    12 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and five repository workflows must remain distinct.',
 );
 $assertions += 6;
 
@@ -932,6 +932,77 @@ try {
 } finally {
     $filesystem->remove($directory);
 }
+
+$channels = Yaml::parseFile($root . '/.github/workflows/repository-release-channels.yml');
+$channelJob = $channels['jobs']['channel'];
+$channelCall = $repository['jobs']['channels'];
+verifyWorkflow(
+    ['workflow_call', 'workflow_dispatch'] === array_keys($channels['on'])
+        && 'ubuntu-latest' === $channelJob['runs-on']
+        && ['contents' => 'write'] === $channelJob['permissions']
+        && 'release-channels-${{ github.repository }}' === $channels['concurrency']['group']
+        && false === $channels['concurrency']['cancel-in-progress']
+        && 'changelog' === $channelCall['needs']
+        && $repository['jobs']['image']['if'] === $channelCall['if']
+        && './.github/workflows/repository-release-channels.yml' === $channelCall['uses']
+        && '${{ needs.changelog.outputs.published-tag }}' === $channelCall['with']['tag']
+        && '${{ needs.changelog.outputs.published-sha }}' === $channelCall['with']['expected-sha'],
+    'Major channels must be a separate verified publication call with manual recovery and a non-cancelling lock.',
+);
+verifyWorkflow(
+    'php .github/update-release-channels.php "$FF_REPOSITORY" "$FF_TAG" "$FF_EXPECTED_SHA"'
+        === workflowStep($channelJob, 'Advance The Verified Released Major Branch')['run']
+        && false === workflowStep(
+            $channelJob,
+            'Check Out The Trusted Workflow Revision',
+        )['with']['persist-credentials'],
+    'Channels must use the PHP entrypoint without persistent Git credentials.',
+);
+$channelGuard = workflowStep($channelJob, 'Require A Trusted Repository Workflow')['run'];
+$channelDirectory = sys_get_temp_dir() . '/changelog-channel-guard-' . bin2hex(random_bytes(6));
+$filesystem->mkdir($channelDirectory);
+try {
+    foreach ([
+        ['workflow_dispatch', 'refs/heads/main', 'php-fast-forward/changelog', 0],
+        ['workflow_dispatch', 'refs/heads/untrusted', 'php-fast-forward/changelog', 1],
+        ['pull_request', 'refs/heads/main', 'php-fast-forward/changelog', 1],
+        ['workflow_dispatch', 'refs/heads/main', 'foreign/repository', 1],
+    ] as [$event, $ref, $target, $expected]) {
+        workflowGuard($channelGuard, $channelDirectory, [
+            'FF_EVENT' => $event, 'FF_REF' => $ref, 'FF_REPOSITORY' => $target,
+            'FF_RUNTIME_REPOSITORY' => 'php-fast-forward/changelog', 'FF_RUNTIME_SHA' => str_repeat('c', 40),
+            'FF_ACTION' => '', 'FF_MERGED' => '', 'FF_HEAD_REPOSITORY' => '',
+            'FF_HEAD_BRANCH' => '', 'FF_BASE_BRANCH' => '', 'FF_MERGE_SHA' => '', 'FF_EXPECTED_SHA' => '',
+        ], $expected);
+        ++$assertions;
+    }
+    $mergedChannel = [
+        'FF_EVENT' => 'pull_request_target', 'FF_REF' => 'refs/heads/main',
+        'FF_REPOSITORY' => 'php-fast-forward/changelog', 'FF_ACTION' => 'closed', 'FF_MERGED' => 'true',
+        'FF_RUNTIME_REPOSITORY' => 'php-fast-forward/changelog', 'FF_RUNTIME_SHA' => str_repeat('c', 40),
+        'FF_HEAD_REPOSITORY' => 'php-fast-forward/changelog', 'FF_HEAD_BRANCH' => 'changelog/version',
+        'FF_BASE_BRANCH' => 'main', 'FF_MERGE_SHA' => str_repeat('a', 40), 'FF_EXPECTED_SHA' => str_repeat('a', 40),
+    ];
+    foreach ([[], ['FF_ACTION' => 'opened'], ['FF_MERGED' => 'false'],
+        ['FF_HEAD_REPOSITORY' => 'foreign/repository'], ['FF_HEAD_BRANCH' => 'feature'],
+        ['FF_BASE_BRANCH' => 'other'], ['FF_EXPECTED_SHA' => str_repeat('b', 40)],
+        ['FF_RUNTIME_REPOSITORY' => 'foreign/repository'], ['FF_RUNTIME_SHA' => 'main']] as $overrides) {
+        workflowGuard($channelGuard, $channelDirectory, [...$mergedChannel, ...$overrides], [] === $overrides ? 0 : 1);
+        ++$assertions;
+    }
+} finally {
+    $filesystem->remove($channelDirectory);
+}
+$channelFixtures = new Process([PHP_BINARY, $root . '/vendor/bin/phpunit', '--no-configuration',
+    '--bootstrap', $root . '/vendor/autoload.php', '--no-coverage',
+    '--do-not-record-test-run-history', '--do-not-cache-test-index',
+    $root . '/tests/Workflow/ReleaseChannelUpdaterTest.php'], $root, [
+        'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'GH_HOST' => false,
+    ]);
+$channelFixtures->setTimeout(120);
+$channelFixtures->mustRun();
+echo $channelFixtures->getOutput();
+$assertions += 2;
 
 echo json_encode(['status' => 'passed', 'workflow_cases' => $assertions, 'network_requests' => 0,
     'publication' => false, 'consumer_installation' => false], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;

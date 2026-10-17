@@ -44,6 +44,7 @@ contracts. These names distinguish ownership without changing consumer paths.
 | [`repository-ci.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-ci.yml) | PR, push and manual checks for this package: quality, tests, coverage and installed-runtime fixtures. |
 | [`repository-documentation.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-documentation.yml) | Read-only PR, push and manual builds of Markdown guides and the phpDocumentor API; uploads a site artifact without publishing Pages or Wiki. |
 | [`repository-changelog.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-changelog.yml) | One caller for this package's contribution checks, trusted PR feedback, Dependabot fragments, version preparation and approved-merge publication. |
+| [`repository-release-channels.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-release-channels.yml) | Advance a major branch only to a verified published release; supports explicit recovery with tag and SHA. |
 
 [`repository-image.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) also uses `workflow_call`,
 but is an internal release step for this product's GHCR image. Its inputs bind
@@ -54,14 +55,16 @@ and [the Docker runtime](docker.md).
 The internal caller separates read-only PR checks from trusted write events.
 Its `Check Contribution / Check Changelog` status is a consumer protection
 setting; skipped jobs do not remove the caller's permission requirements.
-Only successful publication outputs can start the internal image job, and its
-published SHA must match the approved merged event. Preparation alone does not publish an image.
+Only successful publication outputs can start the internal image and release-channel jobs.
+Their published SHA must match the approved merged event; preparation alone starts neither.
 
 Version and publication retain their shared repository/base lock inside the
 public operations. Dependabot and feedback have PR-specific locks; the image
 has a tag-specific lock and rechecks its exact source. The caller adds no outer
 lock with a nested operation's group: that could make a job wait for its own
 workflow. Only the read-only check retains the caller's cancellation group.
+Release channels have a separate repository lock and an atomic old-SHA condition.
+See [released branches and recovery](self-changelog.md).
 
 ## Parallel maintenance lines
 
