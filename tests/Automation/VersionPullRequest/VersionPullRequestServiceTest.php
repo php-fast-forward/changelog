@@ -16,11 +16,15 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServic
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
+use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
 use FastForward\Changelog\Release\ReleaseReceipt;
+use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Tests\Automation\Policy\PolicyFixtureTrait;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -661,6 +665,10 @@ final class VersionPullRequestServiceTest extends TestCase
             $results,
             $exceptions,
             $inputEvidence,
+            $this->createStub(HistoryCodecInterface::class),
+            $this->createStub(TemplateResolverInterface::class),
+            $this->createStub(HistoryReleaseFactoryInterface::class),
+            $this->createStub(ReleasePlanFactoryInterface::class),
         )->synchronize(
             $options,
             $input,

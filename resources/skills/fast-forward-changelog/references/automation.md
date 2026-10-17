@@ -13,6 +13,11 @@ The facade accepts `base-branch`, `fragment-directory`, `changelog-file`,
 `locale`, `tag-prefix`, `source`, `managed-branch`, `automation-actor`,
 `waiver-label` and `maintenance-label`. Preserve consistent values across
 operations. `base-branch` otherwise follows the repository default branch.
+Jobs default to `ubuntu-latest`; the optional `runs-on` input accepts a JSON
+array of Linux runner labels. Docker, Bash and Git are required. Runner selection
+and access belong to the application. The library's
+[complete optional-input table](https://github.com/php-fast-forward/changelog/blob/main/docs/reusable-lifecycle.md#optional-settings-and-composition)
+lists the defaults, including `prepare-release: true` and `publish: false`.
 For monorepos select paths such as `packages/example/.changelog` and
 `packages/example/CHANGELOG.md`, relative to the Git repository root.
 A local CLI may use a package cwd; GitHub API paths remain repository-rooted.

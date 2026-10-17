@@ -45,10 +45,9 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b02a255a3445b2bea86d090d98961cdfe35e57a
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b58dd9eacef88cc96707d169da233a8c7011904
 
     with:
-      runs-on: ${{ vars.CI_LINUX_RUNNER || '["ubuntu-latest"]' }}
       base-branch: main
       source: tags
       comment-mode: always
@@ -59,13 +58,13 @@ jobs:
 This single caller checks contributions, updates one sticky PR comment, creates
 verified Dependabot fragments and prepares the `changelog/version` PR. It uses
 Docker, Bash and Git on Linux; no consumer PHP or Composer installation is needed.
-`CI_LINUX_RUNNER` optionally selects existing self-hosted runner labels as JSON.
+Jobs use `ubuntu-latest` by default. The optional `runs-on` input selects other Linux runner labels.
 Adjust both event filters and `base-branch` when your release branch is not `main`.
 
 The example pins a reviewed implementation commit and keeps publication disabled.
 Each reusable job narrows the caller's permissions; PR-head checks are read-only.
 The workflow never merges its version PR. See [setup and token permissions](resources/workflows/README.md),
-[lifecycle settings](docs/reusable-lifecycle.md) and the [automation map](docs/automation-map.md).
+[all optional inputs and defaults](docs/reusable-lifecycle.md#optional-settings-and-composition) and the [automation map](docs/automation-map.md).
 
 ## 🛠️ CLI
 
