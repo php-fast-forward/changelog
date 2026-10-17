@@ -70,7 +70,11 @@ See the [credential and permission guide](https://github.com/php-fast-forward/ch
 
 Changing the configured Bot does not transfer an existing PR's creator. Keep
 old commits, prepare and validate the replacement on a distinct managed branch,
-then close the old PR without merging it. Do not refresh a generated version
+then close the old PR without merging it.
+Existing sticky comments are also author-specific: after changing Bots, review
+and retire old feedback explicitly instead of expecting the new identity to
+update it. Subsequent runs reuse the App's own sticky.
+Do not refresh a generated version
 with a generic human merge of its base: version preparation must recreate the
 validated signed transaction. A successful local fixture does not prove
 consumer scheduling, native authentication or branch protection.

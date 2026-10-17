@@ -45,7 +45,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b58dd9eacef88cc96707d169da233a8c7011904
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@99c46107d6de2f484095d3703afcc89e42f4b1fc
 
     with:
       base-branch: main

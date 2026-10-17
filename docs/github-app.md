@@ -80,6 +80,13 @@ replacement on a distinct configured `managed-branch`, validate its exact
 head, scope and CI, and then close the old PR without merging it. Preserve one
 active preparation line after the transition.
 
+Existing sticky comments also belong to their original Bot. The pinned comment
+action searches by that identity, so an App's first feedback on an existing
+ordinary PR can create a new sticky instead of updating the old Bot's comment.
+With `on-failure`, an old failure comment can remain after recovery. Review and
+retire that old comment explicitly during migration; subsequent runs use the
+App's own sticky. Do not infer a changed check result from the old comment.
+
 Do not use GitHub's generic Update branch button to refresh the generated
 transaction. Run the version preparation workflow, which replans from the live
 base and writes a signed Bot commit with the validated output and evidence.
