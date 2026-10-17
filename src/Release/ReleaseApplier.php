@@ -19,8 +19,9 @@ namespace FastForward\Changelog\Release;
 use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
+use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\Lock\LockFactory;
 use Throwable;
 
@@ -30,14 +31,13 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
     /**
      * Injects all I/O, locking, evidence and diagnostic boundaries without consulting host state.
      *
-     * @param GitRepositoryInterface                 $git        Observes repository identities, committed bytes and scoped operations through an injected boundary.
-     * @param ChangesetStoreInterface                $fragments  Injected fragment store sharing the directory-scoped transaction lock and exact managed-path policy.
-     * @param LockFactory                            $locks      Builds cooperative directory locks shared by fragment writers and managed release operations.
-     * @param ManagedFileStoreInterface              $files      Reads and writes guarded managed bytes through an injected filesystem boundary.
-     * @param ReceiptCodecInterface                  $codec      Validates and serializes deterministic private recovery evidence, including its content-bound identity.
-     * @param ReleaseExceptionFactoryInterface       $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
-     * @param ReleaseInputEvidenceValidatorInterface $inputs     Verifies planned or selected-template bytes against the approved committed source evidence.
-     * @param ReleaseJournalPathResolverInterface    $journals   Selects private recovery storage scoped to the consumer project and managed paths.
+     * @param GitRepositoryInterface                 $git       Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     * @param ChangesetStoreInterface                $fragments Injected fragment store sharing the directory-scoped transaction lock and exact managed-path policy.
+     * @param LockFactory                            $locks     Builds cooperative directory locks shared by fragment writers and managed release operations.
+     * @param ManagedFileStoreInterface              $files     Reads and writes guarded managed bytes through an injected filesystem boundary.
+     * @param ReceiptCodecInterface                  $codec     Validates and serializes deterministic private recovery evidence, including its content-bound identity.
+     * @param ReleaseInputEvidenceValidatorInterface $inputs    Verifies planned or selected-template bytes against the approved committed source evidence.
+     * @param ReleaseJournalPathResolverInterface    $journals  Selects private recovery storage scoped to the consumer project and managed paths.
      */
     public function __construct(
         private GitRepositoryInterface $git,
@@ -45,7 +45,6 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         private LockFactory $locks,
         private ManagedFileStoreInterface $files,
         private ReceiptCodecInterface $codec,
-        private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputs,
         private ReleaseJournalPathResolverInterface $journals,
     ) {}
@@ -67,7 +66,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         $directory = $this->directory($plan);
         $lock = $this->locks->createLock($this->fragments->lockResource($directory));
         if (! $lock->acquire(true)) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Cannot acquire release lock for ' . $directory . '. No managed files were changed.',
             );
         }
@@ -94,8 +93,8 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
 
             return true;
         } catch (Throwable $error) {
-            throw $this->exceptions->failure('Cannot apply release ' . $plan->id . ': ' . $error->getMessage()
-                . ' Retain the changelog and remaining fragments; retry this exact approved plan or its Git-internal recovery journal.', $error);
+            throw new RuntimeException('Cannot apply release ' . $plan->id . ': ' . $error->getMessage()
+                . ' Retain the changelog and remaining fragments; retry this exact approved plan or its Git-internal recovery journal.', previous: $error);
         } finally {
             $lock->release();
         }
@@ -161,14 +160,14 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
             )))
             || $plan->changelogPath !== $root . '/' . $options->changelogFile
             || $plan->receiptPath !== $this->journals->resolve($options)) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Release plan does not match its approved receipt evidence or managed paths.',
             );
         }
         foreach (['fragment_directory' => 'fragmentDirectory', 'changelog_file' => 'changelogFile', 'locale' => 'locale',
             'template' => 'template', 'tag_prefix' => 'tagPrefix', 'repository' => 'repository'] as $key => $property) {
             if ($data[$key] !== $options->$property) {
-                throw $this->exceptions->invalid(
+                throw new InvalidArgumentException(
                     'Release plan setting ' . $key . ' differs from its approved receipt.',
                 );
             }
@@ -193,7 +192,7 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
                 ? $this->git->isAncestor($plan->options->workingDirectory, $plan->baseSha, 'HEAD')
                 : $this->git->resolveRef($plan->options->workingDirectory, 'HEAD') === $plan->baseSha;
             if (! $validBase) {
-                throw $this->exceptions->failure(
+                throw new RuntimeException(
                     'Repository HEAD no longer matches or descends from the approved release base.',
                 );
             }
@@ -205,10 +204,10 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         $beforeCentral = $central === $plan->originalChangelog
             && $data['before_changelog_sha256'] === (null === $central ? null : hash('sha256', $central));
         if (! $afterCentral && ! $beforeCentral) {
-            throw $this->exceptions->failure('Central changelog changed since approval: ' . $plan->changelogPath);
+            throw new RuntimeException('Central changelog changed since approval: ' . $plan->changelogPath);
         }
         if (null !== $receipt && ! $afterReceipt && $receipt !== $plan->originalReceipt) {
-            throw $this->exceptions->failure('Release receipt changed since approval: ' . $plan->receiptPath);
+            throw new RuntimeException('Release receipt changed since approval: ' . $plan->receiptPath);
         }
         if (null === $plan->nextVersion && [] === $plan->consumed) {
             return ['central' => $central, 'receipt' => $receipt, 'remaining' => [],
@@ -216,22 +215,22 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         }
         $paths = $this->fragments->paths($this->directory($plan));
         if (null === $paths) {
-            throw $this->exceptions->failure('Unsafe fragment directory: ' . $this->directory($plan));
+            throw new RuntimeException('Unsafe fragment directory: ' . $this->directory($plan));
         }
         $paths = array_values(array_unique($paths));
         sort($paths, SORT_STRING);
         $approved = array_keys($plan->consumed);
         sort($approved, SORT_STRING);
         if ([] !== array_diff($paths, $approved)) {
-            throw $this->exceptions->failure('New or unapproved fragments appeared after release planning.');
+            throw new RuntimeException('New or unapproved fragments appeared after release planning.');
         }
         if (! $afterCentral && $paths !== $approved) {
-            throw $this->exceptions->failure('Approved fragments are missing before the changelog is durable.');
+            throw new RuntimeException('Approved fragments are missing before the changelog is durable.');
         }
         foreach ($paths as $path) {
             $contents = $this->fragments->read($path);
             if (null === $contents || ! hash_equals($plan->consumed[$path], hash('sha256', $contents))) {
-                throw $this->exceptions->failure('Approved fragment is unsafe or changed: ' . $path);
+                throw new RuntimeException('Approved fragment is unsafe or changed: ' . $path);
             }
         }
 

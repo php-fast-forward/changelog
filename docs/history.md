@@ -47,8 +47,8 @@ For `owner/repo` with the default `v` tag prefix:
 [1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0
 ```
 
-Existing definitions remain authoritative wherever they occur outside fenced
-or indented code. Their URLs, optional titles, casing, whitespace and line
+Existing active Markdown definitions remain authoritative; examples inside code
+or HTML comments do not define links. Their URLs, optional titles, casing, whitespace and line
 endings are preserved byte for byte. Retained headings using `[v1.0.0]` or
 `[V1.0.0]` keep that reference label; new headings use their canonical version.
 The complete configured tag is URL-encoded, including namespace slashes or build
@@ -62,6 +62,37 @@ release has been published; publication remains a separate approved operation.
 The pure `HistoryReferenceBuilder` owns this completion, while the codec keeps
 parsing, rendering and exact note extraction. Publication reconstructs the same
 deterministic footer when checking the approved central bytes.
+
+## Entry references and attribution
+
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) calls for readable
+changes, grouped categories and linkable versions and sections. It does not
+require a pull-request reference, prescribe its position or parentheses, or
+require author names. The following is this library's presentation convention,
+compatible with those principles rather than an additional rule of the standard:
+
+```markdown
+- Adds missing release comparison links. ([#39](https://github.com/php-fast-forward/changelog/pull/39))
+```
+
+The description comes first; optional issue/PR references follow in parentheses.
+The renderer emits inline links when the repository is known and plain numeric
+references otherwise. Existing reference-style links such as `([#39])` with a
+matching footer definition have the same visible result and remain unchanged.
+The PR is the primary delivery reference; an explicitly supplied issue is
+additional problem context. The visible label stays short rather than exposing
+the complete URL. When no PR or explicitly supplied issue is known, retain only
+the description. Do not infer a commit reference or generate commit links in the
+footer. Existing historical links remain preserved during consolidation.
+Multiline descriptions retain their paragraphs, with references on the final
+indented paragraph of the same list item.
+
+Ordinary fragments omit `author`. The renderer adds an author only when that
+optional metadata was explicitly supplied; there is no separate global author
+visibility flag. Existing historical attributions are preserved rather than
+removed by release preparation. Contribution checks require neither author
+nor PR metadata, and a missing PR number does not require a later edit or commit.
+Automatic PR-origin discovery is not part of the current renderer contract.
 
 ## Plain Markdown boundaries
 

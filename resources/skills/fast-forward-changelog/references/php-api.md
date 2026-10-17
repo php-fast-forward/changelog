@@ -34,13 +34,12 @@ replacing its bytes. An invalid/missing target or autoloader exits `2`; service
 or validation failures remain nonzero with diagnostics.
 
 The complete example omits PR metadata because its disposable contribution has
-no actual PR. In an application with a verified contribution PR, prefer passing
+no actual PR. When the contribution's origin is already known, optionally pass
 its positive number through `FragmentWriterInterface::add()`'s named
 `pullRequest` argument. Verify repository, head branch and exact head SHA before
-copying the number from the PR's canonical URL or trusted metadata. If the PR
-is opened after authoring, add `pull_request: <number>` to that same newly added
-fragment; preserve its remaining bytes and avoid a duplicate note. Unknown
-metadata stays absent.
+copying the number from the PR's canonical URL or trusted metadata. Unknown
+metadata stays absent. Contribution checks do not require a PR number, and
+opening a PR does not require a follow-up fragment edit or commit.
 
 For an existing application, expose only the needed domain services through its
 existing factories. The provider also declares Symfony `CommandLoaderInterface`:

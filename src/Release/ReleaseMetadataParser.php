@@ -14,21 +14,11 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Release;
 
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactory;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use RuntimeException;
 
 /** Parses only complete transaction trailers; their presence never grants publication authority. */
 final readonly class ReleaseMetadataParser
 {
-    /**
-     * Retains the existing controlled metadata failure contract without observing external state.
-     *
-     * @param ReleaseExceptionFactoryInterface $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
-     */
-    public function __construct(
-        private ReleaseExceptionFactoryInterface $exceptions = new ReleaseExceptionFactory(),
-    ) {}
-
     /**
      * Rejects malformed, duplicate and partial trailers; unrelated prose contains no transaction.
      *
@@ -54,9 +44,7 @@ final readonly class ReleaseMetadataParser
                     $line,
                     $match,
                 )) {
-                    throw $this->exceptions->failure(
-                        'Release commit metadata contains malformed or duplicate trailers.',
-                    );
+                    throw new RuntimeException('Release commit metadata contains malformed or duplicate trailers.');
                 }
                 $data[$field] = $match[1];
             }
@@ -65,7 +53,7 @@ final readonly class ReleaseMetadataParser
             return null;
         }
         if (count($data) !== count($fields)) {
-            throw $this->exceptions->failure('Release commit metadata is incomplete.');
+            throw new RuntimeException('Release commit metadata is incomplete.');
         }
 
         return array_replace(array_fill_keys(array_values($fields), ''), $data);

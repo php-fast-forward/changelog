@@ -16,8 +16,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Version;
 
-use FastForward\Changelog\Version\Factory\VersionResolutionFactoryInterface;
-
 /**
  * Applies the greatest fragment impact to a strict semantic-version core.
  */
@@ -26,12 +24,10 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
     /**
      * Composes impact aggregation and result construction boundaries.
      *
-     * @param VersionImpactResolverInterface    $impactResolver Aggregates persisted fragment impacts without inferring them again from categories.
-     * @param VersionResolutionFactoryInterface $resultFactory  Constructs successful or diagnostic-only version results without external observation.
+     * @param VersionImpactResolverInterface $impactResolver Aggregates persisted fragment impacts without inferring them again from categories.
      */
     public function __construct(
         private VersionImpactResolverInterface $impactResolver,
-        private VersionResolutionFactoryInterface $resultFactory,
     ) {}
 
     /**
@@ -51,7 +47,7 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
             . '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/';
 
         if (1 !== preg_match($pattern, $currentVersion, $matches)) {
-            return $this->resultFactory->invalid([
+            return new VersionResolution(null, null, [
                 sprintf('Current version "%s" is not a supported semantic version.', $currentVersion),
             ]);
         }
@@ -59,7 +55,7 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
         $impact = $this->impactResolver->resolve($changesets);
 
         if (! $impact instanceof VersionImpact) {
-            return $this->resultFactory->invalid(['At least one changeset is required to resolve a version.']);
+            return new VersionResolution(null, null, ['At least one changeset is required to resolve a version.']);
         }
 
         $major = $matches['major'];
@@ -71,7 +67,7 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
             VersionImpact::Patch => sprintf('%s.%s.%s', $major, $minor, $this->increment($patch)),
         };
 
-        return $this->resultFactory->resolved($nextVersion, $impact);
+        return new VersionResolution($nextVersion, $impact, []);
     }
 
     /**

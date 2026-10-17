@@ -12,8 +12,11 @@ Use PHP 8.5, Composer and GnuPG. Install the locked development dependencies
 from the repository root:
 
 ```sh
-composer install --no-interaction --prefer-dist --no-scripts
-composer docs:build
+documentation_composer_home=$(mktemp -d)
+
+COMPOSER_HOME="$documentation_composer_home" composer install \
+  --no-interaction --prefer-dist --no-scripts
+composer --no-plugins docs:build
 ```
 
 The project's Composer configuration permits only `phpdocumentor/shim` as a
@@ -22,12 +25,19 @@ and verifies its signature with GnuPG. The PHAR isolates phpDocumentor's Symfony
 dependencies from the library's Symfony 8 runtime. The Fast Forward template is
 a separate development dependency. Neither tool is required by consumers.
 
+The temporary Composer home keeps global plugins outside tool installation.
+Rendering then disables plugins: the already verified PHAR needs no Composer
+plugin at execution time. This prevents an unrelated global plugin from loading
+against the project's development dependencies before the documentation command
+starts; it does not disable the signature verification needed during installation.
+
 An installation with `--no-plugins` intentionally omits the PHAR. If development
 dependencies were installed that way, prepare that one tool explicitly:
 
 ```sh
-composer reinstall phpdocumentor/shim --no-interaction --prefer-dist --no-scripts
-composer docs:build
+COMPOSER_HOME="$documentation_composer_home" composer reinstall phpdocumentor/shim \
+  --no-interaction --prefer-dist --no-scripts
+composer --no-plugins docs:build
 ```
 
 The generated site is `.build/docs/index.html`; generated PHP source pages,
@@ -63,8 +73,8 @@ class and method reference alongside the guides.
 ## CI And Publication
 
 `repository-documentation.yml` installs the locked development graph, executes
-`composer docs:build`, checks that the homepage and API were generated, and
-uploads the complete site as a workflow artifact. PR builds have read-only
+`composer --no-plugins docs:build`, checks that the homepage and API were generated,
+and uploads the complete site as a workflow artifact. PR builds have read-only
 repository permissions and do not receive publication credentials.
 
 The workflow builds on pull requests, pushes to `main` and manual dispatches.

@@ -250,7 +250,10 @@ verifyWorkflow(
         && ! isset($documentation['permissions'])
         && ! isset($documentation['secrets'])
         && false === workflowStep($documentation, 'Check Out Repository')['with']['persist-credentials']
-        && 'composer docs:build' === workflowStep($documentation, 'Build Guides And PHP API Reference')['run'],
+        && 'composer --no-plugins docs:build' === workflowStep(
+            $documentation,
+            'Build Guides And PHP API Reference',
+        )['run'],
     'The documentation runner must build the checked-out revision without persisted repository credentials.',
 );
 $documentationArtifact = workflowStep($documentation, 'Upload Documentation Preview');

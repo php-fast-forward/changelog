@@ -29,9 +29,7 @@ use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
-use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface;
 use FastForward\Changelog\Release\ReleaseMetadataParser;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -68,10 +66,6 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
      *                                                          committed evidence.
      * @param HistoryReleaseFactoryInterface      $releases     Constructor for immutable history sections with explicit date
      *                                                          provenance and endings.
-     * @param PublicationEvidenceFactoryInterface $evidence     Constructor for immutable already-proved publication
-     *                                                          identity and exact central note bytes.
-     * @param ReleaseExceptionFactoryInterface    $exceptions   Constructor for controlled invalid-input and
-     *                                                          transaction-failure diagnostics.
      * @param ReleaseHistoryConsolidatorInterface $consolidator Canonical promotion operation that preserves already
      *                                                          published historical Markdown.
      * @param ?GitHubClientInterface              $github       Optional immutable-object API reader; contextual merged-head proof is
@@ -91,14 +85,12 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         private PackagePathResolverInterface $paths,
         private ManagedFileStoreInterface $files,
         private HistoryReleaseFactoryInterface $releases,
-        private PublicationEvidenceFactoryInterface $evidence,
-        private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseHistoryConsolidatorInterface $consolidator,
         private ?GitHubClientInterface $github = null,
         ?ReleaseMetadataParser $metadata = null,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
     ) {
-        $this->metadata = $metadata ?? new ReleaseMetadataParser($exceptions);
+        $this->metadata = $metadata ?? new ReleaseMetadataParser();
     }
 
     /**
@@ -143,7 +135,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         if (null === $this->github || !$this->git instanceof GitCommitTreeReaderInterface
             || !GitHubEvidence::repository($options->repository)
             || !GitHubEvidence::sha($mergeSha) || !GitHubEvidence::sha($headSha)) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Merged publication requires exact commits and immutable API/tree proof capabilities.',
             );
         }
@@ -157,20 +149,20 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             || ($head['commit']['tree']['sha'] ?? null) !== $tree
             || ($merge['tree']['sha'] ?? null) !== $tree
             || !is_string($head['commit']['message'] ?? null)) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The immutable approved head and merge must have identical complete Git trees.',
             );
         }
         $data = $this->metadata->parse($head['commit']['message']);
 
         if (null === $data) {
-            throw $this->exceptions->invalid('The approved PR head lacks generated release evidence.');
+            throw new InvalidArgumentException('The approved PR head lacks generated release evidence.');
         }
         $comparison = $this->github->request('GET', $root . '/compare/' . $data['base_sha'] . '...' . $headSha);
 
         if (($comparison['merge_base_commit']['sha'] ?? null) !== $data['base_sha']
             || !in_array($comparison['status'] ?? null, ['ahead', 'identical'], true)) {
-            throw $this->exceptions->invalid('The approved PR head lacks its generated source-base ancestry.');
+            throw new InvalidArgumentException('The approved PR head lacks its generated source-base ancestry.');
         }
 
         return $this->prove($options, $mergeSha, $data);
@@ -198,7 +190,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
     ): PublicationEvidence {
         if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $approvedSha)
             || $this->git->resolveRef($options->workingDirectory, $approvedSha) !== $approvedSha) {
-            throw $this->exceptions->invalid('Publication requires the complete exact approved commit SHA.');
+            throw new InvalidArgumentException('Publication requires the complete exact approved commit SHA.');
         }
         $central = $this->git->readFileAt($options->workingDirectory, $approvedSha, $options->changelogFile);
 
@@ -212,14 +204,14 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         );
 
         if (null === $data) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The approved commit lacks generated release evidence. Preserve the four Changelog trailers when committing or squashing a consolidation.',
             );
         }
 
         if (null === $central || hash('sha256', $central) !== $data['output_sha256']
             || $options->evidenceHash() !== $data['options_sha256']) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The approved central history or settings differ from the generated commit evidence.',
             );
         }
@@ -230,7 +222,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             $base,
             $approvedSha,
         )) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Publication requires a selected GitHub repository and the generated source-base ancestry.',
             );
         }
@@ -256,16 +248,16 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         if ([] !== $remaining || [] === $selected) {
             if ((null !== $document && $central === $this->history->render($document, $template, true))
                 || $central === $this->history->render($source, $template, false)) {
-                return $this->evidence->create($approvedSha, null, null, '', $options->repository);
+                return new PublicationEvidence($approvedSha, null, null, '', $options->repository);
             }
 
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The approved history is not supported backfill or format maintenance; an incomplete release must consume every source fragment.',
             );
         }
 
         if (null === $document) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The approved release is missing a historical section for a reachable stable Git tag.',
             );
         }
@@ -280,18 +272,18 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         $resolved = $this->versions->resolve($current, $changesets);
 
         if (! $resolved->isValid()) {
-            throw $this->exceptions->invalid('The committed fragment set does not resolve a valid release version.');
+            throw new InvalidArgumentException('The committed fragment set does not resolve a valid release version.');
         }
         $version = $resolved->nextVersion;
         $section = $approved->getRelease($version);
 
         if (null === $section) {
-            throw $this->exceptions->invalid('The approved history has no section for the computed release version.');
+            throw new InvalidArgumentException('The approved history has no section for the computed release version.');
         }
         $rendered = $this->notes->render($changesets, $template, $options->repository);
 
         if (null !== $document->getRelease($version)) {
-            throw $this->exceptions->invalid('The computed release already exists in the source-base history.');
+            throw new InvalidArgumentException('The computed release already exists in the source-base history.');
         }
         $promoted = $this->consolidator->promote($document, $version, $section->getDate(), $rendered, $template);
         $expected = $this->history->render($promoted, $template, true);
@@ -302,18 +294,18 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             $template,
             true,
         )) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The approved history is not the canonical consolidation of every source-base fragment and exact prior history.',
             );
         }
         $centralNotes = $this->history->notes($approved, $version);
 
-        return $this->evidence->create(
-            $approvedSha,
-            $version,
-            $options->tagPrefix . $version,
-            $centralNotes,
-            $options->repository,
+        return new PublicationEvidence(
+            sha: $approvedSha,
+            version: $version,
+            tag: $options->tagPrefix . $version,
+            notes: $centralNotes,
+            repository: $options->repository,
         );
     }
 
@@ -340,7 +332,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         array $remaining,
     ): void {
         if ($selected !== $remaining) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The approved consolidation still contains pending Markdown fragments from an incomplete or unexpected selection.',
             );
         }
@@ -353,7 +345,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
                 $approvedSha,
                 $path,
             )) {
-                throw $this->exceptions->invalid(
+                throw new InvalidArgumentException(
                     'Maintenance requires every pending fragment to retain its exact source-base bytes: ' . $path,
                 );
             }
@@ -410,7 +402,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             $contents = $this->git->readFileAt($options->workingDirectory, $base, $path);
 
             if (null === $contents) {
-                throw $this->exceptions->invalid('A consumed fragment is missing from its source base: ' . $path);
+                throw new InvalidArgumentException('A consumed fragment is missing from its source base: ' . $path);
             }
             $result = $this->parser->parse(
                 $this->paths->absolutePath($path, $options->workingDirectory),
@@ -418,13 +410,13 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             );
 
             if (! $result->isValid()) {
-                throw $this->exceptions->invalid(
+                throw new InvalidArgumentException(
                     'A consumed base fragment is invalid: ' . $path . ' ' . implode('; ', $result->errors),
                 );
             }
 
             if (null !== $this->git->readFileAt($options->workingDirectory, $approvedSha, $path)) {
-                throw $this->exceptions->invalid('A consumed fragment still exists at the approved commit: ' . $path);
+                throw new InvalidArgumentException('A consumed fragment still exists at the approved commit: ' . $path);
             }
             $changesets[] = $result->changeset;
         }
@@ -470,7 +462,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
                 $prefix,
                 $base,
             )) {
-                throw $this->exceptions->invalid(
+                throw new InvalidArgumentException(
                     'The source-base history already contains a maintained release awaiting its reachable stable Git tag: ' . $release->getVersion(),
                 );
             }
@@ -625,7 +617,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
                     substr($path, strlen($prefix)),
                 )
                 || ! in_array($entry['mode'], ['100644', '100755'], true)) {
-                throw $this->exceptions->invalid(($source
+                throw new InvalidArgumentException(($source
                     ? 'The source base contains an unsafe or noncanonical fragment: '
                     : 'The approved consolidation still contains pending Markdown fragments that are unsafe or noncanonical: ') . $path);
             }
@@ -658,7 +650,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
             ['100644', '100755'],
             true,
         )) {
-            throw $this->exceptions->invalid('Publication requires an exact regular committed file: ' . $path);
+            throw new InvalidArgumentException('Publication requires an exact regular committed file: ' . $path);
         }
     }
 
@@ -690,7 +682,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         )
             || [] !== array_intersect(explode('/', $path), ['', '.', '..'])
             || $this->git->resolveRef($options->workingDirectory, 'HEAD') !== $sha) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Publication custom templates require a canonical tracked path in the approved checkout.',
             );
         }
@@ -700,7 +692,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         if (null === $committed || $this->files->read(
             $this->paths->absolutePath($path, $options->workingDirectory),
         ) !== $committed) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'The selected custom template differs from the exact approved committed blob.',
             );
         }

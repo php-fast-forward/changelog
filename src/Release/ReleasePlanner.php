@@ -24,7 +24,6 @@ use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
@@ -33,7 +32,9 @@ use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
+use InvalidArgumentException;
 use Psr\Clock\ClockInterface;
+use RuntimeException;
 
 /** Collects exact validated inputs before selecting one deterministic release transaction. */
 final readonly class ReleasePlanner implements ReleasePlannerInterface
@@ -55,7 +56,6 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param DateTimeZone                           $timezone      Explicit timezone used with the injected clock, independent of the host's default timezone.
      * @param ReceiptCodecInterface                  $receipts      Validates and serializes deterministic private recovery evidence, including its content-bound identity.
      * @param ReleasePlanFactoryInterface            $plans         Builds or restores immutable transactions from exact accepted inputs and resulting history bytes.
-     * @param ReleaseExceptionFactoryInterface       $exceptions    Constructs controlled domain diagnostics without exposing underlying host details.
      * @param ReleaseInputEvidenceValidatorInterface $inputs        Verifies planned or selected-template bytes against the approved committed source evidence.
      * @param ReleaseJournalPathResolverInterface    $journals      Selects private recovery storage scoped to the consumer project and managed paths.
      * @param HistoryReferenceBuilder                $references    Completes missing concrete release links without altering historical Markdown or observing external state.
@@ -75,7 +75,6 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private DateTimeZone $timezone,
         private ReceiptCodecInterface $receipts,
         private ReleasePlanFactoryInterface $plans,
-        private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputs,
         private ReleaseJournalPathResolverInterface $journals,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
@@ -96,7 +95,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
     public function plan(ReleaseOptions $options, string $operation = 'version'): ReleasePlan
     {
         if (! in_array($operation, ['version', 'backfill', 'format'], true)) {
-            throw $this->exceptions->invalid('Operation must be version, backfill or format.');
+            throw new InvalidArgumentException('Operation must be version, backfill or format.');
         }
         $changelogPath = $this->paths->absolutePath($options->changelogFile, $options->workingDirectory);
         $fragmentPath = $this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory);
@@ -108,7 +107,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         if (null !== $receiptBytes) {
             $receipt = $this->receipts->decode($receiptBytes);
             if (null !== $receipt->data['next_version'] && 'version' !== $operation) {
-                throw $this->exceptions->failure('Recover the interrupted release before maintaining its history.');
+                throw new RuntimeException('Recover the interrupted release before maintaining its history.');
             }
             $inventory = null === $receipt->data['next_version'] ? null : $this->inventory($fragmentPath);
             $this->assertResumable($options, $receipt, $original, $inventory);
@@ -184,7 +183,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         if ($this->git->isRepository($options->workingDirectory)) {
             $baseSha = $this->git->resolveRef($options->workingDirectory, $options->baseRef);
             if ($baseSha !== $this->git->resolveRef($options->workingDirectory)) {
-                throw $this->exceptions->failure('Check out the selected base revision before planning a release.');
+                throw new RuntimeException('Check out the selected base revision before planning a release.');
             }
             $tags = array_values(array_filter(
                 $this->git->tags($options->workingDirectory),
@@ -222,13 +221,13 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         );
         $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
         if (! $resolved->isValid()) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Cannot calculate the next version: ' . implode('; ', $resolved->errors),
             );
         }
         $next = $resolved->nextVersion;
         if (null !== $document->getRelease($next)) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'The next version already has a local section without a matching published tag: ' . $next,
             );
         }
@@ -276,7 +275,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                     $comparison = strcmp($component, $published[$index]);
                 }
                 if (! $publishedTag || 0 < $comparison) {
-                    throw $this->exceptions->failure(
+                    throw new RuntimeException(
                         'Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.',
                     );
                 }
@@ -301,15 +300,13 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
     {
         $inventory = $this->validator->validate($fragmentPath, false, false);
         if (! $inventory->isValid()) {
-            throw $this->exceptions->invalid(
-                'Invalid pending fragments: ' . json_encode(
-                    $inventory->errors,
-                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
-                ),
-            );
+            throw new InvalidArgumentException('Invalid pending fragments: ' . json_encode(
+                $inventory->errors,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+            ));
         }
         if (count($inventory->hashes) !== count($inventory->changesets)) {
-            throw $this->exceptions->failure('Fragment validation must include the exact accepted content hashes.');
+            throw new RuntimeException('Fragment validation must include the exact accepted content hashes.');
         }
 
         return $inventory;
@@ -338,16 +335,16 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             'locale' => $options->locale, 'template' => $options->template, 'tag_prefix' => $options->tagPrefix,
             'repository' => $options->repository] as $key => $value) {
             if ($data[$key] !== $value) {
-                throw $this->exceptions->failure('Pending release settings differ from the saved plan: ' . $key);
+                throw new RuntimeException('Pending release settings differ from the saved plan: ' . $key);
             }
         }
         $currentHash = null === $contents ? null : hash('sha256', $contents);
         $before = $currentHash === $data['before_changelog_sha256'];
         if (! $before && $currentHash !== $data['after_changelog_sha256']) {
-            throw $this->exceptions->failure('The pending release document differs from its saved plan.');
+            throw new RuntimeException('The pending release document differs from its saved plan.');
         }
         if (! hash_equals($data['notes_sha256'], hash('sha256', $data['notes']))) {
-            throw $this->exceptions->failure('The pending release notes differ from their saved plan.');
+            throw new RuntimeException('The pending release notes differ from their saved plan.');
         }
         if (null === $inventory) {
             return;
@@ -355,14 +352,14 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         if ($before && $currentHash !== $data['after_changelog_sha256'] && count($inventory->hashes) !== count(
             $data['consumed'],
         )) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'All approved fragments must remain available before writing the pending changelog.',
             );
         }
         foreach ($inventory->hashes as $path => $hash) {
             $relative = $this->paths->relativePath($path, $options->workingDirectory);
             if (! isset($data['consumed'][$relative]) || ! hash_equals($data['consumed'][$relative], $hash)) {
-                throw $this->exceptions->failure(
+                throw new RuntimeException(
                     'Recover or publish the pending plan before collecting new or modified fragments: ' . $relative,
                 );
             }

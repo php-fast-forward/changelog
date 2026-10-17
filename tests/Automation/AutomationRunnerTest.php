@@ -21,7 +21,6 @@ use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Publication\PublicationResult;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleaseApplierInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -29,7 +28,6 @@ use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
 use FastForward\Changelog\Validation\CheckService;
 use FastForward\Changelog\Validation\CheckServiceInterface;
-use FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use InvalidArgumentException;
@@ -247,16 +245,7 @@ final class AutomationRunnerTest extends TestCase
         )->willReturn(
             new ValidationReport([], [], false),
         );
-        $reports = $this->createMock(ValidationReportFactoryInterface::class);
-        $reports->expects(self::once())->method('create')->willReturnCallback(
-            static fn(array $changesets, array $errors, bool $waived, array $hashes): ValidationReport => new ValidationReport(
-                $changesets,
-                $errors,
-                $waived,
-                $hashes,
-            ),
-        );
-        $checks = new CheckService($validator, $git, $reports);
+        $checks = new CheckService($validator, $git);
 
         if (null !== $error) {
             $this->expectException(RuntimeException::class);
@@ -584,13 +573,6 @@ final class AutomationRunnerTest extends TestCase
                 $this->options(),
             );
         }
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message): RuntimeException => new RuntimeException($message),
-        );
 
         return new AutomationRunner(
             $options,
@@ -605,7 +587,6 @@ final class AutomationRunnerTest extends TestCase
             $services['planner'] ?? $this->noCalls(ReleasePlannerInterface::class),
             $services['applier'] ?? $this->noCalls(ReleaseApplierInterface::class),
             $services['github'] ?? $this->noCalls(GitHubClientInterface::class),
-            $exceptions,
             $services['pullRequests'] ?? $this->noCalls(PullRequestStatusServiceInterface::class),
         );
     }

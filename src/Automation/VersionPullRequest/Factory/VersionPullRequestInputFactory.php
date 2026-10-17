@@ -22,16 +22,6 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 final readonly class VersionPullRequestInputFactory implements VersionPullRequestInputFactoryInterface
 {
     /**
-     * Injects controlled diagnostic construction without resolving environment or repository state.
-     *
-     * @param VersionPullRequestExceptionFactoryInterface $exceptions Constructor for controlled version-PR exception
-     *                                                                without performing or retrying any operation.
-     */
-    public function __construct(
-        private VersionPullRequestExceptionFactoryInterface $exceptions,
-    ) {}
-
-    /**
      * Rejects unsafe branches, identities and presentation controls before planning.
      *
      * Literal titles retain the 256-byte bound; known placeholder templates may use 1024 bytes before resolution.
@@ -58,7 +48,7 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
             || 1 !== preg_match('/\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\[bot\]\z/', $automationActor)
             || '' === trim($title) || strlen($title) > $maximum || preg_match('/[\x00-\x1f\x7f]/', $title)
         ) {
-            throw $this->exceptions->create(
+            throw new VersionPullRequestException(
                 'Version PR requires distinct safe Git branches, a Bot account and a single-line title of at most 256 bytes or version template of at most 1024 bytes.',
             );
         }

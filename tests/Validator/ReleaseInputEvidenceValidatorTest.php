@@ -7,7 +7,6 @@ namespace FastForward\Changelog\Tests\Validator;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidator;
@@ -297,11 +296,7 @@ final class ReleaseInputEvidenceValidatorTest extends TestCase
         $paths->method('absolutePath')->willReturnCallback(
             static fn(string $path, ?string $directory = null): string => $directory . '/' . $path,
         );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message): RuntimeException => new RuntimeException($message),
-        );
 
-        return new ReleaseInputEvidenceValidator($git, $files, $paths, $exceptions);
+        return new ReleaseInputEvidenceValidator($git, $files, $paths);
     }
 }

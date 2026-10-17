@@ -26,11 +26,12 @@ Updates a dependency while preserving the public API.
 `category` and effective `type` are always serialized. `issue`, `pull_request`
 and `author` are optional and omitted when unavailable. A number for a pull
 request that has not been opened is not required to create a fragment.
-When the contribution's PR exists, prefer recording its verified positive
+When the contribution's origin is already known, optionally record its verified positive
 number as `pull_request` or through `add --pull-request=<number>`. Confirm the
 actual repository, head branch and complete head SHA before copying that number
-from its canonical PR URL or trusted metadata. If opened later, update the same
-newly added fragment; unknown numbers stay absent.
+from its canonical PR URL or trusted metadata. Unknown numbers stay absent;
+contribution checks do not require them, and opening a PR does not require a
+follow-up fragment edit.
 
 | Field | Contract |
 | --- | --- |

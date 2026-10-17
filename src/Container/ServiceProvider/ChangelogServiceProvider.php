@@ -21,20 +21,14 @@ use FastForward\Changelog\Changeset;
 use FastForward\Changelog\Configuration;
 use FastForward\Changelog\Console;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
-use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface;
-use FastForward\Changelog\Date\Factory\TimezoneFactory;
 use FastForward\Changelog\Filesystem;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Fragment;
-use FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactoryInterface;
 use FastForward\Changelog\Fragment\IdentifierGeneratorInterface;
 use FastForward\Changelog\Git;
 use FastForward\Changelog\GitHub;
-use FastForward\Changelog\GitHub\Factory\GitHubClientFactoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History;
-use FastForward\Changelog\Http;
-use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
 use FastForward\Changelog\Process;
 use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication;
@@ -52,8 +46,11 @@ use FastForward\Container\Factory\InvokableFactory;
 use Interop\Container\ServiceProviderInterface;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use Random\Engine\Secure;
+use Random\Randomizer;
 use RuntimeException;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Lock\PersistingStoreInterface;
 use Symfony\Component\Lock\Store\FlockStore;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -154,14 +151,8 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Automation\AutomationRunnerInterface::class => new AliasFactory(
                 Automation\AutomationRunner::class,
             ),
-            Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface::class => new AliasFactory(
-                Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory::class,
-            ),
             Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface::class => new AliasFactory(
                 Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory::class,
-            ),
-            Automation\VersionPullRequest\Factory\VersionPullRequestResultFactoryInterface::class => new AliasFactory(
-                Automation\VersionPullRequest\Factory\VersionPullRequestResultFactory::class,
             ),
             Automation\VersionPullRequest\VersionPullRequestServiceInterface::class => new AliasFactory(
                 Automation\VersionPullRequest\VersionPullRequestService::class,
@@ -169,14 +160,8 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Automation\Dependabot\DependabotFragmentServiceInterface::class => new AliasFactory(
                 Automation\Dependabot\DependabotFragmentService::class,
             ),
-            Automation\Dependabot\Factory\DependabotFragmentResultFactoryInterface::class => new AliasFactory(
-                Automation\Dependabot\Factory\DependabotFragmentResultFactory::class,
-            ),
             Automation\Dependabot\Factory\DependabotInputFactoryInterface::class => new AliasFactory(
                 Automation\Dependabot\Factory\DependabotInputFactory::class,
-            ),
-            Automation\Policy\Factory\PullRequestAuthorizationFactoryInterface::class => new AliasFactory(
-                Automation\Policy\Factory\PullRequestAuthorizationFactory::class,
             ),
             Automation\Policy\PullRequestPolicyInterface::class => new AliasFactory(
                 Automation\Policy\PullRequestPolicy::class,
@@ -202,14 +187,8 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                     $container->get(Git\GitRepositoryInterface::class),
                     $container->get(self::CONFIG)->get('temporary_directory'),
                 ),
-            Release\Factory\ReleaseExceptionFactoryInterface::class => new AliasFactory(
-                Release\Factory\ReleaseExceptionFactory::class,
-            ),
             Release\Factory\ReleasePlanFactoryInterface::class => new AliasFactory(
                 Release\Factory\ReleasePlanFactory::class,
-            ),
-            Release\Factory\ReleaseReceiptFactoryInterface::class => new AliasFactory(
-                Release\Factory\ReleaseReceiptFactory::class,
             ),
             Release\ReceiptCodecInterface::class => new AliasFactory(
                 Release\ReceiptCodec::class,
@@ -229,28 +208,17 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Release\ReleasePlannerInterface::class => new AliasFactory(
                 Release\ReleasePlanner::class,
             ),
-            Release\ReleaseMetadataParser::class => new InvokableFactory(
-                Release\ReleaseMetadataParser::class,
-                Release\Factory\ReleaseExceptionFactoryInterface::class,
-            ),
-            Publication\Factory\PublicationEvidenceFactoryInterface::class => new AliasFactory(
-                Publication\Factory\PublicationEvidenceFactory::class,
-            ),
-            Publication\Factory\PublicationResultFactoryInterface::class => new AliasFactory(
-                Publication\Factory\PublicationResultFactory::class,
-            ),
             Publication\PublicationServiceInterface::class => new AliasFactory(
                 Publication\PublicationService::class,
             ),
             Publication\MergedPublicationServiceInterface::class => new AliasFactory(
                 Publication\PublicationService::class,
             ),
+            // Contextual publication needs its optional policy; the supported autowirer retains optional defaults.
             Publication\PublicationService::class => new InvokableFactory(
                 Publication\PublicationService::class,
                 Validator\PublicationEvidenceValidatorInterface::class,
                 GitHubClientInterface::class,
-                Publication\Factory\PublicationResultFactoryInterface::class,
-                Release\Factory\ReleaseExceptionFactoryInterface::class,
                 Automation\Policy\PullRequestPolicyInterface::class,
             ),
             Validator\ReleaseDateValidatorInterface::class => new AliasFactory(
@@ -265,6 +233,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Validator\MergedPublicationEvidenceValidatorInterface::class => new AliasFactory(
                 Validator\PublicationEvidenceValidator::class,
             ),
+            // Inject the optional immutable API proof reader rather than silently selecting local-only validation.
             Validator\PublicationEvidenceValidator::class => new InvokableFactory(
                 Validator\PublicationEvidenceValidator::class,
                 Git\GitRepositoryInterface::class,
@@ -277,8 +246,6 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 Filesystem\PackagePathResolverInterface::class,
                 Filesystem\ManagedFileStoreInterface::class,
                 History\Factory\HistoryReleaseFactoryInterface::class,
-                Publication\Factory\PublicationEvidenceFactoryInterface::class,
-                Release\Factory\ReleaseExceptionFactoryInterface::class,
                 Release\ReleaseHistoryConsolidatorInterface::class,
                 GitHubClientInterface::class,
                 Release\ReleaseMetadataParser::class,
@@ -298,21 +265,14 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function historyFactories(): array
     {
         return [
-            History\HistoryReferenceBuilder::class => new InvokableFactory(History\HistoryReferenceBuilder::class),
             History\Factory\HistoryDocumentFactoryInterface::class => new AliasFactory(
                 History\Factory\HistoryDocumentFactory::class,
-            ),
-            History\Factory\HistoryExceptionFactoryInterface::class => new AliasFactory(
-                History\Factory\HistoryExceptionFactory::class,
             ),
             History\Factory\HistoryReleaseFactoryInterface::class => new AliasFactory(
                 History\Factory\HistoryReleaseFactory::class,
             ),
             History\HistoryCodecInterface::class => new AliasFactory(
                 History\HistoryCodec::class,
-            ),
-            History\Import\Factory\HistoryImportResultFactoryInterface::class => new AliasFactory(
-                History\Import\Factory\HistoryImportResultFactory::class,
             ),
             History\Import\HistoryImporterInterface::class => new AliasFactory(
                 History\Import\HistoryImporter::class,
@@ -328,12 +288,6 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function fragmentFactories(): array
     {
         return [
-            Changeset\Factory\ChangesetFactoryInterface::class => new AliasFactory(
-                Changeset\Factory\ChangesetFactory::class,
-            ),
-            Changeset\Factory\ChangesetParseResultFactoryInterface::class => new AliasFactory(
-                Changeset\Factory\ChangesetParseResultFactory::class,
-            ),
             Changeset\Parser\ChangesetParserInterface::class => new AliasFactory(
                 Changeset\Parser\ChangesetParser::class,
             ),
@@ -343,17 +297,8 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Changeset\Store\ChangesetStoreInterface::class => new AliasFactory(
                 Changeset\Store\FilesystemChangesetStore::class,
             ),
-            Fragment\Factory\FragmentExceptionFactoryInterface::class => new AliasFactory(
-                Fragment\Factory\FragmentExceptionFactory::class,
-            ),
-            Fragment\Factory\IdentifierGeneratorFactoryInterface::class => new AliasFactory(
-                Fragment\Factory\IdentifierGeneratorFactory::class,
-            ),
             Fragment\FragmentWriterInterface::class => new AliasFactory(
                 Fragment\FragmentWriter::class,
-            ),
-            Version\Factory\VersionResolutionFactoryInterface::class => new AliasFactory(
-                Version\Factory\VersionResolutionFactory::class,
             ),
             Version\NextVersionResolverInterface::class => new AliasFactory(
                 Version\NextVersionResolver::class,
@@ -375,9 +320,6 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function consoleFactories(): array
     {
         return [
-            Console\CommandLoader\Factory\LazyCommandFactoryInterface::class => new AliasFactory(
-                Console\CommandLoader\Factory\LazyCommandFactory::class,
-            ),
             Console\PlanCommandRunnerInterface::class => new AliasFactory(
                 Console\PlanCommandRunner::class,
             ),
@@ -390,14 +332,11 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Validation\CheckServiceInterface::class => new AliasFactory(
                 Validation\CheckService::class,
             ),
-            Validation\Factory\ValidationReportFactoryInterface::class => new AliasFactory(
-                Validation\Factory\ValidationReportFactory::class,
-            ),
         ];
     }
 
     /**
-     * Declares filesystem, Git, HTTP and process adapter construction boundaries.
+     * Declares filesystem and Git adapters together with the retained process-construction boundary.
      *
      * @return array<string, callable> Lazy factories for this service group.
      */
@@ -407,23 +346,11 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Filesystem\Factory\FinderFactoryInterface::class => new AliasFactory(
                 Filesystem\Factory\FinderFactory::class,
             ),
-            Filesystem\Factory\PathExceptionFactoryInterface::class => new AliasFactory(
-                Filesystem\Factory\PathExceptionFactory::class,
-            ),
             Filesystem\ManagedFileStoreInterface::class => new AliasFactory(
                 Filesystem\ManagedFileStore::class,
             ),
             Filesystem\PackagePathResolverInterface::class => new AliasFactory(
                 Filesystem\PackagePathResolver::class,
-            ),
-            GitHub\Factory\GitHubClientFactoryInterface::class => new AliasFactory(
-                GitHub\Factory\GitHubClientFactory::class,
-            ),
-            GitHub\Factory\GitHubExceptionFactoryInterface::class => new AliasFactory(
-                GitHub\Factory\GitHubExceptionFactory::class,
-            ),
-            Http\Factory\HttpClientFactoryInterface::class => new AliasFactory(
-                Http\Factory\HttpClientFactory::class,
             ),
             Git\GitRepositoryInterface::class => new AliasFactory(
                 Git\GitRepository::class,
@@ -445,19 +372,19 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function runtimeFactories(): array
     {
         return [
-            IdentifierGeneratorInterface::class => static fn(ContainerInterface $container): IdentifierGeneratorInterface
-                => $container->get(IdentifierGeneratorFactoryInterface::class)->create(),
-            HttpClientInterface::class => static fn(ContainerInterface $container): HttpClientInterface
-                => $container->get(HttpClientFactoryInterface::class)->create(),
-            GitHubClientInterface::class => static fn(ContainerInterface $container): GitHubClientInterface
-                => $container->get(GitHubClientFactoryInterface::class)->create(
+            IdentifierGeneratorInterface::class => new AliasFactory(Fragment\RandomIdentifierGenerator::class),
+            Randomizer::class => static fn(): Randomizer => new Randomizer(new Secure()),
+            HttpClientInterface::class => static fn(): HttpClientInterface => HttpClient::create(),
+            GitHubClientInterface::class => new AliasFactory(GitHub\GitHubClient::class),
+            GitHub\GitHubClient::class => static fn(ContainerInterface $container): GitHub\GitHubClient
+                => new GitHub\GitHubClient(
+                    $container->get(HttpClientInterface::class),
                     $container->get(self::CONFIG)->get('token'),
                     $container->get(self::CONFIG)->get('api_url'),
                 ),
             PersistingStoreInterface::class => new AliasFactory(FlockStore::class),
             ClockInterface::class => new AliasFactory(SystemClock::class),
-            DateTimeZone::class => static fn(ContainerInterface $container): DateTimeZone
-                => $container->get(TimezoneFactory::class)->create(),
+            DateTimeZone::class => static fn(): DateTimeZone => new DateTimeZone('UTC'),
             SystemClock::class => static fn(ContainerInterface $container): SystemClock
                 => new SystemClock($container->get(DateTimeZone::class)),
             ComposerPackageVersionResolver::class => static fn(ContainerInterface $container): ComposerPackageVersionResolver
@@ -471,8 +398,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                     'working_directory',
                 ),
             ),
-            CommandLoaderInterface::class => static fn(ContainerInterface $container): ChangelogCommandLoader
-                => new ChangelogCommandLoader($container, $container->get(LazyCommandFactoryInterface::class)),
+            CommandLoaderInterface::class => new AliasFactory(ChangelogCommandLoader::class),
         ];
     }
 

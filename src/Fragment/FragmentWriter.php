@@ -21,9 +21,10 @@ use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface;
 use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
 use FastForward\Changelog\Changeset\Store\WriteResult;
-use FastForward\Changelog\Fragment\Factory\FragmentExceptionFactoryInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
+use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 /** Creates a validated fragment and delegates strictly scoped optional Git commits. */
@@ -32,12 +33,11 @@ final readonly class FragmentWriter implements FragmentWriterInterface
     /**
      * Injects all schema, persistence, entropy, Git and failure-construction boundaries.
      *
-     * @param ChangesetParserInterface          $parser      Validates the complete fragment schema while preserving all independent diagnostics.
-     * @param ChangesetRendererInterface        $renderer    Produces canonical fragment frontmatter while preserving validated Markdown body bytes.
-     * @param ChangesetStoreInterface           $store       Performs guarded fragment creation without replacing a sibling identifier.
-     * @param IdentifierGeneratorInterface      $identifiers Supplies canonical collision-resistant filenames without entropy reads during composition.
-     * @param GitRepositoryInterface            $git         Observes repository identities, committed bytes and scoped operations through an injected boundary.
-     * @param FragmentExceptionFactoryInterface $exceptions  Constructs controlled domain diagnostics without exposing underlying host details.
+     * @param ChangesetParserInterface     $parser      Validates the complete fragment schema while preserving all independent diagnostics.
+     * @param ChangesetRendererInterface   $renderer    Produces canonical fragment frontmatter while preserving validated Markdown body bytes.
+     * @param ChangesetStoreInterface      $store       Performs guarded fragment creation without replacing a sibling identifier.
+     * @param IdentifierGeneratorInterface $identifiers Supplies canonical collision-resistant filenames without entropy reads during composition.
+     * @param GitRepositoryInterface       $git         Observes repository identities, committed bytes and scoped operations through an injected boundary.
      */
     public function __construct(
         private ChangesetParserInterface $parser,
@@ -45,7 +45,6 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         private ChangesetStoreInterface $store,
         private IdentifierGeneratorInterface $identifiers,
         private GitRepositoryInterface $git,
-        private FragmentExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
@@ -83,7 +82,7 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         string $commitMessage = 'chore: record changelog fragment',
     ): string {
         if ($commit && '' === trim($commitMessage)) {
-            throw $this->exceptions->invalid('The fragment commit message must not be empty.');
+            throw new InvalidArgumentException('The fragment commit message must not be empty.');
         }
 
         $effectiveType = $type ?? Category::tryFrom($category)?->inferredImpact()->value ?? 'minor';
@@ -119,7 +118,7 @@ final readonly class FragmentWriter implements FragmentWriterInterface
             }
 
             if (WriteResult::Created !== $result) {
-                throw $this->exceptions->failure(sprintf('Cannot create fragment "%s": %s.', $path, $result->value));
+                throw new RuntimeException(sprintf('Cannot create fragment "%s": %s.', $path, $result->value));
             }
 
             if ($commit) {
@@ -129,12 +128,10 @@ final readonly class FragmentWriter implements FragmentWriterInterface
             return $path;
         }
 
-        throw $this->exceptions->failure(
-            sprintf(
-                'Cannot create a fragment in "%s": five generated identifiers already exist; no fragment was overwritten.',
-                $directory,
-            ),
-        );
+        throw new RuntimeException(sprintf(
+            'Cannot create a fragment in "%s": five generated identifiers already exist; no fragment was overwritten.',
+            $directory,
+        ));
     }
 
     /**
@@ -150,7 +147,7 @@ final readonly class FragmentWriter implements FragmentWriterInterface
     private function writeFragment(string $path, string $id, string $input): WriteResult
     {
         if (1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, $id)) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 sprintf('Invalid fragment name "%s": use lowercase dash segments and .md.', $id),
             );
         }
@@ -158,7 +155,7 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         $parsed = $this->parser->parse($path, $input);
 
         if (! $parsed->isValid()) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 sprintf('Invalid fragment "%s": %s', $path, implode(' ', $parsed->errors)),
             );
         }
@@ -168,9 +165,9 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         try {
             return $this->store->write($path, $contents);
         } catch (Throwable $failure) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 sprintf('Cannot create fragment "%s": %s', $path, $failure->getMessage()),
-                $failure,
+                previous: $failure,
             );
         }
     }
@@ -192,14 +189,11 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         try {
             $this->git->commitFragment($options->workingDirectory, $relative, $message);
         } catch (Throwable $failure) {
-            throw $this->exceptions->failure(
-                sprintf(
-                    'Created fragment "%s", but its commit failed: %s. The fragment is preserved for recovery.',
-                    $path,
-                    $failure->getMessage(),
-                ),
-                $failure,
-            );
+            throw new RuntimeException(sprintf(
+                'Created fragment "%s", but its commit failed: %s. The fragment is preserved for recovery.',
+                $path,
+                $failure->getMessage(),
+            ), previous: $failure);
         }
     }
 }

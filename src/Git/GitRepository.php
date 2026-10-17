@@ -17,7 +17,6 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Git;
 
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseMetadataParser;
 use InvalidArgumentException;
 use RuntimeException;
@@ -30,19 +29,16 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
     /**
      * Injects process construction so unit tests never start Git.
      *
-     * @param ProcessFactoryInterface          $processes  Constructor for unstarted structured process using the configured
-     *                                                     consumer root and filtered automation credentials.
-     * @param ReleaseExceptionFactoryInterface $exceptions Constructor for controlled invalid-input and
-     *                                                     transaction-failure diagnostics.
-     * @param ?ReleaseMetadataParser           $metadata   Optional strict commit-trailer parser or contextual metadata proven by
-     *                                                     the approved PR head.
+     * @param ProcessFactoryInterface $processes Constructor for unstarted structured process using the configured
+     *                                           consumer root and filtered automation credentials.
+     * @param ?ReleaseMetadataParser  $metadata  Optional strict commit-trailer parser or contextual metadata proven by
+     *                                           the approved PR head.
      */
     public function __construct(
         private ProcessFactoryInterface $processes,
-        private ReleaseExceptionFactoryInterface $exceptions,
         ?ReleaseMetadataParser $metadata = null,
     ) {
-        $this->metadata = $metadata ?? new ReleaseMetadataParser($exceptions);
+        $this->metadata = $metadata ?? new ReleaseMetadataParser();
     }
 
     /**
@@ -69,7 +65,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         $root = rtrim(trim($this->run($directory, ['rev-parse', '--show-toplevel'])), '/\\');
 
         if ('' === $root) {
-            throw $this->exceptions->failure('Git did not return a repository root.');
+            throw new RuntimeException('Git did not return a repository root.');
         }
 
         return str_replace('\\', '/', $root);
@@ -96,7 +92,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         if ('' === $path || str_contains($path, "\0") || in_array('..', explode('/', $path), true)
             || in_array('.', explode('/', $path), true)
             || (! str_starts_with($path, '/') && 1 !== preg_match('~^[A-Za-z]:/~', $path))) {
-            throw $this->exceptions->failure('Git did not return a safe absolute private directory.');
+            throw new RuntimeException('Git did not return a safe absolute private directory.');
         }
 
         return $path . '/changelog-release-plan.json';
@@ -128,7 +124,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
 
         if (null !== $direct) {
             if (! hash_equals($direct['output_sha256'], $output)) {
-                throw $this->exceptions->failure('Release commit metadata differs from its approved changelog blob.');
+                throw new RuntimeException('Release commit metadata differs from its approved changelog blob.');
             }
 
             return $direct;
@@ -138,7 +134,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
 
         foreach ($parents as $parent) {
             if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $parent)) {
-                throw $this->exceptions->failure('Git returned malformed release commit parents.');
+                throw new RuntimeException('Git returned malformed release commit parents.');
             }
         }
 
@@ -160,7 +156,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             }
 
             if (null !== $selected && $selected !== $candidate) {
-                throw $this->exceptions->failure(
+                throw new RuntimeException(
                     'The approved merge has conflicting matching direct-parent release metadata.',
                 );
             }
@@ -179,13 +175,13 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         $commits = '' === $raw ? [] : explode("\n", $raw);
 
         if (count($commits) > 100) {
-            throw $this->exceptions->failure('Merged release evidence exceeds the bounded commit inventory.');
+            throw new RuntimeException('Merged release evidence exceeds the bounded commit inventory.');
         }
         $selected = null;
 
         foreach ($commits as $commit) {
             if (1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $commit)) {
-                throw $this->exceptions->failure('Git returned malformed merged release evidence.');
+                throw new RuntimeException('Git returned malformed merged release evidence.');
             }
             $candidate = $this->metadata->parse($this->run(
                 $directory,
@@ -197,7 +193,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             }
 
             if (null !== $selected && $selected !== $candidate) {
-                throw $this->exceptions->failure('The approved merge contains ambiguous matching release metadata.');
+                throw new RuntimeException('The approved merge contains ambiguous matching release metadata.');
             }
             $selected = $candidate;
         }
@@ -220,7 +216,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         $tree = trim($this->run($directory, ['rev-parse', '--verify', '--end-of-options', $sha . '^{tree}']));
 
         if (1 !== preg_match('/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/D', $tree)) {
-            throw $this->exceptions->failure('Git returned an invalid complete tree identity.');
+            throw new RuntimeException('Git returned an invalid complete tree identity.');
         }
 
         return $tree;
@@ -246,7 +242,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
                 return null;
             }
 
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Cannot read the repository-local Git origin: ' . trim($process->getErrorOutput()),
             );
         }
@@ -273,7 +269,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         ));
 
         if (1 !== preg_match('/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/D', $sha)) {
-            throw $this->exceptions->failure('Git returned an invalid commit identity.');
+            throw new RuntimeException('Git returned an invalid commit identity.');
         }
 
         return $sha;
@@ -304,7 +300,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             return false;
         }
 
-        throw $this->exceptions->failure('Git ancestry verification failed: ' . trim($process->getErrorOutput()));
+        throw new RuntimeException('Git ancestry verification failed: ' . trim($process->getErrorOutput()));
     }
 
     /**
@@ -335,7 +331,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             $fields = explode("\0", $line);
 
             if (6 !== count($fields)) {
-                throw $this->exceptions->failure('Git returned unsupported tag metadata.');
+                throw new RuntimeException('Git returned unsupported tag metadata.');
             }
 
             if ('commit' !== $fields[1] && ('tag' !== $fields[1] || ! in_array(
@@ -350,7 +346,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
                 : ('tag' === $fields[1] ? $fields[4] : $fields[3]);
 
             if (1 !== preg_match('/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/D', $sha)) {
-                throw $this->exceptions->failure('Git returned an invalid tag commit identity.');
+                throw new RuntimeException('Git returned an invalid tag commit identity.');
             }
             $date = 'tag' === $fields[1] && '' !== $fields[2] ? substr($fields[2], 0, 10) : null;
             $tags[] = ['name' => $fields[0], 'sha' => $sha,
@@ -401,7 +397,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             }
 
             if (1 !== preg_match('/^(?:[AMDTUXB]|[RC]\d{1,3})$/D', $status) || '' === $first) {
-                throw $this->exceptions->failure('Git returned a malformed changed-path record.');
+                throw new RuntimeException('Git returned a malformed changed-path record.');
             }
             $changes[] = ['status' => $status, 'path' => $first, 'previous' => $previous];
         }
@@ -459,7 +455,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
                 $parts,
             )
                 || ($parts[2] !== $path && ! str_starts_with($parts[2], $path . '/'))) {
-                throw $this->exceptions->failure('Git returned a malformed committed-path record.');
+                throw new RuntimeException('Git returned a malformed committed-path record.');
             }
             $files[] = ['path' => $parts[2], 'mode' => $parts[1]];
         }
@@ -480,7 +476,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
     public function commitFragment(string $directory, string $path, string $message): string
     {
         if ('' === trim($message) || '' === $path || str_contains($path, "\0")) {
-            throw $this->exceptions->invalid('A fragment path and nonempty commit message are required.');
+            throw new InvalidArgumentException('A fragment path and nonempty commit message are required.');
         }
         $this->run($directory, ['add', '--', $path]);
         $this->run($directory, ['commit', '--only', '--message', $message, '--', $path]);
@@ -504,7 +500,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             '/[\x00\r\n]/',
             $reference,
         )) {
-            throw $this->exceptions->invalid('A nonempty Git revision is required.');
+            throw new InvalidArgumentException('A nonempty Git revision is required.');
         }
     }
 
@@ -521,7 +517,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
             || str_starts_with($path, '-') || str_starts_with($path, '/')
             || 1 === preg_match('~^[A-Za-z]:~', $path)
             || [] !== array_intersect(explode('/', $path), ['', '.', '..'])) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Baseline path must identify a canonical project-relative file or directory.',
             );
         }
@@ -548,7 +544,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
                 return null;
             }
 
-            throw $this->exceptions->failure('Git failed: ' . trim($process->getErrorOutput()));
+            throw new RuntimeException('Git failed: ' . trim($process->getErrorOutput()));
         }
 
         return $process->getOutput();

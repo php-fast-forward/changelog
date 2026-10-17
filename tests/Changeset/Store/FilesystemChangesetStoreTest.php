@@ -8,7 +8,6 @@ use ArrayIterator;
 use FastForward\Changelog\Changeset\Store\FilesystemChangesetStore;
 use FastForward\Changelog\Changeset\Store\WriteResult;
 use FastForward\Changelog\Filesystem\Factory\FinderFactoryInterface;
-use FastForward\Changelog\Filesystem\Factory\PathExceptionFactoryInterface;
 use FastForward\Changelog\Tests\Filesystem\Fixture\DirectoryName;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -48,15 +47,13 @@ final class FilesystemChangesetStoreTest extends TestCase
     }
 
     #[Test]
-    public function relativeLockResourcesFailThroughAnInjectedExceptionFactory(): void
+    public function relativeLockResourcesFailWithTheCanonicalDiagnostic(): void
     {
-        $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create('.changelog')->willReturn(
-            new InvalidArgumentException('absolute required'),
-        )->shouldBeCalledOnce();
-        $store = $this->store($this->filesystem(), exceptions: $exceptions);
+        $store = $this->store($this->filesystem());
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('absolute required');
+        $this->expectExceptionMessage(
+            'Unsafe fragment path ".changelog": use an absolute regular path without traversal.',
+        );
         $store->lockResource('.changelog');
     }
 
@@ -113,11 +110,7 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem->exists(Argument::any())->shouldNotBeCalled();
         $filesystem->readFile(Argument::any())->shouldNotBeCalled();
         $filesystem->remove(Argument::any())->shouldNotBeCalled();
-        $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create('C:/consumer/entry.md')->willReturn(
-            new InvalidArgumentException('Symbolic drive root'),
-        )->shouldBeCalledOnce();
-        $store = $this->store($filesystem, exceptions: $exceptions);
+        $store = $this->store($filesystem);
 
         DirectoryName::withParent('C:/consumer', $parent, static function () use ($store): void {
             self::assertNull($store->read('c:\\consumer\\entry.md'));
@@ -127,7 +120,10 @@ final class FilesystemChangesetStoreTest extends TestCase
                 $store->remove(['C:/consumer/entry.md']);
                 self::fail('A symbolic drive root must prevent fragment deletion.');
             } catch (InvalidArgumentException $error) {
-                self::assertSame('Symbolic drive root', $error->getMessage());
+                self::assertSame(
+                    'Unsafe fragment path "C:/consumer/entry.md": use an absolute regular path without traversal.',
+                    $error->getMessage(),
+                );
             }
         });
 
@@ -338,9 +334,7 @@ final class FilesystemChangesetStoreTest extends TestCase
     {
         $filesystem = $this->filesystem();
         $filesystem->remove(Argument::any())->shouldNotBeCalled();
-        $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create($invalid)->willReturn(new InvalidArgumentException('unsafe'))->shouldBeCalledOnce();
-        $store = $this->store($filesystem, exceptions: $exceptions);
+        $store = $this->store($filesystem);
         $this->expectException(InvalidArgumentException::class);
         $store->remove(['/repo/.changelog/valid.md', $invalid]);
     }
@@ -351,12 +345,8 @@ final class FilesystemChangesetStoreTest extends TestCase
         $filesystem = $this->filesystem();
         $filesystem->readlink('/repo/.changelog/link.md')->willReturn('/outside')->shouldBeCalledOnce();
         $filesystem->remove(Argument::any())->shouldNotBeCalled();
-        $exceptions = $this->prophesize(PathExceptionFactoryInterface::class);
-        $exceptions->create('/repo/.changelog/link.md')->willReturn(
-            new InvalidArgumentException('unsafe'),
-        )->shouldBeCalledOnce();
         $this->expectException(InvalidArgumentException::class);
-        $this->store($filesystem, exceptions: $exceptions)->remove(['/repo/.changelog/link.md']);
+        $this->store($filesystem)->remove(['/repo/.changelog/link.md']);
     }
 
     /** Creates a filesystem double; no real path is inspected. */
@@ -393,14 +383,11 @@ final class FilesystemChangesetStoreTest extends TestCase
         ObjectProphecy $filesystem,
         ?ObjectProphecy $finder = null,
         ?ObjectProphecy $locks = null,
-        ?ObjectProphecy $exceptions = null,
     ): FilesystemChangesetStore {
         return new FilesystemChangesetStore($filesystem->reveal(), ($finder ?? $this->prophesize(
             FinderFactoryInterface::class,
         ))->reveal(), ($locks ?? $this->prophesize(
             LockFactory::class,
-        ))->reveal(), ($exceptions ?? $this->prophesize(
-            PathExceptionFactoryInterface::class,
         ))->reveal());
     }
 }

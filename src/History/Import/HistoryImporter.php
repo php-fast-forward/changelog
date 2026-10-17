@@ -17,12 +17,11 @@ namespace FastForward\Changelog\History\Import;
 
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
-use FastForward\Changelog\History\Import\Factory\HistoryImportResultFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 
 /** Backfills only absent stable Git versions without rewriting historical notes or provenance. */
 final readonly class HistoryImporter implements HistoryImporterInterface
@@ -30,18 +29,14 @@ final readonly class HistoryImporter implements HistoryImporterInterface
     /**
      * Injects all network and value-construction boundaries for deterministic unit tests.
      *
-     * @param GitHubClientInterface               $github     Injected GitHub API boundary providing bounded complete release evidence without ambient credential discovery.
-     * @param HistoryDocumentFactoryInterface     $documents  Constructs ordered history with unique canonical release identities and unchanged surrounding bytes.
-     * @param HistoryReleaseFactoryInterface      $releases   Constructs strict semantic sections with validated dates and preserved raw presentation.
-     * @param HistoryImportResultFactoryInterface $results    Builds import results retaining the complete document, inserted identities and Git baseline.
-     * @param HistoryExceptionFactoryInterface    $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     * @param GitHubClientInterface           $github    Injected GitHub API boundary providing bounded complete release evidence without ambient credential discovery.
+     * @param HistoryDocumentFactoryInterface $documents Constructs ordered history with unique canonical release identities and unchanged surrounding bytes.
+     * @param HistoryReleaseFactoryInterface  $releases  Constructs strict semantic sections with validated dates and preserved raw presentation.
      */
     public function __construct(
         private GitHubClientInterface $github,
         private HistoryDocumentFactoryInterface $documents,
         private HistoryReleaseFactoryInterface $releases,
-        private HistoryImportResultFactoryInterface $results,
-        private HistoryExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
@@ -66,7 +61,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         array $tags,
     ): HistoryImportResult {
         if ('github' === $options->source && null === $options->repository) {
-            throw $this->exceptions->invalid('GitHub history source requires an explicit repository.');
+            throw new InvalidArgumentException('GitHub history source requires an explicit repository.');
         }
         $versions = $this->versions($tags, $options->tagPrefix);
         $current = array_key_first($versions) ?? '0.0.0';
@@ -75,12 +70,12 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             static fn(string $version): bool => null === $document->getRelease($version),
         );
         if ([] === $missing) {
-            return $this->results->create($document, [], $current);
+            return new HistoryImportResult($document, [], $current);
         }
         $published = [];
         if ('tags' !== $options->source && null !== $options->repository) {
             if (1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $options->repository)) {
-                throw $this->exceptions->invalid('GitHub history repository must use owner/name.');
+                throw new InvalidArgumentException('GitHub history repository must use owner/name.');
             }
             foreach ($this->github->paginate('/repos/' . $options->repository . '/releases') as $release) {
                 if (! is_array($release) || ! isset($release['tag_name'], $release['draft'], $release['prerelease'])
@@ -88,7 +83,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                         $release['prerelease'],
                     )
                 ) {
-                    throw $this->exceptions->invalid('GitHub release history returned an invalid record.');
+                    throw new InvalidArgumentException('GitHub release history returned an invalid record.');
                 }
                 $version = substr($release['tag_name'], strlen($options->tagPrefix));
                 if ($release['draft'] || $release['prerelease'] || ! isset($versions[$version])
@@ -97,7 +92,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                     continue;
                 }
                 if (isset($published[$version])) {
-                    throw $this->exceptions->invalid('Multiple published GitHub releases identify the same Git tag.');
+                    throw new InvalidArgumentException('Multiple published GitHub releases identify the same Git tag.');
                 }
                 $published[$version] = $release;
             }
@@ -113,7 +108,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 $date = $this->publicationDate($release['published_at'] ?? null);
                 $source = 'github-release';
                 if (null !== ($release['body'] ?? null) && ! is_string($release['body'])) {
-                    throw $this->exceptions->invalid('Published GitHub release notes must be a string or null.');
+                    throw new InvalidArgumentException('Published GitHub release notes must be a string or null.');
                 }
                 if (is_string($release['body'] ?? null) && '' !== trim($release['body'])) {
                     $body = $release['body'];
@@ -132,7 +127,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         }
         $history = $this->documents->create($all, $document->getPrefix(), $document->getReferences());
 
-        return $this->results->create($history, array_values($missing), $current);
+        return new HistoryImportResult($history, array_values($missing), $current);
     }
 
     /**
@@ -169,7 +164,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 || (null !== $tag['date'] && ! is_string($tag['date']))
                 || (null !== $tag['date_source'] && ! is_string($tag['date_source']))
             ) {
-                throw $this->exceptions->invalid('Git tag history evidence has an invalid shape.');
+                throw new InvalidArgumentException('Git tag history evidence has an invalid shape.');
             }
             if (! str_starts_with($tag['name'], $tagPrefix)) {
                 continue;
@@ -179,7 +174,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 continue;
             }
             if (isset($versions[$version])) {
-                throw $this->exceptions->invalid('Multiple Git tags identify the same canonical stable version.');
+                throw new InvalidArgumentException('Multiple Git tags identify the same canonical stable version.');
             }
             $versions[$version] = $tag;
         }
@@ -248,7 +243,9 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             || (int) $matches[4] > 23 || (int) $matches[5] > 59 || (int) $matches[6] > 59
             || (isset($matches[8]) && ((int) $matches[8] > 23 || (int) $matches[9] > 59))
         ) {
-            throw $this->exceptions->invalid('Published GitHub release dates require a valid explicit ISO timestamp.');
+            throw new InvalidArgumentException(
+                'Published GitHub release dates require a valid explicit ISO timestamp.',
+            );
         }
 
         return gmdate('Y-m-d', strtotime($timestamp));

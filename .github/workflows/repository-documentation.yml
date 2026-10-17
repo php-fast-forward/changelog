@@ -50,7 +50,7 @@ jobs:
           --no-progress
 
       - name: Build Guides And PHP API Reference
-        run: composer docs:build
+        run: composer --no-plugins docs:build
 
       - name: Require Rendered Guides And API
         run: |

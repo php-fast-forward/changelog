@@ -54,8 +54,8 @@ constructing trusted PR context from user-controlled arguments.
    vendor/bin/changelog check --no-interaction
    ```
 
-   `--issue`, `--pull-request`, and `--author` are optional. Prefer
-   `--pull-request=<number>` when this contribution's PR already exists. Verify
+   `--issue`, `--pull-request`, and `--author` are optional. Supply
+   `--pull-request=<number>` only when this contribution's origin is already known. Verify
    the repository, head branch and complete head SHA through the application's
    existing GitHub tooling, read-only API or browser; copy the positive number
    from that actual PR's canonical URL or metadata. Do not derive it from an
@@ -66,10 +66,9 @@ constructing trusted PR context from user-controlled arguments.
    vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
    ```
 
-   Before a PR exists, author without the field. After opening and verifying
-   it, add `pull_request: <number>` to the same newly added fragment, leaving
-   every other byte intact; do not create a second note. Existing commit
-   authority still governs recording that update. Login may have a leading
+   When the number is unknown, author without the field. Contribution checks do
+   not require it, and opening a PR does not require a follow-up fragment edit
+   or commit. Login may have a leading
    `@`; serialization stores the canonical login without it.
 4. Inspect the exact created path and content. Generated names are collision
    resistant and never overwrite another fragment. An optional explicit

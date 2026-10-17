@@ -23,7 +23,8 @@ be supplied with or without a leading `@`; the parser writes the canonical
 login without that prefix. The body retains meaningful Markdown whitespace.
 See [the complete fragment schema](specification/fragment-format.md).
 
-Prefer `--pull-request=<number>` when this contribution already has a PR. Read
+Optionally supply `--pull-request=<number>` when this contribution's origin is
+already known. Read
 the actual PR with existing GitHub tooling, API or browser, verify its repository,
 head branch and complete head SHA, then copy its positive number from the
 canonical PR URL or trusted metadata. With `PULL_REQUEST` set to that number:
@@ -32,10 +33,8 @@ canonical PR URL or trusted metadata. With `PULL_REQUEST` set to that number:
 vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
 ```
 
-If the PR is opened later, add `pull_request: <number>` to the same newly added
-fragment after verifying it. Preserve the other fields and body; do not create a
-duplicate fragment for attribution. Unknown metadata stays absent, and recording
-an update still follows the contribution's existing commit authority.
+Unknown metadata stays absent. Contribution checks do not require a PR number,
+and opening the PR does not require a follow-up edit or commit to its fragment.
 
 ## Names, collisions and scoped commits
 
@@ -145,10 +144,11 @@ inventory count must never be interpreted as its new-PR-contribution count.
 `requireFragment=false` for inventory checking; all discovered fragments remain
 subject to path and schema validation. This mode does not invent a waiver.
 
-`IdentifierGeneratorFactoryInterface::create()` uses a secure engine by default.
-Tests provide a `Random\Engine` double through the factory; service construction
-requests no random bytes, and unit tests need no filesystem, Git process, network,
-HOME configuration or real entropy reads.
+`IdentifierGeneratorInterface` resolves to `RandomIdentifierGenerator` with an
+injected `Random\Randomizer`. The provider supplies a secure engine; tests can
+inject a randomizer backed by a deterministic `Random\Engine` double. Service
+construction requests no random bytes, and unit tests need no filesystem, Git
+process, network, HOME configuration or real entropy reads.
 
 ---
 

@@ -15,7 +15,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\GitHub;
 
-use FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface;
 use RuntimeException;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -28,18 +27,15 @@ final readonly class GitHubClient implements GitHubClientInterface
      *
      * The API version is pinned to the officially supported 2026-03-10 contract.
      *
-     * @param HttpClientInterface             $http       Replaceable HTTP transport; no request starts while this dependency is composed.
-     * @param GitHubExceptionFactoryInterface $exceptions Constructor for controlled API diagnostics that withhold raw
-     *                                                    responses and credentials.
-     * @param string                          $token      Explicit API credential retained only by the HTTP adapter; empty means unauthenticated
-     *                                                    requests.
-     * @param string                          $apiUrl     Trusted HTTPS REST API base, including an Enterprise Server /api/v3 prefix when applicable.
-     * @param int                             $maxPages   Positive pagination ceiling beyond which incomplete API history must be rejected.
+     * @param HttpClientInterface $http     Replaceable HTTP transport; no request starts while this dependency is composed.
+     * @param string              $token    Explicit API credential retained only by the HTTP adapter; empty means unauthenticated
+     *                                      requests.
+     * @param string              $apiUrl   Trusted HTTPS REST API base, including an Enterprise Server /api/v3 prefix when applicable.
+     * @param int                 $maxPages Positive pagination ceiling beyond which incomplete API history must be rejected.
      * @see https://docs.github.com/en/rest/about-the-rest-api/api-versions
      */
     public function __construct(
         private HttpClientInterface $http,
-        private GitHubExceptionFactoryInterface $exceptions,
         private string $token = '',
         private string $apiUrl = 'https://api.github.com',
         private int $maxPages = 100,
@@ -73,7 +69,7 @@ final readonly class GitHubClient implements GitHubClientInterface
     public function paginate(string $relativePath): array
     {
         if ($this->maxPages < 1) {
-            throw $this->exceptions->failure('GitHub pagination requires a positive page limit.');
+            throw new RuntimeException('GitHub pagination requires a positive page limit.');
         }
         $this->url($relativePath);
         $parts = explode('?', $relativePath, 2);
@@ -86,12 +82,12 @@ final readonly class GitHubClient implements GitHubClientInterface
             [$data, $headers] = $this->exchange('GET', $parts[0] . '?' . http_build_query($query));
 
             if (null === $data || ! array_is_list($data)) {
-                throw $this->exceptions->failure('GitHub list endpoint is unavailable or returned an invalid list.');
+                throw new RuntimeException('GitHub list endpoint is unavailable or returned an invalid list.');
             }
 
             foreach ($data as $record) {
                 if (! is_array($record)) {
-                    throw $this->exceptions->failure('GitHub list endpoint returned an invalid record.');
+                    throw new RuntimeException('GitHub list endpoint returned an invalid record.');
                 }
                 $records[] = $record;
             }
@@ -101,7 +97,7 @@ final readonly class GitHubClient implements GitHubClientInterface
             }
         }
 
-        throw $this->exceptions->failure('GitHub pagination exceeded its page limit; no partial history was accepted.');
+        throw new RuntimeException('GitHub pagination exceeded its page limit; no partial history was accepted.');
     }
 
     /**
@@ -131,7 +127,7 @@ final readonly class GitHubClient implements GitHubClientInterface
             '/[\x00-\x20\x7f]/',
             $this->token,
         )) {
-            throw $this->exceptions->failure('GitHub method or credential settings are invalid.');
+            throw new RuntimeException('GitHub method or credential settings are invalid.');
         }
         $headers = ['Accept' => 'application/vnd.github+json', 'X-GitHub-Api-Version' => '2026-03-10', 'User-Agent' => 'FastForward-Changelog'];
 
@@ -153,14 +149,12 @@ final readonly class GitHubClient implements GitHubClientInterface
             }
 
             if ($status < 200 || $status >= 300) {
-                throw $this->exceptions->failure('GitHub API request failed with HTTP ' . $status . '.');
+                throw new RuntimeException('GitHub API request failed with HTTP ' . $status . '.');
             }
 
             return [$response->toArray(false), $response->getHeaders(false)];
         } catch (ExceptionInterface) {
-            throw $this->exceptions->failure(
-                'GitHub transport or JSON decoding failed; response details were withheld.',
-            );
+            throw new RuntimeException('GitHub transport or JSON decoding failed; response details were withheld.');
         }
     }
 
@@ -186,7 +180,7 @@ final readonly class GitHubClient implements GitHubClientInterface
             || 1 === preg_match('/[\x00-\x20\x7f]/', $relativePath)
             || in_array('..', explode('/', $path), true) || in_array('.', explode('/', $path), true)
         ) {
-            throw $this->exceptions->failure('GitHub API requests require a trusted HTTPS base and relative endpoint.');
+            throw new RuntimeException('GitHub API requests require a trusted HTTPS base and relative endpoint.');
         }
 
         return rtrim($this->apiUrl, '/') . $relativePath;
@@ -211,7 +205,7 @@ final readonly class GitHubClient implements GitHubClientInterface
         preg_match_all('/<([^>]+)>;\s*rel="next"/', $link, $matches);
 
         if (1 !== count($matches[1])) {
-            throw $this->exceptions->failure('GitHub pagination returned an ambiguous next-page link.');
+            throw new RuntimeException('GitHub pagination returned an ambiguous next-page link.');
         }
         $next = parse_url($matches[1][0]);
         $base = parse_url($this->apiUrl);
@@ -223,12 +217,12 @@ final readonly class GitHubClient implements GitHubClientInterface
             || isset($next['user']) || isset($next['fragment'])
             || ! str_starts_with($next['path'] ?? '', $basePath)
         ) {
-            throw $this->exceptions->failure('GitHub pagination refused a link outside the trusted API base.');
+            throw new RuntimeException('GitHub pagination refused a link outside the trusted API base.');
         }
         parse_str($next['query'] ?? '', $query);
 
         if (($query['page'] ?? null) !== (string) ($page + 1) || ($query['per_page'] ?? null) !== '100') {
-            throw $this->exceptions->failure('GitHub pagination returned an unsupported page sequence.');
+            throw new RuntimeException('GitHub pagination returned an unsupported page sequence.');
         }
 
         return true;

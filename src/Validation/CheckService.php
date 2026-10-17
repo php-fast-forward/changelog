@@ -18,7 +18,6 @@ namespace FastForward\Changelog\Validation;
 
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
-use FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use Throwable;
 
@@ -28,14 +27,12 @@ final readonly class CheckService implements CheckServiceInterface
     /**
      * Injects schema checking, Git discovery and aggregate construction boundaries.
      *
-     * @param ChangesetValidatorInterface      $validator Checks the complete fragment inventory, canonical paths and accepted bytes without fail-fast loss.
-     * @param GitRepositoryInterface           $git       Observes repository identities, committed bytes and scoped operations through an injected boundary.
-     * @param ValidationReportFactoryInterface $reports   Constructs aggregate validation results retaining successful siblings and independent diagnostics.
+     * @param ChangesetValidatorInterface $validator Checks the complete fragment inventory, canonical paths and accepted bytes without fail-fast loss.
+     * @param GitRepositoryInterface      $git       Observes repository identities, committed bytes and scoped operations through an injected boundary.
      */
     public function __construct(
         private ChangesetValidatorInterface $validator,
         private GitRepositoryInterface $git,
-        private ValidationReportFactoryInterface $reports,
     ) {}
 
     /**
@@ -69,7 +66,7 @@ final readonly class CheckService implements CheckServiceInterface
         $errors = $inventory->errors;
 
         if (null === $since) {
-            return $this->reports->create($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
+            return new ValidationReport($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
         }
 
         try {
@@ -77,7 +74,7 @@ final readonly class CheckService implements CheckServiceInterface
         } catch (Throwable $failure) {
             $errors['@git'][] = 'Git comparison is unavailable: ' . $failure->getMessage();
 
-            return $this->reports->create($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
+            return new ValidationReport($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
         }
 
         [$added, $errors] = $this->inspectChanges(
@@ -98,7 +95,7 @@ final readonly class CheckService implements CheckServiceInterface
             $errors['@contribution'][] = 'A pull request must add a valid new fragment or have a verified maintainer waiver; existing pending fragments do not satisfy this gate.';
         }
 
-        return $this->reports->create($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
+        return new ValidationReport($inventory->changesets, $errors, $waiverAuthorized, $inventory->hashes);
     }
 
     /**

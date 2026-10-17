@@ -15,11 +15,10 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Automation\Dependabot;
 
-use FastForward\Changelog\Automation\Dependabot\Factory\DependabotFragmentResultFactoryInterface;
 use FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactoryInterface;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Category;
-use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
+use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -33,21 +32,15 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
     /**
      * Injects network, canonical changeset rendering and result boundaries; no host state is read.
      *
-     * @param GitHubClientInterface                    $github     Authenticated, replaceable GitHub API boundary for scoped reads and writes.
-     * @param ChangesetFactoryInterface                $changesets Constructor for typed fragment values with explicit category,
-     *                                                             provenance and impact.
-     * @param ChangesetRendererInterface               $renderer   Canonical fragment serializer used for new output and exact
-     *                                                             legacy-byte comparisons.
-     * @param DependabotFragmentResultFactoryInterface $results    Constructor for typed create-only fragment outcome and
-     *                                                             any confirmed commit identity.
-     * @param DependabotInputFactoryInterface          $inputs     Constructor for validated deterministic dependency metadata with
-     *                                                             deduplicated sorted packages and alerts.
+     * @param GitHubClientInterface           $github   Authenticated, replaceable GitHub API boundary for scoped reads and writes.
+     * @param ChangesetRendererInterface      $renderer Canonical fragment serializer used for new output and exact
+     *                                                  legacy-byte comparisons.
+     * @param DependabotInputFactoryInterface $inputs   Constructor for validated deterministic dependency metadata with
+     *                                                  deduplicated sorted packages and alerts.
      */
     public function __construct(
         private GitHubClientInterface $github,
-        private ChangesetFactoryInterface $changesets,
         private ChangesetRendererInterface $renderer,
-        private DependabotFragmentResultFactoryInterface $results,
         private DependabotInputFactoryInterface $inputs,
     ) {}
 
@@ -88,35 +81,30 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
             $pr = $this->github->request('GET', $endpoint);
 
             if (! $this->trustedPullRequest($pr, $repository, $input)) {
-                return $this->results->create(
-                    'refused',
-                    $path,
-                    null,
-                    ['An open same-repository Dependabot Bot PR at the supplied head is required.'],
+                return new DependabotFragmentResult(
+                    status: 'refused',
+                    path: $path,
+                    commitSha: null,
+                    diagnostics: ['An open same-repository Dependabot Bot PR at the supplied head is required.'],
                 );
             }
             $account = $this->github->request('GET', '/users/dependabot%5Bbot%5D');
 
             if (! GitHubEvidence::identity($account, 'dependabot[bot]', 'Bot', $pr['user']['id'])) {
-                return $this->results->create(
-                    'refused',
-                    $path,
-                    null,
-                    ['Dependabot account identity could not be verified.'],
+                return new DependabotFragmentResult(
+                    status: 'refused',
+                    path: $path,
+                    commitSha: null,
+                    diagnostics: ['Dependabot account identity could not be verified.'],
                 );
             }
             $category = Category::Changed;
 
             if ([] !== $input->securityAlertNumbers) {
                 if (! $this->securityProof($repository, $input)) {
-                    return $this->results->create(
-                        'refused',
-                        $path,
-                        null,
-                        [
-                            'Security classification requires current open GitHub alerts matching the trusted package metadata.',
-                        ],
-                    );
+                    return new DependabotFragmentResult('refused', $path, null, [
+                        'Security classification requires current open GitHub alerts matching the trusted package metadata.',
+                    ]);
                 }
                 $category = Category::Security;
             }
@@ -143,17 +131,12 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
                             $legacyDescription,
                         ))
                 ) {
-                    return $this->results->create('unchanged', $path);
+                    return new DependabotFragmentResult('unchanged', $path, null, []);
                 }
 
-                return $this->results->create(
-                    'refused',
-                    $path,
-                    null,
-                    [
-                        'An existing fragment differs from the deterministic output; manual or earlier content was preserved.',
-                    ],
-                );
+                return new DependabotFragmentResult('refused', $path, null, [
+                    'An existing fragment differs from the deterministic output; manual or earlier content was preserved.',
+                ]);
             }
             $fresh = $this->github->request('GET', $endpoint);
 
@@ -164,25 +147,20 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
             ) || $fresh['head']['ref'] !== $pr['head']['ref'] || $fresh['user']['id'] !== $pr['user']['id']
                 || $this->literalTitle($fresh['title'] ?? null) !== $title
             ) {
-                return $this->results->create(
-                    'conflict',
-                    $path,
-                    null,
-                    ['The PR snapshot or metadata changed before creation; no fragment was written.'],
+                return new DependabotFragmentResult(
+                    status: 'conflict',
+                    path: $path,
+                    commitSha: null,
+                    diagnostics: ['The PR snapshot or metadata changed before creation; no fragment was written.'],
                 );
             }
             $writing = true;
 
             return $this->createFragment($input, $path, $readPath, $contents, $pr['head']['ref']);
         } catch (Throwable) {
-            return $this->results->create(
-                $writing ? 'conflict' : 'refused',
-                $path,
-                null,
-                [
-                    'Dependabot fragment operation could not be verified; inspect the branch before retrying. Response details were withheld.',
-                ],
-            );
+            return new DependabotFragmentResult($writing ? 'conflict' : 'refused', $path, null, [
+                'Dependabot fragment operation could not be verified; inspect the branch before retrying. Response details were withheld.',
+            ]);
         }
     }
 
@@ -212,27 +190,22 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
                 $input->expectedHeadSha,
             ) || $input->pullRequest < 1 || [] === $input->packageNames
         ) {
-            return $this->results->create(
-                'refused',
-                $path,
-                null,
-                [
-                    'Dependabot writes require an explicit repository, validated metadata and a canonical repository-relative fragment directory.',
-                ],
-            );
+            return new DependabotFragmentResult('refused', $path, null, [
+                'Dependabot writes require an explicit repository, validated metadata and a canonical repository-relative fragment directory.',
+            ]);
         }
 
         if ((! $input->includeDev && 'direct:development' === $input->dependencyType)
             || (! $input->includeActions && 'github-actions' === $input->ecosystem)) {
-            return $this->results->create('filtered', $path);
+            return new DependabotFragmentResult('filtered', $path, null, []);
         }
 
         if (! $input->includeDev && 'indirect' === $input->dependencyType) {
-            return $this->results->create(
-                'refused',
-                $path,
-                null,
-                ['Indirect dependency scope cannot be safely excluded as development metadata.'],
+            return new DependabotFragmentResult(
+                status: 'refused',
+                path: $path,
+                commitSha: null,
+                diagnostics: ['Indirect dependency scope cannot be safely excluded as development metadata.'],
             );
         }
 
@@ -267,26 +240,28 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
         $commit = $response['commit']['sha'] ?? null;
 
         if (! is_string($commit) || ! GitHubEvidence::sha($commit)) {
-            return $this->results->create(
-                'conflict',
-                $path,
-                null,
-                ['GitHub did not confirm a created commit; inspect the branch before retrying.'],
+            return new DependabotFragmentResult(
+                status: 'conflict',
+                path: $path,
+                commitSha: null,
+                diagnostics: ['GitHub did not confirm a created commit; inspect the branch before retrying.'],
             );
         }
 
         if (($response['commit']['parents'][0]['sha'] ?? null) !== $input->expectedHeadSha || count(
             $response['commit']['parents'] ?? [],
         ) !== 1) {
-            return $this->results->create(
-                'conflict',
-                $path,
-                $commit,
-                ['A fragment commit was created on a changed branch head; review that commit before retrying.'],
+            return new DependabotFragmentResult(
+                status: 'conflict',
+                path: $path,
+                commitSha: $commit,
+                diagnostics: [
+                    'A fragment commit was created on a changed branch head; review that commit before retrying.',
+                ],
             );
         }
 
-        return $this->results->create('created', $path, $commit);
+        return new DependabotFragmentResult('created', $path, $commit, []);
     }
 
     /**
@@ -306,14 +281,14 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
         DependabotInput $input,
         string $description,
     ): string {
-        return $this->renderer->render($this->changesets->create(
-            $id,
-            $category,
-            null,
-            $input->pullRequest,
-            'dependabot[bot]',
-            $description,
-            VersionImpact::Patch,
+        return $this->renderer->render(new Changeset(
+            id: $id,
+            category: $category,
+            issue: null,
+            pullRequest: $input->pullRequest,
+            author: 'dependabot[bot]',
+            description: $description,
+            type: VersionImpact::Patch,
         ));
     }
 

@@ -16,9 +16,9 @@ declare(strict_types=1);
 namespace FastForward\Changelog\History;
 
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 use JsonException;
 
 /** Preserves Markdown history while localizing only recognized structural headings. */
@@ -29,14 +29,12 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Composes construction and diagnostic boundaries without performing I/O.
      *
-     * @param HistoryDocumentFactoryInterface  $documentFactory  Constructs ordered history with unique canonical release identities and unchanged surrounding bytes.
-     * @param HistoryReleaseFactoryInterface   $releaseFactory   Constructs strict semantic sections with validated dates and preserved raw presentation.
-     * @param HistoryExceptionFactoryInterface $exceptionFactory Constructs controlled validation diagnostics without performing the operation itself.
+     * @param HistoryDocumentFactoryInterface $documentFactory Constructs ordered history with unique canonical release identities and unchanged surrounding bytes.
+     * @param HistoryReleaseFactoryInterface  $releaseFactory  Constructs strict semantic sections with validated dates and preserved raw presentation.
      */
     public function __construct(
         private HistoryDocumentFactoryInterface $documentFactory,
         private HistoryReleaseFactoryInterface $releaseFactory,
-        private HistoryExceptionFactoryInterface $exceptionFactory,
     ) {}
 
     /**
@@ -112,16 +110,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             if ($legacyClosed && self::END_RELEASE === rtrim($line, "\r\n")) {
-                throw $this->exceptionFactory->invalid(
+                throw new InvalidArgumentException(
                     'A legacy release has ambiguous closing delimiters; preserve its source before migration.',
                 );
             }
 
             if (1 === preg_match('/^<!-- fast-forward-changelog:release (.+) -->\r?\n?\z/', $line, $matches)) {
                 if (null !== $pending) {
-                    throw $this->exceptionFactory->invalid(
-                        'A release marker must be followed by one level-two heading.',
-                    );
+                    throw new InvalidArgumentException('A release marker must be followed by one level-two heading.');
                 }
 
                 $pending = ['offset' => $lineOffset, 'metadata' => $this->metadata($matches[1])];
@@ -156,7 +152,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         }
 
         if (null !== $pending || $protected) {
-            throw $this->exceptionFactory->invalid(null !== $protectedEnd
+            throw new InvalidArgumentException(null !== $protectedEnd
                 ? 'A release body_length requires its closing delimiter at the exact declared byte offset.'
                 : 'A marked release must have its heading and end-release delimiter.');
         }
@@ -182,9 +178,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             if ($offset !== $expectedEnd || self::END_RELEASE !== rtrim($line, "\r\n")) {
-                throw $this->exceptionFactory->invalid(
-                    'A release body_length must end exactly at its closing delimiter.',
-                );
+                throw new InvalidArgumentException('A release body_length must end exactly at its closing delimiter.');
             }
 
             return true;
@@ -206,9 +200,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     private function markedSection(array $pending, string $line, int $contentOffset, int $documentLength): array
     {
         if (! str_starts_with($line, '## ')) {
-            throw $this->exceptionFactory->invalid(
-                'A release marker must be followed by one level-two heading.',
-            );
+            throw new InvalidArgumentException('A release marker must be followed by one level-two heading.');
         }
 
         $metadata = $pending['metadata'];
@@ -220,9 +212,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         if (null !== $metadata['body_length']) {
             if ($metadata['body_length'] > $documentLength - $contentOffset) {
-                throw $this->exceptionFactory->invalid(
-                    'A release body_length exceeds the available Markdown bytes.',
-                );
+                throw new InvalidArgumentException('A release body_length exceeds the available Markdown bytes.');
             }
 
             $bodyEnd = $contentOffset + $metadata['body_length'];
@@ -382,7 +372,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $release = $document->getRelease($version);
 
         if (null === $release) {
-            throw $this->exceptionFactory->invalid('The requested release is absent from CHANGELOG.md: ' . $version);
+            throw new InvalidArgumentException('The requested release is absent from CHANGELOG.md: ' . $version);
         }
 
         return $release->getBody();
@@ -485,7 +475,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                     $line,
                     $matches,
                 )) {
-                    throw $this->exceptionFactory->invalid(
+                    throw new InvalidArgumentException(
                         'A legacy release heading must use a bracketed version, optional link and optional ISO date.',
                     );
                 }
@@ -507,7 +497,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         if (1 === preg_match('/^##[ \t]+/', $line)
             && 1 === preg_match('/(?<![0-9])[0-9]++\.[0-9]++\.[0-9]++/u', $line)) {
-            throw $this->exceptionFactory->invalid(
+            throw new InvalidArgumentException(
                 'An unrecognized level-two heading resembles a release; keep the matching release template or migrate historical release headings before changing templates. For Markdown prose or examples, fence or nest this heading.',
             );
         }
@@ -537,7 +527,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
             if (null !== $this->plainHeading($line, $template)
                 || 1 === preg_match('/^<!-- fast-forward-changelog:(?:release |end-release)/', $line)) {
-                throw $this->exceptionFactory->invalid(
+                throw new InvalidArgumentException(
                     'A plain changelog body cannot contain an unfenced release heading or legacy release delimiter; fence or nest this Markdown example.',
                 );
             }
@@ -548,10 +538,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         }
 
         if (null !== $fence) {
-            throw $this->exceptionFactory->invalid('An unclosed code fence prevents safe historical reformatting.');
+            throw new InvalidArgumentException('An unclosed code fence prevents safe historical reformatting.');
         }
         if ($terminalReference) {
-            throw $this->exceptionFactory->invalid(
+            throw new InvalidArgumentException(
                 'A plain changelog body cannot end with an unindented reference definition that is ambiguous with the global footer; place it before following prose or inside a nested example.',
             );
         }
@@ -569,7 +559,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         try {
             $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            throw $this->exceptionFactory->invalid('A release marker must contain valid JSON metadata.');
+            throw new InvalidArgumentException('A release marker must contain valid JSON metadata.');
         }
 
         if (! is_array($data) || ! isset($data['version']) || ! is_string($data['version'])
@@ -578,7 +568,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             || (array_key_exists('body_length', $data) && (! is_int($data['body_length']) || $data['body_length'] < 0))
             || [] !== array_diff(array_keys($data), ['version', 'date', 'date_source', 'body_length'])
         ) {
-            throw $this->exceptionFactory->invalid(
+            throw new InvalidArgumentException(
                 'A release marker must contain a version, nullable date metadata and an optional nonnegative integer body_length.',
             );
         }
@@ -642,9 +632,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
         foreach ($this->lines($body) as $line) {
             if (null !== $pending && '' !== trim($line) && ! str_starts_with($line, '### ')) {
-                throw $this->exceptionFactory->invalid(
-                    'A category marker must be followed by one level-three heading.',
-                );
+                throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
             }
 
             if (! $this->outsideFence($line, $fence)) {
@@ -682,7 +670,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         }
 
         if (null !== $pending) {
-            throw $this->exceptionFactory->invalid('A category marker must be followed by one level-three heading.');
+            throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
         }
 
         return $output;

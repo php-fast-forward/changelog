@@ -17,9 +17,8 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Changeset\Parser;
 
 use FastForward\Changelog\Changeset\Category;
+use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\ChangesetParseResult;
-use FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface;
-use FastForward\Changelog\Changeset\Factory\ChangesetParseResultFactoryInterface;
 use FastForward\Changelog\Version\VersionImpact;
 
 /**
@@ -41,17 +40,6 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         'version',
         'pull-request',
     ];
-
-    /**
-     * Injects construction boundaries so parsing remains independent of I/O.
-     *
-     * @param ChangesetFactoryInterface            $changesetFactory Constructs normalized fragment values only after schema validation succeeds.
-     * @param ChangesetParseResultFactoryInterface $resultFactory    Builds successful or complete diagnostic-only parse results while retaining fragment identity.
-     */
-    public function __construct(
-        private ChangesetFactoryInterface $changesetFactory,
-        private ChangesetParseResultFactoryInterface $resultFactory,
-    ) {}
 
     /**
      * Parses one stable filename and retains all independent schema diagnostics.
@@ -79,7 +67,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         if (1 !== preg_match('//u', $contents)) {
             $errors[] = 'Fragment contents must be valid UTF-8 for release plans and automation output.';
 
-            return $this->resultFactory->invalid($id, $errors);
+            return new ChangesetParseResult($id, null, $errors);
         }
 
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $contents));
@@ -87,7 +75,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         if ('---' !== ($lines[0] ?? null)) {
             $errors[] = 'Fragment must start with a frontmatter delimiter.';
 
-            return $this->resultFactory->invalid($id, $errors);
+            return new ChangesetParseResult($id, null, $errors);
         }
 
         $closingLine = array_find_key(array_slice($lines, 1, null, true), fn($line) => '---' === $line);
@@ -95,7 +83,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         if (null === $closingLine) {
             $errors[] = 'Fragment frontmatter must have a closing delimiter.';
 
-            return $this->resultFactory->invalid($id, $errors);
+            return new ChangesetParseResult($id, null, $errors);
         }
 
         $metadata = $this->parseMetadata(array_slice($lines, 1, $closingLine - 1), $errors);
@@ -111,20 +99,12 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         $description = $this->parseDescription(array_slice($lines, $closingLine + 1), $errors);
 
         if ([] !== $errors) {
-            return $this->resultFactory->invalid($id, $errors);
+            return new ChangesetParseResult($id, null, $errors);
         }
 
-        $changeset = $this->changesetFactory->create(
-            $id,
-            $category,
-            $issue,
-            $pullRequest,
-            $author,
-            $description,
-            $type,
-        );
+        $changeset = new Changeset($id, $category, $issue, $pullRequest, $author, $description, $type);
 
-        return $this->resultFactory->valid($changeset);
+        return new ChangesetParseResult($changeset->id, $changeset, []);
     }
 
     /**

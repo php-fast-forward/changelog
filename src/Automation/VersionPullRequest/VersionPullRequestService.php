@@ -17,9 +17,7 @@ namespace FastForward\Changelog\Automation\VersionPullRequest;
 
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactoryInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
@@ -41,31 +39,27 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     /**
      * Injects all Git, API, planning, ownership and construction boundaries for isolated unit tests.
      *
-     * @param GitHubClientInterface                       $github        Authenticated, replaceable GitHub API boundary for scoped reads and writes.
-     * @param GitRepositoryInterface                      $git           Replaceable repository boundary for immutable blobs, identities, ancestry and
-     *                                                                   local Git operations.
-     * @param ReleasePlannerInterface                     $planner       Planner for deterministic release or historical-maintenance transactions.
-     * @param ReceiptCodecInterface                       $receipts      Strict codec for in-memory transaction receipts and deterministic release
-     *                                                                   evidence.
-     * @param PackagePathResolverInterface                $paths         Consumer-root path resolver used to constrain managed file access.
-     * @param PullRequestPolicyInterface                  $policy        Independent verifier for privileged human grants and signed
-     *                                                                   generated-commit ownership.
-     * @param VersionPullRequestInputFactoryInterface     $inputs        Constructor for validated immutable branch, Bot, title and
-     *                                                                   preview settings.
-     * @param VersionPullRequestResultFactoryInterface    $results       Constructor for typed result preserving the known
-     *                                                                   transaction and remote state.
-     * @param VersionPullRequestExceptionFactoryInterface $exceptions    Constructor for controlled version-PR exception
-     *                                                                   without performing or retrying any operation.
-     * @param ReleaseInputEvidenceValidatorInterface      $inputEvidence Verifier that current managed bytes and executable
-     *                                                                   templates match the approved base.
-     * @param HistoryCodecInterface                       $history       Parser and renderer that preserves historical Markdown and its exact
-     *                                                                   section boundaries.
-     * @param TemplateResolverInterface                   $templates     Resolver for built-in or explicitly verified consumer presentation
-     *                                                                   templates.
-     * @param HistoryReleaseFactoryInterface              $releases      Constructor for immutable history sections with explicit date
-     *                                                                   provenance and endings.
-     * @param ReleasePlanFactoryInterface                 $plans         Constructor that binds transaction inputs, output bytes and receipt
-     *                                                                   identity.
+     * @param GitHubClientInterface                   $github        Authenticated, replaceable GitHub API boundary for scoped reads and writes.
+     * @param GitRepositoryInterface                  $git           Replaceable repository boundary for immutable blobs, identities, ancestry and
+     *                                                               local Git operations.
+     * @param ReleasePlannerInterface                 $planner       Planner for deterministic release or historical-maintenance transactions.
+     * @param ReceiptCodecInterface                   $receipts      Strict codec for in-memory transaction receipts and deterministic release
+     *                                                               evidence.
+     * @param PackagePathResolverInterface            $paths         Consumer-root path resolver used to constrain managed file access.
+     * @param PullRequestPolicyInterface              $policy        Independent verifier for privileged human grants and signed
+     *                                                               generated-commit ownership.
+     * @param VersionPullRequestInputFactoryInterface $inputs        Constructor for validated immutable branch, Bot, title and
+     *                                                               preview settings.
+     * @param ReleaseInputEvidenceValidatorInterface  $inputEvidence Verifier that current managed bytes and executable
+     *                                                               templates match the approved base.
+     * @param HistoryCodecInterface                   $history       Parser and renderer that preserves historical Markdown and its exact
+     *                                                               section boundaries.
+     * @param TemplateResolverInterface               $templates     Resolver for built-in or explicitly verified consumer presentation
+     *                                                               templates.
+     * @param HistoryReleaseFactoryInterface          $releases      Constructor for immutable history sections with explicit date
+     *                                                               provenance and endings.
+     * @param ReleasePlanFactoryInterface             $plans         Constructor that binds transaction inputs, output bytes and receipt
+     *                                                               identity.
      */
     public function __construct(
         private GitHubClientInterface $github,
@@ -75,8 +69,6 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         private PackagePathResolverInterface $paths,
         private PullRequestPolicyInterface $policy,
         private VersionPullRequestInputFactoryInterface $inputs,
-        private VersionPullRequestResultFactoryInterface $results,
-        private VersionPullRequestExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputEvidence,
         private HistoryCodecInterface $history,
         private TemplateResolverInterface $templates,
@@ -885,7 +877,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     private function require(bool $condition, string $message): void
     {
         if (! $condition) {
-            throw $this->exceptions->create($message);
+            throw new VersionPullRequestException($message);
         }
     }
 
@@ -929,15 +921,15 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         ?string $head,
         array $diagnostics = [],
     ): VersionPullRequestResult {
-        return $this->results->create(
-            $status,
-            $pr['number'] ?? null,
-            $pr['html_url'] ?? null,
-            $head,
-            $plan?->id,
-            $plan?->nextVersion,
-            null !== $plan && 'maintenance' === $plan->mode(),
-            $diagnostics,
+        return new VersionPullRequestResult(
+            status: $status,
+            prNumber: $pr['number'] ?? null,
+            url: $pr['html_url'] ?? null,
+            headSha: $head,
+            planId: $plan?->id,
+            version: $plan?->nextVersion,
+            maintenance: null !== $plan && 'maintenance' === $plan->mode(),
+            diagnostics: $diagnostics,
         );
     }
 }

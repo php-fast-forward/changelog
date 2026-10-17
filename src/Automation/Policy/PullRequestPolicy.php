@@ -15,7 +15,6 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Automation\Policy;
 
-use FastForward\Changelog\Automation\Policy\Factory\PullRequestAuthorizationFactoryInterface;
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -28,13 +27,10 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
     /**
      * Injects API, result construction and value boundaries; construction has no external effects.
      *
-     * @param GitHubClientInterface                    $github  Authenticated, replaceable GitHub API boundary for scoped reads and writes.
-     * @param PullRequestAuthorizationFactoryInterface $results Constructor for immutable authorization value with the
-     *                                                          observed head and controlled diagnostics.
+     * @param GitHubClientInterface $github Authenticated, replaceable GitHub API boundary for scoped reads and writes.
      */
     public function __construct(
         private GitHubClientInterface $github,
-        private PullRequestAuthorizationFactoryInterface $results,
     ) {}
 
     /**
@@ -65,22 +61,26 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             if (! GitHubEvidence::repository(
                 $options->repository,
             ) || $prNumber < 1 || '' === $waiverLabel || '' === $maintenanceLabel || $waiverLabel === $maintenanceLabel) {
-                return $this->results->create(
-                    false,
-                    false,
-                    'ordinary',
-                    ['PR policy requires an explicit repository, positive PR and distinct exception labels.'],
+                return new PullRequestAuthorization(
+                    waiverAuthorized: false,
+                    centralChangeAuthorized: false,
+                    kind: 'ordinary',
+                    diagnostics: [
+                        'PR policy requires an explicit repository, positive PR and distinct exception labels.',
+                    ],
                 );
             }
             $repo = $options->repository;
             $pr = $this->github->request('GET', '/repos/' . $repo . '/pulls/' . $prNumber);
 
             if (! GitHubEvidence::pullRequest($pr, $repo, $prNumber, false)) {
-                return $this->results->create(
-                    false,
-                    false,
-                    'ordinary',
-                    ['An open PR targeting the configured repository with a complete head snapshot is required.'],
+                return new PullRequestAuthorization(
+                    waiverAuthorized: false,
+                    centralChangeAuthorized: false,
+                    kind: 'ordinary',
+                    diagnostics: [
+                        'An open PR targeting the configured repository with a complete head snapshot is required.',
+                    ],
                 );
             }
             $sha = $pr['head']['sha'];
@@ -127,14 +127,14 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             }
             $kind = $managed ? 'managed-version' : ($maintenance ? 'maintenance' : ($waiver ? 'waiver' : 'ordinary'));
 
-            return $this->results->create($waiver, $maintenance || $managed, $kind, $diagnostics, $sha);
+            return new PullRequestAuthorization($waiver, $maintenance || $managed, $kind, $diagnostics, $sha);
         } catch (Throwable) {
-            return $this->results->create(
-                false,
-                false,
-                'ordinary',
-                ['GitHub PR authority could not be verified; response details were withheld.'],
-                $sha,
+            return new PullRequestAuthorization(
+                waiverAuthorized: false,
+                centralChangeAuthorized: false,
+                kind: 'ordinary',
+                diagnostics: ['GitHub PR authority could not be verified; response details were withheld.'],
+                headSha: $sha,
             );
         }
     }

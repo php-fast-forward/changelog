@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Release;
 
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactory;
 use FastForward\Changelog\Release\ReleaseMetadataParser;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 #[CoversClass(ReleaseMetadataParser::class)]
-#[UsesClass(ReleaseExceptionFactory::class)]
 final class ReleaseMetadataParserTest extends TestCase
 {
     /** Both Git and immutable API messages preserve the original whole-line parsing contract. */

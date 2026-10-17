@@ -135,7 +135,7 @@ Inspect the generated path: creation adds exactly one fragment without changing
 central history. Empty local inventory is valid; inherited notes do not satisfy
 a new contribution.
 
-When the contribution already has a PR, prefer recording its verified number
+When the contribution's origin is already known, optionally record its verified number
 with `add --pull-request=<number>` or `pull_request: <number>` in frontmatter.
 Read the actual PR through the application's existing GitHub tooling, API or
 browser. Confirm its repository, head branch and complete head SHA correspond
@@ -150,12 +150,10 @@ with its link:
 vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
 ```
 
-If the PR does not exist yet, keep the field absent. Once it is opened, verify
-its identity and add only `pull_request: <number>` to this contribution's
-existing newly added fragment, preserving its other metadata and body. Do not
-create a duplicate note to add the link. Commit that update only under the
-task's existing authority. Unknown PR metadata stays optional and must never
-block authoring or be filled with an invented number.
+If the PR number is unknown, keep the field absent. Contribution checks do not
+require it, and opening a PR does not require a follow-up fragment edit or
+commit. Unknown metadata must never block authoring or be filled with an
+invented number.
 
 Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
 history. `status` is read-only. Successful commands exit `0`; invalid arguments

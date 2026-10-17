@@ -16,7 +16,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Filesystem;
 
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
 
 /** Guards every managed-file ancestor through the injected Symfony filesystem. */
@@ -25,12 +25,10 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
     /**
      * Injects I/O and diagnostic construction; construction performs no path access.
      *
-     * @param Filesystem                       $filesystem Symfony filesystem boundary used for managed file operations.
-     * @param ReleaseExceptionFactoryInterface $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     * @param Filesystem $filesystem Symfony filesystem boundary used for managed file operations.
      */
     public function __construct(
         private Filesystem $filesystem,
-        private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
@@ -110,7 +108,7 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
             || in_array('.', explode('/', $normalized), true)
             || (! str_starts_with($normalized, '/') && 1 !== preg_match('~^[A-Za-z]:/~', $normalized))
             || (str_starts_with($normalized, '//') && 1 !== preg_match('~^//[^/]+/[^/]+/~', $normalized))) {
-            throw $this->exceptions->failure('Unsafe managed path: ' . $path);
+            throw new RuntimeException('Unsafe managed path: ' . $path);
         }
         if (1 === preg_match('~^[a-z]:/~', $normalized)) {
             $normalized = strtoupper($normalized[0]) . substr($normalized, 1);
@@ -118,7 +116,7 @@ final readonly class ManagedFileStore implements ManagedFileStoreInterface
         $ancestor = $normalized;
         do {
             if (null !== $this->filesystem->readlink($ancestor)) {
-                throw $this->exceptions->failure('Symbolic managed path or ancestor: ' . $ancestor);
+                throw new RuntimeException('Symbolic managed path or ancestor: ' . $ancestor);
             }
             if (1 === preg_match('~^(?:[A-Za-z]:/|//[^/]+/[^/]+/?)$~D', $ancestor)) {
                 break;

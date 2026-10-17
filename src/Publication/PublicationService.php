@@ -19,8 +19,6 @@ namespace FastForward\Changelog\Publication;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface;
 use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
@@ -34,21 +32,15 @@ final readonly class PublicationService implements MergedPublicationServiceInter
     /**
      * Injects proof, authenticated HTTP, typed output and failures without performing any I/O.
      *
-     * @param PublicationEvidenceValidatorInterface $evidence   Independent validator of approved committed release
-     *                                                          semantics and exact note bytes.
-     * @param GitHubClientInterface                 $github     Authenticated, replaceable GitHub API boundary for scoped reads and writes.
-     * @param PublicationResultFactoryInterface     $results    Constructor for immutable publication outcome retaining the
-     *                                                          approved SHA and ordered actions.
-     * @param ReleaseExceptionFactoryInterface      $exceptions Constructor for controlled invalid-input and
-     *                                                          transaction-failure diagnostics.
-     * @param ?PullRequestPolicyInterface           $policy     Optional signed-head ownership verifier; merged-PR publication is
-     *                                                          refused when this capability is absent.
+     * @param PublicationEvidenceValidatorInterface $evidence Independent validator of approved committed release
+     *                                                        semantics and exact note bytes.
+     * @param GitHubClientInterface                 $github   Authenticated, replaceable GitHub API boundary for scoped reads and writes.
+     * @param ?PullRequestPolicyInterface           $policy   Optional signed-head ownership verifier; merged-PR publication is
+     *                                                        refused when this capability is absent.
      */
     public function __construct(
         private PublicationEvidenceValidatorInterface $evidence,
         private GitHubClientInterface $github,
-        private PublicationResultFactoryInterface $results,
-        private ReleaseExceptionFactoryInterface $exceptions,
         private ?PullRequestPolicyInterface $policy = null,
     ) {}
 
@@ -106,7 +98,7 @@ final readonly class PublicationService implements MergedPublicationServiceInter
             || !GitHubEvidence::sha($mergeSha) || !GitHubEvidence::sha($headSha)
             || '' === $baseBranch || '' === $managedBranch || '' === $automationActor
             || null === $this->policy || !$this->evidence instanceof MergedPublicationEvidenceValidatorInterface) {
-            throw $this->exceptions->invalid(
+            throw new InvalidArgumentException(
                 'Merged publication requires complete PR identities and contextual proof capabilities.',
             );
         }
@@ -124,7 +116,7 @@ final readonly class PublicationService implements MergedPublicationServiceInter
             || ($pr['head']['repo']['node_id'] ?? null) !== $pr['base']['repo']['node_id']
             || ($pr['head']['ref'] ?? null) !== $managedBranch || ($pr['base']['ref'] ?? null) !== $baseBranch
             || !GitHubEvidence::identity($pr['user'] ?? null, $automationActor, 'Bot')) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Publication requires the merged configured version PR and its immutable head/merge identities.',
             );
         }
@@ -141,7 +133,7 @@ final readonly class PublicationService implements MergedPublicationServiceInter
 
         if (!GitHubEvidence::identity($account, $automationActor, 'Bot', $pr['user']['id'])
             || !$this->policy->inspectHead($options, $headSha, $automationActor, $mergeSha)) {
-            throw $this->exceptions->failure('The merged version PR lacks signed automation ownership.');
+            throw new RuntimeException('The merged version PR lacks signed automation ownership.');
         }
 
         return $this->write($this->evidence->validateMerged($options, $mergeSha, $headSha), $dryRun);
@@ -207,7 +199,7 @@ GRAPHQL,
             || true !== ($pr['merged'] ?? null) || ($pr['headRefOid'] ?? null) !== $headSha
             || ($pr['headRefName'] ?? null) !== $managedBranch || ($pr['baseRefName'] ?? null) !== $baseBranch
             || ($pr['mergeCommit']['oid'] ?? null) !== $mergeSha) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'GraphQL must corroborate the exact merged PR, repository, branches, head and merge commit.',
             );
         }
@@ -227,7 +219,7 @@ GRAPHQL,
     private function write(PublicationEvidence $evidence, bool $dryRun): PublicationResult
     {
         if (null === $evidence->version) {
-            return $this->results->create('maintenance', null, null, $evidence->sha, null, []);
+            return new PublicationResult('maintenance', null, null, $evidence->sha, null, []);
         }
         $root = '/repos/' . $evidence->repository;
         $tag = $evidence->tag;
@@ -235,18 +227,14 @@ GRAPHQL,
         $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
 
         if (null !== $sha && $sha !== $evidence->sha) {
-            throw $this->exceptions->failure(
-                'The release tag already points to another commit; it will never be moved.',
-            );
+            throw new RuntimeException('The release tag already points to another commit; it will never be moved.');
         }
 
         if (null !== $release) {
             $this->releaseUrl($release, $tag, $evidence->notes);
 
             if (null === $sha) {
-                throw $this->exceptions->failure(
-                    'An existing release has no verified matching tag; publication refused.',
-                );
+                throw new RuntimeException('An existing release has no verified matching tag; publication refused.');
             }
         }
         $actions = [];
@@ -260,13 +248,13 @@ GRAPHQL,
         }
 
         if ($dryRun) {
-            return $this->results->create(
-                'dry-run',
-                $evidence->version,
-                $tag,
-                $evidence->sha,
-                null === $release ? null : $this->releaseUrl($release, $tag, $evidence->notes),
-                $actions,
+            return new PublicationResult(
+                state: 'dry-run',
+                version: $evidence->version,
+                tag: $tag,
+                sha: $evidence->sha,
+                url: null === $release ? null : $this->releaseUrl($release, $tag, $evidence->notes),
+                actions: $actions,
             );
         }
 
@@ -278,18 +266,18 @@ GRAPHQL,
         $url = $this->releaseUrl($release, $tag, $evidence->notes);
 
         if ($this->tagSha($root, $tag) !== $evidence->sha) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'The release tag changed during publication; no tag rewrite or release update was attempted.',
             );
         }
 
-        return $this->results->create(
-            [] === $actions ? 'unchanged' : 'published',
-            $evidence->version,
-            $tag,
-            $evidence->sha,
-            $url,
-            $actions,
+        return new PublicationResult(
+            state: [] === $actions ? 'unchanged' : 'published',
+            version: $evidence->version,
+            tag: $tag,
+            sha: $evidence->sha,
+            url: $url,
+            actions: $actions,
         );
     }
 
@@ -310,9 +298,9 @@ GRAPHQL,
         $sha = $this->tagSha($root, $tag);
 
         if ($sha !== $evidence->sha) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Tag creation outcome is missing or conflicts with the approved commit; retry after checking remote state.',
-                $error,
+                previous: $error,
             );
         }
     }
@@ -331,18 +319,16 @@ GRAPHQL,
     private function createRelease(PublicationEvidence $evidence, string $root, string $tag): array
     {
         if ($this->tagSha($root, $tag) !== $evidence->sha) {
-            throw $this->exceptions->failure(
-                'The verified tag changed before release creation; publication refused.',
-            );
+            throw new RuntimeException('The verified tag changed before release creation; publication refused.');
         }
         $error = $this->create($root . '/releases', ['tag_name' => $tag, 'target_commitish' => $evidence->sha,
             'name' => $tag, 'body' => $evidence->notes, 'draft' => false, 'prerelease' => false, 'generate_release_notes' => false]);
         $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
 
         if (null === $release) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'The matching tag is retained but release creation is unverified; retry the same approved SHA.',
-                $error,
+                previous: $error,
             );
         }
 
@@ -388,7 +374,7 @@ GRAPHQL,
         }
 
         if (($reference['ref'] ?? null) !== 'refs/tags/' . $tag || ! is_array($reference['object'] ?? null)) {
-            throw $this->exceptions->failure('GitHub returned an invalid exact tag reference.');
+            throw new RuntimeException('GitHub returned an invalid exact tag reference.');
         }
         $object = $reference['object'];
         $seen = [];
@@ -398,7 +384,7 @@ GRAPHQL,
             $type = $object['type'] ?? null;
 
             if (! is_string($sha) || 1 !== preg_match('~^(?:[a-f0-9]{40}|[a-f0-9]{64})$~D', $sha)) {
-                throw $this->exceptions->failure('GitHub returned an invalid tag object identity.');
+                throw new RuntimeException('GitHub returned an invalid tag object identity.');
             }
 
             if ('commit' === $type) {
@@ -406,7 +392,7 @@ GRAPHQL,
             }
 
             if ('tag' !== $type || isset($seen[$sha]) || $depth >= 8) {
-                throw $this->exceptions->failure(
+                throw new RuntimeException(
                     'GitHub tag objects must terminate in a commit without cycles or excessive nesting.',
                 );
             }
@@ -416,7 +402,7 @@ GRAPHQL,
             if (null === $annotated || ($annotated['sha'] ?? null) !== $sha || ! is_array(
                 $annotated['object'] ?? null,
             )) {
-                throw $this->exceptions->failure('GitHub returned an invalid annotated tag object.');
+                throw new RuntimeException('GitHub returned an invalid annotated tag object.');
             }
             $object = $annotated['object'];
         }
@@ -445,7 +431,7 @@ GRAPHQL,
                 '~[\x00-\x20\x7f]~',
                 $url,
             )) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'The existing release differs from the exact approved tag, notes or published state.',
             );
         }

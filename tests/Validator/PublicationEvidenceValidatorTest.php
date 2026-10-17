@@ -14,20 +14,16 @@ use FastForward\Changelog\Git\GitCommitTreeReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
-use FastForward\Changelog\History\Import\Factory\HistoryImportResultFactoryInterface;
 use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
-use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
@@ -42,7 +38,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
-use Throwable;
 
 #[CoversClass(PublicationEvidenceValidator::class)]
 #[UsesClass(\FastForward\Changelog\Release\ReleaseHistoryConsolidator::class)]
@@ -128,7 +123,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
             $failed = true;
         }
         self::assertTrue($failed, 'Tampered merged evidence must fail.');
-        self::assertSame([], $state['created']);
     }
 
     /** Supplies separate immutable-object and domain attacks. */
@@ -168,7 +162,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
         self::assertSame('[prior]: https://example.test/prior', $state['rendered_references']);
         self::assertSame(0, $state['live_reads']);
         self::assertNotContains('HEAD', $state['resolved_refs']);
-        self::assertCount(1, $state['created']);
+        self::assertSame('owner/repo', $evidence->repository);
         self::assertNotContains('.changelog/release-plan.json', $state['read_paths']);
     }
 
@@ -995,7 +989,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertStringContainsString($message, $error->getMessage());
         }
-        self::assertSame([], $state['created']);
     }
 
     /** Builds baseline and approved trees with no generated file in the fragment directory. */
@@ -1014,7 +1007,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 'sha256',
                 $central,
             ), 'options_sha256' => $options->evidenceHash()],
-            'resolved' => self::APPROVED, 'head' => self::APPROVED, 'resolved_refs' => [], 'created' => [], 'ancestry_calls' => [], 'read_paths' => [],
+            'resolved' => self::APPROVED, 'head' => self::APPROVED, 'resolved_refs' => [], 'ancestry_calls' => [], 'read_paths' => [],
             'base_ancestor' => true, 'parser_valid' => true, 'parser_calls' => 0, 'history_parse_calls' => 0, 'tags_calls' => 0, 'current' => '1.0.0', 'next' => '1.0.1', 'impact' => VersionImpact::Patch, 'resolution_errors' => [],
             'base_doc' => $base, 'approved_doc' => $approved, 'source' => $options->source, 'current_calls' => 0, 'format_doc' => null, 'rendered_notes' => "Exact  notes\n", 'rendered_versions' => [], 'rendered_prefix' => null, 'rendered_references' => null,
             'live_template' => '<?php return [];', 'live_reads' => 0, 'template_resolves' => 0, 'resolved_ids' => [], 'reachable' => [], 'outside_fragment' => false,
@@ -1142,12 +1135,8 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $ending,
             ),
         );
-        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new HistoryCodec($documents, $releases, $exceptions);
+        return new HistoryCodec($documents, $releases);
     }
 
     /** Provides one deterministic ordinary-Markdown presentation shared by the mock and real-codec fixtures. */
@@ -1291,19 +1280,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $body,
             ),
         );
-        $results = $this->createStub(HistoryImportResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(HistoryDocument $document, array $missing, string $current): HistoryImportResult => new HistoryImportResult(
-                $document,
-                $missing,
-                $current,
-            ),
-        );
-        $historyExceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $historyExceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
-        $pureImporter = new HistoryImporter($github, $documents, $importReleases, $results, $historyExceptions);
+        $pureImporter = new HistoryImporter($github, $documents, $importReleases);
         $importer = $this->createMock(HistoryImporterInterface::class);
         $importer->method('currentVersion')->willReturnCallback(static function (array $tags, string $prefix) use (
             &$state,
@@ -1413,26 +1390,6 @@ final class PublicationEvidenceValidatorTest extends TestCase
                 $ending,
             ),
         );
-        $evidence = $this->createStub(PublicationEvidenceFactoryInterface::class);
-        $evidence->method('create')->willReturnCallback(
-            static function (string $sha, ?string $version, ?string $tag, string $notes, ?string $repository) use (
-                &$state
-            ): PublicationEvidence {
-                $state['created'][] = [$sha, $version, $tag, $notes, $repository];
-
-                return new PublicationEvidence($sha, $version, $tag, $notes, $repository);
-            },
-        );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): InvalidArgumentException => new InvalidArgumentException(
-                $message,
-                previous: $previous,
-            ),
-        );
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message): \RuntimeException => new \RuntimeException($message),
-        );
         $github = null;
         if ($state['merged'] ?? false) {
             $github = $this->createStub(GitHubClientInterface::class);
@@ -1460,11 +1417,8 @@ final class PublicationEvidenceValidatorTest extends TestCase
             $paths,
             $files,
             $releases,
-            $evidence,
-            $exceptions,
             new \FastForward\Changelog\Release\ReleaseHistoryConsolidator(
                 $releases,
-                $exceptions,
             ),
             $github,
         );

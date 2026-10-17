@@ -18,7 +18,6 @@ use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use RuntimeException;
@@ -29,19 +28,16 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
     /**
      * Injects all Git/file/path/diagnostic boundaries without reading a repository or executing PHP.
      *
-     * @param GitRepositoryInterface           $git        Replaceable repository boundary for immutable blobs, identities, ancestry and
-     *                                                     local Git operations.
-     * @param ManagedFileStoreInterface        $files      Replaceable managed-file reader used to compare checkout bytes with
-     *                                                     committed evidence.
-     * @param PackagePathResolverInterface     $paths      Consumer-root path resolver used to constrain managed file access.
-     * @param ReleaseExceptionFactoryInterface $exceptions Constructor for controlled invalid-input and
-     *                                                     transaction-failure diagnostics.
+     * @param GitRepositoryInterface       $git   Replaceable repository boundary for immutable blobs, identities, ancestry and
+     *                                            local Git operations.
+     * @param ManagedFileStoreInterface    $files Replaceable managed-file reader used to compare checkout bytes with
+     *                                            committed evidence.
+     * @param PackagePathResolverInterface $paths Consumer-root path resolver used to constrain managed file access.
      */
     public function __construct(
         private GitRepositoryInterface $git,
         private ManagedFileStoreInterface $files,
         private PackagePathResolverInterface $paths,
-        private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
@@ -71,7 +67,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
         );
 
         if ($central !== $plan->originalChangelog) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Commit the central changelog before applying a release: it differs from the approved base.',
             );
         }
@@ -99,9 +95,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
                     substr($path, strlen($prefix)),
                 )
                 || ! in_array($entry['mode'], ['100644', '100755'], true)) {
-                throw $this->exceptions->failure(
-                    'The release base contains an unsafe or noncanonical fragment: ' . $path,
-                );
+                throw new RuntimeException('The release base contains an unsafe or noncanonical fragment: ' . $path);
             }
             $selected[] = $path;
         }
@@ -114,7 +108,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
         ksort($consumed, SORT_STRING);
 
         if ($selected !== array_keys($consumed)) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Commit the complete pending fragment set before applying a release: it differs from the approved base.',
             );
         }
@@ -123,9 +117,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
             $contents = $this->git->readFileAt($options->workingDirectory, $plan->baseSha, $path);
 
             if (null === $contents || ! hash_equals($hash, hash('sha256', $contents))) {
-                throw $this->exceptions->failure(
-                    'Commit the accepted fragment bytes before applying a release: ' . $path,
-                );
+                throw new RuntimeException('Commit the accepted fragment bytes before applying a release: ' . $path);
             }
         }
         $this->validateTemplate($options, $plan->baseSha);
@@ -152,7 +144,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
         if (null === $committed || $this->files->read(
             $this->paths->absolutePath($options->template, $options->workingDirectory),
         ) !== $committed) {
-            throw $this->exceptions->failure(
+            throw new RuntimeException(
                 'Commit the selected custom template before applying a release: it differs from the approved base.',
             );
         }
@@ -178,7 +170,7 @@ final readonly class ReleaseInputEvidenceValidator implements ReleaseInputEviden
             ['100644', '100755'],
             true,
         )) {
-            throw $this->exceptions->failure('The release base requires an exact regular committed file: ' . $path);
+            throw new RuntimeException('The release base requires an exact regular committed file: ' . $path);
         }
     }
 }

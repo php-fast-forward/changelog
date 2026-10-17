@@ -2,7 +2,9 @@
 
 Namespaces follow the responsibility expressed by a type's contract. A changeset
 value, a release transaction and a GitHub automation policy remain in their own
-domains. Reusable transport construction belongs to its engine boundary.
+domains. The composition root selects shared HTTP transport, secure randomness
+and timezone defaults; operational factories retain dynamic process, configuration
+source and filesystem-discovery construction.
 Interfaces, implementations and their unit tests move together. PSR-4 spelling
 and filesystem case must match; Composer's strict optimized loader and Linux CI
 verify that structural contract.
@@ -15,13 +17,11 @@ verify that structural contract.
 | `Changeset` | Fragment content values, categories, parsing, serialization and domain storage. |
 | `Configuration` | Lazy custom PHP configuration-source construction. |
 | `Console` | Symfony application, command binding, input DTOs, terminal normalization, output and exit codes. |
-| `Container\ServiceProvider` | Lazy composition and consumer configuration. |
-| `Date` | Explicit timezone construction; date validity rules live in `Validator`. |
+| `Container\ServiceProvider` | Lazy composition, consumer configuration and explicit transport, entropy and timezone defaults. |
 | `Filesystem` | Managed file access, canonical package paths and Finder construction. |
 | `Fragment` | Contributor-facing creation, unique identifiers and optional scoped commits. |
 | `Git` | Repository observations and exact Git command results needed by changelog services. |
 | `GitHub` | Authenticated GitHub API adaptation with bounded complete evidence and controlled diagnostics. |
-| `Http` | Generic Symfony HTTP transport construction, without GitHub credentials or endpoints. |
 | `History` | Maintained Markdown, release values and historical import. |
 | `Process` | Structured process construction and credential isolation, independent of Git command semantics. |
 | `Publication` | Approved-commit publication evidence and create-only tag/release reconciliation. |
@@ -49,13 +49,116 @@ are introduced.
 | `Changeset\VersionImpact` | `Version\VersionImpact` |
 | `Console\GitHubOutputWriter` and `GitHubOutputWriterInterface` | `Automation\Output\GitHubOutputWriter` and `GitHubOutputWriterInterface` |
 | `Git\Factory\ProcessFactory` and `ProcessFactoryInterface` | `Process\Factory\ProcessFactory` and `ProcessFactoryInterface` |
-| `GitHub\Factory\HttpClientFactory` and `HttpClientFactoryInterface` | `Http\Factory\HttpClientFactory` and `HttpClientFactoryInterface` |
+| `GitHub\Factory\HttpClientFactory` and `HttpClientFactoryInterface` | HTTP transport is now composed through `Symfony\Contracts\HttpClient\HttpClientInterface`; see the factory removal migration below |
 | `Release\ReleaseNotesRenderer` and `ReleaseNotesRendererInterface` | `Release\Renderer\ReleaseNotesRenderer` and `ReleaseNotesRendererInterface` |
 
 Source declarations, composition keys and corresponding unit-test namespaces
 use these canonical names together. Source and tests share the single root
 [development contract](https://github.com/php-fast-forward/changelog/blob/main/AGENTS.md); these ordinary folders need no child
 instruction files.
+
+## Factory removal migration
+
+This is a deliberate PHP API break before the first stable release. The following
+43 public symbols are removed: 22 concrete factories and their 21 interfaces.
+They previously existed in the main branch and were exposed through the provider;
+applications using their FQCNs, container keys or constructor arguments must migrate.
+No compatibility aliases retain the removed contracts. CLI arguments, fragment
+schema and persisted release evidence retain their existing contracts.
+
+All names in this table are relative to `FastForward\Changelog\`. Each row removes
+the named class and its corresponding `Interface` suffix, except `TimezoneFactory`.
+
+| Removed factory | Replacement |
+| --- | --- |
+| `Changeset\Factory\ChangesetFactory` | `new Changeset\Changeset(...)` |
+| `Changeset\Factory\ChangesetParseResultFactory` | `new Changeset\ChangesetParseResult($id, $changeset, $errors)` |
+| `Validation\Factory\ValidationReportFactory` | `new Validation\ValidationReport(...)` |
+| `Version\Factory\VersionResolutionFactory` | `new Version\VersionResolution(...)` |
+| `Release\Factory\ReleaseReceiptFactory` | `new Release\ReleaseReceipt($validatedData)` |
+| `History\Import\Factory\HistoryImportResultFactory` | `new History\Import\HistoryImportResult(...)` |
+| `Publication\Factory\PublicationEvidenceFactory` | `new Publication\PublicationEvidence(...)` |
+| `Publication\Factory\PublicationResultFactory` | `new Publication\PublicationResult(...)` |
+| `Automation\Dependabot\Factory\DependabotFragmentResultFactory` | `new Automation\Dependabot\DependabotFragmentResult(...)` |
+| `Automation\Policy\Factory\PullRequestAuthorizationFactory` | `new Automation\Policy\PullRequestAuthorization(...)` |
+| `Automation\VersionPullRequest\Factory\VersionPullRequestResultFactory` | `new Automation\VersionPullRequest\VersionPullRequestResult(...)` |
+| `Filesystem\Factory\PathExceptionFactory` | `new \InvalidArgumentException(...)`, retaining the path diagnostic |
+| `Fragment\Factory\FragmentExceptionFactory` | `new \InvalidArgumentException(...)` or `new \RuntimeException(...)` |
+| `GitHub\Factory\GitHubExceptionFactory` | `new \RuntimeException(...)` |
+| `History\Factory\HistoryExceptionFactory` | `new \InvalidArgumentException(...)` |
+| `Release\Factory\ReleaseExceptionFactory` | `new \InvalidArgumentException(...)` or `new \RuntimeException(...)` |
+| `Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory` | `new Automation\VersionPullRequest\VersionPullRequestException(...)` |
+| `Date\Factory\TimezoneFactory` (class only) | `new \DateTimeZone('UTC')` in composition |
+| `Fragment\Factory\IdentifierGeneratorFactory` | `Fragment\IdentifierGeneratorInterface` resolves to `Fragment\RandomIdentifierGenerator`, with an injected `\Random\Randomizer` |
+| `GitHub\Factory\GitHubClientFactory` | `GitHub\GitHubClientInterface` resolves to `GitHub\GitHubClient`, with injected HTTP transport and explicit token/API settings |
+| `Http\Factory\HttpClientFactory` | Compose `Symfony\Contracts\HttpClient\HttpClientInterface` using `Symfony\Component\HttpClient\HttpClient::create()` |
+| `Console\CommandLoader\Factory\LazyCommandFactory` | `Console\CommandLoader\ChangelogCommandLoader` constructs and caches its lazy wrappers |
+
+Direct value construction does not require a container entry or injected factory:
+
+```php
+use FastForward\Changelog\Changeset\Category;
+use FastForward\Changelog\Changeset\Changeset;
+
+$changeset = new Changeset(
+    id: 'parser-spaces.md',
+    category: Category::Fixed,
+    issue: null,
+    pullRequest: null,
+    author: null,
+    description: 'Preserves meaningful Markdown spaces.',
+);
+```
+
+Parsing still validates fragment metadata before constructing that value. When
+replacing exception factories, preserve the exact exception type, message, zero
+code and previous exception; use `previous: $error` rather than passing it as the
+standard constructor's second argument.
+
+The following public constructors lose the listed arguments. Remaining arguments
+keep their names, order and defaults. Constructors with no remaining dependencies
+are removed, so those classes are constructed without arguments.
+
+| Class | Removed constructor arguments |
+| --- | --- |
+| `Changeset\Parser\ChangesetParser` | `$changesetFactory`, `$resultFactory` (no dependencies remain) |
+| `Changeset\Store\FilesystemChangesetStore` | `$exceptionFactory` |
+| `Validator\ChangesetValidator` | `$reportFactory` |
+| `Validation\CheckService` | `$reports` |
+| `Version\NextVersionResolver` | `$resultFactory` |
+| `Fragment\FragmentWriter` | `$exceptions` |
+| `Filesystem\ManagedFileStore` | `$exceptions` |
+| `History\HistoryCodec` | `$exceptionFactory` |
+| `History\Import\HistoryImporter` | `$results`, `$exceptions` |
+| `Release\ReceiptCodec` | `$receipts`, `$exceptions` (no dependencies remain) |
+| `Release\ReleaseMetadataParser` | `$exceptions` (no dependencies remain) |
+| `Release\ReleaseApplier` | `$exceptions` |
+| `Release\ReleaseHistoryConsolidator` | `$exceptions` |
+| `Release\ReleasePlanner` | `$exceptions` |
+| `Template\TemplateResolver` | `$exceptions` |
+| `Git\GitRepository` | `$exceptions`; retains `$processes` and optional `$metadata` |
+| `GitHub\GitHubClient` | `$exceptions`; retains `$http`, `$token`, `$apiUrl`, `$maxPages` |
+| `Publication\PublicationService` | `$results`, `$exceptions` |
+| `Validator\PublicationEvidenceValidator` | `$evidence`, `$exceptions` |
+| `Validator\ReleaseInputEvidenceValidator` | `$exceptions` |
+| `Automation\AutomationRunner` | `$exceptions` |
+| `Automation\Policy\PullRequestPolicy` | `$results` |
+| `Automation\Dependabot\DependabotFragmentService` | `$changesets`, `$results` |
+| `Automation\Dependabot\Factory\DependabotInputFactory` | `$exceptions` (no dependencies remain) |
+| `Automation\VersionPullRequest\VersionPullRequestService` | `$results`, `$exceptions` |
+| `Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory` | `$exceptions` (no dependencies remain) |
+| `Console\CommandLoader\ChangelogCommandLoader` | `$factory`; retains only `$container` |
+
+Factories with behavior remain: `DependabotInputFactory`,
+`VersionPullRequestInputFactory`, `HistoryDocumentFactory`, `HistoryReleaseFactory`,
+`ReleaseOptionsFactory`, `ReleasePlanFactory` and `TemplateFactory` validate or
+normalize input, construct canonical evidence or preserve historical invariants.
+Their interfaces remain available. `ProcessFactory`, `ConfigSourceFactory` and
+`FinderFactory` also retain their interfaces for dynamic operational products.
+Application-facing services such as `FragmentWriterInterface`,
+`ChangesetParserInterface`, `ReleasePlannerInterface` and `GitHubClientInterface`
+continue to provide the behavior contracts. The [PHP adoption example](adoption.md)
+still uses `ReleaseOptionsFactoryInterface` to validate consumer settings.
 
 See the [Git/GitHub dependency assessment](integration-dependencies.md) for engine
 reuse and the [development scripts guide](https://github.com/php-fast-forward/changelog/blob/main/scripts/README.md) for maintenance

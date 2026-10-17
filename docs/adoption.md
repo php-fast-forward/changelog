@@ -31,7 +31,7 @@ vendor/bin/changelog add --help
 ```
 
 The current compatibility range keeps `fast-forward/container` on `~1.6.0`.
-The 1.7–1.9 resolution path can retry a failed explicit concrete factory through
+The 1.7–1.10 resolution path can retry a failed explicit concrete factory through
 autowiring, hiding the selected command's construction failure. The production
 packaging fixture detects that regression. Broaden this range only after an
 upstream correction passes that same fixture; the installed development lock
@@ -73,11 +73,11 @@ vendor/bin/changelog check --since=origin/main --no-interaction
 The `--since` check evaluates committed Git differences; run it after committing
 the contribution and fetching/selecting the intended baseline. Review the exact
 created fragment. PR, issue and author metadata are optional, so author before a
-PR exists without placeholders. When the PR is known, prefer its verified
-`--pull-request=<number>`; confirm the repository, head branch and exact head SHA
-before copying the number from the actual PR URL or trusted metadata. If it is
-opened later, add `pull_request: <number>` to that same newly added fragment,
-preserving its remaining bytes. A generated fragment always persists its category
+PR exists without placeholders. When its origin is already known, you may supply
+the verified `--pull-request=<number>`; confirm the repository, head branch and
+exact head SHA before copying the number from the actual PR URL or trusted
+metadata. Contribution checks do not require a PR number, and opening the PR
+does not require a follow-up fragment edit. A generated fragment always persists its category
 and effective type. For a dependency change preserving the public API, use
 `--category=changed --type=patch`. Category defaults and restricted frontmatter
 are documented in [fragment format](specification/fragment-format.md).

@@ -18,7 +18,6 @@ namespace FastForward\Changelog\Validator;
 
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
-use FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use RuntimeException;
 
@@ -33,16 +32,13 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
     /**
      * Composes mockable domain and I/O boundaries.
      *
-     * @param ChangesetStoreInterface          $store         Replaceable fragment discovery and regular-file reading boundary.
-     * @param ChangesetParserInterface         $parser        Schema parser that retains per-fragment diagnostics instead of silently
-     *                                                        dropping invalid input.
-     * @param ValidationReportFactoryInterface $reportFactory Constructor for aggregate accepted fragments, content
-     *                                                        hashes and diagnostics.
+     * @param ChangesetStoreInterface  $store  Replaceable fragment discovery and regular-file reading boundary.
+     * @param ChangesetParserInterface $parser Schema parser that retains per-fragment diagnostics instead of silently
+     *                                         dropping invalid input.
      */
     public function __construct(
         private ChangesetStoreInterface $store,
         private ChangesetParserInterface $parser,
-        private ValidationReportFactoryInterface $reportFactory,
     ) {}
 
     /**
@@ -67,7 +63,7 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
         $paths = $this->store->paths($directory);
 
         if (null === $paths) {
-            return $this->reportFactory->create(
+            return new ValidationReport(
                 [],
                 [$directory => ['Changeset directory MUST be regular rather than a symbolic link.']],
                 $waived,
@@ -138,12 +134,7 @@ final readonly class ChangesetValidator implements ChangesetValidatorInterface
             $errors[$result->id] = $result->errors;
         }
 
-        return $this->reportFactory->create(
-            $changesets,
-            $errors,
-            $waived,
-            ...([] === $hashes ? [] : [$hashes]),
-        );
+        return new ValidationReport($changesets, $errors, $waived, ...([] === $hashes ? [] : [$hashes]));
     }
 
     /**

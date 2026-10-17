@@ -19,8 +19,8 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 
 /** Consumes the legacy pending section when fragments establish an actual release. */
 final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsolidatorInterface
@@ -28,12 +28,10 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
     /**
      * Injects value construction; consolidation performs no I/O or clock access.
      *
-     * @param HistoryReleaseFactoryInterface   $releases   Constructs strict semantic sections with validated dates and preserved raw presentation.
-     * @param ReleaseExceptionFactoryInterface $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     * @param HistoryReleaseFactoryInterface $releases Constructs strict semantic sections with validated dates and preserved raw presentation.
      */
     public function __construct(
         private HistoryReleaseFactoryInterface $releases,
-        private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
@@ -139,7 +137,9 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
             $outside = $this->outsideFence($line, $fence);
             $peer = $outside && 1 === preg_match('/^###(?:[ \t]|\r?\n|\z)/', $line);
             if (null !== $markedCategory && '' !== trim($line) && ! $peer) {
-                throw $this->exceptions->invalid('Legacy category markers must be followed by a level-three heading.');
+                throw new InvalidArgumentException(
+                    'Legacy category markers must be followed by a level-three heading.',
+                );
             }
             if (null !== $markedCategory && '' === trim($line)) {
                 continue;
@@ -172,7 +172,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
             $sections[$key] .= $line;
         }
         if (null !== $markedCategory) {
-            throw $this->exceptions->invalid('Legacy category markers must be followed by a level-three heading.');
+            throw new InvalidArgumentException('Legacy category markers must be followed by a level-three heading.');
         }
 
         return $sections;

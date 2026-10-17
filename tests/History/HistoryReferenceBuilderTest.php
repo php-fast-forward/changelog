@@ -5,14 +5,12 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\History;
 
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Template\TemplateInterface;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -281,11 +279,7 @@ final class HistoryReferenceBuilderTest extends TestCase
                     $version,
                 ), $date, $source, $body, $heading, $ending),
         );
-        $exceptions = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new HistoryCodec($documents, $releases, $exceptions);
+        return new HistoryCodec($documents, $releases);
     }
 }

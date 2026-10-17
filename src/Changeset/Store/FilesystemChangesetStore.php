@@ -18,7 +18,7 @@ namespace FastForward\Changelog\Changeset\Store;
 
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\Factory\FinderFactoryInterface;
-use FastForward\Changelog\Filesystem\Factory\PathExceptionFactoryInterface;
+use InvalidArgumentException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Lock\LockFactory;
@@ -35,16 +35,14 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
     /**
      * Injects filesystem, discovery, locking and exception-construction boundaries.
      *
-     * @param Filesystem                    $filesystem       Symfony filesystem boundary used for managed file operations.
-     * @param FinderFactoryInterface        $finderFactory    Creates an unconfigured Finder so traversal occurs only during explicit discovery.
-     * @param LockFactory                   $lockFactory      Builds cooperative directory locks shared by fragment writers and managed release operations.
-     * @param PathExceptionFactoryInterface $exceptionFactory Constructs controlled validation diagnostics without performing the operation itself.
+     * @param Filesystem             $filesystem    Symfony filesystem boundary used for managed file operations.
+     * @param FinderFactoryInterface $finderFactory Creates an unconfigured Finder so traversal occurs only during explicit discovery.
+     * @param LockFactory            $lockFactory   Builds cooperative directory locks shared by fragment writers and managed release operations.
      */
     public function __construct(
         private Filesystem $filesystem,
         private FinderFactoryInterface $finderFactory,
         private LockFactory $lockFactory,
-        private PathExceptionFactoryInterface $exceptionFactory,
     ) {}
 
     /**
@@ -64,7 +62,9 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
         $normalized = $this->normalizePath($directory);
 
         if (null === $normalized) {
-            throw $this->exceptionFactory->create($directory);
+            throw new InvalidArgumentException(
+                sprintf('Unsafe fragment path "%s": use an absolute regular path without traversal.', $directory),
+            );
         }
 
         return 'fast-forward/changelog:' . hash('sha256', $normalized);
@@ -230,7 +230,9 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
                 || 1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, basename($normalized))
                 || $this->isUnsafePath($normalized)
             ) {
-                throw $this->exceptionFactory->create($path);
+                throw new InvalidArgumentException(
+                    sprintf('Unsafe fragment path "%s": use an absolute regular path without traversal.', $path),
+                );
             }
 
             $normalizedPaths[] = $normalized;
