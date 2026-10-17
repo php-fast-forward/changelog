@@ -96,7 +96,7 @@ jobs:
           printf 'sha=%s\n' "$FF_SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Set Up The Integration Verifier
-        uses: shivammathur/setup-php@2.36.0
+        uses: shivammathur/setup-php@2.37.1
         with:
           php-version: '8.5'
           coverage: none
