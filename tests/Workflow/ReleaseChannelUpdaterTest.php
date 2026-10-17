@@ -263,6 +263,30 @@ final class ReleaseChannelUpdaterTest extends TestCase
         self::assertSame('current', $f->run()['state']);
     }
 
+    /** Proves a refused write retains the absent ref and exposes only fixed, recognized diagnostic categories. */
+    public function testReportsOnlyRecognizedGraphqlErrorTypesWithoutServerMessages(): void
+    {
+        $f = $this->fixture;
+        $f->mutationErrors = [
+            ['type' => 'FORBIDDEN', 'message' => 'synthetic-secret-do-not-print'],
+            ['type' => 'FORBIDDEN'],
+            ['type' => 'synthetic-secret-do-not-print'],
+        ];
+
+        try {
+            $f->run();
+            self::fail('A rejected mutation must fail.');
+        } catch (RuntimeException $error) {
+            self::assertSame(
+                'The conditional channel update was rejected (FORBIDDEN); verify token permissions and the ref before retrying.',
+                $error->getMessage(),
+            );
+        }
+
+        self::assertCount(0, $f->mutations);
+        self::assertNull($f->git(['show-ref', '--verify', '--hash', 'refs/heads/v0'], true));
+    }
+
     public function testRecoversAnUncertainAcceptedMutationWithoutAnotherWrite(): void
     {
         $f = $this->fixture;
