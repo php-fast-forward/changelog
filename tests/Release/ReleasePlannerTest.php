@@ -180,7 +180,7 @@ final class ReleasePlannerTest extends TestCase
         $planner = $this->markdownPlanner($original, $tags);
         $plan = $planner->plan($options);
         $expected = $prefix . "## [1.0.1] - 2026-10-04\n\n### Fixed\n\n- Fresh fix.\n\n" . $section
-            . ($linked ? $footer . "[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1\r\n"
+            . ($linked ? "[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1\r\n" . $footer
                 : "[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1\n"
                     . "[v1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0\n");
 

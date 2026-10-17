@@ -22,7 +22,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(HistoryCodec::class)]
 final class HistoryReferenceBuilderTest extends TestCase
 {
-    /** Missing links follow semantic predecessors without changing the maintained section order. */
+    /** Missing links follow semantic predecessors and section order while retaining custom definition bytes. */
     public function testCompletesConcreteVersionsAndRetainsAllExistingBytes(): void
     {
         $footer = "[issue]: https://example.test/42 \r\n[1.0.0]: https://custom.test/first \"Title\"\r\n";
@@ -35,8 +35,9 @@ final class HistoryReferenceBuilderTest extends TestCase
         self::assertSame($releases, $completed->getReleases());
         self::assertSame($document->getPrefix(), $completed->getPrefix());
         self::assertSame($footer, $document->getReferences());
-        self::assertSame($footer
+        self::assertSame("[issue]: https://example.test/42 \r\n"
             . "[1.2.0]: https://github.com/owner/project/compare/v1.1.0...v1.2.0\r\n"
+            . "[1.0.0]: https://custom.test/first \"Title\"\r\n"
             . "[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0\r\n", $completed->getReferences());
         self::assertSame($completed, $builder->complete($completed, 'owner/project'));
         self::assertStringNotContainsString('[Unreleased]:', $completed->getReferences());
@@ -60,8 +61,8 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.1.0', heading: "## [V1.1.0]\n"),
         ], references: "[ v1.1.0 ]: https://example.test/retained\n");
 
-        self::assertSame("[ v1.1.0 ]: https://example.test/retained\n"
-            . "[v1.2.0]: https://github.com/owner/project/compare/v1.1.0...v1.2.0\n",
+        self::assertSame("[v1.2.0]: https://github.com/owner/project/compare/v1.1.0...v1.2.0\n"
+            . "[ v1.1.0 ]: https://example.test/retained\n",
             new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences());
     }
 
@@ -206,7 +207,7 @@ final class HistoryReferenceBuilderTest extends TestCase
         self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project'));
     }
 
-    /** Appending a reference never changes a pre-existing footer lacking its final newline. */
+    /** A new latest reference precedes the old footer without adding a newline to its untouched final definition. */
     public function testRetainsAnUnterminatedFooterAndAddsItsRequiredSeparator(): void
     {
         $footer = '[1.0.0]: https://example.test/first';
@@ -214,7 +215,45 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.1.0'),
             new HistoryRelease('1.0.0'),
         ], references: $footer);
-        self::assertSame($footer . "\n[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0\n",
+        self::assertSame("[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0\n" . $footer,
+            new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences());
+    }
+
+    /** New latest, missing middle and oldest references enter the corresponding positions without moving custom links. */
+    #[TestWith(["\n", true])]
+    #[TestWith(["\r\n", false])]
+    public function testInsertsMissingReferencesAmongRetainedVersions(string $newline, bool $terminated): void
+    {
+        $footer = '[issue]: https://example.test/42' . $newline
+            . '[0.6.3]: https://custom.test/63 "Retained title"' . $newline
+            . $newline . '[support]: https://example.test/help' . $newline
+            . '[0.3.0]: https://custom.test/30' . ($terminated ? $newline : '');
+        $document = new HistoryDocument(array_map(
+            static fn(string $version): HistoryRelease => new HistoryRelease($version),
+            ['0.6.4', '0.6.3', '0.6.2', '0.3.0', '0.1.0'],
+        ), references: $footer);
+        $builder = new HistoryReferenceBuilder();
+        $completed = $builder->complete($document, 'owner/project');
+
+        self::assertSame('[issue]: https://example.test/42' . $newline
+            . '[0.6.4]: https://github.com/owner/project/compare/v0.6.3...v0.6.4' . $newline
+            . '[0.6.3]: https://custom.test/63 "Retained title"' . $newline
+            . $newline . '[support]: https://example.test/help' . $newline
+            . '[0.6.2]: https://github.com/owner/project/compare/v0.3.0...v0.6.2' . $newline
+            . '[0.3.0]: https://custom.test/30' . $newline
+            . '[0.1.0]: https://github.com/owner/project/releases/tag/v0.1.0' . $newline,
+            $completed->getReferences());
+        self::assertSame($footer, $document->getReferences());
+        self::assertSame($completed, $builder->complete($completed, 'owner/project'));
+    }
+
+    /** Missing definitions appended after unrelated links still separate an unterminated existing line. */
+    public function testAppendsWhenNoRetainedVersionProvidesAnAnchor(): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('0.1.0')], references: '[help]: https://example.test');
+
+        self::assertSame("[help]: https://example.test\n"
+            . "[0.1.0]: https://github.com/owner/project/releases/tag/v0.1.0\n",
             new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences());
     }
 
@@ -246,7 +285,9 @@ final class HistoryReferenceBuilderTest extends TestCase
 
         self::assertStringContainsString($oldSection, $rendered);
         if ('' !== $footer) {
-            self::assertStringContainsString($footer, $rendered);
+            foreach (preg_split('/\r\n|\n|\r/', rtrim($footer, "\r\n")) as $line) {
+                self::assertStringContainsString($line, $rendered);
+            }
         }
         self::assertStringContainsString('[v1.0.0]: ', $parsed->getReferences());
         self::assertStringContainsString(
