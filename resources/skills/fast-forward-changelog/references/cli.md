@@ -142,6 +142,19 @@ any other byte, path or regular-file mode; validation must match the committed
 head. This is a narrowly scoped correction, separate from ordinary contributions
 and waivers. Do not invent a contributor identity to fill the removed value.
 
+An explicitly requested editorial maintenance PR may also replace inherited
+pending notes with reviewed summaries. Only direct canonical fragment filenames
+qualify; nested, hidden or reserved Markdown paths gain no exception.
+This requires the same verified human
+maintain/admin grant and at least one newly added, valid regular summary committed
+in that PR. Every remaining fragment must validate; Git must prove the exact base
+and HEAD blobs, unchanged regular-file modes for modifications and complete absence
+for deletions. Renames, type changes, copied or uncommitted replacement notes and
+waivers do not unlock curation. Preserve the original content in Git and explain
+the summary mapping in the PR. This changes pending notes, grants no publication
+authority and does not permit rewriting a published release. Let the workflow
+prepare its normal version PR only after the curated inventory is integrated.
+
 ## Preview and consolidate a release
 
 An ordinary contributor may inspect the read-only plan with `status`. The version
