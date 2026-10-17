@@ -45,6 +45,8 @@ interface ChangesetParserInterface
      *
      * @param string $path     fragment path whose filename becomes its identifier
      * @param string $contents complete Markdown fragment
+     *
+     * @return ChangesetParseResult Parsed immutable fragment or the complete independent schema diagnostics.
      */
     public function parse(string $path, string $contents): ChangesetParseResult;
 }

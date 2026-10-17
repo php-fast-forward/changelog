@@ -20,6 +20,15 @@ use FastForward\Changelog\Release\ReleaseOptions;
 /** Creates one deterministic core changeset for a verified same-repository Dependabot PR. */
 interface DependabotFragmentServiceInterface
 {
-    /** Performs only API reads and create-only Contents writes; unexpected existing content is never overwritten. */
+    /**
+     * Performs only API reads and create-only Contents writes; unexpected existing content is never overwritten.
+     *
+     * @param  ReleaseOptions           $options Trusted consumer paths, rendering settings and repository selection for this
+     *                                           operation.
+     * @param  DependabotInput          $input   Validated operation settings and the immutable remote snapshot selected by the
+     *                                           caller.
+     * @return DependabotFragmentResult Created/unchanged/filtered/refused/conflict outcome without overwriting existing
+     *                                  manual bytes.
+     */
     public function synchronize(ReleaseOptions $options, DependabotInput $input): DependabotFragmentResult;
 }

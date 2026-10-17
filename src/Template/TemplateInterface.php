@@ -18,21 +18,50 @@ namespace FastForward\Changelog\Template;
 /** Defines a localized Keep a Changelog presentation without translating descriptions. */
 interface TemplateInterface
 {
-    /** Returns the selected locale identifier. */
+    /**
+     * Returns the selected locale identifier.
+     *
+     * @return string Selected structural-language identifier without consulting host locale settings.
+     */
     public function getLocale(): string;
 
-    /** Returns the introductory Markdown, without an imposed trailing newline. */
+    /**
+     * Returns the introductory Markdown, without an imposed trailing newline.
+     *
+     * @return string Configured introductory Markdown without an imposed trailing newline.
+     */
     public function introduction(): string;
 
-    /** Returns one release heading using a canonical version and optional date. */
+    /**
+     * Returns one release heading using a canonical version and optional date.
+     *
+     * @param string      $version Canonical release identity substituted into the validated heading pattern.
+     * @param string|null $date    Observed calendar date in YYYY-MM-DD form, or null when unavailable.
+     *
+     * @return string Validated structural heading with the supplied version and optional date substituted.
+     */
     public function releaseHeading(string $version, ?string $date): string;
 
-    /** Returns the structural heading for one canonical lowercase category. */
+    /**
+     * Returns the structural heading for one canonical lowercase category.
+     *
+     * @param string $category Canonical lowercase Keep a Changelog category identifier.
+     *
+     * @return string Structural level-three heading for the canonical category identifier.
+     */
     public function categoryHeading(string $category): string;
 
-    /** Returns the localized heading for pending changes. */
+    /**
+     * Returns the localized heading for pending changes.
+     *
+     * @return string Configured localized heading recognizing legacy pending descriptions.
+     */
     public function unreleasedHeading(): string;
 
-    /** Describes an imported historical version for which no notes were supplied. */
+    /**
+     * Describes an imported historical version for which no notes were supplied.
+     *
+     * @return string Localized placeholder for a tagged version lacking published notes.
+     */
     public function missingNotes(): string;
 }

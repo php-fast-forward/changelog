@@ -11,14 +11,21 @@ use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
+use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\History\Factory\HistoryDocumentFactory;
+use FastForward\Changelog\History\Factory\HistoryReleaseFactory;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
+use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\ReceiptCodec;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Release\ReleaseJournalPathResolverInterface;
@@ -26,14 +33,20 @@ use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlanner;
 use FastForward\Changelog\Release\ReleaseReceipt;
+use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
+use FastForward\Changelog\Template\Factory\TemplateFactory;
+use FastForward\Changelog\Template\KeepAChangelogTemplate;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
+use FastForward\Changelog\Validator\ReleaseDateValidator;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
+use FastForward\Changelog\Version\NextVersionResolver;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
 use FastForward\Changelog\Version\VersionImpact;
+use FastForward\Changelog\Version\VersionImpactResolver;
 use FastForward\Changelog\Version\VersionResolution;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -49,15 +62,163 @@ use RuntimeException;
 #[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(ReleaseReceipt::class)]
 #[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryRelease::class)]
 #[UsesClass(HistoryImportResult::class)]
 #[UsesClass(ValidationReport::class)]
 #[UsesClass(VersionResolution::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(Category::class)]
+#[UsesClass(HistoryDocumentFactory::class)]
+#[UsesClass(HistoryReleaseFactory::class)]
+#[UsesClass(HistoryCodec::class)]
+#[UsesClass(HistoryImporter::class)]
+#[UsesClass(ReleasePlanFactory::class)]
+#[UsesClass(ReceiptCodec::class)]
+#[UsesClass(ReleaseNotesRenderer::class)]
+#[UsesClass(TemplateFactory::class)]
+#[UsesClass(KeepAChangelogTemplate::class)]
+#[UsesClass(ReleaseDateValidator::class)]
+#[UsesClass(NextVersionResolver::class)]
+#[UsesClass(VersionImpactResolver::class)]
+#[UsesClass(VersionImpact::class)]
 final class ReleasePlannerTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    private const string INTRODUCTION = "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n"
+        . "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\n"
+        . "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n";
+
+    /** An absent file creates the first release, or imports actual tags before incrementing their baseline. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testMissingChangelogProducesExactVersionedMarkdown(bool $tagged): void
+    {
+        $tags = $tagged ? [['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]] : [];
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: 'tags');
+        $planner = $this->markdownPlanner(null, $tags);
+        $plan = $planner->plan($options);
+        $expected = $tagged
+            ? self::INTRODUCTION . "## [1.0.1] - 2026-10-04\n\n### Fixed\n\n- Fresh fix.\n\n"
+                . "## [1.0.0]\n\nRelease notes are unavailable for this version.\n\n"
+                . "[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1\n"
+                . "[1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0\n"
+            : self::INTRODUCTION . "## [0.0.1] - 2026-10-04\n\n### Fixed\n\n- Fresh fix.\n\n"
+                . "[0.0.1]: https://github.com/owner/repo/releases/tag/v0.0.1\n";
+
+        self::assertNull($plan->originalChangelog);
+        self::assertSame($tagged ? '1.0.0' : '0.0.0', $plan->currentVersion);
+        self::assertSame($tagged ? '1.0.1' : '0.0.1', $plan->nextVersion);
+        self::assertSame($tagged ? ['1.0.0'] : [], $plan->historicalVersions);
+        self::assertSame($expected, $plan->changelogContents);
+        self::assertSame("\n### Fixed\n\n- Fresh fix.\n\n", $plan->notes);
+        self::assertSame($expected, $planner->plan($options)->changelogContents);
+        self::assertStringNotContainsString('Unreleased', $plan->changelogContents);
+    }
+
+    /** Existing sections are authoritative with either history source, including custom reference destinations and CRLF. */
+    #[TestWith([false, 'tags'])]
+    #[TestWith([true, 'tags'])]
+    #[TestWith([false, 'github'])]
+    #[TestWith([true, 'github'])]
+    public function testIncrementPreservesExactHistoryAndCompletesOnlyMissingFooterLinks(
+        bool $linked,
+        string $source,
+    ): void {
+        $prefix = "# Maintained introduction\r\n\r\n";
+        $section = "## [v1.0.0] - 2026-09-01\r\n\r\n### Added\r\n\r\n- Existing  spaces.  \r\n\r\n";
+        $footer = $linked ? "[v1.0.0]: https://custom.test/first \"Retained title\"\r\n"
+            . "[issue]: https://example.test/42\r\n" : '';
+        $original = $prefix . $section . $footer;
+        $tags = [['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]];
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: $source);
+        $planner = $this->markdownPlanner($original, $tags);
+        $plan = $planner->plan($options);
+        $expected = $prefix . "## [1.0.1] - 2026-10-04\n\n### Fixed\n\n- Fresh fix.\n\n" . $section
+            . ($linked ? $footer . "[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1\r\n"
+                : "[1.0.1]: https://github.com/owner/repo/compare/v1.0.0...v1.0.1\n"
+                    . "[v1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0\n");
+
+        self::assertSame($original, $plan->originalChangelog);
+        self::assertSame('1.0.0', $plan->currentVersion);
+        self::assertSame('1.0.1', $plan->nextVersion);
+        self::assertSame([], $plan->historicalVersions);
+        self::assertSame($expected, $plan->changelogContents);
+        self::assertSame($expected, $planner->plan($options)->changelogContents);
+        self::assertSame($expected, $this->markdownPlanner($expected, $tags, false)->plan($options)->changelogContents);
+        self::assertSame(1, substr_count($plan->changelogContents, '[v1.0.0]:'));
+        self::assertStringNotContainsString('Unreleased', $plan->changelogContents);
+    }
+
+    /** Without tags, maintained stable history is preserved on no-op and blocks a new release for every source. */
+    #[TestWith(['tags'])]
+    #[TestWith(['github'])]
+    #[TestWith(['auto'])]
+    public function testExistingStableHistoryWithoutTagsIsPreservedButCannotBeIncremented(string $source): void
+    {
+        $original = "# Existing history\r\n\r\n## [1.0.0] - 2026-09-01\r\n\r\nOld notes.  \r\n\r\n"
+            . "[1.0.0]: https://custom.test/first \"Title\"\r\n";
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: $source);
+        $plan = $this->markdownPlanner($original, [], false)->plan($options);
+
+        self::assertSame('0.0.0', $plan->currentVersion);
+        self::assertNull($plan->nextVersion);
+        self::assertSame($original, $plan->changelogContents);
+        self::assertSame([], $plan->consumed);
+        self::assertSame([], $plan->historicalVersions);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Maintained release 1.0.0 is awaiting its reachable stable Git tag');
+
+        $this->markdownPlanner($original, [])->plan($options);
+    }
+
+    /** A legacy pending section is not a published release and can become the first concrete version without any tag. */
+    #[TestWith(['tags'])]
+    #[TestWith(['github'])]
+    public function testLegacyPendingHistoryWithoutTagsBecomesOneConcreteRelease(string $source): void
+    {
+        $original = "# Existing introduction\n\n## [Unreleased]\n\n### Fixed\n\n- Legacy fix.\n";
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: $source);
+        $plan = $this->markdownPlanner($original, [])->plan($options);
+        $expected = "# Existing introduction\n\n## [0.0.1] - 2026-10-04\n\n### Fixed\n\n"
+            . "- Legacy fix.\n- Fresh fix.\n\n[0.0.1]: https://github.com/owner/repo/releases/tag/v0.0.1\n";
+
+        self::assertSame('0.0.1', $plan->nextVersion);
+        self::assertSame($expected, $plan->changelogContents);
+        self::assertSame($expected, $this->markdownPlanner($expected, [], false)->plan($options)->changelogContents);
+        self::assertSame(1, substr_count($plan->changelogContents, '- Legacy fix.'));
+        self::assertStringNotContainsString('Unreleased', $plan->changelogContents);
+    }
+
+    /** A concrete release gains deterministic links without changing retained headings, bodies or prior references. */
+    public function testVersionPromotionCompletesReleaseReferences(): void
+    {
+        $older = new HistoryRelease('1.0.0', body: 'Exact prior prose', heading: "## [v1.0.0]\n");
+        $document = new HistoryDocument([$older], '# Original', "[issue]: https://example.test/42\r\n");
+        [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'historyMock' => true,
+            'tags' => [['name' => 'pkg/1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]]]);
+        $parts['history']->expects(self::once())->method('render')->willReturnCallback(
+            static function (HistoryDocument $actual, TemplateInterface $template, bool $preserve) use (
+                $older
+            ): string {
+                self::assertTrue($preserve);
+                self::assertSame($older, $actual->getReleases()[1]);
+                self::assertSame("[issue]: https://example.test/42\r\n"
+                    . "[1.0.1]: https://github.com/owner/repo/compare/pkg%2F1.0.0...pkg%2F1.0.1\r\n"
+                    . "[v1.0.0]: https://github.com/owner/repo/releases/tag/pkg%2F1.0.0\r\n", $actual->getReferences());
+
+                return 'Completed history';
+            },
+        );
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame(
+            $parts['plan'],
+            $planner->plan(new ReleaseOptions('/consumer', tagPrefix: 'pkg/', repository: 'owner/repo')),
+        );
+        self::assertSame("[issue]: https://example.test/42\r\n", $document->getReferences());
+    }
 
     /** Status and version get the same immutable transaction and exact extracted notes. */
     public function testPlanningCapturesValidatedHashesAndNormalizesTheInjectedClockToUtc(): void
@@ -610,6 +771,64 @@ final class ReleasePlannerTest extends TestCase
         $planner->plan(new ReleaseOptions('/consumer'), 'guess');
     }
 
+    /** Exercises the real pure Markdown/version pipeline with synthetic Git, filesystem, network and clock boundaries. */
+    private function markdownPlanner(?string $original, array $tags, bool $pending = true): ReleasePlanner
+    {
+        $paths = $this->createStub(PackagePathResolverInterface::class);
+        $paths->method('absolutePath')->willReturnCallback(static fn(string $path): string => '/consumer/' . $path);
+        $files = $this->createMock(ManagedFileStoreInterface::class);
+        $files->method('read')->willReturnMap([
+            ['/consumer/CHANGELOG.md', $original],
+            ['/consumer/.git/changelog-release-plan.json', null],
+        ]);
+        $files->expects(self::never())->method('write');
+        $git = $this->createStub(GitRepositoryInterface::class);
+        $git->method('isRepository')->willReturn(true);
+        $git->method('resolveRef')->willReturn(self::SHA);
+        $git->method('tags')->willReturn($tags);
+        $git->method('isAncestor')->willReturn(true);
+        $github = $this->createMock(GitHubClientInterface::class);
+        $github->expects(self::never())->method('request');
+        $github->expects(self::never())->method('paginate');
+        $documents = new HistoryDocumentFactory();
+        $releases = new HistoryReleaseFactory(new ReleaseDateValidator());
+        $history = new HistoryCodec($documents, $releases);
+        $template = new TemplateFactory()->create();
+        $templates = $this->createStub(TemplateResolverInterface::class);
+        $templates->method('resolve')->willReturn($template);
+        $validator = $this->createStub(ChangesetValidatorInterface::class);
+        $validator->method('validate')->willReturn(new ValidationReport(
+            $pending ? [new Changeset('fix.md', Category::Fixed, null, null, null, 'Fresh fix.')] : [],
+            [],
+            false,
+            $pending ? ['/consumer/.changelog/fix.md' => hash('sha256', 'accepted fragment')] : [],
+        ));
+        $clock = $this->createStub(ClockInterface::class);
+        $clock->method('now')->willReturn(new DateTimeImmutable('2026-10-03T23:30:00-03:00'));
+        $journals = $this->createStub(ReleaseJournalPathResolverInterface::class);
+        $journals->method('resolve')->willReturn('/consumer/.git/changelog-release-plan.json');
+        $receipts = new ReceiptCodec();
+
+        return new ReleasePlanner(
+            $paths,
+            $files,
+            $git,
+            $history,
+            new HistoryImporter($github, $documents, $releases),
+            $templates,
+            $validator,
+            new NextVersionResolver(new VersionImpactResolver()),
+            new ReleaseNotesRenderer(),
+            new ReleaseHistoryConsolidator($releases),
+            $clock,
+            new DateTimeZone('UTC'),
+            $receipts,
+            new ReleasePlanFactory($receipts),
+            $this->createStub(ReleaseInputEvidenceValidatorInterface::class),
+            $journals,
+        );
+    }
+
     /** Builds explicit saved evidence for recovery-policy unit tests. */
     private function receipt(): ReleaseReceipt
     {
@@ -762,13 +981,6 @@ final class ReleasePlannerTest extends TestCase
         $receipts = $this->createStub(ReceiptCodecInterface::class);
         $receipts->method('decode')->willReturn($settings['receipt'] ?? $this->receipt());
         $plans = $this->createMock(ReleasePlanFactoryInterface::class);
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message): RuntimeException => new RuntimeException($message),
-        );
         $inputs = ($settings['inputsMock'] ?? false) ? $this->createMock(
             ReleaseInputEvidenceValidatorInterface::class,
         ) : $this->createStub(
@@ -785,12 +997,11 @@ final class ReleasePlannerTest extends TestCase
             $validator,
             $versions,
             $renderer,
-            new ReleaseHistoryConsolidator($releases, $exceptions),
+            new ReleaseHistoryConsolidator($releases),
             $clock,
             new DateTimeZone('UTC'),
             $receipts,
             $plans,
-            $exceptions,
             $inputs,
             $journals,
         ),

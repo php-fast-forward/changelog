@@ -25,6 +25,10 @@ interface ChangesetRendererInterface
 {
     /**
      * Produces deterministic frontmatter and preserves the validated body.
+     *
+     * @param Changeset $changeset Validated fragment, including its canonical filename and persisted effective impact.
+     *
+     * @return string Canonical scalar frontmatter and unchanged description with one final newline.
      */
     public function render(Changeset $changeset): string;
 }

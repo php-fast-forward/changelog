@@ -14,20 +14,19 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Release;
 
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactory;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
+use RuntimeException;
 
 /** Parses only complete transaction trailers; their presence never grants publication authority. */
 final readonly class ReleaseMetadataParser
 {
-    /** Retains the existing controlled metadata failure contract without observing external state. */
-    public function __construct(
-        private ReleaseExceptionFactoryInterface $exceptions = new ReleaseExceptionFactory(),
-    ) {}
-
     /**
      * Rejects malformed, duplicate and partial trailers; unrelated prose contains no transaction.
-     * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null
+     *
+     * @param string $message Complete commit message inspected for the scalar Changelog transaction trailers.
+     *
+     * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null Complete scalar transaction metadata, or null when the message has no transaction trailers.
+     *
+     * @throws \RuntimeException When any recognized trailer is malformed, repeated or part of an incomplete transaction.
      */
     public function parse(string $message): ?array
     {
@@ -45,9 +44,7 @@ final readonly class ReleaseMetadataParser
                     $line,
                     $match,
                 )) {
-                    throw $this->exceptions->failure(
-                        'Release commit metadata contains malformed or duplicate trailers.',
-                    );
+                    throw new RuntimeException('Release commit metadata contains malformed or duplicate trailers.');
                 }
                 $data[$field] = $match[1];
             }
@@ -56,7 +53,7 @@ final readonly class ReleaseMetadataParser
             return null;
         }
         if (count($data) !== count($fields)) {
-            throw $this->exceptions->failure('Release commit metadata is incomplete.');
+            throw new RuntimeException('Release commit metadata is incomplete.');
         }
 
         return array_replace(array_fill_keys(array_values($fields), ''), $data);

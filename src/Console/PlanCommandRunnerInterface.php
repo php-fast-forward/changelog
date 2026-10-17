@@ -20,6 +20,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 /** Runs the shared transaction boundary for version and maintenance entrypoints. */
 interface PlanCommandRunnerInterface
 {
-    /** Plans once and applies only when neither read-only mode was selected. */
+    /**
+     * Plans once and applies only when neither read-only mode was selected.
+     *
+     * @param MutationInput   $input     Shared release settings and mutually exclusive dry-run/check mode flags.
+     * @param string          $operation Requested shared operation; version, backfill and format have separate write semantics.
+     * @param OutputInterface $output    Output stream receiving machine results or controlled command diagnostics.
+     *
+     * @return int Symfony exit status distinguishing successful preview/application, detected drift and invalid or failed execution.
+     */
     public function run(MutationInput $input, string $operation, OutputInterface $output): int;
 }

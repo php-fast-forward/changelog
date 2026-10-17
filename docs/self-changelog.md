@@ -4,7 +4,7 @@ This package uses its own public reusable lifecycle and Docker Actions. Ordinary
 one pending fragment; the managed version PR updates `CHANGELOG.md` after those
 changes reach `main`. Contributors do not maintain a central `Unreleased` list.
 
-The [published skill](../resources/skills/fast-forward-changelog/SKILL.md) is also
+The [published skill](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md) is also
 the internal procedure. Read it directly from `resources`; the repository does
 not need a second copy in `.agents/skills`. In a source checkout, substitute
 `php bin/changelog` for the skill's consumer command `vendor/bin/changelog`.
@@ -30,18 +30,18 @@ check` validates pending fragments. Maintainers can preview consolidation with
 maintenance operation, separate from the ordinary contribution flow.
 
 The following event workflows belong to this package. Consumers copy the
-[single caller example](../resources/workflows/README.md) instead. The
+[single caller example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) instead. The
 [automation map](automation-map.md) lists all public reusable interfaces and
 explains why their implementations remain in `.github/workflows`.
 
 | Repository workflow | Trigger | Package operation |
 | --- | --- | --- |
-| [`repository-ci`](../.github/workflows/repository-ci.yml) | PR, push and manual checks | Validate quality, supported runners and installed package behavior. |
-| [`repository-changelog`](../.github/workflows/repository-changelog.yml) | PR to `main`, including label changes | Call the public contribution module with read-only permissions and no write secret. |
+| [`repository-ci`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-ci.yml) | PR, push and manual checks | Validate quality, supported runners and installed package behavior. |
+| [`repository-changelog`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-changelog.yml) | PR to `main`, including label changes | Call the public contribution module with read-only permissions and no write secret. |
 | `repository-changelog` | Trusted PR event | Update exact-head status and sticky feedback; Dependabot additionally authors its deterministic fragment. Native test workflows may still require approval. |
 | `repository-changelog` | Push to `main` | Prepare or update the single `changelog/version` PR. |
 | `repository-changelog` | Merge of the managed version PR into `main` | Verify approved consolidation, publish its tag/release and pass successful publication outputs to the image workflow. |
-| [`repository-image`](../.github/workflows/repository-image.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
+| [`repository-image`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
 
 The public lifecycle selects the appropriate reusable operation. Each operation
 calls its Action from the selected trusted runtime checkout. The six public
@@ -93,3 +93,7 @@ Preparing or validating that PR does not publish a release. Consumers should
 follow [the reusable lifecycle guide](reusable-lifecycle.md) and pin package
 references to a reviewed, integrated product commit. Their caller example
 keeps publication disabled during validation.
+
+---
+
+[Documentation index](index.md)

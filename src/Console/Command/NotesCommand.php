@@ -23,6 +23,7 @@ use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
+use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use InvalidArgumentException;
 use RuntimeException;
@@ -44,7 +45,19 @@ use Throwable;
 )]
 final readonly class NotesCommand
 {
-    /** Injects every source of version evidence and file access without performing I/O. */
+    /**
+     * Injects every source of version evidence and file access without performing I/O.
+     *
+     * @param ReleaseOptionsFactoryInterface $options   Creates validated consumer settings from mapped CLI values.
+     * @param PackagePathResolverInterface   $paths     Resolves explicit consumer paths without filesystem observation.
+     * @param ManagedFileStoreInterface      $files     Reads and writes guarded managed bytes through an injected filesystem boundary.
+     * @param HistoryCodecInterface          $history   Parses, renders and extracts exact maintained Markdown through the pure history boundary.
+     * @param TemplateResolverInterface      $templates Resolves built-in or explicitly selected trusted PHP presentation through injected boundaries.
+     * @param GitRepositoryInterface         $git       Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     * @param HistoryImporterInterface       $importer  Resolves supported stable tags and imports only missing historical versions.
+     * @param ChangesetStoreInterface        $fragments Injected fragment store sharing the directory-scoped transaction lock and exact managed-path policy.
+     * @param LockFactory                    $locks     Builds cooperative directory locks shared by fragment writers and managed release operations.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private PackagePathResolverInterface $paths,
@@ -57,7 +70,16 @@ final readonly class NotesCommand
         private LockFactory $locks,
     ) {}
 
-    /** Uses the highest maintained stable SemVer independently of section order, then reachable stable tags. */
+    /**
+     * Uses the highest maintained stable SemVer independently of section order, then reachable stable tags.
+     *
+     * @param ReleaseInput    $settings   Mapped shared consumer paths and release settings from Symfony input.
+     * @param OutputInterface $output     Output stream receiving machine results or controlled command diagnostics.
+     * @param string|null     $version    Explicit maintained release identity, or null to select the highest stable section before reachable Git tags.
+     * @param string|null     $outputFile Optional new project-relative notes destination outside central-history and fragment inputs.
+     *
+     * @return int Symfony exit status reflecting the command's result or controlled input/operation failure.
+     */
     public function __invoke(
         #[MapInput]
         ReleaseInput $settings,
@@ -83,21 +105,7 @@ final readonly class NotesCommand
                 $template = $this->templates->resolve($options);
                 $document = $this->history->parse($contents, $template);
                 $version = $this->latestStableVersion($document);
-                if (null === $version) {
-                    $tags = [];
-                    if ($this->git->isRepository($options->workingDirectory)) {
-                        $head = $this->git->resolveRef($options->workingDirectory, 'HEAD');
-                        $tags = array_values(array_filter(
-                            $this->git->tags($options->workingDirectory),
-                            fn(array $tag): bool => $this->git->isAncestor(
-                                $options->workingDirectory,
-                                $tag['sha'],
-                                $head,
-                            ),
-                        ));
-                    }
-                    $version = $this->importer->currentVersion($tags, $options->tagPrefix);
-                }
+                $version ??= $this->latestTaggedVersion($options);
             }
             $template ??= $this->templates->resolve($options);
             $document ??= $this->history->parse($contents, $template);
@@ -105,52 +113,7 @@ final readonly class NotesCommand
             if (null === $outputFile) {
                 $output->write($notes, false, OutputInterface::OUTPUT_RAW);
             } else {
-                $segments = explode('/', str_replace('\\', '/', $outputFile));
-                if ('' === trim($outputFile) || str_contains($outputFile, "\0") || $this->paths->isAbsolute($outputFile)
-                    || array_intersect(['', '.', '..'], $segments)) {
-                    throw new InvalidArgumentException(
-                        '--output must identify a canonical relative project file without traversal.',
-                    );
-                }
-                $target = $this->paths->absolutePath($outputFile, $options->workingDirectory);
-                $comparableTarget = strtolower(str_replace('\\', '/', $target));
-                $central = strtolower(
-                    str_replace('\\', '/', $this->paths->absolutePath(
-                        $options->changelogFile,
-                        $options->workingDirectory,
-                    )),
-                );
-                $directory = strtolower(
-                    str_replace('\\', '/', $this->paths->absolutePath(
-                        $options->fragmentDirectory,
-                        $options->workingDirectory,
-                    )),
-                );
-                if ($comparableTarget === $central || $comparableTarget === $directory || str_starts_with(
-                    $comparableTarget,
-                    $directory . '/',
-                )) {
-                    throw new InvalidArgumentException(
-                        '--output must be outside the maintained changelog and fragment directory.',
-                    );
-                }
-                $resource = $this->fragments->lockResource(
-                    $this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory),
-                );
-                $lock = $this->locks->createLock($resource);
-                if (! $lock->acquire()) {
-                    throw new RuntimeException('Unable to acquire the managed-file lock for notes output.');
-                }
-                try {
-                    if (null !== $this->files->read($target)) {
-                        throw new InvalidArgumentException(
-                            '--output must identify a new file; existing files cannot be overwritten.',
-                        );
-                    }
-                    $this->files->write($target, $notes);
-                } finally {
-                    $lock->release();
-                }
+                $this->writeNotesFile($options, $outputFile, $notes);
             }
 
             return Command::SUCCESS;
@@ -162,7 +125,117 @@ final readonly class NotesCommand
         }
     }
 
-    /** Returns the highest strict stable maintained identity without using presentation order or dates. */
+    /**
+     * Resolves the latest reachable stable tag when maintained history has no stable release.
+     *
+     * @param ReleaseOptions $options Repository directory and tag prefix used for version discovery.
+     *
+     * @return string Reachable stable version, or the importer's empty-history baseline.
+     */
+    private function latestTaggedVersion(ReleaseOptions $options): string
+    {
+        $tags = [];
+        if ($this->git->isRepository($options->workingDirectory)) {
+            $head = $this->git->resolveRef($options->workingDirectory, 'HEAD');
+            $tags = array_values(array_filter(
+                $this->git->tags($options->workingDirectory),
+                fn(array $tag): bool => $this->git->isAncestor(
+                    $options->workingDirectory,
+                    $tag['sha'],
+                    $head,
+                ),
+            ));
+        }
+
+        return $this->importer->currentVersion($tags, $options->tagPrefix);
+    }
+
+    /**
+     * Writes notes to a new managed file while holding the fragment-store lock.
+     *
+     * @param ReleaseOptions $options    Paths defining the package's managed changelog and fragment directory.
+     * @param string         $outputFile Canonical project-relative destination outside those managed paths.
+     * @param string         $notes      Exact maintained release body to persist without formatting changes.
+     *
+     * @return void Creates the file, or fails without overwriting an existing destination.
+     *
+     * @throws \InvalidArgumentException When the output path is unsafe, overlaps maintained inputs or already exists.
+     * @throws \RuntimeException         When the directory lock cannot be acquired or guarded output I/O fails.
+     */
+    private function writeNotesFile(ReleaseOptions $options, string $outputFile, string $notes): void
+    {
+        $target = $this->outputTarget($options, $outputFile);
+        $resource = $this->fragments->lockResource(
+            $this->paths->absolutePath($options->fragmentDirectory, $options->workingDirectory),
+        );
+        $lock = $this->locks->createLock($resource);
+        if (! $lock->acquire()) {
+            throw new RuntimeException('Unable to acquire the managed-file lock for notes output.');
+        }
+        try {
+            if (null !== $this->files->read($target)) {
+                throw new InvalidArgumentException(
+                    '--output must identify a new file; existing files cannot be overwritten.',
+                );
+            }
+            $this->files->write($target, $notes);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Validates an output destination before acquiring a lock or writing bytes.
+     *
+     * @param ReleaseOptions $options    Package paths that must not be overwritten by notes output.
+     * @param string         $outputFile Supplied project-relative destination.
+     *
+     * @return string Absolute target outside the central history and fragment directory.
+     *
+     * @throws \InvalidArgumentException When the destination is not a canonical project-relative file outside maintained history and fragments.
+     */
+    private function outputTarget(ReleaseOptions $options, string $outputFile): string
+    {
+        $segments = explode('/', str_replace('\\', '/', $outputFile));
+        if ('' === trim($outputFile) || str_contains($outputFile, "\0") || $this->paths->isAbsolute($outputFile)
+            || array_intersect(['', '.', '..'], $segments)) {
+            throw new InvalidArgumentException(
+                '--output must identify a canonical relative project file without traversal.',
+            );
+        }
+        $target = $this->paths->absolutePath($outputFile, $options->workingDirectory);
+        $comparableTarget = strtolower(str_replace('\\', '/', $target));
+        $central = strtolower(
+            str_replace('\\', '/', $this->paths->absolutePath(
+                $options->changelogFile,
+                $options->workingDirectory,
+            )),
+        );
+        $directory = strtolower(
+            str_replace('\\', '/', $this->paths->absolutePath(
+                $options->fragmentDirectory,
+                $options->workingDirectory,
+            )),
+        );
+        if ($comparableTarget === $central || $comparableTarget === $directory || str_starts_with(
+            $comparableTarget,
+            $directory . '/',
+        )) {
+            throw new InvalidArgumentException(
+                '--output must be outside the maintained changelog and fragment directory.',
+            );
+        }
+
+        return $target;
+    }
+
+    /**
+     * Returns the highest strict stable maintained identity without using presentation order or dates.
+     *
+     * @param HistoryDocument $document Maintained history whose release bodies, introduction and references must be preserved.
+     *
+     * @return string|null Highest strict stable maintained identity, or null when only pending or prerelease sections exist.
+     */
     private function latestStableVersion(HistoryDocument $document): ?string
     {
         $latest = null;
@@ -182,7 +255,14 @@ final readonly class NotesCommand
         return $latest;
     }
 
-    /** Compares arbitrary-width core numbers exactly; equal precedence uses deterministic build-metadata ordering. */
+    /**
+     * Compares arbitrary-width core numbers exactly; equal precedence uses deterministic build-metadata ordering.
+     *
+     * @param string $left  First already validated semantic version being compared without machine-integer conversion.
+     * @param string $right Second already validated semantic version; build metadata deterministically breaks equal numeric precedence.
+     *
+     * @return int Negative, zero or positive order by arbitrary-width core components, then lexical build metadata for ties.
+     */
     private function compareStableVersions(string $left, string $right): int
     {
         $leftParts = explode('.', explode('+', $left, 2)[0]);

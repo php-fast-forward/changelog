@@ -8,9 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory;
-use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestResult;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestService;
@@ -21,16 +19,14 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactory;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactory;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactory;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactory;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
-use FastForward\Changelog\Release\Factory\ReleaseReceiptFactory;
 use FastForward\Changelog\Release\ReceiptCodec;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Release\ReleaseJournalPathResolverInterface;
@@ -61,23 +57,19 @@ use RuntimeException;
 
 #[CoversClass(VersionPullRequestService::class)]
 #[UsesClass(GitHubEvidence::class)]
-#[UsesClass(VersionPullRequestExceptionFactory::class)]
 #[UsesClass(VersionPullRequestInputFactory::class)]
-#[UsesClass(VersionPullRequestResultFactory::class)]
 #[UsesClass(VersionPullRequestInput::class)]
 #[UsesClass(VersionPullRequestResult::class)]
 #[UsesClass(Category::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(HistoryDocumentFactory::class)]
-#[UsesClass(HistoryExceptionFactory::class)]
 #[UsesClass(HistoryReleaseFactory::class)]
 #[UsesClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryRelease::class)]
 #[UsesClass(HistoryImportResult::class)]
-#[UsesClass(ReleaseExceptionFactory::class)]
 #[UsesClass(ReleasePlanFactory::class)]
-#[UsesClass(ReleaseReceiptFactory::class)]
 #[UsesClass(ReceiptCodec::class)]
 #[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(ReleaseOptions::class)]
@@ -343,10 +335,9 @@ final class VersionPullRequestDateStabilityTest extends TestCase
             'original' => "## [1.0.0] - 2026-10-15\n\nPublished on 2026-10-16.\n\n```md\n## [8.0.0] - 2026-10-17\n```\n\n",
             'notes' => "Description dated 2026-10-16.\n\n```text\n2026-10-17\n```\n",
         ];
-        $exceptions = new ReleaseExceptionFactory();
         $releases = new HistoryReleaseFactory(new ReleaseDateValidator());
-        $history = new HistoryCodec(new HistoryDocumentFactory(), $releases, new HistoryExceptionFactory());
-        $receipts = new ReceiptCodec(new ReleaseReceiptFactory(), $exceptions);
+        $history = new HistoryCodec(new HistoryDocumentFactory(), $releases);
+        $receipts = new ReceiptCodec();
         $plans = new ReleasePlanFactory($receipts);
         $templates = $this->createStub(TemplateResolverInterface::class);
         $templates->method('resolve')->willReturnCallback(function (ReleaseOptions $received): TemplateInterface {
@@ -424,12 +415,11 @@ final class VersionPullRequestDateStabilityTest extends TestCase
             $validator,
             $versions,
             $renderer,
-            new ReleaseHistoryConsolidator($releases, $exceptions),
+            new ReleaseHistoryConsolidator($releases),
             $clock,
             new DateTimeZone('UTC'),
             $receipts,
             $plans,
-            $exceptions,
             $inputEvidence,
             $journals,
         );
@@ -498,7 +488,6 @@ final class VersionPullRequestDateStabilityTest extends TestCase
         );
         $policy = $this->createStub(PullRequestPolicyInterface::class);
         $policy->method('inspectHead')->willReturnCallback(fn(): bool => ! ($this->state['unowned'] ?? false));
-        $versionExceptions = new VersionPullRequestExceptionFactory();
 
         return [new VersionPullRequestService(
             $github,
@@ -507,9 +496,7 @@ final class VersionPullRequestDateStabilityTest extends TestCase
             $receipts,
             $paths,
             $policy,
-            new VersionPullRequestInputFactory($versionExceptions),
-            new VersionPullRequestResultFactory(),
-            $versionExceptions,
+            new VersionPullRequestInputFactory(),
             $inputEvidence,
             $history,
             $templates,

@@ -18,16 +18,27 @@ namespace FastForward\Changelog\Release;
 
 use FastForward\Changelog\Git\GitRepositoryInterface;
 
-/** Resolves ephemeral journal storage without consulting the environment or filesystem. */
+/** Selects private project-scoped journal storage through injected Git discovery and temporary paths. */
 final readonly class ReleaseJournalPathResolver implements ReleaseJournalPathResolverInterface
 {
-    /** Injects Git discovery and caller-owned temporary storage; construction performs no I/O. */
+    /**
+     * Injects Git discovery and caller-owned temporary storage; construction performs no I/O.
+     *
+     * @param GitRepositoryInterface $git                Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     * @param string                 $temporaryDirectory Injected canonical temporary root for private recovery journals outside Git.
+     */
     public function __construct(
         private GitRepositoryInterface $git,
         private string $temporaryDirectory,
     ) {}
 
-    /** Isolates non-Git recovery by normalized consumer root and removes journal paths from Git diffs. */
+    /**
+     * Scopes recovery by consumer root, fragment directory and central-history path outside the versioned tree.
+     *
+     * @param ReleaseOptions $options Validated consumer paths, presentation settings and source-selection policy.
+     *
+     * @return string Private recovery-journal path in the Git administrative directory or injected temporary storage.
+     */
     public function resolve(ReleaseOptions $options): string
     {
         $scope = hash('sha256', json_encode([

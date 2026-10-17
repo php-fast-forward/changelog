@@ -11,7 +11,6 @@ use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface;
 use FastForward\Changelog\Changeset\Store\ChangesetStoreInterface;
 use FastForward\Changelog\Changeset\Store\WriteResult;
-use FastForward\Changelog\Fragment\Factory\FragmentExceptionFactoryInterface;
 use FastForward\Changelog\Fragment\FragmentWriter;
 use FastForward\Changelog\Fragment\IdentifierGeneratorInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
@@ -40,7 +39,7 @@ final class FragmentWriterTest extends TestCase
     #[Test]
     public function createsCanonicalOptionalMetadataWithAnExplicitLowerImpactWithoutGitOrRandomCalls(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $path = '/repo/.changelog/dependency.md';
         $body = "    preserved  \nsecond  ";
         $fragment = new Changeset('dependency.md', Category::Changed, 1, 2, 'coisa', $body, VersionImpact::Patch);
@@ -55,7 +54,7 @@ final class FragmentWriterTest extends TestCase
 
         self::assertSame(
             $path,
-            $this->writer(...[$parser, $renderer, $store, $identifiers, $git, $exceptions])->add(new ReleaseOptions(
+            $this->writer(...[$parser, $renderer, $store, $identifiers, $git])->add(new ReleaseOptions(
                 '/repo',
             ), $body, type: 'patch', name: 'dependency.md', issue: 1, pullRequest: 2, author: '@coisa'),
         );
@@ -64,7 +63,7 @@ final class FragmentWriterTest extends TestCase
     #[Test]
     public function generatedCollisionsRetryAndAnOptionalCommitReceivesOnlyTheCreatedRelativePath(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $identifiers->generate()->willReturn('first.md', 'second.md')->shouldBeCalledTimes(2);
         foreach (['first.md' => WriteResult::Existing, 'second.md' => WriteResult::Created] as $id => $result) {
             $fragment = new Changeset($id, Category::Deprecated, null, null, null, 'Body.');
@@ -83,7 +82,7 @@ final class FragmentWriterTest extends TestCase
 
         self::assertSame(
             '/repo/.changelog/second.md',
-            $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(new ReleaseOptions(
+            $this->writer($parser, $renderer, $store, $identifiers, $git)->add(new ReleaseOptions(
                 '/repo',
             ), 'Body.', 'deprecated', commit: true, commitMessage: 'record fragment only'),
         );
@@ -96,7 +95,7 @@ final class FragmentWriterTest extends TestCase
     #[TestWith([WriteResult::Available])]
     public function explicitIdentifiersNeverRetryOrOverwriteWhenCreationCannotComplete(WriteResult $result): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $fragment = new Changeset('entry.md', Category::Changed, null, null, null, 'Body.');
         $parser->parse('/repo/.changelog/entry.md', Argument::type('string'))->willReturn(
             new ChangesetParseResult('entry.md', $fragment, []),
@@ -105,10 +104,9 @@ final class FragmentWriterTest extends TestCase
         $store->write('/repo/.changelog/entry.md', 'canonical')->willReturn($result)->shouldBeCalledOnce();
         $identifiers->generate()->shouldNotBeCalled();
         $message = sprintf('Cannot create fragment "/repo/.changelog/entry.md": %s.', $result->value);
-        $exceptions->failure($message)->willReturn(new RuntimeException($message))->shouldBeCalledOnce();
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage($result->value);
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
+        $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
             new ReleaseOptions('/repo'),
             'Body.',
             name: 'entry.md',
@@ -118,13 +116,12 @@ final class FragmentWriterTest extends TestCase
     #[Test]
     public function aGeneratedNameCannotEscapeTheFragmentDirectory(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $identifiers->generate()->willReturn('../outside.md')->shouldBeCalledOnce();
         $message = 'Invalid fragment name "../outside.md": use lowercase dash segments and .md.';
-        $exceptions->invalid($message)->willReturn(new InvalidArgumentException($message))->shouldBeCalledOnce();
         $store->write(Argument::any(), Argument::any())->shouldNotBeCalled();
         $this->expectException(InvalidArgumentException::class);
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
+        $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
             new ReleaseOptions('/repo'),
             'Body.',
         );
@@ -133,16 +130,15 @@ final class FragmentWriterTest extends TestCase
     #[Test]
     public function schemaFailureIncludesAllDiagnosticsBeforeWriting(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $parser->parse('/repo/.changelog/entry.md', "---\ncategory: invalid\ntype: minor\n---\n\n")->willReturn(
             new ChangesetParseResult('entry.md', null, ['bad category', 'empty body']),
         )->shouldBeCalledOnce();
         $message = 'Invalid fragment "/repo/.changelog/entry.md": bad category empty body';
-        $exceptions->invalid($message)->willReturn(new InvalidArgumentException($message))->shouldBeCalledOnce();
         $store->write(Argument::any(), Argument::any())->shouldNotBeCalled();
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('bad category empty body');
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
+        $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
             new ReleaseOptions('/repo'),
             '',
             'invalid',
@@ -153,7 +149,7 @@ final class FragmentWriterTest extends TestCase
     #[Test]
     public function fiveGeneratedCollisionsFailWithoutReplacingAnyFile(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $identifiers->generate()->willReturn('entry.md')->shouldBeCalledTimes(5);
         $fragment = new Changeset('entry.md', Category::Changed, null, null, null, 'Body.');
         $parser->parse('/repo/.changelog/entry.md', Argument::type('string'))->willReturn(
@@ -166,10 +162,9 @@ final class FragmentWriterTest extends TestCase
             5,
         );
         $message = 'Cannot create a fragment in "/repo/.changelog": five generated identifiers already exist; no fragment was overwritten.';
-        $exceptions->failure($message)->willReturn(new RuntimeException($message))->shouldBeCalledOnce();
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('five generated identifiers');
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
+        $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
             new ReleaseOptions('/repo'),
             'Body.',
         );
@@ -178,7 +173,7 @@ final class FragmentWriterTest extends TestCase
     #[Test]
     public function writeFailureRetainsItsOriginalCauseAndExactCandidatePath(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $fragment = new Changeset('entry.md', Category::Changed, null, null, null, 'Body.');
         $parser->parse('/repo/.changelog/entry.md', Argument::type('string'))->willReturn(
             new ChangesetParseResult('entry.md', $fragment, []),
@@ -187,22 +182,24 @@ final class FragmentWriterTest extends TestCase
         $original = new RuntimeException('disk unavailable');
         $store->write('/repo/.changelog/entry.md', 'canonical')->willThrow($original)->shouldBeCalledOnce();
         $message = 'Cannot create fragment "/repo/.changelog/entry.md": disk unavailable';
-        $exceptions->failure($message, $original)->willReturn(
-            new RuntimeException($message, previous: $original),
-        )->shouldBeCalledOnce();
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('/repo/.changelog/entry.md');
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
-            new ReleaseOptions('/repo'),
-            'Body.',
-            name: 'entry.md',
-        );
+        try {
+            $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
+                new ReleaseOptions('/repo'),
+                'Body.',
+                name: 'entry.md',
+            );
+            self::fail('The write failure must remain observable.');
+        } catch (RuntimeException $error) {
+            self::assertSame($message, $error->getMessage());
+            self::assertSame(0, $error->getCode());
+            self::assertSame($original, $error->getPrevious());
+        }
     }
 
     #[Test]
     public function failedCommitPreservesTheCreatedFragmentAndReportsRecoveryState(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $fragment = new Changeset('entry.md', Category::Changed, null, null, null, 'Body.');
         $parser->parse('/repo/.changelog/entry.md', Argument::type('string'))->willReturn(
             new ChangesetParseResult('entry.md', $fragment, []),
@@ -215,29 +212,28 @@ final class FragmentWriterTest extends TestCase
             $original,
         )->shouldBeCalledOnce();
         $message = 'Created fragment "/repo/.changelog/entry.md", but its commit failed: commit rejected. The fragment is preserved for recovery.';
-        $exceptions->failure($message, $original)->willReturn(
-            new RuntimeException($message, previous: $original),
-        )->shouldBeCalledOnce();
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('fragment is preserved for recovery');
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
-            new ReleaseOptions('/repo'),
-            'Body.',
-            name: 'entry.md',
-            commit: true,
-        );
+        try {
+            $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
+                new ReleaseOptions('/repo'),
+                'Body.',
+                name: 'entry.md',
+                commit: true,
+            );
+            self::fail('The commit failure must retain the fragment recovery diagnostic.');
+        } catch (RuntimeException $error) {
+            self::assertSame($message, $error->getMessage());
+            self::assertSame(0, $error->getCode());
+            self::assertSame($original, $error->getPrevious());
+        }
     }
 
     #[Test]
     public function emptyCommitMessageIsRejectedBeforeWriting(): void
     {
-        [$parser, $renderer, $store, $identifiers, $git, $exceptions] = $this->collaborators();
-        $exceptions->invalid('The fragment commit message must not be empty.')->willReturn(
-            new InvalidArgumentException('commit message'),
-        )->shouldBeCalledOnce();
+        [$parser, $renderer, $store, $identifiers, $git] = $this->collaborators();
         $store->write(Argument::any(), Argument::any())->shouldNotBeCalled();
         $this->expectException(InvalidArgumentException::class);
-        $this->writer($parser, $renderer, $store, $identifiers, $git, $exceptions)->add(
+        $this->writer($parser, $renderer, $store, $identifiers, $git)->add(
             new ReleaseOptions('/repo'),
             'Body.',
             commit: true,
@@ -254,7 +250,6 @@ final class FragmentWriterTest extends TestCase
             $this->prophesize(ChangesetStoreInterface::class),
             $this->prophesize(IdentifierGeneratorInterface::class),
             $this->prophesize(GitRepositoryInterface::class),
-            $this->prophesize(FragmentExceptionFactoryInterface::class),
         ];
     }
 
@@ -265,7 +260,6 @@ final class FragmentWriterTest extends TestCase
         ObjectProphecy $store,
         ObjectProphecy $identifiers,
         ObjectProphecy $git,
-        ObjectProphecy $exceptions,
     ): FragmentWriter {
         return new FragmentWriter(
             $parser->reveal(),
@@ -273,7 +267,6 @@ final class FragmentWriterTest extends TestCase
             $store->reveal(),
             $identifiers->reveal(),
             $git->reveal(),
-            $exceptions->reveal(),
         );
     }
 }

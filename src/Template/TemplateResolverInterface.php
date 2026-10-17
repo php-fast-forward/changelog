@@ -21,6 +21,15 @@ use FastForward\Changelog\Release\ReleaseOptions;
 /** Selects the built-in presentation or an explicit trusted project PHP template. */
 interface TemplateResolverInterface
 {
-    /** Resolves presentation without requiring initialization or a local defaults file. */
+    /**
+     * Resolves presentation without requiring initialization or a local defaults file.
+     *
+     * @param ReleaseOptions $options Validated consumer paths, presentation settings and source-selection policy.
+     *
+     * @return TemplateInterface Validated presentation from built-in defaults and only explicitly selected trusted PHP overrides.
+     *
+     * @throws \InvalidArgumentException When the locale, selected template file or override structure is invalid.
+     * @throws \RuntimeException         When guarded access to the selected managed path fails.
+     */
     public function resolve(ReleaseOptions $options): TemplateInterface;
 }

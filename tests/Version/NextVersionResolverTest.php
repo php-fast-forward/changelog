@@ -6,7 +6,6 @@ namespace FastForward\Changelog\Tests\Version;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
-use FastForward\Changelog\Version\Factory\VersionResolutionFactoryInterface;
 use FastForward\Changelog\Version\NextVersionResolver;
 use FastForward\Changelog\Version\VersionImpact;
 use FastForward\Changelog\Version\VersionImpactResolverInterface;
@@ -41,13 +40,11 @@ final class NextVersionResolverTest extends TestCase
         $changeset = new Changeset('one.md', Category::Fixed, null, 10, '@bot', 'Change.');
         $changesets = [$changeset];
         $impactResolver = $this->prophesize(VersionImpactResolverInterface::class);
-        $resultFactory = $this->prophesize(VersionResolutionFactoryInterface::class);
         $expected = new VersionResolution($nextVersion, $impact, []);
         $impactResolver->resolve($changesets)->willReturn($impact)->shouldBeCalledOnce();
-        $resultFactory->resolved($nextVersion, $impact)->willReturn($expected)->shouldBeCalledOnce();
-        $resolver = new NextVersionResolver($impactResolver->reveal(), $resultFactory->reveal());
+        $resolver = new NextVersionResolver($impactResolver->reveal());
 
-        self::assertSame($expected, $resolver->resolve($currentVersion, $changesets));
+        self::assertEquals($expected, $resolver->resolve($currentVersion, $changesets));
     }
 
     #[Test]
@@ -65,27 +62,23 @@ final class NextVersionResolverTest extends TestCase
         $changeset = new Changeset('one.md', Category::Fixed, null, 10, '@bot', 'Change.');
         $changesets = [$changeset];
         $impactResolver = $this->prophesize(VersionImpactResolverInterface::class);
-        $resultFactory = $this->prophesize(VersionResolutionFactoryInterface::class);
         $errors = [sprintf('Current version "%s" is not a supported semantic version.', $currentVersion)];
         $expected = new VersionResolution(null, null, $errors);
         $impactResolver->resolve($changesets)->shouldNotBeCalled();
-        $resultFactory->invalid($errors)->willReturn($expected)->shouldBeCalledOnce();
-        $resolver = new NextVersionResolver($impactResolver->reveal(), $resultFactory->reveal());
+        $resolver = new NextVersionResolver($impactResolver->reveal());
 
-        self::assertSame($expected, $resolver->resolve($currentVersion, $changesets));
+        self::assertEquals($expected, $resolver->resolve($currentVersion, $changesets));
     }
 
     #[Test]
     public function resolveRejectsAValidCurrentVersionWithoutChangesets(): void
     {
         $impactResolver = $this->prophesize(VersionImpactResolverInterface::class);
-        $resultFactory = $this->prophesize(VersionResolutionFactoryInterface::class);
         $errors = ['At least one changeset is required to resolve a version.'];
         $expected = new VersionResolution(null, null, $errors);
         $impactResolver->resolve([])->willReturn(null)->shouldBeCalledOnce();
-        $resultFactory->invalid($errors)->willReturn($expected)->shouldBeCalledOnce();
-        $resolver = new NextVersionResolver($impactResolver->reveal(), $resultFactory->reveal());
+        $resolver = new NextVersionResolver($impactResolver->reveal());
 
-        self::assertSame($expected, $resolver->resolve('0.0.0', []));
+        self::assertEquals($expected, $resolver->resolve('0.0.0', []));
     }
 }

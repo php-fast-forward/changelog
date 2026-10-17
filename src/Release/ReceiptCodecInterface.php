@@ -19,9 +19,21 @@ namespace FastForward\Changelog\Release;
 /** Encodes and validates canonical release evidence without accessing any managed file. */
 interface ReceiptCodecInterface
 {
-    /** Validates schema, paths, hashes and deterministic ID before exposing typed evidence. */
+    /**
+     * Validates schema, paths, hashes and deterministic ID before exposing typed evidence.
+     *
+     * @param string $contents Complete serialized recovery JSON whose schema, paths, hashes and identity must be validated.
+     *
+     * @return ReleaseReceipt Schema-validated immutable recovery evidence with verified paths, hashes and identity.
+     */
     public function decode(string $contents): ReleaseReceipt;
 
-    /** Validates evidence, orders its fields and includes its deterministic SHA-256 identity. */
+    /**
+     * Validates evidence, orders its fields and includes its deterministic SHA-256 identity.
+     *
+     * @param array<string,mixed> $evidence Validated transaction fields from which canonical recovery JSON is encoded.
+     *
+     * @return string Canonical recovery JSON with ordered fields and its deterministic SHA-256 plan identity.
+     */
     public function encode(array $evidence): string;
 }

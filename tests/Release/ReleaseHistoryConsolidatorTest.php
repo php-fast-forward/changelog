@@ -18,7 +18,6 @@ namespace FastForward\Changelog\Tests\Release;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
@@ -347,12 +346,8 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
                 $ending,
             ),
         );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new ReleaseHistoryConsolidator($factory, $exceptions);
+        return new ReleaseHistoryConsolidator($factory);
     }
 
     /** Supplies explicit category labels independently of production template behavior. */

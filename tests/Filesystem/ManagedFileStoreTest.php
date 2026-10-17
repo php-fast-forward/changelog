@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Filesystem;
 
 use FastForward\Changelog\Filesystem\ManagedFileStore;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Tests\Filesystem\Fixture\DirectoryName;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,7 +15,6 @@ use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
-use Throwable;
 
 // Register lexical doubles before either adapter can bind to the native function.
 require_once __DIR__ . '/Fixture/dirname.php';
@@ -239,14 +237,6 @@ final class ManagedFileStoreTest extends TestCase
     /** Creates the real adapter with only mocked I/O and exception collaborators. */
     private function store(ObjectProphecy $filesystem): ManagedFileStore
     {
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message, ?Throwable $previous = null): RuntimeException => new RuntimeException(
-                $message,
-                previous: $previous,
-            ),
-        );
-
-        return new ManagedFileStore($filesystem->reveal(), $exceptions);
+        return new ManagedFileStore($filesystem->reveal());
     }
 }

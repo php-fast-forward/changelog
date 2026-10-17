@@ -60,7 +60,7 @@ fragments were retained by a stale merge, keep publication's complete-consumptio
 check. With no published release tag, recover through a reviewed revert of the
 failed consolidation's central changes plus restoration of its consumed exact
 source-base fragments, preserving later contributions. The next single version
-PR can then consume the complete pending set. See [version PR recovery](version-pull-request.md#refresh-before-merge-and-recover-a-stale-consolidation).
+PR can then consume the complete pending set. See [version PR recovery](version-pull-request.md).
 
 ## Git automation and publication
 
@@ -80,3 +80,7 @@ See [version PRs](version-pull-request.md), [policy](policies.md) and
 Older generated histories remain readable for migration. Their technical
 comments are not emitted in new history; explicit formatting removes the legacy
 generated presentation while preserving the parsed Markdown content.
+
+---
+
+[Documentation index](index.md)

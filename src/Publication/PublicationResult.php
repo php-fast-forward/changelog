@@ -21,7 +21,13 @@ final readonly class PublicationResult
 {
     /**
      * Retains exact approved identity without loading host or remote state.
-     * @param list<string> $actions create_tag/create_release attempts, or dry-run proposals
+     *
+     * @param string       $state   Publication or commit-status state selected by the owning operation.
+     * @param ?string      $version Semantic version selected for comparison, planning or publication.
+     * @param ?string      $tag     Exact release tag name selected by the transaction.
+     * @param string       $sha     Complete immutable Git object identity selected for this evidence or result.
+     * @param ?string      $url     Confirmed HTTPS PR or release URL, or null when no remote object is available.
+     * @param list<string> $actions Ordered create_tag/create_release attempts, or the corresponding dry-run proposals.
      */
     public function __construct(
         public string $state,
@@ -32,7 +38,11 @@ final readonly class PublicationResult
         public array $actions,
     ) {}
 
-    /** Exposes a deterministic object-shaped summary to commands and automation. */
+    /**
+     * Exposes a deterministic object-shaped summary to commands and automation.
+     *
+     * @return array Stable object-shaped machine result without further I/O.
+     */
     public function summary(): array
     {
         return ['state' => $this->state, 'version' => $this->version, 'tag' => $this->tag,

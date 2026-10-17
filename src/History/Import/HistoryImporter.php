@@ -17,29 +17,42 @@ namespace FastForward\Changelog\History\Import;
 
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
-use FastForward\Changelog\History\Import\Factory\HistoryImportResultFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 
 /** Backfills only absent stable Git versions without rewriting historical notes or provenance. */
 final readonly class HistoryImporter implements HistoryImporterInterface
 {
-    /** Injects all network and value-construction boundaries for deterministic unit tests. */
+    /**
+     * Injects all network and value-construction boundaries for deterministic unit tests.
+     *
+     * @param GitHubClientInterface           $github    Injected GitHub API boundary providing bounded complete release evidence without ambient credential discovery.
+     * @param HistoryDocumentFactoryInterface $documents Constructs ordered history with unique canonical release identities and unchanged surrounding bytes.
+     * @param HistoryReleaseFactoryInterface  $releases  Constructs strict semantic sections with validated dates and preserved raw presentation.
+     */
     public function __construct(
         private GitHubClientInterface $github,
         private HistoryDocumentFactoryInterface $documents,
         private HistoryReleaseFactoryInterface $releases,
-        private HistoryImportResultFactoryInterface $results,
-        private HistoryExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
      * Imports published GitHub notes when configured, otherwise explicit missing-note messages.
      * Only tags matching the exact prefix and strict stable SemVer are candidates. GitHub
      * cannot invent a version absent from Git. Existing release objects MUST stay intact.
+     *
+     * @param HistoryDocument                                                      $document Maintained history whose release bodies, introduction and references must be preserved.
+     * @param ReleaseOptions                                                       $options  Validated consumer paths, presentation settings and source-selection policy.
+     * @param TemplateInterface                                                    $template Validated structural presentation used to recognize or render history headings.
+     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags     Complete explicit Git tag evidence, including nullable dates and their provenance.
+     *
+     * @return HistoryImportResult Preserved history plus only missing stable tagged sections and the resolved Git baseline.
+     *
+     * @throws \InvalidArgumentException When tag/release evidence, repository settings or publication dates are inconsistent or malformed.
+     * @throws \RuntimeException         When configured GitHub history cannot be retrieved completely.
      */
     public function import(
         HistoryDocument $document,
@@ -48,7 +61,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         array $tags,
     ): HistoryImportResult {
         if ('github' === $options->source && null === $options->repository) {
-            throw $this->exceptions->invalid('GitHub history source requires an explicit repository.');
+            throw new InvalidArgumentException('GitHub history source requires an explicit repository.');
         }
         $versions = $this->versions($tags, $options->tagPrefix);
         $current = array_key_first($versions) ?? '0.0.0';
@@ -57,12 +70,12 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             static fn(string $version): bool => null === $document->getRelease($version),
         );
         if ([] === $missing) {
-            return $this->results->create($document, [], $current);
+            return new HistoryImportResult($document, [], $current);
         }
         $published = [];
         if ('tags' !== $options->source && null !== $options->repository) {
             if (1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $options->repository)) {
-                throw $this->exceptions->invalid('GitHub history repository must use owner/name.');
+                throw new InvalidArgumentException('GitHub history repository must use owner/name.');
             }
             foreach ($this->github->paginate('/repos/' . $options->repository . '/releases') as $release) {
                 if (! is_array($release) || ! isset($release['tag_name'], $release['draft'], $release['prerelease'])
@@ -70,7 +83,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                         $release['prerelease'],
                     )
                 ) {
-                    throw $this->exceptions->invalid('GitHub release history returned an invalid record.');
+                    throw new InvalidArgumentException('GitHub release history returned an invalid record.');
                 }
                 $version = substr($release['tag_name'], strlen($options->tagPrefix));
                 if ($release['draft'] || $release['prerelease'] || ! isset($versions[$version])
@@ -79,7 +92,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                     continue;
                 }
                 if (isset($published[$version])) {
-                    throw $this->exceptions->invalid('Multiple published GitHub releases identify the same Git tag.');
+                    throw new InvalidArgumentException('Multiple published GitHub releases identify the same Git tag.');
                 }
                 $published[$version] = $release;
             }
@@ -95,7 +108,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 $date = $this->publicationDate($release['published_at'] ?? null);
                 $source = 'github-release';
                 if (null !== ($release['body'] ?? null) && ! is_string($release['body'])) {
-                    throw $this->exceptions->invalid('Published GitHub release notes must be a string or null.');
+                    throw new InvalidArgumentException('Published GitHub release notes must be a string or null.');
                 }
                 if (is_string($release['body'] ?? null) && '' !== trim($release['body'])) {
                     $body = $release['body'];
@@ -114,12 +127,18 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         }
         $history = $this->documents->create($all, $document->getPrefix(), $document->getReferences());
 
-        return $this->results->create($history, array_values($missing), $current);
+        return new HistoryImportResult($history, array_values($missing), $current);
     }
 
     /**
      * Returns the same stable Git baseline as import without fetching or altering history.
-     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags caller-provided Git evidence
+     *
+     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags      caller-provided Git evidence
+     * @param string                                                               $tagPrefix Exact prefix removed from candidate stable Git tag identities.
+     *
+     * @return string Highest supported stable tag version, or 0.0.0 when no matching tag exists.
+     *
+     * @throws \InvalidArgumentException When tag evidence has invalid fields or repeats a canonical stable version.
      */
     public function currentVersion(array $tags, string $tagPrefix = 'v'): string
     {
@@ -128,7 +147,10 @@ final readonly class HistoryImporter implements HistoryImporterInterface
 
     /**
      * Resolves exact-prefix stable tags once for both formatting and import planning.
-     * @param  list<array{name:string,sha:string,date:?string,date_source:?string}>         $tags Git evidence
+     *
+     * @param list<array{name:string,sha:string,date:?string,date_source:?string}> $tags      Git evidence
+     * @param string                                                               $tagPrefix Exact prefix removed from candidate stable Git tag identities.
+     *
      * @return array<string,array{name:string,sha:string,date:?string,date_source:?string}> descending canonical versions
      */
     private function versions(array $tags, string $tagPrefix): array
@@ -142,7 +164,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 || (null !== $tag['date'] && ! is_string($tag['date']))
                 || (null !== $tag['date_source'] && ! is_string($tag['date_source']))
             ) {
-                throw $this->exceptions->invalid('Git tag history evidence has an invalid shape.');
+                throw new InvalidArgumentException('Git tag history evidence has an invalid shape.');
             }
             if (! str_starts_with($tag['name'], $tagPrefix)) {
                 continue;
@@ -152,7 +174,7 @@ final readonly class HistoryImporter implements HistoryImporterInterface
                 continue;
             }
             if (isset($versions[$version])) {
-                throw $this->exceptions->invalid('Multiple Git tags identify the same canonical stable version.');
+                throw new InvalidArgumentException('Multiple Git tags identify the same canonical stable version.');
             }
             $versions[$version] = $tag;
         }
@@ -161,7 +183,13 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         return $versions;
     }
 
-    /** Accepts strict stable semantic identities, including build metadata but no prereleases. */
+    /**
+     * Accepts strict stable semantic identities, including build metadata but no prereleases.
+     *
+     * @param string $version Candidate canonical version after the exact configured tag prefix has been removed.
+     *
+     * @return bool Whether the supplied identity is strict stable SemVer with optional build metadata and no prerelease.
+     */
     private function stable(string $version): bool
     {
         return 1 === preg_match(
@@ -170,7 +198,14 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         );
     }
 
-    /** Compares arbitrary-width numeric components without float conversion or date ordering. */
+    /**
+     * Compares arbitrary-width numeric components without float conversion or date ordering.
+     *
+     * @param string $left  First already validated semantic version being compared without machine-integer conversion.
+     * @param string $right Second already validated semantic version; build metadata deterministically breaks equal numeric precedence.
+     *
+     * @return int Negative, zero or positive ordering by arbitrary-width numeric core, then lexical build metadata for ties.
+     */
     private function compare(string $left, string $right): int
     {
         $leftParts = explode('.', explode('+', $left, 2)[0]);
@@ -188,7 +223,15 @@ final readonly class HistoryImporter implements HistoryImporterInterface
         return strcmp($left, $right);
     }
 
-    /** Validates an explicit ISO timestamp and derives its UTC publication day, never its commit date. */
+    /**
+     * Validates an explicit ISO timestamp and derives its UTC publication day, never its commit date.
+     *
+     * @param mixed $timestamp Untrusted GitHub published_at value requiring an explicit valid ISO timestamp.
+     *
+     * @return string UTC calendar day derived only from a valid explicit publication timestamp.
+     *
+     * @throws \InvalidArgumentException When the value is not an explicit valid ISO timestamp with a timezone.
+     */
     private function publicationDate(mixed $timestamp): string
     {
         if (! is_string($timestamp) || 1 !== preg_match(
@@ -200,7 +243,9 @@ final readonly class HistoryImporter implements HistoryImporterInterface
             || (int) $matches[4] > 23 || (int) $matches[5] > 59 || (int) $matches[6] > 59
             || (isset($matches[8]) && ((int) $matches[8] > 23 || (int) $matches[9] > 59))
         ) {
-            throw $this->exceptions->invalid('Published GitHub release dates require a valid explicit ISO timestamp.');
+            throw new InvalidArgumentException(
+                'Published GitHub release dates require a valid explicit ISO timestamp.',
+            );
         }
 
         return gmdate('Y-m-d', strtotime($timestamp));

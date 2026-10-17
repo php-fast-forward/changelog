@@ -2,13 +2,13 @@
 
 ## Scope and reading route
 
-[AGENTS.md](../AGENTS.md) is the sole development contract for source, tests,
+[AGENTS.md](https://github.com/php-fast-forward/changelog/blob/main/AGENTS.md) is the sole development contract for source, tests,
 docs, resources and internal quality tools. Ordinary directories do not have
 different authority and need no child AGENTS.md. The host bootstrap supplements
 routing without replacing this contract.
 
 For changelog lifecycle work, read the root and then the published package's
-[SKILL.md](../resources/skills/fast-forward-changelog/SKILL.md). That package
+[SKILL.md](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md). That package
 owns its portable consumer procedure, never permission to install or publish.
 The root explicitly applies that same procedure to this repository, substituting
 `php bin/changelog` for a consumer installation. Resource location does not claim
@@ -27,7 +27,7 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retain/update | `.github/actions/{check,pr-status,dependabot,version,publish,history}` | Stable public Docker Action paths; metadata and root Docker context remain in shared source archives. |
 | Retain | `.github/actions/{github-auth,setup-docker}` | Trusted internal helpers; excluded from consumer archives and not public integration contracts. |
 | Retain/update | `.github/workflows/changelog*.yml` | Seven stable public reusable contracts, kept directly in GitHub's required directory; excluded from Composer archives. |
-| Consolidate/rename | `.github/workflows/repository-{ci,changelog,image}.yml` | Internal quality, one lifecycle caller and product image publication; excluded from consumer archives. |
+| Consolidate/rename | `.github/workflows/repository-{ci,changelog,documentation,image}.yml` | Internal quality, one lifecycle caller, read-only documentation builds and product image publication; excluded from consumer archives. |
 | Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
 | Retain/update | `docs/automation-map.md` | Navigation separating stable public interfaces, repository-prefixed workflows, internal helpers and copyable resources. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
@@ -38,6 +38,19 @@ No extra child contract is created for resources, scripts or the skill itself.
 The [source map](source-layout.md) and
 [integration assessment](integration-dependencies.md) retain responsibility for
 namespaces and transport boundaries.
+
+The factory simplification preserves that same instruction hierarchy. Ordinary
+service construction belongs to the existing root provider through aliases and
+autowiring. HTTP client and secure-randomness construction move from standalone
+wrapper factory namespaces into that composition root; process, Finder and PHP
+configuration loading keep replaceable operational boundaries. Pure value and
+standard-exception creation belong to their callers. Domain factories retain
+their validation and transaction rules. These are source responsibilities under
+the root contract, not new child instruction scopes.
+
+The source map records removed public FQCNs and constructor changes as a major
+migration for the initial release. Root → source map → affected API remains the
+reading route. No host entrypoint or installed consumer skill is rewritten.
 
 The current hierarchy and target hierarchy both have one development root.
 Workflow organization changes folder responsibilities and navigation, not
@@ -69,3 +82,12 @@ deliberate distribution contract rather than an accidental maintenance export.
 Rollback restores the resource path, metadata, instructions, adapters and tests
 as one reviewed Git change. It never rewrites consumer-managed files, installs
 global skills or changes host configuration.
+
+For the factory simplification, restore the source APIs, constructor wiring,
+behavioral tests, source map and root responsibility/index entries together.
+Validate the root links, package gates, strict coverage and disposable installed
+consumers. A change in the number of wrappers is not itself behavioral proof.
+
+---
+
+[Documentation index](index.md)

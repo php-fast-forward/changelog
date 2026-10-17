@@ -50,8 +50,10 @@ Git attributes keep PHP and the CLI executable in LF on every checkout, includin
 Windows. ECS also selects LF explicitly, matching `.editorconfig` and preventing
 the native Windows line ending from changing formatter results.
 
-The full local gate is `composer check`. Composer plugins are disabled and
-installation runs with `--no-plugins --no-scripts`. Production coverage includes
+The full local gate is `composer check`. Quality installation disables Composer
+plugins and scripts with `--no-plugins --no-scripts`. The separate
+[documentation build](documentation.md) permits only the development
+phpDocumentor shim plugin and has no DevTools dependency. Production coverage includes
 all `src/`; PHPUnit generates native Cobertura, Clover, HTML and per-class text
 reports. The small verifier enforces 100% native line totals and every executable
 class, without rounding uncovered lines into success. `composer coverage:check`
@@ -71,3 +73,7 @@ sponsor links and author/license data with verified values. Never copy
 credentials, absolute host paths, installed tool state or the DevTools bootstrap.
 Keep installation/global use and Changelog release automation in the product
 contracts, not in a universal library baseline.
+
+---
+
+[Documentation index](index.md)

@@ -25,10 +25,10 @@ numbered page of 100 items. Malformed lists, invalid links, unavailable list
 endpoints and a page limit reached while another page is advertised fail
 without returning partial records. The default limit is 100 pages.
 
-[`Http\Factory\HttpClientFactory`](../Http/Factory/HttpClientFactory.php)
-concentrates generic Symfony HTTP client construction.
-`GitHubClientFactory` composes the transport, exception factory, explicit token
-and API base without sending a request.
+The provider composes the generic Symfony HTTP transport through
+`Symfony\Contracts\HttpClient\HttpClientInterface`. `GitHubClient` receives that
+transport, the explicit token and API base directly. Construction sends no request;
+applications and tests can replace the transport through its existing interface.
 
 See the [SDK assessment](../../docs/integration-dependencies.md) for the verified
 alternative libraries and the contracts an adoption would need to preserve.

@@ -19,7 +19,11 @@ namespace FastForward\Changelog\Release;
 /** Retains validated release evidence; the maintained changelog owns the release prose. */
 final readonly class ReleaseReceipt
 {
-    /** Captures the strictly validated schema-one data without filesystem access. */
+    /**
+     * Captures the strictly validated schema-one data without filesystem access.
+     *
+     * @param array<string,mixed> $data Complete recovery evidence already validated against the receipt schema.
+     */
     public function __construct(
         public array $data,
     ) {}

@@ -16,16 +16,27 @@ namespace FastForward\Changelog\Container\ServiceProvider;
 
 use Closure;
 use DateTimeZone;
+use FastForward\Changelog\Automation;
+use FastForward\Changelog\Changeset;
+use FastForward\Changelog\Configuration;
+use FastForward\Changelog\Console;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
-use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface;
-use FastForward\Changelog\Date\Factory\TimezoneFactory;
+use FastForward\Changelog\Filesystem;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
-use FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactoryInterface;
+use FastForward\Changelog\Fragment;
 use FastForward\Changelog\Fragment\IdentifierGeneratorInterface;
-use FastForward\Changelog\GitHub\Factory\GitHubClientFactoryInterface;
+use FastForward\Changelog\Git;
+use FastForward\Changelog\GitHub;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
+use FastForward\Changelog\History;
+use FastForward\Changelog\Process;
 use FastForward\Changelog\Process\Factory\ProcessFactory;
+use FastForward\Changelog\Publication;
+use FastForward\Changelog\Release;
+use FastForward\Changelog\Template;
+use FastForward\Changelog\Validation;
+use FastForward\Changelog\Validator;
+use FastForward\Changelog\Version;
 use FastForward\Changelog\Version\ComposerPackageVersionResolver;
 use FastForward\Clock\SystemClock;
 use FastForward\Config\ArrayConfig;
@@ -35,8 +46,11 @@ use FastForward\Container\Factory\InvokableFactory;
 use Interop\Container\ServiceProviderInterface;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
+use Random\Engine\Secure;
+use Random\Randomizer;
 use RuntimeException;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Lock\PersistingStoreInterface;
 use Symfony\Component\Lock\Store\FlockStore;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -47,13 +61,36 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     /** Module-local resolved settings; consumer overrides use config.changelog.* entries. */
     public const string CONFIG = 'changelog.config';
 
-    /** Returns explicit factories and autowiring aliases without instantiating I/O adapters or commands. */
+    /**
+     * Returns lazy service factories grouped by their domain responsibility.
+     *
+     * Building this map does not read the filesystem, resolve a command or open
+     * a network connection. Consumer configuration is resolved only on demand.
+     *
+     * @return array<string, callable> Factories indexed by service identifier.
+     */
     public function getFactories(): array
     {
         return [
-            \FastForward\Changelog\Automation\PullRequest\PullRequestStatusServiceInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\PullRequest\PullRequestStatusService::class,
-            ),
+            ...self::configurationFactories(),
+            ...self::automationFactories(),
+            ...self::releaseFactories(),
+            ...self::historyFactories(),
+            ...self::fragmentFactories(),
+            ...self::consoleFactories(),
+            ...self::integrationFactories(),
+            ...self::runtimeFactories(),
+        ];
+    }
+
+    /**
+     * Builds lazy configuration sources and the module-local settings factory.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function configurationFactories(): array
+    {
+        return [
             self::CONFIG => static fn(ContainerInterface $container): ConfigInterface => new ArrayConfig([
                 'working_directory' => self::configuration(
                     $container,
@@ -84,254 +121,270 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                     static fn(): ?string => null,
                 ),
             ]),
-            \FastForward\Changelog\Automation\Output\GitHubOutputWriterInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\Output\GitHubOutputWriter::class,
+            Configuration\Factory\ConfigSourceFactoryInterface::class => new AliasFactory(
+                Configuration\Factory\ConfigSourceFactory::class,
             ),
-            \FastForward\Changelog\Automation\Output\GitHubOutputWriter::class => static fn(
+        ];
+    }
+
+    /**
+     * Declares contribution, Dependabot and managed version-PR orchestration.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function automationFactories(): array
+    {
+        return [
+            Automation\PullRequest\PullRequestStatusServiceInterface::class => new AliasFactory(
+                Automation\PullRequest\PullRequestStatusService::class,
+            ),
+            Automation\Output\GitHubOutputWriterInterface::class => new AliasFactory(
+                Automation\Output\GitHubOutputWriter::class,
+            ),
+            Automation\Output\GitHubOutputWriter::class => static fn(
                 ContainerInterface $container,
-            ): \FastForward\Changelog\Automation\Output\GitHubOutputWriter
-                => new \FastForward\Changelog\Automation\Output\GitHubOutputWriter(
+            ): Automation\Output\GitHubOutputWriter
+                => new Automation\Output\GitHubOutputWriter(
                     $container->get(\Symfony\Component\Filesystem\Filesystem::class),
                     $container->get(self::CONFIG)->get('github_output_file'),
                 ),
-            \FastForward\Changelog\Release\ReleaseJournalPathResolverInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\ReleaseJournalPathResolver::class,
+            Automation\AutomationRunnerInterface::class => new AliasFactory(
+                Automation\AutomationRunner::class,
             ),
-            \FastForward\Changelog\Release\ReleaseJournalPathResolver::class => static fn(
+            Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface::class => new AliasFactory(
+                Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory::class,
+            ),
+            Automation\VersionPullRequest\VersionPullRequestServiceInterface::class => new AliasFactory(
+                Automation\VersionPullRequest\VersionPullRequestService::class,
+            ),
+            Automation\Dependabot\DependabotFragmentServiceInterface::class => new AliasFactory(
+                Automation\Dependabot\DependabotFragmentService::class,
+            ),
+            Automation\Dependabot\Factory\DependabotInputFactoryInterface::class => new AliasFactory(
+                Automation\Dependabot\Factory\DependabotInputFactory::class,
+            ),
+            Automation\Policy\PullRequestPolicyInterface::class => new AliasFactory(
+                Automation\Policy\PullRequestPolicy::class,
+            ),
+        ];
+    }
+
+    /**
+     * Declares release transactions, evidence validation and approved publication.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function releaseFactories(): array
+    {
+        return [
+            Release\ReleaseJournalPathResolverInterface::class => new AliasFactory(
+                Release\ReleaseJournalPathResolver::class,
+            ),
+            Release\ReleaseJournalPathResolver::class => static fn(
                 ContainerInterface $container,
-            ): \FastForward\Changelog\Release\ReleaseJournalPathResolver
-                => new \FastForward\Changelog\Release\ReleaseJournalPathResolver(
-                    $container->get(\FastForward\Changelog\Git\GitRepositoryInterface::class),
+            ): Release\ReleaseJournalPathResolver
+                => new Release\ReleaseJournalPathResolver(
+                    $container->get(Git\GitRepositoryInterface::class),
                     $container->get(self::CONFIG)->get('temporary_directory'),
                 ),
-            \FastForward\Changelog\Automation\AutomationRunnerInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\AutomationRunner::class,
+            Release\Factory\ReleasePlanFactoryInterface::class => new AliasFactory(
+                Release\Factory\ReleasePlanFactory::class,
             ),
-            \FastForward\Changelog\Validator\ReleaseDateValidatorInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validator\ReleaseDateValidator::class,
+            Release\ReceiptCodecInterface::class => new AliasFactory(
+                Release\ReceiptCodec::class,
             ),
-            \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory::class,
+            Release\ReleaseApplierInterface::class => new AliasFactory(
+                Release\ReleaseApplier::class,
             ),
-            \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory::class,
+            Release\Renderer\ReleaseNotesRendererInterface::class => new AliasFactory(
+                Release\Renderer\ReleaseNotesRenderer::class,
             ),
-            \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactory::class,
+            Release\ReleaseHistoryConsolidatorInterface::class => new AliasFactory(
+                Release\ReleaseHistoryConsolidator::class,
             ),
-            \FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServiceInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestService::class,
+            Release\Factory\ReleaseOptionsFactoryInterface::class => new AliasFactory(
+                Release\Factory\ReleaseOptionsFactory::class,
             ),
-            \FastForward\Changelog\Automation\Dependabot\DependabotFragmentServiceInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\Dependabot\DependabotFragmentService::class,
+            Release\ReleasePlannerInterface::class => new AliasFactory(
+                Release\ReleasePlanner::class,
             ),
-            \FastForward\Changelog\Automation\Dependabot\Factory\DependabotFragmentResultFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\Dependabot\Factory\DependabotFragmentResultFactory::class,
+            Publication\PublicationServiceInterface::class => new AliasFactory(
+                Publication\PublicationService::class,
             ),
-            \FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\Dependabot\Factory\DependabotInputFactory::class,
+            Publication\MergedPublicationServiceInterface::class => new AliasFactory(
+                Publication\PublicationService::class,
             ),
-            \FastForward\Changelog\Automation\Policy\Factory\PullRequestAuthorizationFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\Policy\Factory\PullRequestAuthorizationFactory::class,
-            ),
-            \FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface::class => new AliasFactory(
-                \FastForward\Changelog\Automation\Policy\PullRequestPolicy::class,
-            ),
-            \FastForward\Changelog\Changeset\Factory\ChangesetFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Changeset\Factory\ChangesetFactory::class,
-            ),
-            \FastForward\Changelog\Changeset\Factory\ChangesetParseResultFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Changeset\Factory\ChangesetParseResultFactory::class,
-            ),
-            \FastForward\Changelog\Changeset\Parser\ChangesetParserInterface::class => new AliasFactory(
-                \FastForward\Changelog\Changeset\Parser\ChangesetParser::class,
-            ),
-            \FastForward\Changelog\Changeset\Renderer\ChangesetRendererInterface::class => new AliasFactory(
-                \FastForward\Changelog\Changeset\Renderer\ChangesetRenderer::class,
-            ),
-            \FastForward\Changelog\Changeset\Store\ChangesetStoreInterface::class => new AliasFactory(
-                \FastForward\Changelog\Changeset\Store\FilesystemChangesetStore::class,
-            ),
-            \FastForward\Changelog\Configuration\Factory\ConfigSourceFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Configuration\Factory\ConfigSourceFactory::class,
-            ),
-            \FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactory::class,
-            ),
-            \FastForward\Changelog\Console\PlanCommandRunnerInterface::class => new AliasFactory(
-                \FastForward\Changelog\Console\PlanCommandRunner::class,
-            ),
-            \FastForward\Changelog\Filesystem\Factory\FinderFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Filesystem\Factory\FinderFactory::class,
-            ),
-            \FastForward\Changelog\Filesystem\Factory\PathExceptionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Filesystem\Factory\PathExceptionFactory::class,
-            ),
-            \FastForward\Changelog\Filesystem\ManagedFileStoreInterface::class => new AliasFactory(
-                \FastForward\Changelog\Filesystem\ManagedFileStore::class,
-            ),
-            \FastForward\Changelog\Filesystem\PackagePathResolverInterface::class => new AliasFactory(
-                \FastForward\Changelog\Filesystem\PackagePathResolver::class,
-            ),
-            \FastForward\Changelog\Fragment\Factory\FragmentExceptionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Fragment\Factory\FragmentExceptionFactory::class,
-            ),
-            \FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Fragment\Factory\IdentifierGeneratorFactory::class,
-            ),
-            \FastForward\Changelog\Fragment\FragmentWriterInterface::class => new AliasFactory(
-                \FastForward\Changelog\Fragment\FragmentWriter::class,
-            ),
-            \FastForward\Changelog\GitHub\Factory\GitHubClientFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\GitHub\Factory\GitHubClientFactory::class,
-            ),
-            \FastForward\Changelog\GitHub\Factory\GitHubExceptionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\GitHub\Factory\GitHubExceptionFactory::class,
-            ),
-            \FastForward\Changelog\Http\Factory\HttpClientFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Http\Factory\HttpClientFactory::class,
-            ),
-            \FastForward\Changelog\Git\GitRepositoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Git\GitRepository::class,
-            ),
-            \FastForward\Changelog\Git\GitCommitTreeReaderInterface::class => new AliasFactory(
-                \FastForward\Changelog\Git\GitRepository::class,
-            ),
-            \FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Process\Factory\ProcessFactory::class,
-            ),
-            \FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\History\Factory\HistoryDocumentFactory::class,
-            ),
-            \FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\History\Factory\HistoryExceptionFactory::class,
-            ),
-            \FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\History\Factory\HistoryReleaseFactory::class,
-            ),
-            \FastForward\Changelog\History\HistoryCodecInterface::class => new AliasFactory(
-                \FastForward\Changelog\History\HistoryCodec::class,
-            ),
-            \FastForward\Changelog\History\Import\Factory\HistoryImportResultFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\History\Import\Factory\HistoryImportResultFactory::class,
-            ),
-            \FastForward\Changelog\History\Import\HistoryImporterInterface::class => new AliasFactory(
-                \FastForward\Changelog\History\Import\HistoryImporter::class,
-            ),
-            \FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Publication\Factory\PublicationEvidenceFactory::class,
-            ),
-            \FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Publication\Factory\PublicationResultFactory::class,
-            ),
-            \FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validator\ReleaseInputEvidenceValidator::class,
-            ),
-            \FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validator\PublicationEvidenceValidator::class,
-            ),
-            \FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validator\PublicationEvidenceValidator::class,
-            ),
-            \FastForward\Changelog\Publication\PublicationServiceInterface::class => new AliasFactory(
-                \FastForward\Changelog\Publication\PublicationService::class,
-            ),
-            \FastForward\Changelog\Publication\MergedPublicationServiceInterface::class => new AliasFactory(
-                \FastForward\Changelog\Publication\PublicationService::class,
-            ),
-            \FastForward\Changelog\Publication\PublicationService::class => new InvokableFactory(
-                \FastForward\Changelog\Publication\PublicationService::class,
-                \FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface::class,
+            // Contextual publication needs its optional policy; the supported autowirer retains optional defaults.
+            Publication\PublicationService::class => new InvokableFactory(
+                Publication\PublicationService::class,
+                Validator\PublicationEvidenceValidatorInterface::class,
                 GitHubClientInterface::class,
-                \FastForward\Changelog\Publication\Factory\PublicationResultFactoryInterface::class,
-                \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class,
-                \FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface::class,
+                Automation\Policy\PullRequestPolicyInterface::class,
             ),
-            \FastForward\Changelog\Validator\PublicationEvidenceValidator::class => new InvokableFactory(
-                \FastForward\Changelog\Validator\PublicationEvidenceValidator::class,
-                \FastForward\Changelog\Git\GitRepositoryInterface::class,
-                \FastForward\Changelog\History\HistoryCodecInterface::class,
-                \FastForward\Changelog\Changeset\Parser\ChangesetParserInterface::class,
-                \FastForward\Changelog\Version\NextVersionResolverInterface::class,
-                \FastForward\Changelog\History\Import\HistoryImporterInterface::class,
-                \FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface::class,
-                \FastForward\Changelog\Template\TemplateResolverInterface::class,
-                \FastForward\Changelog\Filesystem\PackagePathResolverInterface::class,
-                \FastForward\Changelog\Filesystem\ManagedFileStoreInterface::class,
-                \FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface::class,
-                \FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface::class,
-                \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class,
-                \FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface::class,
+            Validator\ReleaseDateValidatorInterface::class => new AliasFactory(
+                Validator\ReleaseDateValidator::class,
+            ),
+            Validator\ReleaseInputEvidenceValidatorInterface::class => new AliasFactory(
+                Validator\ReleaseInputEvidenceValidator::class,
+            ),
+            Validator\PublicationEvidenceValidatorInterface::class => new AliasFactory(
+                Validator\PublicationEvidenceValidator::class,
+            ),
+            Validator\MergedPublicationEvidenceValidatorInterface::class => new AliasFactory(
+                Validator\PublicationEvidenceValidator::class,
+            ),
+            // Inject the optional immutable API proof reader rather than silently selecting local-only validation.
+            Validator\PublicationEvidenceValidator::class => new InvokableFactory(
+                Validator\PublicationEvidenceValidator::class,
+                Git\GitRepositoryInterface::class,
+                History\HistoryCodecInterface::class,
+                Changeset\Parser\ChangesetParserInterface::class,
+                Version\NextVersionResolverInterface::class,
+                History\Import\HistoryImporterInterface::class,
+                Release\Renderer\ReleaseNotesRendererInterface::class,
+                Template\TemplateResolverInterface::class,
+                Filesystem\PackagePathResolverInterface::class,
+                Filesystem\ManagedFileStoreInterface::class,
+                History\Factory\HistoryReleaseFactoryInterface::class,
+                Release\ReleaseHistoryConsolidatorInterface::class,
                 GitHubClientInterface::class,
+                Release\ReleaseMetadataParser::class,
+                History\HistoryReferenceBuilder::class,
             ),
-            \FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\Factory\ReleaseExceptionFactory::class,
+            Validator\ChangesetValidatorInterface::class => new AliasFactory(
+                Validator\ChangesetValidator::class,
             ),
-            \FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\Factory\ReleasePlanFactory::class,
-            ),
-            \FastForward\Changelog\Release\Factory\ReleaseReceiptFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\Factory\ReleaseReceiptFactory::class,
-            ),
-            \FastForward\Changelog\Release\ReceiptCodecInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\ReceiptCodec::class,
-            ),
-            \FastForward\Changelog\Release\ReleaseApplierInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\ReleaseApplier::class,
-            ),
-            \FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer::class,
-            ),
-            \FastForward\Changelog\Release\ReleaseHistoryConsolidatorInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\ReleaseHistoryConsolidator::class,
-            ),
-            \FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\Factory\ReleaseOptionsFactory::class,
-            ),
-            \FastForward\Changelog\Release\ReleasePlannerInterface::class => new AliasFactory(
-                \FastForward\Changelog\Release\ReleasePlanner::class,
-            ),
-            \FastForward\Changelog\Template\Factory\TemplateFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Template\Factory\TemplateFactory::class,
-            ),
-            \FastForward\Changelog\Template\TemplateResolverInterface::class => new AliasFactory(
-                \FastForward\Changelog\Template\TemplateResolver::class,
-            ),
-            \FastForward\Changelog\Validator\ChangesetValidatorInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validator\ChangesetValidator::class,
-            ),
-            \FastForward\Changelog\Validation\CheckServiceInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validation\CheckService::class,
-            ),
-            \FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Validation\Factory\ValidationReportFactory::class,
-            ),
-            \FastForward\Changelog\Version\Factory\VersionResolutionFactoryInterface::class => new AliasFactory(
-                \FastForward\Changelog\Version\Factory\VersionResolutionFactory::class,
-            ),
-            \FastForward\Changelog\Version\NextVersionResolverInterface::class => new AliasFactory(
-                \FastForward\Changelog\Version\NextVersionResolver::class,
-            ),
-            \FastForward\Changelog\Version\PackageVersionResolverInterface::class => new AliasFactory(
-                \FastForward\Changelog\Version\ComposerPackageVersionResolver::class,
-            ),
-            \FastForward\Changelog\Version\VersionImpactResolverInterface::class => new AliasFactory(
-                \FastForward\Changelog\Version\VersionImpactResolver::class,
-            ),
+        ];
+    }
 
-            IdentifierGeneratorInterface::class => static fn(ContainerInterface $container): IdentifierGeneratorInterface
-                => $container->get(IdentifierGeneratorFactoryInterface::class)->create(),
-            HttpClientInterface::class => static fn(ContainerInterface $container): HttpClientInterface
-                => $container->get(HttpClientFactoryInterface::class)->create(),
-            GitHubClientInterface::class => static fn(ContainerInterface $container): GitHubClientInterface
-                => $container->get(GitHubClientFactoryInterface::class)->create(
+    /**
+     * Declares Markdown history parsing, import and construction boundaries.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function historyFactories(): array
+    {
+        return [
+            History\Factory\HistoryDocumentFactoryInterface::class => new AliasFactory(
+                History\Factory\HistoryDocumentFactory::class,
+            ),
+            History\Factory\HistoryReleaseFactoryInterface::class => new AliasFactory(
+                History\Factory\HistoryReleaseFactory::class,
+            ),
+            History\HistoryCodecInterface::class => new AliasFactory(
+                History\HistoryCodec::class,
+            ),
+            History\Import\HistoryImporterInterface::class => new AliasFactory(
+                History\Import\HistoryImporter::class,
+            ),
+        ];
+    }
+
+    /**
+     * Declares fragment parsing, storage, rendering and semantic version calculation.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function fragmentFactories(): array
+    {
+        return [
+            Changeset\Parser\ChangesetParserInterface::class => new AliasFactory(
+                Changeset\Parser\ChangesetParser::class,
+            ),
+            Changeset\Renderer\ChangesetRendererInterface::class => new AliasFactory(
+                Changeset\Renderer\ChangesetRenderer::class,
+            ),
+            Changeset\Store\ChangesetStoreInterface::class => new AliasFactory(
+                Changeset\Store\FilesystemChangesetStore::class,
+            ),
+            Fragment\FragmentWriterInterface::class => new AliasFactory(
+                Fragment\FragmentWriter::class,
+            ),
+            Version\NextVersionResolverInterface::class => new AliasFactory(
+                Version\NextVersionResolver::class,
+            ),
+            Version\PackageVersionResolverInterface::class => new AliasFactory(
+                Version\ComposerPackageVersionResolver::class,
+            ),
+            Version\VersionImpactResolverInterface::class => new AliasFactory(
+                Version\VersionImpactResolver::class,
+            ),
+        ];
+    }
+
+    /**
+     * Declares command construction, templates and contribution-report factories.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function consoleFactories(): array
+    {
+        return [
+            Console\PlanCommandRunnerInterface::class => new AliasFactory(
+                Console\PlanCommandRunner::class,
+            ),
+            Template\Factory\TemplateFactoryInterface::class => new AliasFactory(
+                Template\Factory\TemplateFactory::class,
+            ),
+            Template\TemplateResolverInterface::class => new AliasFactory(
+                Template\TemplateResolver::class,
+            ),
+            Validation\CheckServiceInterface::class => new AliasFactory(
+                Validation\CheckService::class,
+            ),
+        ];
+    }
+
+    /**
+     * Declares filesystem and Git adapters together with the retained process-construction boundary.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function integrationFactories(): array
+    {
+        return [
+            Filesystem\Factory\FinderFactoryInterface::class => new AliasFactory(
+                Filesystem\Factory\FinderFactory::class,
+            ),
+            Filesystem\ManagedFileStoreInterface::class => new AliasFactory(
+                Filesystem\ManagedFileStore::class,
+            ),
+            Filesystem\PackagePathResolverInterface::class => new AliasFactory(
+                Filesystem\PackagePathResolver::class,
+            ),
+            Git\GitRepositoryInterface::class => new AliasFactory(
+                Git\GitRepository::class,
+            ),
+            Git\GitCommitTreeReaderInterface::class => new AliasFactory(
+                Git\GitRepository::class,
+            ),
+            Process\Factory\ProcessFactoryInterface::class => new AliasFactory(
+                Process\Factory\ProcessFactory::class,
+            ),
+        ];
+    }
+
+    /**
+     * Declares shared runtime defaults without constructing adapters or commands.
+     *
+     * @return array<string, callable> Lazy factories for this service group.
+     */
+    private static function runtimeFactories(): array
+    {
+        return [
+            IdentifierGeneratorInterface::class => new AliasFactory(Fragment\RandomIdentifierGenerator::class),
+            Randomizer::class => static fn(): Randomizer => new Randomizer(new Secure()),
+            HttpClientInterface::class => static fn(): HttpClientInterface => HttpClient::create(),
+            GitHubClientInterface::class => new AliasFactory(GitHub\GitHubClient::class),
+            GitHub\GitHubClient::class => static fn(ContainerInterface $container): GitHub\GitHubClient
+                => new GitHub\GitHubClient(
+                    $container->get(HttpClientInterface::class),
                     $container->get(self::CONFIG)->get('token'),
                     $container->get(self::CONFIG)->get('api_url'),
                 ),
             PersistingStoreInterface::class => new AliasFactory(FlockStore::class),
             ClockInterface::class => new AliasFactory(SystemClock::class),
-            DateTimeZone::class => static fn(ContainerInterface $container): DateTimeZone
-                => $container->get(TimezoneFactory::class)->create(),
+            DateTimeZone::class => static fn(): DateTimeZone => new DateTimeZone('UTC'),
             SystemClock::class => static fn(ContainerInterface $container): SystemClock
                 => new SystemClock($container->get(DateTimeZone::class)),
             ComposerPackageVersionResolver::class => static fn(ContainerInterface $container): ComposerPackageVersionResolver
@@ -345,18 +398,29 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                     'working_directory',
                 ),
             ),
-            CommandLoaderInterface::class => static fn(ContainerInterface $container): ChangelogCommandLoader
-                => new ChangelogCommandLoader($container, $container->get(LazyCommandFactoryInterface::class)),
+            CommandLoaderInterface::class => new AliasFactory(ChangelogCommandLoader::class),
         ];
     }
 
-    /** Returns an empty decoration map until an explicit extension contract is introduced. */
+    /**
+     * Returns an empty decoration map until an explicit extension contract is introduced.
+     *
+     * @return array<never,never> Empty service-decoration map; the provider adds factories without overriding existing services through extensions.
+     */
     public function getExtensions(): array
     {
         return [];
     }
 
-    /** Reads an optional consumer config entry; evaluates the host default only when that entry is absent. */
+    /**
+     * Reads an optional consumer config entry; evaluates the host default only when that entry is absent.
+     *
+     * @param ContainerInterface $container Consumer container supplying optional config.changelog.* entries, including explicit null or empty values.
+     * @param string             $key       Raw changelog setting name resolved through the config.changelog. namespace.
+     * @param Closure():mixed    $default   Lazy fallback evaluated only when the corresponding consumer config entry is absent.
+     *
+     * @return mixed Explicit consumer config value, including null or empty values; otherwise the lazily evaluated fallback.
+     */
     private static function configuration(ContainerInterface $container, string $key, Closure $default): mixed
     {
         $id = 'config.changelog.' . $key;

@@ -6,7 +6,6 @@ namespace FastForward\Changelog\Tests\Git;
 
 use FastForward\Changelog\Git\GitRepository;
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
-use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -670,14 +669,7 @@ final class GitRepositoryTest extends TestCase
                 return $process;
             },
         );
-        $exceptions = $this->createStub(ReleaseExceptionFactoryInterface::class);
-        $exceptions->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
-        $exceptions->method('failure')->willReturnCallback(
-            static fn(string $message): RuntimeException => new RuntimeException($message),
-        );
 
-        return new GitRepository($factory, $exceptions);
+        return new GitRepository($factory);
     }
 }

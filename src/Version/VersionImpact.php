@@ -30,6 +30,8 @@ enum VersionImpact: string
 
     /**
      * Returns the ordering weight used to compare release impacts.
+     *
+     * @return int Ordering weight used to compare patch, minor and major impacts.
      */
     public function weight(): int
     {
@@ -45,6 +47,10 @@ enum VersionImpact: string
      *
      * Aggregation MUST be monotonic so adding a fragment cannot reduce the
      * version selected for the pending release.
+     *
+     * @param VersionImpact $other Competing impact that may elevate but never reduce the current severity.
+     *
+     * @return VersionImpact Greater of the current and competing impacts, preserving monotonic aggregation.
      */
     public function elevate(VersionImpact $other): VersionImpact
     {

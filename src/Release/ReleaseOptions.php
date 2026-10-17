@@ -22,6 +22,16 @@ final readonly class ReleaseOptions
     /**
      * Captures explicit consumer paths and release policy without reading host state.
      * The factory MUST validate these settings before any side effect is attempted.
+     *
+     * @param string      $workingDirectory  Consumer project root used to resolve managed paths independently of the installed package.
+     * @param string      $fragmentDirectory Project-relative directory containing independent pending Markdown fragments.
+     * @param string      $changelogFile     Project-relative path of the sole consolidated history file.
+     * @param string      $locale            Supported structural language identifier, en or pt-BR.
+     * @param string      $template          Built-in presentation name or explicitly trusted project-relative PHP template path.
+     * @param string      $baseRef           Git revision from which committed release evidence is selected.
+     * @param string      $tagPrefix         Exact prefix removed from candidate stable Git tag identities.
+     * @param string|null $repository        Optional GitHub owner/name used for source selection and reference links.
+     * @param string      $source            History evidence policy: auto, github or tags.
      */
     public function __construct(
         public string $workingDirectory,
@@ -35,7 +45,11 @@ final readonly class ReleaseOptions
         public string $source = 'auto',
     ) {}
 
-    /** Binds publication policy to trusted caller settings without persisting JSON in the repository. */
+    /**
+     * Binds publication policy to trusted caller settings without persisting JSON in the repository.
+     *
+     * @return string SHA-256 fingerprint of the trusted settings that affect publication reconstruction.
+     */
     public function evidenceHash(): string
     {
         return hash('sha256', json_encode([

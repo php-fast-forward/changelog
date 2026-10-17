@@ -23,7 +23,11 @@ interface TemplateFactoryInterface
     /**
      * Creates the built-in template with optional trusted PHP-array overrides.
      *
-     * @param  array<string,mixed>       $overrides explicit presentation overrides
+     * @param string              $locale    Supported structural language identifier, en or pt-BR.
+     * @param array<string,mixed> $overrides explicit presentation overrides
+     *
+     * @return TemplateInterface Validated localized template with only the supported explicit presentation overrides.
+     *
      * @throws \InvalidArgumentException when a locale or override is unsupported
      */
     public function create(string $locale = 'en', array $overrides = []): TemplateInterface;

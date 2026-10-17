@@ -19,6 +19,13 @@ namespace FastForward\Changelog\Release;
 /** Produces the single release or maintenance transaction used by CLI and automation. */
 interface ReleasePlannerInterface
 {
-    /** Plans exact bytes without writing files, consuming fragments or changing Git/GitHub state. */
+    /**
+     * Plans exact bytes without writing files, consuming fragments or changing Git/GitHub state.
+     *
+     * @param ReleaseOptions $options   Validated consumer paths, presentation settings and source-selection policy.
+     * @param string         $operation Requested shared operation; version, backfill and format have separate write semantics.
+     *
+     * @return ReleasePlan Immutable release or maintenance transaction with exact accepted inputs and resulting bytes.
+     */
     public function plan(ReleaseOptions $options, string $operation = 'version'): ReleasePlan;
 }

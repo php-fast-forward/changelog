@@ -7,13 +7,12 @@ namespace FastForward\Changelog\Tests\Console\CommandLoader;
 use FastForward\Changelog\Console\Command\AddCommand;
 use FastForward\Changelog\Console\Command\StatusCommand;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
-use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactory;
-use FastForward\Changelog\Console\CommandLoader\Factory\LazyCommandFactoryInterface;
 use FastForward\Changelog\Console\Input\ReleaseInput;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use LogicException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -21,12 +20,29 @@ use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Symfony\Component\Console\Application;
-use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Attribute\Argument;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\ApplicationTester;
+use Symfony\Component\Console\Tester\CommandTester;
+
+#[AsCommand(
+    name: 'add',
+    description: 'Fixture callable.',
+)]
+final readonly class InvokableFixture
+{
+    public function __invoke(OutputInterface $output, #[Argument] string $message, #[Option] bool $flag = false): int
+    {
+        $output->write($message . ($flag ? ' flagged' : ''));
+
+        return 0;
+    }
+}
 
 #[CoversClass(ChangelogCommandLoader::class)]
-#[UsesClass(LazyCommandFactory::class)]
 #[UsesClass(StatusCommand::class)]
 #[UsesClass(ReleaseInput::class)]
 #[UsesClass(ReleaseOptions::class)]
@@ -38,18 +54,7 @@ final class ChangelogCommandLoaderTest extends TestCase
     {
         $container = $this->createMock(ContainerInterface::class);
         $container->expects(self::never())->method('get');
-        $factory = $this->createMock(LazyCommandFactoryInterface::class);
-        $command = $this->createStub(Command::class);
-        $factory->expects(self::once())->method('create')->with(
-            'add',
-            [],
-            'Create one changelog fragment with optional release metadata.',
-            AddCommand::class,
-            $container,
-        )->willReturn(
-            $command,
-        );
-        $loader = new ChangelogCommandLoader($container, $factory);
+        $loader = new ChangelogCommandLoader($container);
         self::assertSame([
             'add','check','status','version','notes','publish','backfill','format','github'],
             $loader->getNames(),
@@ -57,8 +62,37 @@ final class ChangelogCommandLoaderTest extends TestCase
         self::assertTrue($loader->has('add'));
         self::assertFalse($loader->has('changelog:entry'));
         self::assertFalse($loader->has('unknown'));
+        $command = $loader->get('add');
+        self::assertSame('add', $command->getName());
+        self::assertSame('Create one changelog fragment with optional release metadata.', $command->getDescription());
         self::assertSame($command, $loader->get('add'));
+    }
+
+    #[Test]
+    public function selectedWrapperResolvesItsInvokableOnceAndRetainsArgumentsAndOptions(): void
+    {
+        $container = $this->createMock(ContainerInterface::class);
+        $container->expects(self::once())->method('get')->with(AddCommand::class)->willReturn(new InvokableFixture());
+        $loader = new ChangelogCommandLoader($container);
+        $command = $loader->get('add');
+        $tester = new CommandTester($command);
+
+        self::assertSame(0, $tester->execute(['message' => 'exact', '--flag' => true], ['interactive' => false]));
+        self::assertSame('exact flagged', $tester->getDisplay(true));
         self::assertSame($command, $loader->get('add'));
+    }
+
+    #[Test]
+    public function nonInvokableServiceFailsOnlyWhenSelected(): void
+    {
+        $container = $this->createMock(ContainerInterface::class);
+        $container->expects(self::once())->method('get')->with(AddCommand::class)->willReturn(new \stdClass());
+        $command = new ChangelogCommandLoader($container)->get('add');
+        self::assertSame('add', $command->getName());
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('The command service must be invokable: ' . AddCommand::class);
+
+        $command->getDefinition();
     }
 
     #[Test]
@@ -66,7 +100,7 @@ final class ChangelogCommandLoaderTest extends TestCase
     {
         $container = $this->createMock(ContainerInterface::class);
         $container->expects(self::never())->method('get');
-        $loader = new ChangelogCommandLoader($container, $this->createStub(LazyCommandFactoryInterface::class));
+        $loader = new ChangelogCommandLoader($container);
         $this->expectException(CommandNotFoundException::class);
         $loader->get('unknown');
     }
@@ -78,7 +112,7 @@ final class ChangelogCommandLoaderTest extends TestCase
         $container->expects(self::never())->method('get');
         $application = new Application('Changelog', 'test');
         $application->setAutoExit(false);
-        $application->setCommandLoader(new ChangelogCommandLoader($container, new LazyCommandFactory()));
+        $application->setCommandLoader(new ChangelogCommandLoader($container));
         $tester = new ApplicationTester($application);
         self::assertSame(0, $tester->run(['command' => 'list','--raw' => true], ['interactive' => false]));
         self::assertStringContainsString('backfill', $tester->getDisplay(true));
@@ -124,7 +158,7 @@ final class ChangelogCommandLoaderTest extends TestCase
         });
         $application = new Application('Changelog', 'test');
         $application->setAutoExit(false);
-        $application->setCommandLoader(new ChangelogCommandLoader($container, new LazyCommandFactory()));
+        $application->setCommandLoader(new ChangelogCommandLoader($container));
         $tester = new ApplicationTester($application);
         self::assertSame(1, $tester->run(['command' => 'add','message' => 'test'], ['interactive' => false]));
         self::assertStringContainsString('add graph unavailable', $tester->getDisplay(true));

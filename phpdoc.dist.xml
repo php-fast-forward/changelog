@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpdocumentor configVersion="3" xmlns="https://www.phpdoc.org"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/phpDocumentor/phpDocumentor/master/data/xsd/phpdoc.xsd">
+    <title>Fast Forward Changelog</title>
+
+    <paths>
+        <output>.build/docs</output>
+        <cache>.build/phpdoc-cache</cache>
+    </paths>
+
+    <version number="latest">
+        <api>
+            <source dsn=".">
+                <path>src</path>
+            </source>
+
+            <include-source>true</include-source>
+        </api>
+
+        <guide format="md">
+            <source dsn="./docs"/>
+            <output>.</output>
+        </guide>
+    </version>
+
+    <template name="vendor/fast-forward/phpdoc-bootstrap-template"/>
+</phpdocumentor>

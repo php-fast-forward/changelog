@@ -25,6 +25,8 @@ interface FinderFactoryInterface
 {
     /**
      * Returns a fresh Finder without reading or configuring a directory.
+     *
+     * @return Finder Fresh unconfigured Finder; directory traversal has not started.
      */
     public function create(): Finder;
 }

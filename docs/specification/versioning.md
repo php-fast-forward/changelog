@@ -46,3 +46,7 @@ Manual impact requests must be combined with the pending effective maximum;
 they must never silently lower a greater fragment impact. Applying a plan,
 historical backfill and publishing tags/releases are separate responsibilities.
 These primitives perform no Git, filesystem, clock, process or network access.
+
+---
+
+[Documentation index](../index.md)

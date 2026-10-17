@@ -1,0 +1,248 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Standalone changeset and changelog tooling for Fast Forward PHP packages.
+ *
+ * This file is part of the fast-forward/changelog project.
+ *
+ * @copyright Copyright (c) 2026 Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
+ * @license https://opensource.org/licenses/MIT MIT License
+ * @see https://github.com/php-fast-forward/changelog
+ */
+
+namespace FastForward\Changelog\History;
+
+/** Completes concrete release links without rewriting maintained Markdown or observing external state. */
+final readonly class HistoryReferenceBuilder
+{
+    /**
+     * Appends missing reference definitions while preserving every existing presentation byte.
+     *
+     * Semantic precedence selects predecessors independently of section order. Distinct build
+     * identities with equal precedence use lexical identity order. Existing definitions remain
+     * authoritative, including definitions outside the terminal footer; fenced examples do not.
+     *
+     * @param HistoryDocument $document   Maintained sections and raw presentation to retain unchanged.
+     * @param string|null     $repository Known GitHub owner/name, or null when no destination can be established.
+     * @param string          $tagPrefix  Validated prefix prepended to each complete semantic version in Git tag URLs.
+     *
+     * @return HistoryDocument Independent document with missing links, or the original when no additions are possible.
+     */
+    public function complete(HistoryDocument $document, ?string $repository, string $tagPrefix = 'v'): HistoryDocument
+    {
+        if (null === $repository || 1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)) {
+            return $document;
+        }
+
+        $versions = $this->versions($document);
+        $ordered = array_keys($versions);
+        usort($ordered, $this->compare(...));
+        $defined = $this->definedLabels($document);
+        $destinations = [];
+        $previous = null;
+        [$owner, $name] = explode('/', $repository);
+        $root = 'https://github.com/' . rawurlencode($owner) . '/' . rawurlencode($name);
+
+        foreach ($ordered as $version) {
+            $tag = rawurlencode($tagPrefix . $version);
+            $destinations[$version] = null === $previous ? $root . '/releases/tag/' . $tag
+                : $root . '/compare/' . rawurlencode($tagPrefix . $previous) . '...' . $tag;
+            $previous = $version;
+        }
+
+        $additions = [];
+        foreach ($versions as $version => $label) {
+            $normalized = strtolower($label);
+            if (isset($defined[$normalized])) {
+                continue;
+            }
+
+            $additions[] = '[' . $label . ']: ' . $destinations[$version];
+            $defined[$normalized] = true;
+        }
+
+        if ([] === $additions) {
+            return $document;
+        }
+
+        $references = $document->getReferences();
+        $newline = str_contains($references, "\r\n") ? "\r\n" : "\n";
+
+        return $document->withReferences($references . $this->separator($document, $newline)
+            . implode($newline, $additions) . $newline);
+    }
+
+    /**
+     * Selects strict semantic identities and the bracketed labels actually used by retained headings.
+     *
+     * @param HistoryDocument $document Historical sections in their original presentation order.
+     *
+     * @return array<string,string> Concrete versions mapped to their retained or canonical reference labels.
+     */
+    private function versions(HistoryDocument $document): array
+    {
+        $identifier = '(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)';
+        $pattern = '/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)'
+            . '(?:-' . $identifier . '(?:\.' . $identifier . ')*)?'
+            . '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/';
+        $versions = [];
+
+        foreach ($document->getReleases() as $release) {
+            $version = $release->getVersion();
+            if (1 !== preg_match($pattern, $version)) {
+                continue;
+            }
+
+            $label = $version;
+            if (1 === preg_match(
+                '/\[([vV]?' . preg_quote($version, '/') . ')\]/',
+                $release->getHeading() ?? '',
+                $matches,
+            )) {
+                $label = $matches[1];
+            }
+            $versions[$version] = $label;
+        }
+
+        return $versions;
+    }
+
+    /**
+     * Compares arbitrary-width SemVer cores and prereleases without converting numeric identifiers to integers.
+     *
+     * @param string $left  First strict semantic version, including optional prerelease and build identifiers.
+     * @param string $right Second strict semantic version; lexical identity resolves equal semantic precedence.
+     *
+     * @return int Negative, zero or positive ordering by semantic precedence, then complete identity for build ties.
+     */
+    private function compare(string $left, string $right): int
+    {
+        $leftParts = explode('-', explode('+', $left, 2)[0], 2);
+        $rightParts = explode('-', explode('+', $right, 2)[0], 2);
+        $rightCore = explode('.', $rightParts[0]);
+        foreach (explode('.', $leftParts[0]) as $index => $component) {
+            $comparison = $this->numeric($component, $rightCore[$index]);
+            if (0 !== $comparison) {
+                return $comparison;
+            }
+        }
+
+        if (!isset($leftParts[1]) || !isset($rightParts[1])) {
+            $comparison = isset($rightParts[1]) <=> isset($leftParts[1]);
+
+            return 0 === $comparison ? strcmp($left, $right) : $comparison;
+        }
+
+        $leftPre = explode('.', $leftParts[1]);
+        $rightPre = explode('.', $rightParts[1]);
+        foreach ($leftPre as $index => $component) {
+            if (!isset($rightPre[$index])) {
+                return 1;
+            }
+            $other = $rightPre[$index];
+            $leftNumeric = ctype_digit($component);
+            $rightNumeric = ctype_digit($other);
+            $comparison = $leftNumeric && $rightNumeric ? $this->numeric($component, $other)
+                : ($leftNumeric === $rightNumeric ? strcmp($component, $other) : $rightNumeric <=> $leftNumeric);
+            if (0 !== $comparison) {
+                return $comparison;
+            }
+        }
+
+        $comparison = count($leftPre) <=> count($rightPre);
+
+        return 0 === $comparison ? strcmp($left, $right) : $comparison;
+    }
+
+    /**
+     * Orders canonical unsigned decimal components without overflow or floating-point coercion.
+     *
+     * @param string $left  First numeric identifier with no redundant leading zeros.
+     * @param string $right Second numeric identifier with no redundant leading zeros.
+     *
+     * @return int Numeric order derived from decimal width and lexical digits.
+     */
+    private function numeric(string $left, string $right): int
+    {
+        $comparison = strlen($left) <=> strlen($right);
+
+        return 0 === $comparison ? strcmp($left, $right) : $comparison;
+    }
+
+    /**
+     * Finds case-insensitive reference labels outside fenced code, indented code and HTML comment blocks.
+     *
+     * @param HistoryDocument $document Raw maintained Markdown whose definitions must never be overwritten.
+     *
+     * @return array<string,true> Existing ASCII-normalized labels, including definitions followed by ordinary prose.
+     */
+    private function definedLabels(HistoryDocument $document): array
+    {
+        $markdown = $document->getPrefix();
+        foreach ($document->getReleases() as $release) {
+            // Rendered sections have structural line boundaries; this scan never closes fences or rewrites the source.
+            $markdown .= "\n" . ($release->getHeading() ?? '') . $release->getBody() . $release->getEnding();
+        }
+        $markdown .= $document->getReferences();
+        $defined = [];
+        $fence = null;
+        $comment = false;
+        foreach (preg_split('/\r\n|\n|\r/', $markdown) as $line) {
+            if (null !== $fence) {
+                if (1 === preg_match(
+                    '/^ {0,3}' . preg_quote($fence[0], '/') . '{' . strlen($fence) . ',}[ \t]*\z/',
+                    $line,
+                )) {
+                    $fence = null;
+                }
+
+                continue;
+            }
+            if ($comment || 1 === preg_match('/^ {0,3}<!--/', $line)) {
+                $comment = !str_contains($line, '-->');
+
+                continue;
+            }
+            if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
+                && ('~' === $matches[1][0] || !str_contains($matches[2], '`'))) {
+                $fence = $matches[1];
+
+                continue;
+            }
+            if (1 === preg_match('/^ {0,3}\[([^\]\r\n]+)\]:/', $line, $matches)) {
+                $defined[strtolower(trim($matches[1]))] = true;
+            }
+        }
+
+        return $defined;
+    }
+
+    /**
+     * Adds only the boundary required to keep appended definitions outside the final prose paragraph.
+     *
+     * @param HistoryDocument $document Existing footer and final section used to determine the untouched trailing bytes.
+     * @param string          $newline  New reference-line ending, matching an existing CRLF footer when present.
+     *
+     * @return string Empty bytes or the minimal newline boundary needed before the new definitions.
+     */
+    private function separator(HistoryDocument $document, string $newline): string
+    {
+        $references = $document->getReferences();
+        if ('' !== $references) {
+            return str_ends_with($references, "\n") || str_ends_with($references, "\r") ? '' : $newline;
+        }
+
+        $last = array_last($document->getReleases());
+        $tail = ($last->getHeading() ?? '') . $last->getBody() . $last->getEnding();
+        if (null === $last->getHeading() && !str_ends_with($tail, "\n")) {
+            $tail .= "\n";
+        }
+        if (1 === preg_match('/(?:\r?\n){2}\z|\r\r\z/', $tail)) {
+            return '';
+        }
+
+        return str_ends_with($tail, "\n") || str_ends_with($tail, "\r") ? $newline : $newline . $newline;
+    }
+}

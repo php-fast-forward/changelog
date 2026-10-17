@@ -43,7 +43,8 @@ The checks cover:
   a nested autoloader that must not override Composer's selected autoloader.
 - A synthetic autoload warning retained on stderr while machine output remains a
   single JSON object, even when PHP initially enables display_errors on stdout.
-- All nine public commands, lazy help/list metadata and failure isolation for a
+- All eight contributor/maintainer commands and the `github` automation entrypoint,
+  lazy help/list metadata and failure isolation for a
   deliberately broken selected command.
 - Consumer working-directory behavior, fragment-only defaults, ignored implicit
   PHP configuration, collision rejection and opt-in scoped commits that preserve

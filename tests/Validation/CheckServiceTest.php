@@ -9,7 +9,6 @@ use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Validation\CheckService;
-use FastForward\Changelog\Validation\Factory\ValidationReportFactoryInterface;
 use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -505,17 +504,6 @@ final class CheckServiceTest extends TestCase
     /** Composes the real checker from mocked boundaries and preserves report arguments. */
     private function checker(ObjectProphecy $validator, ObjectProphecy $git): CheckService
     {
-        $reports = $this->prophesize(ValidationReportFactoryInterface::class);
-        $reports->create(
-            Argument::type('array'),
-            Argument::type('array'),
-            Argument::type('bool'),
-            Argument::type('array'),
-        )
-            ->will(
-                static fn(array $arguments): ValidationReport => new ValidationReport(...$arguments),
-            )->shouldBeCalledOnce();
-
-        return new CheckService($validator->reveal(), $git->reveal(), $reports->reveal());
+        return new CheckService($validator->reveal(), $git->reveal());
     }
 }

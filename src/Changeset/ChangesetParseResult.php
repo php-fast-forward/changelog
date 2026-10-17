@@ -39,6 +39,8 @@ final readonly class ChangesetParseResult
 
     /**
      * Determines whether parsing produced a usable changeset.
+     *
+     * @return bool Whether a parsed fragment exists and its diagnostic collection is empty.
      */
     public function isValid(): bool
     {

@@ -1,0 +1,67 @@
+name: 'Repository: Documentation'
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: documentation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentation:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set Up PHP
+        uses: shivammathur/setup-php@2.37.1
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
+
+      - name: Isolate Composer State
+        run: |
+          echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
+          echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
+
+      - name: Verify GnuPG Is Available
+        run: gpg --version
+
+      - name: Install Locked Documentation Tools
+        run: >-
+          composer install
+          --no-interaction
+          --prefer-dist
+          --no-scripts
+          --no-progress
+
+      - name: Build Guides And PHP API Reference
+        run: composer --no-plugins docs:build
+
+      - name: Require Rendered Guides And API
+        run: |
+          test -s .build/docs/index.html
+          test -s .build/docs/adoption.html
+          test -s .build/docs/namespaces/fastforward-changelog.html
+
+      - name: Upload Documentation Preview
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: changelog-documentation
+          path: .build/docs
+          if-no-files-found: error
+          retention-days: 14

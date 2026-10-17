@@ -63,7 +63,7 @@ requires all of the following:
   `state: VALID` and `wasSignedByGitHub: true`. Other human committers fail closed.
   Free-form Git author names/emails do not prove identity.
 - The signed commit identifies its source base, plan, output hash and configured
-  options through scalar `Changelog-*` trailers. The source base must be a
+  options through scalar `Changelog-*` trailers. The source base must
   match the current live PR base exactly and be a GitHub-proven ancestor of the head.
 - The central blob at that head matches the declared output hash. Comparison
   scope contains only the central document and exact removals of the complete
@@ -94,9 +94,9 @@ GitHub can provide Bot signature verification. See
 complete expected head SHA, package identifiers, dependency scope, ecosystem
 and optional security alert numbers. It sorts and deduplicates names and alert
 numbers. This input must be collected by trusted base code using verified,
-immutable-pinned metadata tooling. The service revalidates the input before any
+version-pinned metadata tooling. The service revalidates the input before any
 privileged API operation. PR title/body and arbitrary head files are not metadata
-authority.
+authority for package identity, impact, security classification or paths.
 
 `DependabotFragmentServiceInterface::synchronize()` verifies the live PR creator
 is exactly the GitHub `dependabot[bot]` Bot account, confirms the numeric account
@@ -111,8 +111,11 @@ The configured directory must be a validated repository-relative path; a monorep
 can use `packages/lib/.changelog`, and a custom fragment directory is supported. A normal dependency update uses
 `category: changed` and explicit `type: patch`. The description contains sorted
 package names and the fragment links to the PR/Dependabot author through the
-same core changeset factory and renderer used by consumer code. Mutable PR
-titles, rebase timestamps and version prose do not affect fragment bytes.
+same core changeset factory and renderer used by consumer code. A usable live PR
+title precedes that package summary as an escaped literal paragraph, preserving
+the versions and directory supplied by Dependabot. Missing, invalid or oversized
+titles use only the localized package summary. The title is checked again before
+creation; it never determines category, impact, security evidence or paths.
 
 Security classification requires trusted metadata associating specific GitHub
 alert numbers with this PR, followed by fresh alert API verification: every
@@ -127,11 +130,12 @@ verify that association before supplying alert IDs. See the
 [official metadata action contract](https://github.com/dependabot/fetch-metadata/blob/main/action.yml)
 and [individual alert API](https://docs.github.com/en/rest/dependabot/alerts#get-a-dependabot-alert).
 
-Only the missing deterministic path is created. Identical bytes return
-`unchanged` without a second commit; any differing, malformed or manual file
-returns `refused` and preserves its contents. A generated marker or checksum is
-not sufficient authority to overwrite a later human edit. Changed package or
-security metadata may therefore require a human update to an existing fragment.
+Only the missing deterministic path is created. Identical current bytes or the
+recognized legacy summary-only bytes return `unchanged` without a second commit.
+Any other differing, malformed or manual file returns `refused` and preserves
+its contents. A generated marker or checksum is
+not sufficient authority to overwrite a later human edit. Changed titles, package
+or security metadata may therefore require a human update to an existing fragment.
 
 The service reads the path at the supplied head SHA and rechecks PR head,
 branch and creator immediately before a create-only Contents request. It does
@@ -162,3 +166,7 @@ must surface diagnostics and stop privileged follow-up on `refused`/`conflict`.
 API failures retain controlled diagnostic text and withhold raw server details
 and credentials. Unit tests replace API, Git evidence, metadata, changeset rendering
 and result boundaries; they never mutate a live GitHub repository.
+
+---
+
+[Documentation index](index.md)

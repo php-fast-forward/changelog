@@ -84,13 +84,19 @@ final class GitHubInput
     #[Option(description: 'Publish the exact PR head commit status: true or false.')]
     public ?string $publishStatus = null;
 
-    /** Initializes shared value settings only; no host state or configuration is loaded. */
+    /**
+     * Initializes shared value settings only; no host state or configuration is loaded.
+     */
     public function __construct()
     {
         $this->release = new ReleaseInput();
     }
 
-    /** Omits unspecified operation flags so the shared runner can validate its exact allowed input surface. */
+    /**
+     * Omits unspecified operation flags so the shared runner can validate its exact allowed input surface.
+     *
+     * @return array<string,string> Explicit kebab-case automation settings, omitting unspecified operation-specific flags.
+     */
     public function values(): array
     {
         $settings = ['working-directory' => $this->release->workingDirectory,

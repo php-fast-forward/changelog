@@ -28,6 +28,10 @@ final readonly class ChangesetRenderer implements ChangesetRendererInterface
      *
      * The Markdown description remains byte-identical and output ends with a
      * newline. Legacy metadata names MUST never be written.
+     *
+     * @param Changeset $changeset Validated fragment, including its canonical filename and persisted effective impact.
+     *
+     * @return string Canonical scalar frontmatter and unchanged description with one final newline.
      */
     public function render(Changeset $changeset): string
     {

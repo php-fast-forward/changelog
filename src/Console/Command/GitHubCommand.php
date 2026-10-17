@@ -35,13 +35,26 @@ use Throwable;
 )]
 final readonly class GitHubCommand
 {
-    /** Injects orchestration and output boundaries without executing an operation. */
+    /**
+     * Injects orchestration and output boundaries without executing an operation.
+     *
+     * @param AutomationRunnerInterface   $runner Coordinates the shared operation while keeping command-specific adapters thin.
+     * @param GitHubOutputWriterInterface $writer Serializes the automation result and appends validated runner outputs through its injected boundary.
+     */
     public function __construct(
         private AutomationRunnerInterface $runner,
         private GitHubOutputWriterInterface $writer,
     ) {}
 
-    /** Returns JSON on stdout; validation and operational failures use JSON diagnostics and distinct exit statuses. */
+    /**
+     * Returns JSON on stdout; validation and operational failures use JSON diagnostics and distinct exit statuses.
+     *
+     * @param string          $operation Automation operation: check, pr-status, dependabot, version, publish or history.
+     * @param GitHubInput     $input     Explicit automation settings whose allowed keys depend on the selected operation.
+     * @param OutputInterface $output    Output stream receiving machine results or controlled command diagnostics.
+     *
+     * @return int Symfony exit status for the machine operation, retaining validation and operational failure distinctions.
+     */
     public function __invoke(
         #[Argument(
             description: 'Operation: check, pr-status, dependabot, version, publish or history.',

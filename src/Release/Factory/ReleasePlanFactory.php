@@ -24,15 +24,34 @@ use FastForward\Changelog\Release\ReleaseReceipt;
 /** Produces deterministic transaction evidence without adding tracked technical files. */
 final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
 {
-    /** Shares canonical receipt validation and identity generation with receipt reads. */
+    /**
+     * Shares canonical receipt validation and identity generation with receipt reads.
+     *
+     * @param ReceiptCodecInterface $codec Validates and serializes deterministic private recovery evidence, including its content-bound identity.
+     */
     public function __construct(
         private ReceiptCodecInterface $codec,
     ) {}
 
     /**
      * Builds a new immutable transaction from validated exact inputs and output.
+     *
+     * @param ReleaseOptions       $options            Validated consumer paths, presentation settings and source-selection policy.
+     * @param string|null          $baseSha            Exact source commit identity, or null for a consumer without Git.
+     * @param string               $currentVersion     Validated current stable version used as the numeric release baseline.
+     * @param string|null          $nextVersion        Next numeric semantic version, or null when no new release is planned.
+     * @param string|null          $impact             Greatest effective semantic impact selected from the pending fragments.
      * @param array<string,string> $consumed           absolute fragment paths and SHA-256 hashes
      * @param list<string>         $historicalVersions previously absent imported sections
+     * @param string               $changelogPath      Absolute managed central-history path selected for this transaction.
+     * @param string|null          $originalChangelog  Exact central-history bytes accepted before application, or null when originally absent.
+     * @param string               $changelogContents  Exact resulting central-history bytes approved by this plan.
+     * @param string               $notes              Exact rendered body of the selected new release, without its outer heading.
+     * @param string               $receiptPath        Absolute private recovery-journal path outside the versioned tree.
+     * @param string|null          $originalReceipt    Exact journal bytes accepted before this transaction, or null when absent.
+     * @param bool                 $resuming           Whether this plan restores a saved transaction instead of calculating a fresh one.
+     *
+     * @return ReleasePlan Deterministic transaction binding supplied settings, accepted byte hashes and exact resulting history.
      */
     public function create(
         ReleaseOptions $options,
@@ -92,6 +111,15 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
     /**
      * Restores the entire approved consumed set, including already absent fragments.
      * The caller validates current central bytes and its extracted notes against the receipt.
+     *
+     * @param ReleaseOptions $options         Validated consumer paths, presentation settings and source-selection policy.
+     * @param ReleaseReceipt $receipt         Schema-validated recovery evidence for the interrupted transaction.
+     * @param string         $changelogPath   Absolute managed central-history path selected for this transaction.
+     * @param string|null    $currentContents Observed central-history bytes during recovery, or null when the file is absent.
+     * @param string         $receiptPath     Absolute private recovery-journal path outside the versioned tree.
+     * @param string         $rawReceipt      Exact serialized recovery journal from which the interrupted plan is restored.
+     *
+     * @return ReleasePlan Restored immutable transaction retaining its saved identity, version, date and exact notes.
      */
     public function resume(
         ReleaseOptions $options,

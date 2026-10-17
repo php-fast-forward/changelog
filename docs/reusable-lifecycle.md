@@ -7,16 +7,16 @@ Composer install, Node runtime or consumer shell script is required.
 
 The [automation map](automation-map.md) identifies this public entrypoint, its
 optional individual operations and this package's own event workflows. Copy
-the [consumer caller](../resources/workflows/changelog.yml); keep reusable
+the [consumer caller](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml); keep reusable
 implementations in `.github/workflows`, as required by GitHub.
 
 ## Start with validation
 
-Copy the [caller example](../resources/workflows/changelog.yml) into the consumer's
+Copy the [caller example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml) into the consumer's
 `.github/workflows/changelog.yml`. Its full product commit is a reviewed revision
 already integrated into this package's release line. Update that pin deliberately;
 do not select a temporary PR branch or unmerged PR commit. The
-[example's setup notes](../resources/workflows/README.md) describe branch filters,
+[example's setup notes](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) describe branch filters,
 runner selection and the optional token.
 
 The example enables `prepare-release: true` to validate the reviewable version
@@ -43,8 +43,8 @@ contribution status and comments remain feedback operations.
 | Validate changesets | Existing `check` action/workflow, with exact event head/base. |
 | Select mode | The facade routes by event; the version service already distinguishes release, maintenance and no changes. An empty inventory never grants publication. |
 | Rehearse versioning | `changelog version --dry-run` and version workflow `dry-run` validate the shared plan without writes; transaction fixtures test actual application separately. |
-| Read PR changesets | New `pr-status` Docker action and `github pr-status` CLI operation. The count describes added valid fragments, excluding inherited inventory. |
-| Create/update PR comment | New feedback workflow calls the pinned sticky-comment action, in a separate job with PR write permission. |
+| Read PR changesets | `pr-status` Docker action and `github pr-status` CLI operation. The count describes added valid fragments, excluding inherited inventory. |
+| Create/update PR comment | The feedback workflow calls the pinned sticky-comment action, in a separate job with PR write permission. |
 | Add Dependabot changeset | Existing verified metadata and create-only fragment service; the facade validates the resulting head in the same run. |
 | Prepare one version PR | Existing version action/workflow and signed-Bot ownership policy. |
 | Validate generated version branch | The facade invokes exact-head feedback after version synchronization, including when a PR event created by `GITHUB_TOKEN` needs approval. |
@@ -193,7 +193,7 @@ switch the actions to consuming GHCR.
 The individual reusable workflows remain supported for advanced composition;
 the facade does not replace their business services. See [the complete operation
 contracts](github-actions.md), [publication](publication.md) and
-[isolated workflow fixtures](../tests/Workflow/README.md).
+[isolated workflow fixtures](https://github.com/php-fast-forward/changelog/blob/main/tests/Workflow/README.md).
 
 ## Pilot acceptance before release
 
@@ -207,3 +207,7 @@ must change only central history and consumed fragment deletions, with no
 Rehearse publication with `dry-run` and verify the approved target and exact notes.
 Publish real tags/releases only after that pilot and explicit authorization.
 Local fixtures, 100% coverage and a code review do not replace this platform test.
+
+---
+
+[Documentation index](index.md)

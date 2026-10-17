@@ -24,7 +24,15 @@ final readonly class VersionPullRequestInput
     /** Allows bounded placeholder templates to shrink before applying the final title limit. */
     public const int MAX_TEMPLATE_BYTES = 1024;
 
-    /** Captures the managed branch policy; its factory MUST validate Git refs and presentation limits. */
+    /**
+     * Captures the managed branch policy; its factory MUST validate Git refs and presentation limits.
+     *
+     * @param string $baseBranch      Trusted release-line branch that supplies the fresh source base.
+     * @param string $managedBranch   Exclusive automation branch reserved for the generated version PR.
+     * @param string $automationActor Canonical GitHub Bot login required to own and sign generated commits.
+     * @param string $title           Single-line PR title or supported version-placeholder template; never publication authority.
+     * @param bool   $dryRun          Whether to return the proposed transaction without creating or updating remote content.
+     */
     public function __construct(
         public string $baseBranch = 'main',
         public string $managedBranch = 'changelog/version',

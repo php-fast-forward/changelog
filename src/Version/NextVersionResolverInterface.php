@@ -29,7 +29,10 @@ interface NextVersionResolverInterface
      * A `v` prefix and valid build metadata MAY be present in the current
      * stable version. Prerelease inputs are outside the first-release contract.
      *
-     * @param list<Changeset> $changesets validated pending fragments
+     * @param string          $currentVersion Validated current stable version used as the numeric release baseline.
+     * @param list<Changeset> $changesets     validated pending fragments
+     *
+     * @return VersionResolution Next numeric SemVer and greatest impact, or complete diagnostics without a partial version.
      */
     public function resolve(string $currentVersion, array $changesets): VersionResolution;
 }

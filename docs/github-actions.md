@@ -181,7 +181,7 @@ currently open and matches an updated dependency before producing `Security`.
 That API needs an appropriately scoped token with
 [Dependabot alerts read permission](https://docs.github.com/en/rest/dependabot/alerts#get-a-dependabot-alert).
 Missing permissions or inconsistent alerts fail with a diagnostic. See
-[Dependabot policy details](policies.md#dependabot-fragments) and
+[Dependabot policy details](policies.md) and
 [GitHub's automation guidance](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions).
 
 Repository Actions execution policies must permit these base-controlled
@@ -238,7 +238,7 @@ version transaction. A maintenance-only PR has no next public version. See
 
 The version workflow's `title` accepts a literal title or the placeholders
 `{current_version}` and `{next_version}`. The facade exposes the same setting as
-`version-pr-title`; see [title settings](reusable-lifecycle.md#optional-settings-and-composition).
+`version-pr-title`; see [title settings](reusable-lifecycle.md).
 The default remains `chore: update changelog`. A title-only refresh preserves
 the signed branch head and transaction identity.
 
@@ -350,3 +350,7 @@ Caller jobs can read `${{ needs.changelog.outputs.result }}` and parse it with
 `fromJSON(...)`. A refused transaction fails the workflow with its diagnostic;
 there is no public skip flag. Consumer-defined approval, review and merge rules
 remain the gates between the version PR and publication.
+
+---
+
+[Documentation index](index.md)

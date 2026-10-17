@@ -10,8 +10,11 @@ composer check
 
 `composer check` validates metadata and platform requirements, syntax, method
 PHPDoc, the development gates, Rector dry-run, ECS and unit coverage. CI runs
-the same command on Linux and Windows with PHP 8.5. Development Composer
-plugins are disabled. Install does not run a project bootstrap script.
+the same command on Linux and Windows with PHP 8.5. This quality installation
+disables Composer plugins and does not run a project bootstrap script. The
+separate [documentation build](docs/documentation.md) explicitly prepares the
+permitted phpDocumentor shim plugin; consumers need neither that tool nor its
+template dependency.
 
 Run `composer test:unit` for a focused change. To select a test, use
 `vendor/bin/phpunit --testsuite unit --filter MethodOrClass`. Production tests
@@ -31,8 +34,9 @@ explicit disposable integration check of the quality scripts; its fixtures do
 not count toward production coverage.
 
 `composer test:coverage` requires PCOV or Xdebug with coverage enabled. It writes
-Clover to `.build/coverage.xml`, an HTML report to `.build/coverage/`, and a
-per-class terminal report. `tests/verify-coverage.php` requires 100% executable
+Cobertura to `.build/coverage.xml`, Clover to `.build/clover.xml`, an HTML report
+to `.build/coverage/`, and a per-class terminal report. `tests/verify-coverage.php`
+requires 100% executable
 line coverage for every production file and class and rejects missing,
 malformed or inconsistent evidence. Coverage is evidence of exercised lines;
 review must still judge the assertions and isolation.
@@ -40,9 +44,15 @@ review must still judge the assertions and isolation.
 Every production method, including constructors and private methods, MUST have
 an explanatory PHPDoc summary. Describe intent, invariants, observable effects,
 exceptions and failure conditions where they apply. Use native types for
-ordinary signatures and PHPDoc for shapes, generics and extra semantics. RFC
+ordinary signatures and preserve PHPDoc shapes, generics and extra semantics.
+Each parameter needs one `@param type $name` entry explaining its role. Every
+non-constructor method needs one `@return type` entry explaining the result,
+including the completion effect of `void` methods. Constructors have no
+`@return` entry. These descriptions must explain the contract rather than
+repeat the signature. RFC
 2119/8174 terms such as MUST describe actual obligations. `composer phpdoc`
-rejects missing summaries and signature-only tags; reviewers verify their
+rejects missing summaries, mismatched parameter tags, missing return contracts
+and signature-only tags; reviewers verify their
 accuracy. Keep the existing MIT copyright and author headers.
 
 ```sh

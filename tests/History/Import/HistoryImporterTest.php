@@ -6,16 +6,13 @@ namespace FastForward\Changelog\Tests\History\Import;
 
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
-use FastForward\Changelog\History\Factory\HistoryExceptionFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
-use FastForward\Changelog\History\Import\Factory\HistoryImportResultFactoryInterface;
 use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Template\TemplateInterface;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -356,20 +353,8 @@ final class HistoryImporterTest extends TestCase
                 $body,
             ),
         );
-        $results = $this->createStub(HistoryImportResultFactoryInterface::class);
-        $results->method('create')->willReturnCallback(
-            static fn(HistoryDocument $document, array $missing, string $current): HistoryImportResult => new HistoryImportResult(
-                $document,
-                $missing,
-                $current,
-            ),
-        );
-        $errors = $this->createStub(HistoryExceptionFactoryInterface::class);
-        $errors->method('invalid')->willReturnCallback(
-            static fn(string $message): InvalidArgumentException => new InvalidArgumentException($message),
-        );
 
-        return new HistoryImporter($github, $documents, $releases, $results, $errors);
+        return new HistoryImporter($github, $documents, $releases);
     }
 
     private function template(): TemplateInterface

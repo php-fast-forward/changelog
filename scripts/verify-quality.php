@@ -98,26 +98,241 @@ try {
         throw new RuntimeException('Coverage must reject a missing report.');
     }
     ++$checks;
-    [$exit, $output] = $run([$phpdocScript, $source]);
 
-    if (0 !== $exit) {
-        throw new RuntimeException('PHPDoc must accept an explanatory method summary: ' . $output);
-    }
+    /**
+     * Places authored DocBlock lines before a method in disposable fixture source.
+     *
+     * @param list<string> $lines       Summary and tag lines exercised through the real CLI.
+     * @param string       $declaration Complete method declaration, including its body.
+     *
+     * @return string PHP source for a single isolated fixture class.
+     */
+    $fixture = static function (
+        array $lines,
+        string $declaration = 'public function value(): int { return 1; }',
+    ): string {
+        $docBlock = "/**\n * " . implode("\n * ", $lines) . "\n */";
 
-    ++$checks;
+        return "<?php\nclass Fixture {\n" . $docBlock . "\n" . $declaration . "\n}\n";
+    };
+    $summary = 'Returns the fixture value without observable side effects.';
+    $return = '@return int The immutable fixture value.';
+    $phpdocCases = [
+        'described result' => [$fixture([$summary, '', $return]), 0, 'contracts verified'],
+        'interface method contract' => [
+            str_replace(
+                'class Fixture',
+                'interface Fixture',
+                $fixture([$summary, '', $return], 'public function value(): int;'),
+            ),
+            0,
+            'contracts verified',
+        ],
+        'promoted constructor parameter' => [
+            $fixture([
+                'Stores the configured fixture value during construction.',
+                '',
+                '@param int $value Initial immutable fixture value.',
+            ], 'public function __construct(public readonly int $value) {}'),
+            0,
+            'contracts verified',
+        ],
+        'constructor without return' => [
+            $fixture([
+                'Initializes the fixture with the configured integer value.',
+                '',
+                '@param int $value Initial value supplied by the caller.',
+            ], 'public function __construct(int $value) {}'),
+            0,
+            'contracts verified',
+        ],
+        'destructor without return' => [
+            $fixture(['Releases fixture resources without returning a result.'], 'public function __destruct() {}'),
+            0,
+            'contracts verified',
+        ],
+        'described void' => [
+            $fixture([
+                'Performs the fixture operation without returning a value.',
+                '',
+                '@return void Completes the operation without a result.',
+            ], 'public function value(): void {}'),
+            0,
+            'contracts verified',
+        ],
+        'multiline shapes and descriptions' => [
+            $fixture([
+                'Extracts record data without modifying the supplied fields.',
+                '',
+                '@param array{',
+                '    id: int,',
+                '    labels: list<non-empty-string>,',
+                '} $record Input record with stable field names.',
+                '    Labels retain their original ordering.',
+                '',
+                '@return array{',
+                '    id: int,',
+                '} The extracted identifier, preserving its integer type.',
+                '',
+                '@see https://example.invalid/record Fixture format reference.',
+            ], 'public function value(array $record): array { return []; }'),
+            0,
+            'contracts verified',
+        ],
+        'closure nested variables and generics' => [
+            $fixture([
+                'Invokes a callback with a stable key and returns its records.',
+                '',
+                '@param Closure(string $key): array<string, list<int>> $factory Record factory invoked by the operation.',
+                '@return array<string, list<int>> Records returned by the supplied factory.',
+            ], 'public function value(Closure $factory): array { return []; }'),
+            0,
+            'contracts verified',
+        ],
+        'variadic references and nullable union' => [
+            $fixture([
+                'Reads optional fixture values without discarding their declared types.',
+                '',
+                '@param int|string|null &...$values Values supplied by reference in caller order.',
+                '@return int The number of values inspected by the operation.',
+            ], 'public function value(int|string|null &...$values): int { return 0; }'),
+            0,
+            'contracts verified',
+        ],
+        'missing docblock' => [
+            '<?php class Fixture { public function value(): int { return 1; } }',
+            1,
+            'explanatory contract summary',
+        ],
+        'tags without summary' => [$fixture([$return]), 1, 'explanatory contract summary'],
+        'inheritance boilerplate' => [$fixture(['{@inheritdoc}', $return]), 1, 'explanatory contract summary'],
+        'method name as summary' => [$fixture(['value', $return]), 1, 'explanatory contract summary'],
+        'long method name as summary' => [
+            $fixture([
+                'returnsTheFixtureValueWithoutSideEffects',
+                $return,
+            ], 'public function returnsTheFixtureValueWithoutSideEffects(): int { return 1; }'),
+            1,
+            'explanatory contract summary',
+        ],
+        'invalid PHP' => ['<?php class Broken {', 1, 'Syntax error'],
+        'source without methods' => ['<?php return 1;', 1, 'No production methods were inspected'],
+        'private methods require contracts' => [
+            $fixture([
+                $summary,
+                $return,
+            ], 'public function value(): int { return 1; } private function hidden(): void {}'),
+            1,
+            'hidden() requires an explanatory contract summary',
+        ],
+        'missing return' => [$fixture([$summary]), 1, 'exactly one @return'],
+        'return without description' => [
+            $fixture([$summary, '@return int']),
+            1,
+            '@return requires an explanatory description',
+        ],
+        'invalid return type' => [
+            $fixture([$summary, '@return array{ Broken type.']),
+            1,
+            'valid @return type description syntax',
+        ],
+        'duplicate returns' => [$fixture([$summary, $return, $return]), 1, 'exactly one @return'],
+        'void still requires return' => [
+            $fixture([$summary], 'public function value(): void {}'),
+            1,
+            'exactly one @return',
+        ],
+        'missing parameter' => [
+            $fixture([$summary, $return], 'public function value(int $input): int { return 1; }'),
+            1,
+            'exactly one @param for $input; found 0',
+        ],
+        'unknown parameter name' => [
+            $fixture([
+                $summary,
+                '@param int $other Caller value.',
+                $return,
+            ], 'public function value(int $input): int { return 1; }'),
+            1,
+            'unknown parameter $other',
+        ],
+        'duplicate parameters' => [
+            $fixture([
+                $summary,
+                '@param int $input Caller value.',
+                '@param int $input Duplicate caller value.',
+                $return,
+            ], 'public function value(int $input): int { return 1; }'),
+            1,
+            'exactly one @param for $input; found 2',
+        ],
+        'parameter without type' => [
+            $fixture([
+                $summary,
+                '@param $input Caller value.',
+                $return,
+            ], 'public function value(int $input): int { return 1; }'),
+            1,
+            'valid @param type $name description syntax',
+        ],
+        'parameter without description' => [
+            $fixture([$summary, '@param int $input', $return], 'public function value(int $input): int { return 1; }'),
+            1,
+            '@param $input requires an explanatory description',
+        ],
+        'malformed parameter shape' => [
+            $fixture([
+                $summary,
+                '@param array{ $input Caller value.',
+                $return,
+            ], 'public function value(array $input): int { return 1; }'),
+            1,
+            'valid @param type $name description syntax',
+        ],
+        'parameter on an empty signature' => [
+            $fixture([$summary, '@param int $input Caller value.', $return]),
+            1,
+            'unknown parameter $input',
+        ],
+        'see tag cannot describe a parameter' => [
+            $fixture([
+                $summary,
+                '@param int $input',
+                '@see https://example.invalid/record Caller documentation.',
+                $return,
+            ], 'public function value(int $input): int { return 1; }'),
+            1,
+            '@param $input requires an explanatory description',
+        ],
+        'see tag cannot describe a return' => [
+            $fixture([$summary, '@return int', '@see https://example.invalid/record Return documentation.']),
+            1,
+            '@return requires an explanatory description',
+        ],
+        'tool-specific tags cannot replace public tags' => [
+            $fixture([
+                $summary,
+                '@phpstan-param int $input Caller value.',
+                $return,
+            ], 'public function value(int $input): int { return 1; }'),
+            1,
+            'exactly one @param for $input; found 0',
+        ],
+    ];
 
-    foreach ([
-        '<?php class Fixture { public function value(): int { return 1; } }',
-        '<?php class Fixture { /** @return int */ public function value(): int { return 1; } }',
-        '<?php class Fixture { /** {@inheritdoc} */ public function value(): int { return 1; } }',
-        '<?php class Fixture { /** value */ public function value(): int { return 1; } }',
-        '<?php class Broken {',
-    ] as $php) {
+    foreach ($phpdocCases as $label => [$php, $expected, $diagnostic]) {
         file_put_contents($source, $php);
         [$exit, $output] = $run([$phpdocScript, $source]);
 
-        if (1 !== $exit) {
-            throw new RuntimeException('PHPDoc must reject missing explanations or invalid source: ' . $output);
+        if ($exit !== $expected || ! str_contains($output, $diagnostic)) {
+            throw new RuntimeException(sprintf(
+                'PHPDoc case "%s" returned %d, expected %d with diagnostic "%s": %s',
+                $label,
+                $exit,
+                $expected,
+                $diagnostic,
+                $output,
+            ));
         }
 
         ++$checks;

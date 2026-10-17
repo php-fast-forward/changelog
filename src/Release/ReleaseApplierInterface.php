@@ -19,9 +19,21 @@ namespace FastForward\Changelog\Release;
 /** Applies an approved immutable transaction or checks it without changing managed files. */
 interface ReleaseApplierInterface
 {
-    /** Applies under the shared fragment lock; returns false for an already applied/no-change plan. */
+    /**
+     * Applies under the shared fragment lock; returns false for an already applied/no-change plan.
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return bool True when pending transaction work was applied; false for an already applied or unchanged plan.
+     */
     public function apply(ReleasePlan $plan): bool;
 
-    /** Reads exact evidence without constructing a lock or performing any file/Git mutation. */
+    /**
+     * Reads exact evidence without constructing a lock or performing any file/Git mutation.
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return bool Whether the exact planned output and fragment-removal state already match durable managed bytes.
+     */
     public function isApplied(ReleasePlan $plan): bool;
 }

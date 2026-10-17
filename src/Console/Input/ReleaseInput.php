@@ -46,7 +46,11 @@ final class ReleaseInput
     #[Option(description: 'Historical evidence source: auto, github or tags.', shortcut: 's')]
     public string $source = 'auto';
 
-    /** Returns exactly the settings accepted by the shared options factory. */
+    /**
+     * Returns exactly the settings accepted by the shared options factory.
+     *
+     * @return array<string,string|null> Shared options-factory settings using their canonical camelCase keys.
+     */
     public function values(): array
     {
         return get_object_vars($this);

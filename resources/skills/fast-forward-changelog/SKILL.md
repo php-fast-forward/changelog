@@ -16,7 +16,10 @@ Adopt one GitHub lifecycle that checks contributions, maintains a PR comment,
 authors verified Dependabot fragments and prepares one `changelog/version` PR.
 Ordinary contributions add independent `.changelog/*.md` files. The version PR
 consolidates them into the single `CHANGELOG.md` and deletes only the consumed
-fragments. Keep real release publication disabled during adoption.
+fragments. With a known GitHub repository, concrete version consolidation also
+completes missing footer links: the oldest version's release/tag and comparisons
+for subsequent versions. Existing references remain intact; unknown repositories
+produce no invented destinations. Keep real release publication disabled during adoption.
 
 Read applicable application instructions and Git status first. Preserve existing
 work, repository policies, workflows, plugin choices and secrets. This skill
@@ -131,6 +134,27 @@ vendor/bin/changelog status --json --source=tags --no-interaction
 Inspect the generated path: creation adds exactly one fragment without changing
 central history. Empty local inventory is valid; inherited notes do not satisfy
 a new contribution.
+
+When the contribution's origin is already known, optionally record its verified number
+with `add --pull-request=<number>` or `pull_request: <number>` in frontmatter.
+Read the actual PR through the application's existing GitHub tooling, API or
+browser. Confirm its repository, head branch and complete head SHA correspond
+to this contribution, then take the positive number from that PR's canonical
+URL or trusted metadata. An issue number, branch suffix or commit message is
+not sufficient evidence.
+
+With `PULL_REQUEST` set to that verified number, author the same contribution
+with its link:
+
+```sh
+vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+```
+
+If the PR number is unknown, keep the field absent. Contribution checks do not
+require it, and opening a PR does not require a follow-up fragment edit or
+commit. Unknown metadata must never block authoring or be filled with an
+invented number.
+
 Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
 history. `status` is read-only. Successful commands exit `0`; invalid arguments
 exit `2`, validation/operational failures exit `1`. Fix all diagnostics and rerun
