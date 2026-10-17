@@ -38,7 +38,9 @@ cp -R "$skill_source" "$skill_target"
 ```
 
 For explicitly selected global Codex scope set
-`skill_target="$HOME/.agents/skills/fast-forward-changelog"`. A Claude Code
+`skill_target="$HOME/.agents/skills/fast-forward-changelog"`. The
+[Codex local-skill locations](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)
+document `$HOME/.agents/skills` as user scope. A Claude Code
 consumer can choose `.claude/skills/fast-forward-changelog` or its home
 counterpart. Verify the actual host's configured discovery paths and avoid
 ambiguous duplicate copies. Copy real files rather than linking a discovery

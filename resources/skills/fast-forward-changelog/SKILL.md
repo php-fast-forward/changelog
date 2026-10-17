@@ -123,17 +123,28 @@ With an existing local CLI, the equivalent first-use commands are:
 ```sh
 vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
 vendor/bin/changelog check --no-interaction
-vendor/bin/changelog check --since=origin/main --no-interaction
 vendor/bin/changelog status --json --source=tags --no-interaction
 ```
 
 Inspect the generated path: creation adds exactly one fragment without changing
-central history. The comparison needs a fetched, explicit PR baseline. Empty
-local inventory is valid; inherited notes do not satisfy a new contribution.
+central history. Empty local inventory is valid; inherited notes do not satisfy
+a new contribution.
 Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
 history. `status` is read-only. Successful commands exit `0`; invalid arguments
 exit `2`, validation/operational failures exit `1`. Fix all diagnostics and rerun
 the same check. Do not use an editable label as waiver authority.
+
+After the intended contribution is committed under existing task authority,
+compare its committed PR changes with a fetched, explicit baseline:
+
+```sh
+vendor/bin/changelog check --since=origin/main --no-interaction
+```
+
+This comparison reads the committed baseline-to-`HEAD` diff. An untracked or
+uncommitted fragment is checked by local `check` but cannot satisfy this committed
+contribution check. Without commit authority, leave the reviewed local fragment
+and report that the PR comparison awaits its authorized commit.
 
 ## Select additional operations
 

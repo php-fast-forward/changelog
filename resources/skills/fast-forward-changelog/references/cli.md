@@ -100,8 +100,9 @@ the entry or discard unrelated work to recover.
 ## Check a pull-request contribution
 
 Local `check` validates the full pending inventory; an empty local inventory is
-valid. Compare a PR to an explicit fetched baseline when contribution evidence
-is required:
+valid. `--since` reads only the committed baseline-to-`HEAD` diff, so untracked or
+uncommitted notes cannot satisfy it. After the contribution is committed under
+existing task authority, compare the PR to an explicit fetched baseline:
 
 ```sh
 vendor/bin/changelog check --since=origin/main --no-interaction
