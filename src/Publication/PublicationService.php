@@ -72,6 +72,8 @@ final readonly class PublicationService implements MergedPublicationServiceInter
             || ($pr['base']['repo']['full_name'] ?? null) !== $options->repository
             || !is_int($pr['base']['repo']['id'] ?? null) || $pr['base']['repo']['id'] < 1
             || ($pr['head']['repo']['id'] ?? null) !== $pr['base']['repo']['id']
+            || !is_string($pr['base']['repo']['node_id'] ?? null) || '' === $pr['base']['repo']['node_id']
+            || ($pr['head']['repo']['node_id'] ?? null) !== $pr['base']['repo']['node_id']
             || ($pr['head']['ref'] ?? null) !== $managedBranch || ($pr['base']['ref'] ?? null) !== $baseBranch
             || !GitHubEvidence::identity($pr['user'] ?? null, $automationActor, 'Bot')) {
             throw $this->exceptions->failure(
@@ -83,7 +85,7 @@ final readonly class PublicationService implements MergedPublicationServiceInter
             $pullRequest,
             $mergeSha,
             $headSha,
-            $pr['base']['repo']['id'],
+            $pr['base']['repo']['node_id'],
             $baseBranch,
             $managedBranch,
         );
@@ -99,14 +101,16 @@ final readonly class PublicationService implements MergedPublicationServiceInter
     /**
      * Corroborates the complete REST relationship with GraphQL's exact merged commit before any write.
      * REST 2026 removes merge_commit_sha; absent/error/partial GraphQL evidence never becomes authority.
+     * Opaque repository Node IDs must match REST exactly, without decoding or deriving numeric identities.
      * @see https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10
+     * @see https://docs.github.com/en/enterprise-server@3.19/graphql/guides/using-global-node-ids
      */
     private function assertMergeIdentity(
         string $repository,
         int $pullRequest,
         string $mergeSha,
         string $headSha,
-        int $repositoryId,
+        string $repositoryNodeId,
         string $baseBranch,
         string $managedBranch,
     ): void {
@@ -116,7 +120,7 @@ final readonly class PublicationService implements MergedPublicationServiceInter
 query ChangelogMergedPullRequest($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     nameWithOwner
-    databaseId
+    id
     pullRequest(number: $number) {
       number
       state
@@ -135,7 +139,8 @@ GRAPHQL,
         $pr = is_array($project) ? ($project['pullRequest'] ?? null) : null;
         if (null === $proof || (array_key_exists('errors', $proof) && [] !== $proof['errors'])
             || ! is_array($project) || ! is_array($pr)
-            || ($project['nameWithOwner'] ?? null) !== $repository || ($project['databaseId'] ?? null) !== $repositoryId
+            || ($project['nameWithOwner'] ?? null) !== $repository
+            || ($project['id'] ?? null) !== $repositoryNodeId
             || ($pr['number'] ?? null) !== $pullRequest || ($pr['state'] ?? null) !== 'MERGED'
             || true !== ($pr['merged'] ?? null) || ($pr['headRefOid'] ?? null) !== $headSha
             || ($pr['headRefName'] ?? null) !== $managedBranch || ($pr['baseRefName'] ?? null) !== $baseBranch

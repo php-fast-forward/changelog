@@ -60,11 +60,17 @@ transaction settings and complete central-history-plus-fragment-deletions scope.
 
 REST remains pinned to `2026-03-10`, which removes `merge_commit_sha` from PR
 responses. A fixed GraphQL query independently binds `mergeCommit.oid` to `M`,
-the same repository name and numeric ID, PR number, merged state, branches and
-original head. Missing, partial, failed or divergent evidence is rejected. A
+the same repository name and opaque global Node ID, PR number, merged state,
+branches and original head. Missing, partial, failed or divergent evidence is rejected. A
 legacy REST merge field, when present, must also agree; webhook/event values
 alone cannot authorize the merge. See GitHub's
 [breaking changes](https://docs.github.com/en/rest/about-the-rest-api/breaking-changes?apiVersion=2026-03-10).
+REST base/head repository IDs must remain equal positive integers. Their
+`node_id` values must also be equal nonempty strings and match GraphQL's `id`
+byte for byte. Node IDs are opaque: they are never decoded, cast or derived from
+the numeric ID. This common REST/GraphQL identity avoids 32-bit GraphQL integer
+limits without requiring fields absent from supported Enterprise schemas. See
+GitHub's [global Node ID guide](https://docs.github.com/en/enterprise-server@3.19/graphql/guides/using-global-node-ids).
 For an Enterprise Server API base ending in `/api/v3`, the exact GraphQL POST
 uses the same origin's `/api/graphql` endpoint; REST routes remain unchanged.
 

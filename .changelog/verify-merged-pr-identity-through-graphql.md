@@ -3,4 +3,4 @@ category: fixed
 type: patch
 ---
 
-Verifies the approved merge through GraphQL when GitHub REST 2026 omits its merge commit field, preserving exact PR, repository, branch, head and Bot checks before publishing the unchanged release transaction. Routes Enterprise Server GraphQL queries to their same-origin endpoint while retaining REST paths.
+Verifies the approved merge through GraphQL when GitHub REST 2026 omits its merge commit field, preserving exact PR, repository, branch, head and Bot checks before publishing the unchanged release transaction, including repository IDs above 32 bits. Routes Enterprise Server GraphQL queries to their same-origin endpoint while retaining REST paths.

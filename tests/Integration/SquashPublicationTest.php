@@ -162,7 +162,7 @@ final class SquashPublicationTest extends TestCase
                 $calls[] = [$method, $path, $body];
                 if ('POST' === $method && '/graphql' === $path
                     && ['query' => self::mergedQuery(), 'variables' => ['owner' => 'owner', 'name' => 'fixture', 'number' => 7]] === $body) {
-                    return ['data' => ['repository' => ['nameWithOwner' => 'owner/fixture', 'databaseId' => 11,
+                    return ['data' => ['repository' => ['nameWithOwner' => 'owner/fixture', 'id' => 'opaque-fixture-repository',
                         'pullRequest' => ['number' => 7, 'state' => 'MERGED', 'merged' => true,
                             'headRefOid' => $head, 'headRefName' => 'changelog/version', 'baseRefName' => 'main',
                             'mergeCommit' => ['oid' => $merge]]]]];
@@ -175,7 +175,7 @@ final class SquashPublicationTest extends TestCase
                     return $bot;
                 }
                 if (($prefix . '/pulls/7') === $path) {
-                    $repo = ['id' => 11, 'full_name' => 'owner/fixture'];
+                    $repo = ['id' => 11, 'full_name' => 'owner/fixture', 'node_id' => 'opaque-fixture-repository'];
 
                     return ['number' => 7, 'state' => 'closed', 'merged' => true, 'user' => $bot,
                         'head' => ['sha' => $head, 'ref' => 'changelog/version', 'repo' => $repo], 'base' => ['sha' => $base, 'ref' => 'main', 'repo' => $repo]];
@@ -367,7 +367,7 @@ final class SquashPublicationTest extends TestCase
 query ChangelogMergedPullRequest($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     nameWithOwner
-    databaseId
+    id
     pullRequest(number: $number) {
       number
       state

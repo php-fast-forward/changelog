@@ -56,6 +56,110 @@ final class PublicationServiceTest extends TestCase
         self::assertSame(1, $state['evidence_calls']);
     }
 
+    /** Large numeric REST IDs retain an opaque cross-API identity without decoding or narrowing it. */
+    #[DataProvider('opaqueRepositoryNodes')]
+    public function testLargeRestRepositoryIdsUseOpaqueNodeIdentity(string $node): void
+    {
+        $pr = $this->mergedPr();
+        unset($pr['merge_commit_sha']);
+        $pr['base']['repo']['id'] = $pr['head']['repo']['id'] = 3_000_000_000;
+        $pr['base']['repo']['node_id'] = $pr['head']['repo']['node_id'] = $node;
+        $proof = self::mergedProof();
+        $proof['data']['repository']['id'] = $node;
+        $state = $this->state(['context' => true, 'pr' => $pr, 'graphql' => $proof]);
+        $result = $this->service($state)->publishMerged(
+            new ReleaseOptions('/consumer', repository: 'owner/repo'),
+            7,
+            str_repeat('b', 40),
+            str_repeat('f', 40),
+            automationActor: 'app[bot]',
+            dryRun: true,
+        );
+        self::assertSame('dry-run', $result->state);
+        self::assertSame([], $this->writes($state));
+        self::assertSame(1, $state['policy_calls']);
+        self::assertSame(1, $state['evidence_calls']);
+    }
+
+    /** Opaque Node IDs are compared byte for byte even when they contain punctuation or look numeric. */
+    public static function opaqueRepositoryNodes(): iterable
+    {
+        yield 'opaque punctuation' => ['opaque:repository/node+unchanged='];
+        yield 'opaque numeric-looking string' => ['3000000000'];
+    }
+
+    /** Missing, differently typed or unequal GraphQL Node IDs cannot reach policy, domain proof or writes. */
+    #[DataProvider('invalidGraphqlNodeIds')]
+    public function testGraphqlNodeIdsNeverUseTypeCoercion(mixed $id): void
+    {
+        $pr = $this->mergedPr();
+        $pr['base']['repo']['id'] = $pr['head']['repo']['id'] = 3_000_000_000;
+        $pr['base']['repo']['node_id'] = $pr['head']['repo']['node_id'] = '3000000000';
+        $proof = self::mergedProof();
+        $proof['data']['repository']['id'] = $id;
+        $state = $this->state(['context' => true, 'pr' => $pr, 'graphql' => $proof]);
+        $failed = false;
+        try {
+            $this->service($state)->publishMerged(
+                new ReleaseOptions('/consumer', repository: 'owner/repo'),
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+                dryRun: true,
+            );
+        } catch (RuntimeException $error) {
+            $failed = true;
+            self::assertStringContainsString('GraphQL', $error->getMessage());
+        }
+        self::assertTrue($failed);
+        self::assertSame(0, $state['policy_calls']);
+        self::assertSame(0, $state['evidence_calls']);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** Rejects missing/wrong opaque values and non-string types instead of comparing loosely or decoding them. */
+    public static function invalidGraphqlNodeIds(): iterable
+    {
+        foreach ([null, '', 3_000_000_000, 3_000_000_000.0, true, false, [], 'different-opaque-node'] as $id) {
+            yield [$id];
+        }
+    }
+
+    /** Both REST sides must explicitly retain the same nonempty opaque Node ID before GraphQL is requested. */
+    #[DataProvider('missingRestNodeSides')]
+    public function testMissingRestNodeIdentityFailsBeforeGraphql(string $side): void
+    {
+        $pr = $this->mergedPr();
+        unset($pr[$side]['repo']['node_id']);
+        $state = $this->state(['context' => true, 'pr' => $pr]);
+        $failed = false;
+        try {
+            $this->service($state)->publishMerged(
+                new ReleaseOptions('/consumer', repository: 'owner/repo'),
+                7,
+                str_repeat('b', 40),
+                str_repeat('f', 40),
+                automationActor: 'app[bot]',
+                dryRun: true,
+            );
+        } catch (RuntimeException) {
+            $failed = true;
+        }
+        self::assertTrue($failed);
+        self::assertSame([['GET', '/repos/owner/repo/pulls/7', null]], $state['calls']);
+        self::assertSame(0, $state['policy_calls']);
+        self::assertSame(0, $state['evidence_calls']);
+        self::assertSame([], $this->writes($state));
+    }
+
+    /** Removing either protocol identity must not be treated as a legacy fallback. */
+    public static function missingRestNodeSides(): iterable
+    {
+        yield ['base'];
+        yield ['head'];
+    }
+
     /** Every incomplete, failed or mismatched GraphQL relationship must fail before ownership/domain or mutations. */
     #[DataProvider('invalidMergedGraphql')]
     public function testInvalidGraphqlCannotAuthorizeTheMerge(?array $proof): void
@@ -89,9 +193,14 @@ final class PublicationServiceTest extends TestCase
         yield 'null repository' => [['data' => ['repository' => null]]];
         yield 'scalar repository' => [['data' => ['repository' => 'owner/repo']]];
         $proof = self::mergedProof();
+        $legacy = $proof;
+        unset($legacy['data']['repository']['id']);
+        $legacy['data']['repository']['databaseId'] = 11;
+        $legacy['data']['repository']['fullDatabaseId'] = '11';
+        yield 'numeric identities alone are insufficient' => [$legacy];
         yield 'partial data with errors' => [['errors' => [['message' => 'Partial result']], ...$proof]];
         yield 'malformed errors' => [['errors' => null, ...$proof]];
-        foreach (['nameWithOwner' => 'fork/repo', 'databaseId' => 999, 'pullRequest' => null] as $field => $value) {
+        foreach (['nameWithOwner' => 'fork/repo', 'id' => 'different-repository-node', 'pullRequest' => null] as $field => $value) {
             $changed = $proof;
             $changed['data']['repository'][$field] = $value;
             yield 'repository ' . $field => [$changed];
@@ -200,6 +309,16 @@ final class PublicationServiceTest extends TestCase
             ['head' => ['sha' => str_repeat('c', 40)]],
             ['head' => ['repo' => ['full_name' => 'fork/repo']]], ['base' => ['repo' => ['full_name' => 'other/repo']]],
             ['head' => ['repo' => ['id' => 999]]], ['base' => ['repo' => ['id' => 0]]],
+            ['base' => ['repo' => ['id' => '3000000000']], 'head' => ['repo' => ['id' => '3000000000']]],
+            ['base' => ['repo' => ['id' => 3_000_000_000.0]], 'head' => ['repo' => ['id' => 3_000_000_000.0]]],
+            ['base' => ['repo' => ['node_id' => null]]],
+            ['base' => ['repo' => ['node_id' => '']], 'head' => ['repo' => ['node_id' => '']]],
+            ['base' => ['repo' => ['node_id' => 11]], 'head' => ['repo' => ['node_id' => 11]]],
+            ['base' => ['repo' => ['node_id' => false]], 'head' => ['repo' => ['node_id' => false]]],
+            ['base' => ['repo' => ['node_id' => []]], 'head' => ['repo' => ['node_id' => []]]],
+            ['head' => ['repo' => ['node_id' => null]]], ['head' => ['repo' => ['node_id' => '']]],
+            ['head' => ['repo' => ['node_id' => true]]], ['head' => ['repo' => ['node_id' => []]]],
+            ['head' => ['repo' => ['node_id' => 'different-repository-node']]],
             ['head' => ['ref' => 'human-branch']], ['base' => ['ref' => 'develop']],
             ['user' => ['type' => 'User']], ['user' => ['login' => 'other[bot]']]] as $replacement) {
             yield [$replacement];
@@ -676,8 +795,8 @@ final class PublicationServiceTest extends TestCase
             'head' => ['sha' => str_repeat(
                 'f',
                 40,
-            ), 'ref' => 'changelog/version', 'repo' => ['full_name' => 'owner/repo', 'id' => 11]],
-            'base' => ['ref' => 'main', 'repo' => ['full_name' => 'owner/repo', 'id' => 11]]];
+            ), 'ref' => 'changelog/version', 'repo' => ['full_name' => 'owner/repo', 'id' => 11, 'node_id' => 'opaque-repository-node']],
+            'base' => ['ref' => 'main', 'repo' => ['full_name' => 'owner/repo', 'id' => 11, 'node_id' => 'opaque-repository-node']]];
     }
 
     /** Pins the one permitted query so a POST fixture can never silently accept a mutation. */
@@ -687,7 +806,7 @@ final class PublicationServiceTest extends TestCase
 query ChangelogMergedPullRequest($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     nameWithOwner
-    databaseId
+    id
     pullRequest(number: $number) {
       number
       state
@@ -705,7 +824,7 @@ GRAPHQL;
     /** Represents complete identity evidence from the same repository and immutable managed PR head. */
     private static function mergedProof(): array
     {
-        return ['data' => ['repository' => ['nameWithOwner' => 'owner/repo', 'databaseId' => 11,
+        return ['data' => ['repository' => ['nameWithOwner' => 'owner/repo', 'id' => 'opaque-repository-node',
             'pullRequest' => ['number' => 7, 'state' => 'MERGED', 'merged' => true,
                 'headRefOid' => str_repeat('f', 40), 'headRefName' => 'changelog/version',
                 'baseRefName' => 'main', 'mergeCommit' => ['oid' => str_repeat('b', 40)]]]]];
