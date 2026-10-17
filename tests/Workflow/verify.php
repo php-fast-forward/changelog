@@ -161,12 +161,30 @@ verifyWorkflow(
 );
 verifyWorkflow(
     'Repository: Publish Docker CLI' === $repositoryImage['name']
-        && ['workflow_call'] === array_keys($repositoryImage['on'])
+        && ['workflow_dispatch', 'workflow_call'] === array_keys($repositoryImage['on'])
         && true === $repositoryImage['on']['workflow_call']['inputs']['tag']['required']
         && true === $repositoryImage['on']['workflow_call']['inputs']['expected-sha']['required']
+        && true === $repositoryImage['on']['workflow_dispatch']['inputs']['tag']['required']
+        && true === $repositoryImage['on']['workflow_dispatch']['inputs']['expected-sha']['required']
         && './.github/workflows/repository-image.yml' === $repository['jobs']['image']['uses'],
-    'The renamed image workflow must remain an internal call bound to the existing publication selector.',
+    'Image calls and explicit recovery must require the existing release tag and approved source selector.',
 );
+$assertions += 3;
+
+$imageReleaseGuard = workflowStep($repositoryImage['jobs']['validate'], 'Verify The Published GitHub Release');
+verifyWorkflow(
+    ['contents' => 'read'] === $repositoryImage['jobs']['validate']['permissions']
+        && '${{ inputs.expected-sha }}' === $imageReleaseGuard['env']['FF_EXPECTED_SHA']
+        && '${{ steps.release.outputs.tag }}' === $imageReleaseGuard['env']['FF_TAG'],
+    'Image recovery must validate an existing published release with a read-only token before building.',
+);
+foreach (['Prepare The Multi-Platform Release Image', 'Publish The Prepared Release Image'] as $stepName) {
+    $step = workflowStep($repositoryImage['jobs']['publish'], $stepName);
+    verifyWorkflow(
+        ! isset($step['with']['cache-to']) && ! isset($step['with']['cache-from']),
+        'Release images must not depend on external cache exports in read-only cache events.',
+    );
+}
 $assertions += 3;
 
 verifyWorkflow(
@@ -781,12 +799,34 @@ try {
     }
     verifyWorkflow(! is_file($directory . '/unexpected'), 'Bot login must remain literal data.');
     $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
+        gh() {
+          [[ "$1" == 'api' && "$2" == 'repos/fixture/consumer/releases/tags/v0.1.0' ]] || return 71
+          [[ "${FF_FIXTURE_RELEASE_FAILURE:-}" != 1 ]] || return 72
+          printf '%s\n' "$FF_FIXTURE_RELEASE_RESPONSE"
+        }
         if [[ "${FF_FIXTURE_FORBID_DOCKER:-}" == 1 ]]; then
           sudo() { touch unexpected-daemon-operation; return 73; }
           docker() { touch unexpected-daemon-operation; return 73; }
           jq() { touch unexpected-daemon-operation; return 73; }
         fi
         BASH);
+
+    foreach ([
+        ["v0.1.0\tfalse\t" . $approvedImage, false, 0],
+        ["v0.1.0\ttrue\t" . $approvedImage, false, 1],
+        ["v0.2.0\tfalse\t" . $approvedImage, false, 1],
+        ["v0.1.0\tfalse\t" . str_repeat('b', 40), false, 1],
+        ["v0.1.0\tfalse\tmain", false, 1],
+        ["v0.1.0\tfalse\t" . $approvedImage . "\tunexpected", false, 1],
+        ['', false, 1],
+        ['', true, 72],
+    ] as [$response, $failure, $expected]) {
+        workflowGuard($imageReleaseGuard['run'], $directory, [
+            'GITHUB_REPOSITORY' => 'fixture/consumer', 'FF_TAG' => 'v0.1.0', 'FF_EXPECTED_SHA' => $approvedImage,
+            'FF_FIXTURE_RELEASE_RESPONSE' => $response, 'FF_FIXTURE_RELEASE_FAILURE' => $failure ? '1' : '0',
+        ], $expected);
+        ++$assertions;
+    }
 
     // GitHub's default Bash runner stops at the first failing output check.
     $documentationGuard = "set -e\n" . workflowStep($documentation, 'Require Rendered Guides And API')['run'];

@@ -159,6 +159,17 @@ authentication and package access. See [the Container registry guide](https://do
 
 ## Verification and recovery
 
+If image publication fails after the GitHub release succeeds, maintainers can run
+`repository-image.yml` manually with `tag` and `expected-sha`. Select the existing
+published release and its exact approved commit, not the current branch tip. The
+workflow requires matching release metadata and revalidates the remote tag before
+pushing; it never creates or moves a Git tag. Image publication requires explicit
+authorization, including during recovery.
+
+The two Buildx steps reuse their runner-local build cache. They do not export a
+GitHub Actions build cache: merged-PR publication can run with read-only cache
+access, and a cache export must not cancel an otherwise valid registry push.
+
 Repository workflows prepare public base images through Google's Docker Hub
 cache on disposable GitHub-hosted Linux runners. The internal
 [`setup-docker`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/setup-docker/action.yml) action preserves
