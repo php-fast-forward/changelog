@@ -193,6 +193,15 @@ heading. Matching categories are combined without rewriting description bytes.
 Backfill and format retain pending content; new contributions belong exclusively
 to independent `.changelog/` fragments.
 
+When a concrete version is prepared with a known GitHub `owner/name`, missing
+footer definitions are completed for all maintained SemVer versions. The oldest
+version points to `releases/tag/<tag>`; each later version points to
+`compare/<previous-tag>...<tag>` by semantic precedence. The configured prefix is
+included and each complete tag is URL-encoded. Existing definitions and retained
+`v`/`V` heading labels remain unchanged. No destinations are invented without a
+known repository; `backfill`, `format` and no-op plans do not add references or
+create an `Unreleased` link. These URLs do not establish publication authority.
+
 ## Historical notes and presentation
 
 Backfill and format are explicit maintainer maintenance operations. The history

@@ -16,7 +16,10 @@ Adopt one GitHub lifecycle that checks contributions, maintains a PR comment,
 authors verified Dependabot fragments and prepares one `changelog/version` PR.
 Ordinary contributions add independent `.changelog/*.md` files. The version PR
 consolidates them into the single `CHANGELOG.md` and deletes only the consumed
-fragments. Keep real release publication disabled during adoption.
+fragments. With a known GitHub repository, concrete version consolidation also
+completes missing footer links: the oldest version's release/tag and comparisons
+for subsequent versions. Existing references remain intact; unknown repositories
+produce no invented destinations. Keep real release publication disabled during adoption.
 
 Read applicable application instructions and Git status first. Preserve existing
 work, repository policies, workflows, plugin choices and secrets. This skill

@@ -30,7 +30,10 @@ Before any remote mutation, publication verifies:
   `0.0.0`) is pending publication and blocks another release.
 - Notes extracted from the approved central section exactly match the complete
   canonical fragment rendering and supported history round trip. Existing
-  source-base history remains unchanged. Missing reachable tagged sections
+  source-base release bodies and existing reference definitions remain unchanged.
+  Missing deterministic release-reference definitions are reconstructed by the
+  same [footer completion contract](history.md) used during version planning.
+  Missing reachable tagged sections
   imported during planning are taken from the reviewed approved bytes for
   `auto`/`github`, rather than fetched again during publication; `tags` retains
   its deterministic tag-derived dates and missing-note text. The central output

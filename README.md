@@ -102,9 +102,19 @@ The portable [fast-forward-changelog skill](resources/skills/fast-forward-change
 supports the `fast-forward/changelog ^1.0` contract and leads with GitHub automation,
 then local CLI and optional PHP service integration. Its source is
 `resources/skills/fast-forward-changelog`; a consumer installs it as
-`.agents/skills/fast-forward-changelog`. See [installation and host compatibility](docs/skills.md)
-or the optional [`llm/skills ^1.15` project synchronization](docs/composer-skills.md).
-Installing instructions does not install the PHP CLI or establish native activation.
+`.agents/skills/fast-forward-changelog`. Install it directly from GitHub with
+Node.js `22.20.0+`, npm and Git; PHP and Composer are not needed
+to copy the skill:
+
+```sh
+npx skills add php-fast-forward/changelog --skill fast-forward-changelog
+```
+
+The installer discovers the canonical package under `resources/skills`, then
+detects the current agent or asks for the host. See
+[scope, updates and host compatibility](docs/skills.md) or the optional
+[`llm/skills ^1.15` Composer synchronization](docs/composer-skills.md).
+Copying instructions does not install the PHP CLI or establish native activation.
 
 ## 🔌 Further integration
 

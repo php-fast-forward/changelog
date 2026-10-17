@@ -229,6 +229,10 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Release\ReleasePlannerInterface::class => new AliasFactory(
                 Release\ReleasePlanner::class,
             ),
+            Release\ReleaseMetadataParser::class => new InvokableFactory(
+                Release\ReleaseMetadataParser::class,
+                Release\Factory\ReleaseExceptionFactoryInterface::class,
+            ),
             Publication\Factory\PublicationEvidenceFactoryInterface::class => new AliasFactory(
                 Publication\Factory\PublicationEvidenceFactory::class,
             ),
@@ -277,6 +281,8 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 Release\Factory\ReleaseExceptionFactoryInterface::class,
                 Release\ReleaseHistoryConsolidatorInterface::class,
                 GitHubClientInterface::class,
+                Release\ReleaseMetadataParser::class,
+                History\HistoryReferenceBuilder::class,
             ),
             Validator\ChangesetValidatorInterface::class => new AliasFactory(
                 Validator\ChangesetValidator::class,
@@ -292,6 +298,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function historyFactories(): array
     {
         return [
+            History\HistoryReferenceBuilder::class => new InvokableFactory(History\HistoryReferenceBuilder::class),
             History\Factory\HistoryDocumentFactoryInterface::class => new AliasFactory(
                 History\Factory\HistoryDocumentFactory::class,
             ),

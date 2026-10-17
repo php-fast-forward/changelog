@@ -14,6 +14,7 @@ use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
@@ -49,6 +50,7 @@ use RuntimeException;
 #[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(ReleaseReceipt::class)]
 #[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryRelease::class)]
 #[UsesClass(HistoryImportResult::class)]
 #[UsesClass(ValidationReport::class)]
@@ -58,6 +60,35 @@ use RuntimeException;
 final class ReleasePlannerTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    /** A concrete release gains deterministic links without changing retained headings, bodies or prior references. */
+    public function testVersionPromotionCompletesReleaseReferences(): void
+    {
+        $older = new HistoryRelease('1.0.0', body: 'Exact prior prose', heading: "## [v1.0.0]\n");
+        $document = new HistoryDocument([$older], '# Original', "[issue]: https://example.test/42\r\n");
+        [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'historyMock' => true,
+            'tags' => [['name' => 'pkg/1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]]]);
+        $parts['history']->expects(self::once())->method('render')->willReturnCallback(
+            static function (HistoryDocument $actual, TemplateInterface $template, bool $preserve) use (
+                $older
+            ): string {
+                self::assertTrue($preserve);
+                self::assertSame($older, $actual->getReleases()[1]);
+                self::assertSame("[issue]: https://example.test/42\r\n"
+                    . "[1.0.1]: https://github.com/owner/repo/compare/pkg%2F1.0.0...pkg%2F1.0.1\r\n"
+                    . "[v1.0.0]: https://github.com/owner/repo/releases/tag/pkg%2F1.0.0\r\n", $actual->getReferences());
+
+                return 'Completed history';
+            },
+        );
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame(
+            $parts['plan'],
+            $planner->plan(new ReleaseOptions('/consumer', tagPrefix: 'pkg/', repository: 'owner/repo')),
+        );
+        self::assertSame("[issue]: https://example.test/42\r\n", $document->getReferences());
+    }
 
     /** Status and version get the same immutable transaction and exact extracted notes. */
     public function testPlanningCapturesValidatedHashesAndNormalizesTheInjectedClockToUtc(): void

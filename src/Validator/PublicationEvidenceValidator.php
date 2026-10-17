@@ -27,6 +27,7 @@ use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Publication\Factory\PublicationEvidenceFactoryInterface;
 use FastForward\Changelog\Publication\PublicationEvidence;
@@ -77,6 +78,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
      *                                                          unavailable without it.
      * @param ?ReleaseMetadataParser              $metadata     Optional strict commit-trailer parser or contextual metadata proven by
      *                                                          the approved PR head.
+     * @param HistoryReferenceBuilder             $references   Pure concrete-release link completion shared with release planning.
      */
     public function __construct(
         private GitRepositoryInterface $git,
@@ -94,6 +96,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         private ReleaseHistoryConsolidatorInterface $consolidator,
         private ?GitHubClientInterface $github = null,
         ?ReleaseMetadataParser $metadata = null,
+        private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
     ) {
         $this->metadata = $metadata ?? new ReleaseMetadataParser($exceptions);
     }
@@ -290,13 +293,15 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         if (null !== $document->getRelease($version)) {
             throw $this->exceptions->invalid('The computed release already exists in the source-base history.');
         }
-        $expected = $this->history->render(
-            $this->consolidator->promote($document, $version, $section->getDate(), $rendered, $template),
+        $promoted = $this->consolidator->promote($document, $version, $section->getDate(), $rendered, $template);
+        $expected = $this->history->render($promoted, $template, true);
+
+        // Already approved releases can predate link completion; both accepted forms are reconstructed in full.
+        if ($central !== $expected && $central !== $this->history->render(
+            $this->references->complete($promoted, $options->repository, $options->tagPrefix),
             $template,
             true,
-        );
-
-        if ($central !== $expected) {
+        )) {
             throw $this->exceptions->invalid(
                 'The approved history is not the canonical consolidation of every source-base fragment and exact prior history.',
             );

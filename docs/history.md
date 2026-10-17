@@ -33,6 +33,36 @@ version heading is not part of this import grammar. Multiline fragment paragraph
 remain indented within their list item without adding spaces to empty separators;
 authored Markdown hard breaks remain unchanged.
 
+## Release reference links
+
+When `version` promotes pending fragments into a concrete release and the
+effective GitHub repository is known, it also appends missing Markdown reference
+definitions for every maintained SemVer section. The oldest semantic version
+links to its GitHub release/tag page; each subsequent version links to the
+comparison with its semantic predecessor, independently of section order.
+For `owner/repo` with the default `v` tag prefix:
+
+```markdown
+[1.1.0]: https://github.com/owner/repo/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/owner/repo/releases/tag/v1.0.0
+```
+
+Existing definitions remain authoritative wherever they occur outside fenced
+or indented code. Their URLs, optional titles, casing, whitespace and line
+endings are preserved byte for byte. Retained headings using `[v1.0.0]` or
+`[V1.0.0]` keep that reference label; new headings use their canonical version.
+The complete configured tag is URL-encoded, including namespace slashes or build
+metadata. SemVer precedence includes existing prereleases; distinct build
+identities with equal precedence use lexical order for a deterministic predecessor.
+
+Without a known repository, no links are added. `format`, `backfill` and plans
+without a new concrete release do not add definitions. No `Unreleased` link is
+created. Constructing these URLs does not query GitHub or prove that a tag or
+release has been published; publication remains a separate approved operation.
+The pure `HistoryReferenceBuilder` owns this completion, while the codec keeps
+parsing, rendering and exact note extraction. Publication reconstructs the same
+deterministic footer when checking the approved central bytes.
+
 ## Plain Markdown boundaries
 
 A level-two release heading outside a fenced code block starts a new release.

@@ -95,4 +95,19 @@ final class HistoryDocument
 
         return $document;
     }
+
+    /**
+     * Returns an independent document with the supplied raw reference footer.
+     *
+     * @param string $references Replacement terminal reference bytes; release bodies and introduction remain unchanged.
+     *
+     * @return self Independent document retaining the original sections and introduction with the supplied footer.
+     */
+    public function withReferences(string $references): self
+    {
+        $document = clone $this;
+        $document->references = $references;
+
+        return $document;
+    }
 }

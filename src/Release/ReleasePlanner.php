@@ -22,6 +22,7 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
@@ -57,6 +58,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param ReleaseExceptionFactoryInterface       $exceptions    Constructs controlled domain diagnostics without exposing underlying host details.
      * @param ReleaseInputEvidenceValidatorInterface $inputs        Verifies planned or selected-template bytes against the approved committed source evidence.
      * @param ReleaseJournalPathResolverInterface    $journals      Selects private recovery storage scoped to the consumer project and managed paths.
+     * @param HistoryReferenceBuilder                $references    Completes missing concrete release links without altering historical Markdown or observing external state.
      */
     public function __construct(
         private PackagePathResolverInterface $paths,
@@ -76,6 +78,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private ReleaseExceptionFactoryInterface $exceptions,
         private ReleaseInputEvidenceValidatorInterface $inputs,
         private ReleaseJournalPathResolverInterface $journals,
+        private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
     ) {}
 
     /**
@@ -239,6 +242,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $notes,
             $template,
         );
+        $document = $this->references->complete($document, $options->repository, $options->tagPrefix);
 
         return [$document, $next, $impact, $consumed, $notes];
     }

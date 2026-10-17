@@ -2,7 +2,7 @@
 
 The bundled `fast-forward-changelog` skill supports
 `fast-forward/changelog ^1.0` (minimum `1.0.0`). Inspect the installed version
-before using its CLI/API contract. Earlier versions require compatible
+before using its optional CLI/API contract. Earlier runtimes require compatible
 instructions or a separately authorized upgrade. Its canonical source is
 `resources/skills/fast-forward-changelog`, including its MIT license, references
 and executable example. Composer archives ship that complete payload.
@@ -14,6 +14,59 @@ this library creates no host aliases or project/global copies automatically.
 Use the flat `fast-forward-changelog` directory: the public name must match its
 immediate parent, without category nesting or a `php-` prefix.
 
+## Install directly from GitHub
+
+The main installation route needs Node.js `22.20.0+`, npm and Git. It does not
+require PHP, Composer or a prior installation of the Changelog library. From
+the consumer project, install only this skill for the host you use:
+
+```sh
+npx skills add php-fast-forward/changelog --skill fast-forward-changelog
+```
+
+The repository shorthand resolves its default branch and discovers
+`resources/skills/fast-forward-changelog`; `--skill` selects that one public name.
+The installer detects the current agent or asks for the host
+and installation method. Project scope is the default; Codex uses
+`.agents/skills/fast-forward-changelog`.
+
+Review and commit the project copy and the installer's lockfile under the
+application's policy. Inspect the complete license, references and example after
+copying; refresh the agent session and verify that it loads the public name.
+A successful copy or listing does not establish native activation or task quality.
+
+The [Skills CLI source documentation](https://github.com/vercel-labs/skills)
+describes direct repository paths, scoped selection and copy mode. To verify
+an updated local source before publishing its revision, the same installer can
+select a reviewed checkout directly:
+
+```sh
+npx skills add /path/to/changelog/resources/skills/fast-forward-changelog --skill fast-forward-changelog
+```
+
+For an existing Composer installation, the source may instead be
+`./vendor/fast-forward/changelog/resources/skills/fast-forward-changelog`.
+That is an alternative donor location, not an installation prerequisite.
+
+## Immutable source, explicit host and global scope
+
+The documented route was checked with Skills CLI `1.7.2`; its Node requirement
+is `22.20.0+`. To select a reviewed immutable source instead of the default
+branch, use the complete product commit and canonical directory below. This
+variant also selects Codex and copy mode without the installer's prompts:
+
+```sh
+npx --yes skills add \
+  https://github.com/php-fast-forward/changelog/tree/4934f391eb6022814599fec86f003216ef512d79/resources/skills/fast-forward-changelog \
+  --skill fast-forward-changelog --agent codex --copy --yes
+npx skills list --agent codex
+```
+
+Choose the actual host, such as `claude-code`. `--copy` installs real files rather
+than host-directory symlinks. Add `--global` explicitly to installation and listing
+only when global scope is intended. Installing the Composer plugin globally does
+not select a global host target.
+
 ## Optional project synchronization
 
 The [Composer installation guide](composer-skills.md) documents the optional
@@ -23,12 +76,12 @@ plugin approval. A Composer suggestion is not an installation or approval.
 
 ## Guarded manual copy
 
-Prefer project scope for a team. From an authorized consumer with the product
-already installed, copy the whole package and refuse an existing destination,
+Prefer project scope for a team. From an authorized consumer, copy the whole
+package from a reviewed checkout and refuse an existing destination,
 including a dangling symlink:
 
 ```sh
-skill_source="vendor/fast-forward/changelog/resources/skills/fast-forward-changelog"
+skill_source="/path/to/changelog/resources/skills/fast-forward-changelog"
 skill_target=".agents/skills/fast-forward-changelog"
 test -f "$skill_source/SKILL.md" &&
 test ! -e "$skill_target" &&
@@ -66,27 +119,19 @@ restore the complete saved directory to its original target and refresh the
 session. Preserve unrelated skill directories. Plugin-managed copies may return
 on the next sync until the donor/trust policy changes.
 
-## Optional pinned Skills CLI
+## Update and remove a CLI-installed copy
 
-With Node.js `22.20.0+`, npm and authorization to copy project skills:
-
-```sh
-npx --yes skills@1.7.2 add ./vendor/fast-forward/changelog/resources/skills/fast-forward-changelog --skill fast-forward-changelog --agent codex --copy --yes
-npx --yes skills@1.7.2 list --agent codex
-```
-
-Select only the host actually used, for example `claude-code`. `--copy` avoids
-vendor symlinks. Add `--global` explicitly to both commands for global scope;
-installing the Composer plugin globally does not select a global host target.
 Record the product revision and installer version. Review the new donor, archive
-local changes and repeat against that selected source to update. Commit intended
-project copies/CLI lockfiles according to application policy. Removal selects
-only the intended name/scope:
+local changes outside discovery and repeat the selected installation route.
+Use the immutable-source variant when the exact revision must remain fixed.
+Installing the Composer plugin globally
+does not select a global host target. Removal selects only the intended
+name and scope:
 
 ```sh
-npx --yes skills@1.7.2 remove fast-forward-changelog --agent codex --yes
+npx --yes skills remove fast-forward-changelog --agent codex --yes
 # Explicit global alternative:
-npx --yes skills@1.7.2 remove fast-forward-changelog --agent codex --global --yes
+npx --yes skills remove fast-forward-changelog --agent codex --global --yes
 ```
 
 After any route inspect all copied files, refresh the host session, confirm it

@@ -25,6 +25,7 @@ use FastForward\Changelog\History\Factory\HistoryExceptionFactory;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactory;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
+use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
@@ -73,6 +74,7 @@ use RuntimeException;
 #[UsesClass(HistoryReleaseFactory::class)]
 #[UsesClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
+#[UsesClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryRelease::class)]
 #[UsesClass(HistoryImportResult::class)]
 #[UsesClass(ReleaseExceptionFactory::class)]

@@ -1,8 +1,22 @@
 # Adopt Fast Forward Changelog
 
-Install the runtime, record independent fragments in ordinary PRs, then let an
+Choose GitHub automation or the local CLI, record independent fragments in
+ordinary PRs, then let an
 approved version PR consolidate the single `CHANGELOG.md`. Published GitHub notes
 come from that approved document at its exact merge commit.
+
+The [GitHub lifecycle](reusable-lifecycle.md) and the consumer skill can be adopted
+without installing a PHP runtime in the application. Install the instructions
+directly from GitHub using Node.js `22.20.0+`, npm and Git:
+
+```sh
+npx skills add php-fast-forward/changelog --skill fast-forward-changelog
+```
+
+This project-scoped copy requires no Composer installation. Choose the actual
+host and review the installed files; see [skill installation](skills.md)
+for an immutable source revision, updates, explicit global scope and activation checks. The local CLI and PHP
+API routes below have their own runtime requirements.
 
 ## Install and verify the runtime
 
@@ -28,15 +42,8 @@ operate on the consumer working directory, including when the package itself is
 installed elsewhere; `--cwd=/path/to/project` selects it explicitly. A skill
 installation is separate and does not install PHP, Composer or this runtime.
 The published skill is `resources/skills/fast-forward-changelog`; `.agents/skills`
-is reserved for skills consumed by a project. To discover an explicitly reviewed
-local checkout without installing into another environment:
-
-```sh
-npx --yes skills@1.7.2 add /path/to/changelog/resources/skills/fast-forward-changelog --list
-```
-
-See [skill distribution and evidence](skills.md) for separately authorized
-project copy installation and host limitations.
+is reserved for skills consumed by a project. The independent GitHub installation
+above can copy the instructions before any runtime is installed.
 
 For consumers using Composer to manage skills, the optional
 [Composer installer guide](composer-skills.md) installs the packaged canonical
@@ -204,6 +211,12 @@ after an interruption, preserving the journal and remaining fragments. Changed
 inputs block stale recovery. See [transaction and recovery
 contracts](release-receipts.md).
 
+A concrete `version` consolidation with a known GitHub repository completes
+missing release references: the oldest version links to its release/tag page,
+and subsequent versions link to comparisons. Existing links are preserved;
+without a repository, no destinations are invented. History-only operations do
+not add links. See [the exact footer contract](history.md).
+
 Backfill and format preserve pending fragments. Maintenance PRs commit only
 the central history; recovery journals remain outside the versioned tree and are
 removed after success.
@@ -320,7 +333,8 @@ Paste this into an authorized agent session in the consumer repository:
 
 ```text
 Adote Fast Forward Changelog neste projeto usando uma revisão imutável revisada.
-Instale o CLI local via Composer e a skill changelog em escopo de projeto por cópia.
+Instale a skill diretamente do GitHub via npx skills, em escopo de projeto por cópia.
+Use o workflow Docker sem Composer local; instale o CLI via Composer somente se esse uso local fizer parte da tarefa.
 Use fragmentos independentes; valide contribuições contra a base do PR e preserve trabalho alheio.
 Configure os workflows reutilizáveis com mínimos privilégios e PR de versão revisável.
 Não edite CHANGELOG.md manualmente nem publique tags/releases sem autorização explícita para o SHA aprovado.
