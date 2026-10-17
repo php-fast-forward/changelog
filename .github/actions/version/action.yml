@@ -68,7 +68,7 @@ inputs:
     default: "github-actions[bot]"
 
   title:
-    description: "Generated PR title."
+    description: "Generated PR title; accepts {current_version} and {next_version}."
     required: false
     default: "chore: update changelog"
 
