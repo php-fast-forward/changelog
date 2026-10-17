@@ -2,7 +2,7 @@
 
 Load when extending the ordinary caller, using monorepo paths, diagnosing
 feedback or rehearsing releases. The supported contract is
-`fast-forward/changelog ^1.0` (minimum `1.0.0`). Pin a reviewed immutable
+`fast-forward/changelog ^0.1` (minimum `0.1.0`). Pin a reviewed immutable
 repository commit containing the desired reusable workflow; never substitute a
 moving branch or an unmerged implementation PR. Reusables stay directly in
 `.github/workflows`; copy only a caller into the application.

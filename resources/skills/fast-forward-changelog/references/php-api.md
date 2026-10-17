@@ -1,7 +1,7 @@
 # Injected PHP services
 
 Load when the application needs programmatic access beyond the CLI or workflows.
-Supports `fast-forward/changelog ^1.0` (minimum `1.0.0`), PHP `^8.5` and its
+Supports `fast-forward/changelog ^0.1` (minimum `0.1.0`), PHP `^8.5` and its
 Composer-resolved runtime dependencies. Inspect the installed package first.
 Keep the application's existing command-loader arrangement; use domain services
 without replacing it. The application does not need another loader or framework

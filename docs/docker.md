@@ -20,8 +20,8 @@ docker run --rm fast-forward-changelog:local list --raw
 Override it for a versioned image:
 
 ```sh
-docker build --build-arg COMPOSER_ROOT_VERSION=1.0.0 -t fast-forward-changelog:1.0.0 .
-docker run --rm fast-forward-changelog:1.0.0 --version
+docker build --build-arg COMPOSER_ROOT_VERSION=0.1.0 -t fast-forward-changelog:0.1.0 .
+docker run --rm fast-forward-changelog:0.1.0 --version
 ```
 
 The final image copies only the package executable, source, installed vendor
@@ -136,10 +136,11 @@ tags.
 
 The Action metadata builds the shared Dockerfile. Consumers may instead run a
 prebuilt CLI after verifying the selected versioned image exists and is accessible
-to their runner. The following example assumes that image is available:
+to their runner. Use the following example only after the `0.1.0` image has been
+published and made accessible to that runner:
 
 ```yaml
-- uses: docker://ghcr.io/php-fast-forward/changelog:1.0.0
+- uses: docker://ghcr.io/php-fast-forward/changelog:0.1.0
   env:
     GITHUB_TOKEN: ${{ github.token }}
   with:

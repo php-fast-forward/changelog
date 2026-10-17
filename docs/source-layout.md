@@ -50,8 +50,10 @@ supply it; consumers using `ChangelogServiceProvider` need no wiring change.
 
 ## PHP API migration
 
-The namespace correction changes public PHP names and carries a major fragment.
-Use the new imports and container service keys. Existing CLI names, long options,
+The namespace cleanup changes public PHP names before the first public release,
+`0.1.0`. These mappings help applications that adopted earlier development
+commit pins move to the release API. Use the new imports and container service
+keys. Existing CLI names, long options,
 JSON, Markdown and release evidence remain unchanged. The additional short
 options are documented in [adoption](adoption.md). No PHP compatibility aliases
 are introduced.
@@ -71,9 +73,10 @@ instruction files.
 
 ## Factory removal migration
 
-This is a deliberate PHP API break before the first stable release. The following
-43 public symbols are removed: 22 concrete factories and their 21 interfaces.
-They previously existed in the main branch and were exposed through the provider;
+This is a deliberate PHP API break between pre-publication development
+snapshots, before the first public release, `0.1.0`. The following 43 public
+symbols were removed: 22 concrete factories and their 21 interfaces.
+They existed in earlier main-branch snapshots and were exposed through the provider;
 applications using their FQCNs, container keys or constructor arguments must migrate.
 No compatibility aliases retain the removed contracts. CLI arguments, fragment
 schema and persisted release evidence retain their existing contracts.

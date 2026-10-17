@@ -2,7 +2,7 @@
 
 Load for local authoring, contribution diagnostics, read-only plans, history
 maintenance or separately authorized publication. Supports
-`fast-forward/changelog ^1.0` (minimum `1.0.0`) on PHP `^8.5` with Composer and
+`fast-forward/changelog ^0.1` (minimum `0.1.0`) on PHP `^8.5` with Composer and
 Git. Inspect `composer show fast-forward/changelog`, then
 `vendor/bin/changelog list --raw` and the relevant `help <command>`.
 Use `changelog` instead when an existing global Composer install is selected.
