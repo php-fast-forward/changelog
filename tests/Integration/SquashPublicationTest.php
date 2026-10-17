@@ -18,9 +18,12 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 use function FastForward\Config\config;
 use function FastForward\Container\container;
@@ -43,12 +46,23 @@ final class SquashPublicationTest extends TestCase
             putenv('GIT_DIR=' . $root . '/must-not-be-a-git-dir');
             putenv('GIT_WORK_TREE=' . $root . '/must-not-be-a-worktree');
             putenv('GIT_INDEX_FILE=' . $root . '/must-not-be-an-index');
+            foreach (['git_DIR' => '/must-not-be-a-git-dir', 'Git_Work_Tree' => '/must-not-be-a-worktree', 'gIt_InDeX_fIlE' => '/must-not-be-an-index'] as $name => $path) {
+                putenv($name . '=' . $root . $path);
+                $_ENV[$name] = $_SERVER[$name] = $root . $path;
+            }
         }
         // PHPUnit isolates this process, so no caller environment is modified or restored with secret values.
         foreach (array_unique([...array_keys(getenv()), ...array_keys($_ENV), ...array_keys($_SERVER)]) as $name) {
-            if (str_starts_with($name, 'GIT_')) {
+            if (str_starts_with(strtoupper($name), 'GIT_')) {
                 putenv($name);
                 unset($_ENV[$name], $_SERVER[$name]);
+            }
+        }
+        if ($hostileGitEnvironment) {
+            foreach (['git_DIR', 'Git_Work_Tree', 'gIt_InDeX_fIlE'] as $name) {
+                self::assertFalse(getenv($name));
+                self::assertArrayNotHasKey($name, $_ENV);
+                self::assertArrayNotHasKey($name, $_SERVER);
             }
         }
         foreach (['HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => $root . '/empty-gitconfig', 'GIT_TERMINAL_PROMPT' => '0'] as $name => $value) {
@@ -282,8 +296,34 @@ final class SquashPublicationTest extends TestCase
             foreach (['must-not-be-a-git-dir', 'must-not-be-a-worktree', 'must-not-be-an-index'] as $path) {
                 self::assertFileDoesNotExist($root . '/' . $path);
             }
+        } catch (Throwable $failure) {
+            throw $failure;
         } finally {
-            new Filesystem()->remove($root);
+            try {
+                self::removeFixture($root);
+            } catch (Throwable $cleanupFailure) {
+                if (! isset($failure)) {
+                    throw $cleanupFailure;
+                }
+                fwrite(STDERR, 'Disposable fixture cleanup also failed: ' . $cleanupFailure::class . "\n");
+            }
+        }
+    }
+
+    /** Git object files may be read-only on Windows; cleanup changes only disposable fixture descendants. */
+    public function testCleanupRemovesReadOnlyFixtureFiles(): void
+    {
+        $root = realpath(sys_get_temp_dir()) . '/changelog-cleanup-' . bin2hex(random_bytes(8));
+        new Filesystem()->mkdir($root, 0700);
+        try {
+            file_put_contents($root . '/read-only-object', 'disposable');
+            new Filesystem()->chmod($root . '/read-only-object', 0444);
+            self::removeFixture($root);
+            self::assertDirectoryDoesNotExist($root);
+        } finally {
+            if (is_dir($root)) {
+                self::removeFixture($root);
+            }
         }
     }
 
@@ -293,6 +333,21 @@ final class SquashPublicationTest extends TestCase
         yield 'missing metadata' => [false, false];
         yield 'stale metadata' => [true, false];
         yield 'committed custom template' => [false, true];
-        yield 'hostile inherited Git environment' => [false, false, true];
+        yield 'hostile mixed-case inherited Git environment' => [false, false, true];
+    }
+
+    /** Restores write access within the exact temporary tree without following symbolic links, then removes it. */
+    private static function removeFixture(string $root): void
+    {
+        $filesystem = new Filesystem();
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST,
+        ) as $file) {
+            if (! $file->isLink()) {
+                $filesystem->chmod($file->getPathname(), 0700);
+            }
+        }
+        $filesystem->remove($root);
     }
 }

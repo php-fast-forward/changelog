@@ -145,10 +145,17 @@ final class FilesystemChangesetStoreTest extends TestCase
     }
 
     #[Test]
-    public function discoveryRetainsNestedHiddenAndNestedReservedNamesForValidation(): void
-    {
+    #[TestWith(['/repo/.changelog', '/repo/.changelog', '/'])]
+    #[TestWith(['C:/repo/.changelog', 'C:\\repo\\.changelog', '\\'])]
+    #[TestWith(['C:/repo/.changelog', 'C:/repo/.changelog', '\\'])]
+    #[TestWith(['//server/share/repo/.changelog', '\\\\server\\share\\repo\\.changelog', '\\'])]
+    public function discoveryRetainsNestedHiddenAndNestedReservedNamesForValidation(
+        string $directory,
+        string $nativeDirectory,
+        string $separator,
+    ): void {
         $filesystem = $this->filesystem();
-        $filesystem->exists('/repo/.changelog')->willReturn(true)->shouldBeCalledOnce();
+        $filesystem->exists($directory)->willReturn(true)->shouldBeCalledOnce();
         $finder = $this->prophesize(Finder::class);
         $finderObject = $finder->reveal();
         $regular = $this->prophesize(SplFileInfo::class);
@@ -157,18 +164,18 @@ final class FilesystemChangesetStoreTest extends TestCase
         $brokenLink = $this->prophesize(SplFileInfo::class);
         $brokenLink->isFile()->willReturn(false)->shouldBeCalledOnce();
         $brokenLink->isLink()->willReturn(true)->shouldBeCalledOnce();
-        $directory = $this->prophesize(SplFileInfo::class);
-        $directory->isFile()->willReturn(false)->shouldBeCalledOnce();
-        $directory->isLink()->willReturn(false)->shouldBeCalledOnce();
+        $directoryFile = $this->prophesize(SplFileInfo::class);
+        $directoryFile->isFile()->willReturn(false)->shouldBeCalledOnce();
+        $directoryFile->isLink()->willReturn(false)->shouldBeCalledOnce();
         $finder->filter(Argument::type('callable'))->will(function (array $arguments) use (
             $regular,
             $brokenLink,
-            $directory,
+            $directoryFile,
             $finderObject
         ): Finder {
             self::assertTrue($arguments[0]($regular->reveal()));
             self::assertTrue($arguments[0]($brokenLink->reveal()));
-            self::assertFalse($arguments[0]($directory->reveal()));
+            self::assertFalse($arguments[0]($directoryFile->reveal()));
 
             return $finderObject;
         })->shouldBeCalledOnce();
@@ -176,14 +183,25 @@ final class FilesystemChangesetStoreTest extends TestCase
         $finder->ignoreVCS(false)->willReturn($finderObject)->shouldBeCalledOnce();
         $finder->name('*.md')->willReturn($finderObject)->shouldBeCalledOnce();
         $finder->sortByName()->willReturn($finderObject)->shouldBeCalledOnce();
-        $finder->in('/repo/.changelog')->willReturn($finderObject)->shouldBeCalledOnce();
+        $finder->in($directory)->willReturn($finderObject)->shouldBeCalledOnce();
         $entries = [];
 
-        foreach (['z.md', 'AGENTS.md', 'nested/AGENTS.md', '.hidden.md', 'broken-link.md'] as $name) {
+        foreach ([
+            'z.md',
+            'AGENTS.md',
+            'nested/AGENTS.md',
+            '.hidden.md',
+            'broken-link.md',
+            './z.md',
+            '../outside.md',
+            'nested//other.md',
+        ] as $name) {
             $file = $this->prophesize(SplFileInfo::class);
             $file->getRelativePathname()->willReturn($name)->shouldBeCalledOnce();
             if ('AGENTS.md' !== $name) {
-                $file->getPathname()->willReturn('/repo/.changelog/' . $name)->shouldBeCalledOnce();
+                $file->getPathname()->willReturn(
+                    $nativeDirectory . $separator . str_replace('/', $separator, $name),
+                )->shouldBeCalledOnce();
             }
             $entries[] = $file->reveal();
         }
@@ -194,12 +212,15 @@ final class FilesystemChangesetStoreTest extends TestCase
 
         self::assertSame(
             [
-                '/repo/.changelog/.hidden.md',
-                '/repo/.changelog/broken-link.md',
-                '/repo/.changelog/nested/AGENTS.md',
-                '/repo/.changelog/z.md',
+                $directory . '/../outside.md',
+                $directory . '/./z.md',
+                $directory . '/.hidden.md',
+                $directory . '/broken-link.md',
+                $directory . '/nested//other.md',
+                $directory . '/nested/AGENTS.md',
+                $directory . '/z.md',
             ],
-            $this->store($filesystem, finder: $factory)->paths('/repo/.changelog'),
+            $this->store($filesystem, finder: $factory)->paths($directory),
         );
     }
 
