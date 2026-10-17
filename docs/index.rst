@@ -55,8 +55,8 @@ Read `history and presentation <history.md>`_,
 Automation and self-hosting
 --------------------------
 
-Composite actions and reusable workflows expose check, Dependabot, version,
-publication and history operations. Consumers select a reviewed immutable
+Docker Actions and reusable workflows expose check, PR feedback, Dependabot,
+version, publication and history operations. Consumers select a reviewed immutable
 revision, keep ordinary PR checks read-only and execute write operations from
 trusted base code. PR labels and bot-looking identities do not establish approval.
 

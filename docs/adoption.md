@@ -224,9 +224,10 @@ See [publication contracts](publication.md).
 
 Reuse the shipped entrypoints at a reviewed immutable repository commit:
 
-| Composite action | Reusable workflow | Responsibility |
+| Docker Action | Reusable workflow | Responsibility |
 | --- | --- | --- |
 | `.github/actions/check` | `.github/workflows/changelog-check.yml` | Contribution and trusted-policy check |
+| `.github/actions/pr-status` | `.github/workflows/changelog-pr-status.yml` | Trusted PR feedback and commit status |
 | `.github/actions/dependabot` | `.github/workflows/changelog-dependabot.yml` | Author one dependency-update fragment |
 | `.github/actions/version` | `.github/workflows/changelog-version.yml` | Prepare a reviewable version PR |
 | `.github/actions/publish` | `.github/workflows/changelog-publish.yml` | Publish an approved consolidation SHA |

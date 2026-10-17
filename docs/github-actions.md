@@ -88,7 +88,7 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@35c7653ef3fbe0704dd457a5a058137531eaf171
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@4934f391eb6022814599fec86f003216ef512d79
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -124,7 +124,7 @@ jobs:
       pull-requests: write
       issues: read
       statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog-pr-status.yml@0f4d5a7b10d4af19e0cd64f7bbe8653aed232ce3
+    uses: php-fast-forward/changelog/.github/workflows/changelog-pr-status.yml@4934f391eb6022814599fec86f003216ef512d79
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -157,7 +157,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@35c7653ef3fbe0704dd457a5a058137531eaf171
+    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@4934f391eb6022814599fec86f003216ef512d79
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -218,7 +218,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@35c7653ef3fbe0704dd457a5a058137531eaf171
+    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@4934f391eb6022814599fec86f003216ef512d79
     with:
       base-branch: main
       managed-branch: changelog/version
@@ -278,7 +278,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@35c7653ef3fbe0704dd457a5a058137531eaf171
+    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@4934f391eb6022814599fec86f003216ef512d79
     with:
       base-branch: main
       pull-request: ${{ github.event.pull_request.number }}
@@ -315,7 +315,7 @@ jobs:
   changelog:
     permissions:
       contents: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@35c7653ef3fbe0704dd457a5a058137531eaf171
+    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@4934f391eb6022814599fec86f003216ef512d79
     with:
       base-branch: main
       operation: ${{ inputs.operation }}
