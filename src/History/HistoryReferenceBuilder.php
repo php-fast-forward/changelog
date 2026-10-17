@@ -18,7 +18,7 @@ namespace FastForward\Changelog\History;
 final readonly class HistoryReferenceBuilder
 {
     /**
-     * Appends missing reference definitions while preserving every existing presentation byte.
+     * Inserts missing reference definitions in section order while retaining existing definition bytes.
      *
      * Semantic precedence selects predecessors independently of section order. Distinct build
      * identities with equal precedence use lexical identity order. Existing definitions remain
@@ -59,19 +59,56 @@ final readonly class HistoryReferenceBuilder
                 continue;
             }
 
-            $additions[] = '[' . $label . ']: ' . $destinations[$version];
-            $defined[$normalized] = true;
+            $additions[$version] = '[' . $label . ']: ' . $destinations[$version];
+            $defined[$normalized] = 0;
         }
 
         if ([] === $additions) {
             return $document;
         }
 
+        return $document->withReferences($this->insertReferences($document, $versions, $additions));
+    }
+
+    /**
+     * Places each missing definition before the next retained version in historical section order.
+     *
+     * Existing definitions, unrelated links and blank lines retain their bytes and relative order.
+     * Versions without a following footer anchor are appended, using only the required boundary.
+     * Offsets refer to the original footer; applying groups backwards keeps every anchor stable.
+     *
+     * @param HistoryDocument      $document  Maintained history supplying the original footer and final prose boundary.
+     * @param array<string,string> $versions  Concrete identities and labels in historical section order.
+     * @param array<string,string> $additions Missing identities mapped to their complete single-line definitions.
+     *
+     * @return string Footer with deterministic insertions and unchanged existing definition destinations.
+     */
+    private function insertReferences(HistoryDocument $document, array $versions, array $additions): string
+    {
         $references = $document->getReferences();
         $newline = str_contains($references, "\r\n") ? "\r\n" : "\n";
+        $offsets = $this->referenceOffsets($references);
+        $anchor = strlen($references);
+        $insertions = [];
 
-        return $document->withReferences($references . $this->separator($document, $newline)
-            . implode($newline, $additions) . $newline);
+        foreach (array_reverse($versions, true) as $version => $label) {
+            $normalized = strtolower($label);
+            if (isset($offsets[$normalized])) {
+                $anchor = $offsets[$normalized];
+            } elseif (isset($additions[$version])) {
+                $insertions[$anchor] ??= [];
+                array_unshift($insertions[$anchor], $additions[$version]);
+            }
+        }
+
+        krsort($insertions, SORT_NUMERIC);
+        foreach ($insertions as $offset => $lines) {
+            $separator = strlen($references) === $offset ? $this->separator($document, $newline) : '';
+            $references = substr($references, 0, $offset) . $separator . implode($newline, $lines) . $newline
+                . substr($references, $offset);
+        }
+
+        return $references;
     }
 
     /**
@@ -176,7 +213,7 @@ final readonly class HistoryReferenceBuilder
      *
      * @param HistoryDocument $document Raw maintained Markdown whose definitions must never be overwritten.
      *
-     * @return array<string,true> Existing ASCII-normalized labels, including definitions followed by ordinary prose.
+     * @return array<string,int> Existing ASCII-normalized labels and offsets, including definitions followed by prose.
      */
     private function definedLabels(HistoryDocument $document): array
     {
@@ -186,10 +223,23 @@ final readonly class HistoryReferenceBuilder
             $markdown .= "\n" . ($release->getHeading() ?? '') . $release->getBody() . $release->getEnding();
         }
         $markdown .= $document->getReferences();
+
+        return $this->referenceOffsets($markdown);
+    }
+
+    /**
+     * Locates active reference definitions without interpreting examples or rewriting source Markdown.
+     *
+     * @param string $markdown Raw document or footer whose fenced, indented and commented examples are ignored.
+     *
+     * @return array<string,int> First byte offset for each ASCII-normalized active reference label.
+     */
+    private function referenceOffsets(string $markdown): array
+    {
         $defined = [];
         $fence = null;
         $comment = false;
-        foreach (preg_split('/\r\n|\n|\r/', $markdown) as $line) {
+        foreach (preg_split('/\r\n|\n|\r/', $markdown, flags: PREG_SPLIT_OFFSET_CAPTURE) as [$line, $offset]) {
             if (null !== $fence) {
                 if (1 === preg_match(
                     '/^ {0,3}' . preg_quote($fence[0], '/') . '{' . strlen($fence) . ',}[ \t]*\z/',
@@ -212,7 +262,7 @@ final readonly class HistoryReferenceBuilder
                 continue;
             }
             if (1 === preg_match('/^ {0,3}\[([^\]\r\n]+)\]:/', $line, $matches)) {
-                $defined[strtolower(trim($matches[1]))] = true;
+                $defined[strtolower(trim($matches[1]))] ??= $offset;
             }
         }
 
