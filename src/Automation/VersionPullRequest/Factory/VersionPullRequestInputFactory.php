@@ -25,7 +25,10 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
         private VersionPullRequestExceptionFactoryInterface $exceptions,
     ) {}
 
-    /** Ensures managed branches cannot alias the base or inject ref syntax or presentation controls. */
+    /**
+     * Rejects unsafe branches, identities and presentation controls before planning.
+     * Literal titles retain the 256-byte bound; known placeholder templates may use 1024 bytes before resolution.
+     */
     public function create(
         string $baseBranch = 'main',
         string $managedBranch = 'changelog/version',
@@ -33,12 +36,14 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
         string $title = 'chore: update changelog',
         bool $dryRun = false,
     ): VersionPullRequestInput {
+        $template = str_contains($title, '{current_version}') || str_contains($title, '{next_version}');
+        $maximum = $template ? VersionPullRequestInput::MAX_TEMPLATE_BYTES : VersionPullRequestInput::MAX_TITLE_BYTES;
         if (! $this->branch($baseBranch) || ! $this->branch($managedBranch) || $baseBranch === $managedBranch
             || 1 !== preg_match('/\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\[bot\]\z/', $automationActor)
-            || '' === trim($title) || strlen($title) > 256 || preg_match('/[\x00-\x1f\x7f]/', $title)
+            || '' === trim($title) || strlen($title) > $maximum || preg_match('/[\x00-\x1f\x7f]/', $title)
         ) {
             throw $this->exceptions->create(
-                'Version PR requires distinct safe Git branches, a Bot account and a single-line title of at most 256 bytes.',
+                'Version PR requires distinct safe Git branches, a Bot account and a single-line title of at most 256 bytes or version template of at most 1024 bytes.',
             );
         }
 

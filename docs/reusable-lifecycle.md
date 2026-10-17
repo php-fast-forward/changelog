@@ -119,6 +119,7 @@ explicit; omitted values use these reusable defaults:
 | `tag-prefix` | `v` | Prefix for version tags. |
 | `source` | `auto` | Historical release notes source: `auto`, `github` or `tags`. |
 | `managed-branch` | `changelog/version` | Branch for the single version PR. |
+| `version-pr-title` | `chore: update changelog` | PR title, optionally containing `{current_version}` and `{next_version}`. |
 | `automation-actor` | `github-actions[bot]` | Expected Bot identity for managed transactions. |
 | `app-client-id` | `''` | Optional GitHub App Client ID; pair with `secrets.app-private-key` and the App's Bot identity. |
 | `waiver-label` | `changelog-not-required` | Label used by the verified maintainer waiver policy. |
@@ -137,6 +138,27 @@ output boundaries. [Complete setup](github-app.md).
 
 Keep settings consistent across all operations. PR operations work at repository
 root; select nested packages through repository-relative managed paths.
+
+To show the version transition, configure the facade with:
+
+```yaml
+    with:
+      version-pr-title: 'chore(release): {current_version} → {next_version}'
+```
+
+The versions come from the validated release plan. For example, a `1.2.0` baseline
+and a `1.3.0` release produce `chore(release): 1.2.0 → 1.3.0`. A first release uses
+the initial `0.0.0` baseline. Historical maintenance has no next release, so both
+placeholders resolve to the current version. Literal titles keep their bytes;
+only these two placeholders are expanded. Templates may use at most 1024 bytes;
+literal and fully resolved titles must remain a single line of at most 256 bytes.
+Updating only the configured title refreshes the owned PR without changing its
+body, creating another commit or changing its release plan. `dry-run` previews
+that update without writing it.
+
+The individual `changelog-version.yml` workflow and Docker version action use
+their existing `title` input for the same contract. The CLI accepts it through
+`github version --title='chore(release): {current_version} → {next_version}'`.
 
 The public default is `ubuntu-latest`, without repository-specific variables.
 All individual lifecycle reusables also accept `runs-on`. A consumer with an
