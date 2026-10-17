@@ -8,6 +8,9 @@ Independent Markdown fragments, automated PR checks and a reviewed version PR
 for PHP packages. Contributors add `.changelog/*.md`; the version workflow
 collects them into `CHANGELOG.md` and removes the consumed fragments.
 
+The package is in 0.x development. Public interfaces may change before 1.0;
+review release notes and integration contracts before upgrading.
+
 [![PHP Version](https://img.shields.io/badge/php-%5E8.5-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
 [![Composer Package](https://img.shields.io/badge/composer-fast--forward%2Fchangelog-F28D1A.svg?logo=composer&logoColor=white)](https://packagist.org/packages/fast-forward/changelog)
 [![Tests](https://img.shields.io/github/actions/workflow/status/php-fast-forward/changelog/repository-ci.yml?logo=githubactions&logoColor=white&label=tests&color=22C55E)](https://github.com/php-fast-forward/changelog/actions/workflows/repository-ci.yml)
@@ -45,7 +48,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@4934f391eb6022814599fec86f003216ef512d79
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@9361890c918f8662e2de8cfcbff41923be57c536
 
     with:
       base-branch: main
@@ -99,7 +102,7 @@ The [CLI guide](docs/adoption.md) also covers `status`, `version`, `notes`,
 ## 🧠 Agent skill
 
 The portable [fast-forward-changelog skill](resources/skills/fast-forward-changelog/SKILL.md)
-supports the `fast-forward/changelog ^1.0` contract and leads with GitHub automation,
+supports the `fast-forward/changelog ^0.1` contract and leads with GitHub automation,
 then local CLI and optional PHP service integration. Its source is
 `resources/skills/fast-forward-changelog`; a consumer installs it as
 `.agents/skills/fast-forward-changelog`. Install it directly from GitHub with
