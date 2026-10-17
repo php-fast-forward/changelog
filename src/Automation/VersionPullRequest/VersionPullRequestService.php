@@ -55,7 +55,10 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         private ReleasePlanFactoryInterface $plans,
     ) {}
 
-    /** Plans at the fresh base, verifies existing ownership, and mutates only the transaction's exact file scope. */
+    /**
+     * Plans at the fresh base and resolves version placeholders in the validated presentation title.
+     * Title-only updates retain the signed head and plan; all writes require current ownership and scope proof.
+     */
     public function synchronize(ReleaseOptions $options, VersionPullRequestInput $input): VersionPullRequestResult
     {
         $plan = null;
@@ -136,8 +139,23 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 $plan = $stable;
                 $data = $this->receipts->decode($plan->receiptContents)->data;
             }
+            $title = strtr($input->title, [
+                '{current_version}' => $plan->currentVersion,
+                '{next_version}' => $plan->nextVersion ?? $plan->currentVersion,
+            ]);
+            $this->require(
+                strlen($title) <= VersionPullRequestInput::MAX_TITLE_BYTES,
+                'The resolved version PR title must be at most 256 bytes.',
+            );
+            $input = $this->inputs->create(
+                $input->baseBranch,
+                $input->managedBranch,
+                $input->automationActor,
+                $title,
+                $input->dryRun,
+            );
             if (($evidence['Plan'] ?? null) === $plan->id) {
-                if (null !== $pr) {
+                if (null !== $pr && ($pr['title'] ?? null) === $input->title) {
                     return $this->result('unchanged', $plan, $pr, $head);
                 }
                 if ($input->dryRun) {
@@ -146,9 +164,15 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 $this->inputEvidence->validate($plan);
                 $this->preflight($options, $input, $base, $head);
                 $writing = true;
-                $pr = $this->writePullRequest($repo, $input, null, $head, $this->body($options, $plan, $data));
+                $pr = $this->writePullRequest(
+                    $repo,
+                    $input,
+                    $pr,
+                    $head,
+                    null === $pr ? $this->body($options, $plan, $data) : null,
+                );
 
-                return $this->result('created', $plan, $pr, $head);
+                return $this->result($hadPr ? 'updated' : 'created', $plan, $pr, $head);
             }
             if ($input->dryRun) {
                 return $this->result('dry-run', $plan, $pr, $head);
@@ -481,14 +505,15 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     /**
      * Creates or refreshes the one PR without retrying a mutation. Existing PR writes are confirmed
      * through their trusted number because a successful PATCH may still return the previous head;
-     * an uncertain create is recovered by its exclusive branch query. Unconfirmed identities fail closed.
+     * an uncertain create is recovered by its exclusive branch query. Unconfirmed identities or titles fail closed.
+     * A null body preserves existing human PR text during a title-only refresh; new PRs receive generated text.
      */
     private function writePullRequest(
         string $repository,
         VersionPullRequestInput $input,
         ?array $pr,
         string $head,
-        string $body,
+        ?string $body,
     ): array {
         try {
             $response = null === $pr
@@ -500,7 +525,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 : $this->github->request(
                     'PATCH',
                     '/repos/' . $repository . '/pulls/' . $pr['number'],
-                    ['title' => $input->title, 'body' => $body],
+                    ['title' => $input->title] + (null === $body ? [] : ['body' => $body]),
                 );
         } catch (Throwable) {
             $response = null === $pr ? $this->pullRequest($repository, $input) : null;
@@ -513,6 +538,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             && (null === $pr || $response['number'] === $pr['number'])
             && $response['head']['sha'] === $head && $response['head']['ref'] === $input->managedBranch
             && ($response['base']['ref'] ?? null) === $input->baseBranch
+            && ($response['title'] ?? null) === $input->title
             && GitHubEvidence::identity(
                 $response['user'] ?? null,
                 $input->automationActor,
@@ -541,7 +567,9 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             . "\n\nPlan: `" . $plan->id . "`\nBase: `" . $plan->baseSha . "`\nConsumed fragments: " . count(
                 $data['consumed'],
             )
-            . "\n\nUpdates the changelog and removes the consumed fragments.\nThis PR does not publish a tag or release.\n";
+            . "\n\nUpdates the changelog and removes the consumed fragments."
+            . "\nPreparing this PR does not publish a tag or release."
+            . "\nPublication after merge depends on the consumer workflow.\n";
     }
 
     /** Captures the exact plan and known remote PR/head state without claiming publication. */

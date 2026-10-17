@@ -6,7 +6,9 @@ namespace FastForward\Changelog\Tests\Automation\VersionPullRequest;
 
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
+use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestExceptionFactoryInterface;
+use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactory;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestResultFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestException;
@@ -38,6 +40,8 @@ use RuntimeException;
 #[UsesClass(GitHubEvidence::class)]
 #[UsesClass(VersionPullRequestException::class)]
 #[UsesClass(VersionPullRequestInput::class)]
+#[UsesClass(VersionPullRequestInputFactory::class)]
+#[UsesClass(VersionPullRequestExceptionFactory::class)]
 #[UsesClass(VersionPullRequestResult::class)]
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(ReleasePlan::class)]
@@ -49,6 +53,7 @@ final class VersionPullRequestServiceTest extends TestCase
     private array $calls = [];
     private array $policyCalls = [];
     private array $plannerCalls = [];
+    private array $pullRequestSnapshots = [];
 
     #[Test]
     public function createsSignedVersionTransactionFromFreshBaseWithOnlyApprovedFileChanges(): void
@@ -86,6 +91,7 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([str_repeat('a', 40), str_repeat('b', 40)], $this->writes('commits')[0][2]['parents']);
         self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
         self::assertSame('PATCH', $this->writes('pulls/7')[0][0]);
+        self::assertStringContainsString('Prepare release 1.0.1.', $this->writes('pulls/7')[0][2]['body']);
         self::assertSame(['inspectHead', str_repeat('a', 40)], $this->policyCalls[0]);
     }
 
@@ -120,6 +126,7 @@ final class VersionPullRequestServiceTest extends TestCase
     #[TestWith(['wrong_branch'])]
     #[TestWith(['wrong_base_branch'])]
     #[TestWith(['closed'])]
+    #[TestWith(['wrong_title'])]
     #[TestWith(['missing'])]
     #[TestWith(['read_failure'])]
     public function invalidFreshPrConfirmationFailsWithoutRepeatingTheWrite(string $confirmation): void
@@ -148,6 +155,135 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([], $this->writes());
     }
 
+    /** Presentation expands only known version placeholders; literal titles and unknown braces retain their bytes. */
+    #[Test]
+    #[TestWith(['chore(release): {current_version} → {next_version}', 'chore(release): 1.0.0 → 1.0.1'])]
+    #[TestWith(['Release {next_version} from {current_version}', 'Release 1.0.1 from 1.0.0'])]
+    #[TestWith(['Update history {custom}', 'Update history {custom}'])]
+    #[TestWith(['chore: update changelog', 'chore: update changelog'])]
+    public function expandsVersionTitleBeforeCreatingTheCommitAndPr(string $template, string $expected): void
+    {
+        $result = $this->synchronizeFixture(input: new VersionPullRequestInput(title: $template));
+
+        self::assertSame('created', $result->status);
+        self::assertSame($expected, $this->writes('pulls')[0][2]['title']);
+        self::assertStringStartsWith($expected . "\n\nChangelog-Plan: ", $this->writes('commits')[0][2]['message']);
+    }
+
+    /** First releases expose the real initial baseline; maintenance has no new version and repeats its current version. */
+    #[Test]
+    #[TestWith([['current_version' => '0.0.0', 'next_version' => '1.0.0'], '0.0.0 → 1.0.0'])]
+    #[TestWith([['maintenance' => true], '1.0.0 → 1.0.0'])]
+    public function titlesUseThePlanVersionsWithoutInventingARelease(array $settings, string $expected): void
+    {
+        $result = $this->synchronizeFixture(
+            $settings,
+            new VersionPullRequestInput(title: '{current_version} → {next_version}'),
+        );
+
+        self::assertSame('created', $result->status);
+        self::assertSame($expected, $this->writes('pulls')[0][2]['title']);
+    }
+
+    /** A title-only rerun changes the owned PR presentation while keeping its signed transaction and branch head. */
+    #[Test]
+    public function samePlanUpdatesOnlyTheTitleWithoutAnotherCommit(): void
+    {
+        $result = $this->synchronizeFixture(
+            ['existing' => true, 'same_plan' => true, 'pr_body' => 'Manual release checklist: verify deployment.'],
+            new VersionPullRequestInput(title: 'chore(release): {current_version} → {next_version}'),
+        );
+
+        self::assertSame('updated', $result->status);
+        self::assertSame(str_repeat('a', 40), $result->headSha);
+        self::assertSame(str_repeat('c', 64), $result->planId);
+        self::assertCount(1, $this->writes());
+        self::assertSame('PATCH', $this->writes()[0][0]);
+        self::assertSame('/repos/owner/project/pulls/7', $this->writes()[0][1]);
+        self::assertSame('chore(release): 1.0.0 → 1.0.1', $this->writes()[0][2]['title']);
+        self::assertArrayNotHasKey('body', $this->writes()[0][2]);
+        self::assertSame(
+            'Manual release checklist: verify deployment.',
+            array_last($this->pullRequestSnapshots)['body'],
+        );
+    }
+
+    /** A bounded template may exceed 256 raw bytes when its resolved title still fits, including previews and retitles. */
+    #[Test]
+    #[TestWith([[], false, 'created', 245])]
+    #[TestWith([[], true, 'dry-run', 245])]
+    #[TestWith([['existing' => true, 'same_plan' => true], false, 'updated', 245])]
+    #[TestWith([[], false, 'created', 251])]
+    public function acceptsTemplatesThatShrinkWithinTheFinalTitleLimit(
+        array $settings,
+        bool $dryRun,
+        string $expected,
+        int $literalBytes,
+    ): void {
+        $result = $this->synchronizeFixture(
+            $settings,
+            new VersionPullRequestInput(title: str_repeat('a', $literalBytes) . '{current_version}', dryRun: $dryRun),
+        );
+
+        self::assertSame($expected, $result->status, implode('; ', $result->diagnostics));
+        if ($dryRun) {
+            self::assertSame([], $this->writes());
+        } else {
+            self::assertSame(str_repeat('a', $literalBytes) . '1.0.0', $this->writes('pulls')[0][2]['title']);
+        }
+        if (isset($settings['existing'])) {
+            self::assertSame(str_repeat('a', 40), $result->headSha);
+            self::assertCount(1, $this->writes());
+        }
+    }
+
+    /** Matching resolved titles are fully idempotent; previewing a different title performs no remote mutation. */
+    #[Test]
+    #[TestWith([false, 'chore(release): 1.0.0 → 1.0.1', 'unchanged'])]
+    #[TestWith([true, 'Previous title', 'dry-run'])]
+    public function samePlanTitleRerunsAreIdempotentOrReadOnly(bool $dryRun, string $title, string $expected): void
+    {
+        $result = $this->synchronizeFixture(
+            ['existing' => true, 'same_plan' => true, 'pr_title' => $title],
+            new VersionPullRequestInput(title: 'chore(release): {current_version} → {next_version}', dryRun: $dryRun),
+        );
+
+        self::assertSame($expected, $result->status);
+        self::assertSame(str_repeat('a', 40), $result->headSha);
+        self::assertSame([], $this->writes());
+    }
+
+    /** Expanded titles remain subject to the existing byte limit before any remote write. */
+    #[Test]
+    public function refusesTitleThatExceedsTheLimitAfterVersionExpansion(): void
+    {
+        $result = $this->synchronizeFixture(
+            ['next_version' => '1.0.1+' . str_repeat('a', 30)],
+            new VersionPullRequestInput(title: str_repeat('a', 240) . '{next_version}'),
+        );
+
+        self::assertSame('refused', $result->status);
+        self::assertSame([], $this->writes());
+        self::assertStringContainsString('256 bytes', implode('; ', $result->diagnostics));
+    }
+
+    /** Title-only refreshes retain the same fresh-base, immutable-head and Bot ownership requirements. */
+    #[Test]
+    #[TestWith(['base_race'])]
+    #[TestWith(['head_race'])]
+    #[TestWith(['local_race'])]
+    #[TestWith(['unowned'])]
+    public function titleOnlyUpdatesRefuseUntrustedOrMovedSnapshots(string $failure): void
+    {
+        $result = $this->synchronizeFixture(
+            ['existing' => true, 'same_plan' => true, $failure => true],
+            new VersionPullRequestInput(title: 'chore(release): {current_version} → {next_version}'),
+        );
+
+        self::assertSame('refused', $result->status);
+        self::assertSame([], $this->writes());
+    }
+
     #[Test]
     public function orphanSamePlanRecoversOnlyMissingPrAndKeepsTheCommit(): void
     {
@@ -157,6 +293,7 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertCount(1, $this->writes());
         self::assertSame('POST', $this->writes()[0][0]);
         self::assertStringEndsWith('/pulls', $this->writes()[0][1]);
+        self::assertStringContainsString('Prepare release 1.0.1.', $this->writes()[0][2]['body']);
     }
 
     #[Test]
@@ -397,14 +534,14 @@ final class VersionPullRequestServiceTest extends TestCase
         ) : (isset($settings['base_orphan']) ? $base : null));
         $original = isset($settings['pending']) ? 'new' : 'old';
         $originalReceipt = isset($settings['pending']) || isset($settings['prepared_resume']) ? 'receipt' : null;
-        $next = isset($settings['none']) || isset($settings['maintenance']) ? null : '1.0.1';
+        $next = isset($settings['none']) || isset($settings['maintenance']) ? null : ($settings['next_version'] ?? '1.0.1');
         $plan = new ReleasePlan($options, str_repeat(
             'c',
             64,
         ), isset($settings['stale_plan']) || isset($settings['pending']) ? str_repeat(
             'f',
             40,
-        ) : $base, '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash(
+        ) : $base, $settings['current_version'] ?? '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash(
             'sha256',
             'fragment',
         )], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']) || isset($settings['prepared_resume']));
@@ -419,6 +556,8 @@ final class VersionPullRequestServiceTest extends TestCase
             'changelog/version',
         ) : null;
         if (null !== $pr) {
+            $pr['title'] = $settings['pr_title'] ?? 'chore: update changelog';
+            $pr['body'] = $settings['pr_body'] ?? 'Manually edited release checklist.';
             $pr['html_url'] = 'https://github.com/owner/project/pull/7';
             $pr['head']['sha'] = $head;
             if (isset($settings['wrong_bot_creator'])) {
@@ -550,15 +689,24 @@ final class VersionPullRequestServiceTest extends TestCase
                             $confirmation['state'] = 'closed';
 
                             break;
+                        case 'wrong_title':
+                            $confirmation['title'] = 'Unconfirmed title';
+
+                            break;
                         case 'missing':
                             return null;
                         case 'read_failure':
                             throw new RuntimeException('synthetic-super-secret');
                     }
 
+                    $this->pullRequestSnapshots[] = $confirmation;
+
                     return $confirmation;
                 }
+                $previousBody = $pr['body'] ?? null;
                 $pr = $this->pr($input->automationActor, 'Bot', $input->managedBranch);
+                $pr['title'] = $body['title'];
+                $pr['body'] = $body['body'] ?? $previousBody;
                 $pr['head']['sha'] = $head;
                 $pr['html_url'] = 'https://github.com/owner/project/pull/7';
                 if (isset($settings['pr_lost_confirmed'])) {
@@ -623,7 +771,7 @@ final class VersionPullRequestServiceTest extends TestCase
         if (isset($settings['input_failure'])) {
             $inputs->method('create')->willThrowException(new VersionPullRequestException('invalid input'));
         } else {
-            $inputs->method('create')->willReturn($input);
+            $inputs = new VersionPullRequestInputFactory(new VersionPullRequestExceptionFactory());
         }
         $results = $this->createStub(VersionPullRequestResultFactoryInterface::class);
         $results->method('create')->willReturnCallback(
