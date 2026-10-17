@@ -16,6 +16,18 @@ function verifyWorkflow(bool $valid, string $message): void
     }
 }
 
+/** Selects a named step so adding authentication cannot silently redirect a fixture to another operation. */
+function workflowStep(array $job, string $name): array
+{
+    foreach ($job['steps'] as $step) {
+        if (($step['name'] ?? null) === $name) {
+            return $step;
+        }
+    }
+
+    throw new RuntimeException('Missing workflow step: ' . $name);
+}
+
 /** Executes actual workflow Bash guards with disposable outputs and forbidden daemon operations. */
 function workflowGuard(string $source, string $directory, array $environment, int $expected): string
 {
@@ -29,6 +41,15 @@ function workflowGuard(string $source, string $directory, array $environment, in
     $process->setTimeout(10);
     $status = $process->run();
     verifyWorkflow($expected === $status, 'Workflow guard returned unexpected status: ' . $process->getErrorOutput());
+    foreach (['FF_AUTH_PRIVATE_KEY', 'FF_AUTH_TOKEN'] as $secret) {
+        verifyWorkflow(
+            '' === ($environment[$secret] ?? '') || ! str_contains(
+                $process->getOutput() . $process->getErrorOutput(),
+                $environment[$secret],
+            ),
+            'Authentication diagnostics must not reveal a credential.',
+        );
+    }
 
     return is_file($output) ? file_get_contents($output) : '';
 }
@@ -172,6 +193,24 @@ verifyWorkflow(
 );
 $assertions += 6;
 
+// This pinned action reads optional lookup flags as strings: even the literal "false" enables a lookup.
+foreach ([$internalDependabot, Yaml::parseFile($root . '/.github/workflows/changelog-dependabot.yml')] as $workflow) {
+    foreach ($workflow['jobs'] as $job) {
+        foreach ($job['steps'] ?? [] as $step) {
+            if (($step['uses'] ?? null) !== 'dependabot/fetch-metadata@v2.5.0') {
+                continue;
+            }
+            verifyWorkflow(
+                '' === ($step['with']['alert-lookup'] ?? '') && '' === ($step['with']['compat-lookup'] ?? '')
+                    && 'false' === $step['with']['skip-verification']
+                    && 'false' === $step['with']['skip-commit-verification'],
+                'Dependabot metadata must omit truthy lookup flags while retaining origin and commit verification.',
+            );
+            ++$assertions;
+        }
+    }
+}
+
 foreach ($feedback['jobs']['status']['steps'] as $step) {
     if (! str_starts_with($step['uses'] ?? '', './.changelog-runtime/.github/actions/')) {
         continue;
@@ -198,26 +237,242 @@ verifyWorkflow(
     'Feedback must default to one updated comment.',
 );
 $comment = $feedback['jobs']['comment'];
+$sticky = workflowStep($comment, 'Create Or Update One Changelog Comment');
+$preserveFailure = workflowStep($feedback['jobs']['status'], 'Preserve The Contribution Gate Failure');
 verifyWorkflow(str_contains($comment['if'], '!cancelled()'), 'Failed validation must not suppress the feedback job.');
 verifyWorkflow(
-    isset($comment['steps'][1]['with']['only_update']),
+    isset($sticky['with']['only_update']),
     'Recovery in on-failure mode must update an existing failed comment.',
 );
 verifyWorkflow(
-    str_contains($comment['steps'][1]['with']['message'], 'Validation could not complete'),
+    str_contains($sticky['with']['message'], 'Validation could not complete'),
     'Operational failures need controlled fallback feedback.',
 );
 verifyWorkflow(
-    'exit 1' === $feedback['jobs']['status']['steps'][5]['run'],
+    'exit 1' === $preserveFailure['run'],
     'Feedback rendering must retain the failing contribution gate.',
 );
 $assertions += 6;
+
+$auth = Yaml::parseFile($root . '/.github/actions/github-auth/action.yml');
+$mint = $auth['runs']['steps'][1];
+verifyWorkflow(
+    'actions/create-github-app-token@v3.3.0' === $mint['uses']
+        && "steps.scope.outputs.app == 'true'" === $mint['if']
+        && 'false' === $mint['with']['skip-token-revoke']
+        && '${{ steps.scope.outputs.owner }}' === $mint['with']['owner']
+        && '${{ steps.scope.outputs.repository }}' === $mint['with']['repositories'],
+    'App tokens must use the verified release, one explicit repository and automatic revocation.',
+);
+verifyWorkflow(
+    ['token'] === array_keys($auth['outputs'])
+        && '${{ steps.app.outputs.token || inputs.token || inputs.fallback-token }}' === $auth['outputs']['token']['value'],
+    'Authentication must preserve raw-token and built-in fallback without persisting credentials.',
+);
+$check = Yaml::parseFile($root . '/.github/workflows/changelog-check.yml');
+verifyWorkflow(
+    ! isset($check['on']['workflow_call']['inputs']['app-client-id'])
+        && ! isset($check['on']['workflow_call']['secrets']['app-private-key'])
+        && ! isset($lifecycle['jobs']['check']['with']['app-client-id'])
+        && ! isset($lifecycle['jobs']['check']['secrets']),
+    'Untrusted PR-head checks must never receive App credentials.',
+);
+$assertions += 3;
+foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-pr-status',
+    'changelog-publish', 'changelog-version'] as $entrypoint) {
+    $workflow = Yaml::parseFile($root . '/.github/workflows/' . $entrypoint . '.yml');
+    $contract = $workflow['on']['workflow_call'];
+    verifyWorkflow(
+        'string' === $contract['inputs']['app-client-id']['type']
+            && '' === $contract['inputs']['app-client-id']['default']
+            && false === $contract['secrets']['app-private-key']['required'],
+        $entrypoint . ': App authentication must remain optional.',
+    );
+    foreach ($workflow['jobs'] as $name => $job) {
+        if ('changelog' === $entrypoint) {
+            if ('check' !== $name) {
+                verifyWorkflow(
+                    '${{ inputs.app-client-id }}' === $job['with']['app-client-id']
+                        && '${{ secrets.app-private-key }}' === $job['secrets']['app-private-key']
+                        && '${{ secrets.token }}' === $job['secrets']['token'],
+                    $name . ': forward only raw optional credentials; do not mix the fallback token with App mode.',
+                );
+            }
+        } else {
+            $authentication = workflowStep($job, 'Authenticate Trusted GitHub Operations');
+            $runtime = workflowStep($job, 'Check Out The Called Workflow Runtime');
+            $authenticationPosition = array_search($authentication, $job['steps'], true);
+            $operation = 'changelog-pr-status' === $entrypoint ? $name : substr($entrypoint, strlen('changelog-'));
+            verifyWorkflow(
+                '${{ inputs.app-client-id }}' === $authentication['with']['app-client-id']
+                    && '${{ secrets.app-private-key }}' === $authentication['with']['app-private-key']
+                    && '${{ secrets.token }}' === $authentication['with']['token']
+                    && '${{ github.token }}' === $authentication['with']['fallback-token']
+                    && $operation === $authentication['with']['operation']
+                    && './.changelog-runtime/.github/actions/github-auth' === $authentication['uses']
+                    && '${{ fromJSON(toJSON(job)).workflow_sha }}' === $runtime['with']['ref']
+                    && false === $runtime['with']['persist-credentials']
+                    && array_search($runtime, $job['steps'], true) < $authenticationPosition,
+                $entrypoint . ': authentication must execute only from the checked-out immutable trusted runtime.',
+            );
+            foreach ($job['steps'] as $step) {
+                if (($step['with']['path'] ?? null) === 'project') {
+                    verifyWorkflow(
+                        '${{ steps.auth.outputs.token }}' === $step['with']['token']
+                            && false === $step['with']['persist-credentials']
+                            && $authenticationPosition < array_search($step, $job['steps'], true),
+                        $entrypoint . ': consumer checkout must use the selected token without persisting it.',
+                    );
+                }
+                if (($step['id'] ?? null) === 'operation') {
+                    verifyWorkflow(
+                        '${{ steps.auth.outputs.token }}' === $step['with']['token']
+                            && $authenticationPosition < array_search($step, $job['steps'], true),
+                        $entrypoint . ': remote operations must use this job\'s selected token.',
+                    );
+                }
+            }
+        }
+        verifyWorkflow(
+            ! str_contains(json_encode($job['outputs'] ?? []), 'auth.outputs.token')
+                && ! str_contains(json_encode($workflow['on']['workflow_call']['outputs'] ?? []), 'private-key'),
+            $entrypoint . ': credentials must never cross a job/workflow output boundary.',
+        );
+        ++$assertions;
+    }
+    ++$assertions;
+}
+verifyWorkflow(
+    '${{ steps.auth.outputs.token }}' === $sticky['with']['GITHUB_TOKEN']
+        && 'comment' === workflowStep($comment, 'Authenticate Trusted GitHub Operations')['with']['operation'],
+    'Sticky feedback must mint/select its own job-local token.',
+);
+++$assertions;
 
 $filesystem = new Filesystem();
 $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(8));
 $filesystem->mkdir($directory);
 
 try {
+    $authenticationEnvironment = [
+        'FF_AUTH_CLIENT_ID' => '', 'FF_AUTH_PRIVATE_KEY' => '', 'FF_AUTH_TOKEN' => '',
+        'FF_AUTH_REPOSITORY' => 'fixture/consumer', 'FF_AUTH_OPERATION' => 'version',
+        'FF_AUTH_READ_ALERTS' => 'false',
+        'FF_AUTH_BRANCH' => 'main', 'FF_AUTH_EVENT' => 'push', 'FF_AUTH_REF' => 'refs/heads/main',
+        'FF_AUTH_ACTION' => 'opened', 'FF_AUTH_AUTHOR' => 'dependabot[bot]',
+        'FF_AUTH_HEAD_REPOSITORY' => 'fixture/consumer', 'FF_AUTH_MERGED' => 'true',
+    ];
+    $appCredentials = ['FF_AUTH_CLIENT_ID' => 'Iv23.fixture', 'FF_AUTH_PRIVATE_KEY' => 'synthetic-private-key'];
+    foreach ([
+        [[], 0, false], [['FF_AUTH_TOKEN' => 'synthetic-existing-token'], 0, false],
+        [$appCredentials, 0, true],
+        [['FF_AUTH_CLIENT_ID' => 'Iv23.fixture'], 1, false],
+        [['FF_AUTH_PRIVATE_KEY' => 'synthetic-private-key'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_TOKEN' => 'synthetic-existing-token'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_EVENT' => 'pull_request'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_REF' => 'refs/heads/feature'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_REPOSITORY' => "fixture/consumer\nowner=attacker"], 1, false],
+        [[...$appCredentials, 'FF_AUTH_REPOSITORY' => 'fixture/consumer,other'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'unknown'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_READ_ALERTS' => 'true'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_READ_ALERTS' => 'invalid'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'status', 'FF_AUTH_EVENT' => 'pull_request_target'], 0, true],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'comment', 'FF_AUTH_EVENT' => 'pull_request_target'], 0, true],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'comment', 'FF_AUTH_EVENT' => 'pull_request_target', 'FF_AUTH_ACTION' => 'closed'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'dependabot', 'FF_AUTH_EVENT' => 'pull_request_target'], 0, true],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'dependabot', 'FF_AUTH_EVENT' => 'pull_request_target', 'FF_AUTH_AUTHOR' => 'human'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'dependabot', 'FF_AUTH_EVENT' => 'pull_request_target', 'FF_AUTH_HEAD_REPOSITORY' => 'fork/consumer'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'publish', 'FF_AUTH_EVENT' => 'pull_request_target', 'FF_AUTH_ACTION' => 'closed'], 0, true],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'publish', 'FF_AUTH_EVENT' => 'pull_request_target', 'FF_AUTH_ACTION' => 'closed', 'FF_AUTH_MERGED' => 'false'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'publish', 'FF_AUTH_EVENT' => 'pull_request_target'], 1, false],
+        [[...$appCredentials, 'FF_AUTH_OPERATION' => 'history', 'FF_AUTH_EVENT' => 'workflow_dispatch'], 0, true],
+    ] as [$overrides, $expected, $appEnabled]) {
+        $output = workflowGuard($auth['runs']['steps'][0]['run'], $directory, [
+            ...$authenticationEnvironment, ...$overrides,
+        ], $expected);
+        verifyWorkflow(
+            0 === $expected ? str_contains($output, 'app=' . ($appEnabled ? 'true' : 'false') . "\n") : '' === $output,
+            'Rejected credentials/events must produce no scope capable of authorizing a token.',
+        );
+        verifyWorkflow(! str_contains($output, 'synthetic-'), 'Scope outputs must contain no credential bytes.');
+        ++$assertions;
+    }
+    foreach ([
+        'version' => ['write', 'write', 'read', ''],
+        'dependabot' => ['write', 'read', '', ''],
+        'status' => ['read', 'read', 'read', 'write'],
+        'comment' => ['read', 'write', '', ''],
+        'publish' => ['write', 'read', '', ''],
+        'history' => ['read', '', '', ''],
+    ] as $operation => $permissions) {
+        $event = match ($operation) {
+            'dependabot', 'status', 'comment', 'publish' => 'pull_request_target',
+            'history' => 'workflow_dispatch',
+            default => 'push',
+        };
+        foreach ([false, true] as $appEnabled) {
+            $output = workflowGuard($auth['runs']['steps'][0]['run'], $directory, [
+                ...$authenticationEnvironment, ...($appEnabled ? $appCredentials : []),
+                'FF_AUTH_OPERATION' => $operation, 'FF_AUTH_EVENT' => $event,
+                'FF_AUTH_ACTION' => 'publish' === $operation ? 'closed' : 'opened',
+            ], 0);
+            verifyWorkflow(
+                str_contains($output, 'app=' . ($appEnabled ? 'true' : 'false') . "\n"),
+                'Permission cases must exercise both fallback and enabled App authentication.',
+            );
+            $permissionNames = ['contents', 'pull-requests', 'issues', 'statuses'];
+            foreach (array_combine($permissionNames, $permissions) as $permission => $level) {
+                verifyWorkflow(
+                    str_contains($output, $permission . '=' . $level . "\n"),
+                    'App permissions must match the exact operation.',
+                );
+                verifyWorkflow(
+                    '${{ steps.scope.outputs.' . $permission . ' }}' === $mint['with']['permission-' . $permission],
+                    'Permission scope must reach the official token action.',
+                );
+            }
+            verifyWorkflow(
+                str_contains($output, "owner=fixture\nrepository=consumer\n"),
+                'Tokens must target only the selected repository.',
+            );
+            verifyWorkflow(
+                str_contains($output, "vulnerability-alerts=\n"),
+                'Default operations must not request access to Dependabot alerts.',
+            );
+            ++$assertions;
+        }
+    }
+    foreach (['false' => '', 'true' => 'read'] as $requested => $permission) {
+        $output = workflowGuard($auth['runs']['steps'][0]['run'], $directory, [
+            ...$authenticationEnvironment, ...$appCredentials,
+            'FF_AUTH_OPERATION' => 'dependabot', 'FF_AUTH_EVENT' => 'pull_request_target',
+            'FF_AUTH_READ_ALERTS' => $requested,
+        ], 0);
+        verifyWorkflow(
+            str_contains($output, 'vulnerability-alerts=' . $permission . "\n")
+                && '${{ steps.scope.outputs.vulnerability-alerts }}' === $mint['with']['permission-vulnerability-alerts'],
+            'Only explicitly requested Dependabot alert evidence may add read permission.',
+        );
+        ++$assertions;
+    }
+    $dependabotWorkflow = Yaml::parseFile($root . '/.github/workflows/changelog-dependabot.yml');
+    $dependabotAuth = workflowStep($dependabotWorkflow['jobs']['changelog'], 'Authenticate Trusted GitHub Operations');
+    verifyWorkflow(
+        '[]' === $dependabotWorkflow['on']['workflow_call']['inputs']['security-alert-numbers']['default']
+            && '${{ inputs.security-alert-numbers != \'\' && inputs.security-alert-numbers != \'[]\' }}'
+                === $dependabotAuth['with']['read-dependabot-alerts']
+            && ! isset($lifecycle['jobs']['dependabot']['with']['security-alert-numbers']),
+        'The facade must retain no alert grant; the individual workflow opts in only for explicit alert metadata.',
+    );
+    ++$assertions;
+    foreach ([['fixture-app[bot]', 'fixture-app', 0], ['github-actions[bot]', 'fixture-app', 1],
+        ['fixture-app[bot]', '', 1], ['$(touch unexpected)[bot]', 'fixture-app', 1]] as [$actor, $slug, $expected]) {
+        workflowGuard($auth['runs']['steps'][2]['run'], $directory, [
+            'FF_AUTH_ACTOR' => $actor, 'FF_AUTH_APP_SLUG' => $slug,
+        ], $expected);
+        ++$assertions;
+    }
+    verifyWorkflow(! is_file($directory . '/unexpected'), 'Bot login must remain literal data.');
     $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
         if [[ "${FF_FIXTURE_FORBID_DOCKER:-}" == 1 ]]; then
           sudo() { touch unexpected-daemon-operation; return 73; }
@@ -308,7 +563,7 @@ try {
         );
         ++$assertions;
     }
-    workflowGuard($feedback['jobs']['status']['steps'][5]['run'], $directory, [], 1);
+    workflowGuard($preserveFailure['run'], $directory, [], 1);
     $assertions += 3;
 } finally {
     $filesystem->remove($directory);

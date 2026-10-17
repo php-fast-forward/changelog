@@ -55,7 +55,7 @@ jobs:
       pull-requests: write
       issues: read
       statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@3b58dd9eacef88cc96707d169da233a8c7011904
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@99c46107d6de2f484095d3703afcc89e42f4b1fc
     with:
       base-branch: main
       source: tags
@@ -72,9 +72,12 @@ an existing self-hosted runner. See the settings reference for all optional inpu
 
 Allow Actions to create PRs according to application policy. The default token
 uses each job's narrowed permissions; PR-head checks remain read-only and trusted
-base code handles privileged operations. If an approved App token is needed to
-trigger downstream CI, pass `secrets.token` and set `automation-actor` to that
-App's Bot identity. Use existing secret storage, never embed a token in YAML.
+base code handles privileged operations. `GITHUB_TOKEN` requires approval for
+generated PR workflows. For automatic downstream CI, pair `app-client-id` with
+`secrets.app-private-key` and set `automation-actor` to the App's Bot login.
+Each trusted job creates its own scoped token; do not combine this pair with
+the alternative `secrets.token`. Use existing secret storage, never embed keys
+or tokens in YAML. Read the automation reference before changing Bot identity.
 No checkout of untrusted PR code belongs in a privileged custom job.
 
 Open a small pilot PR containing a fragment like the next example. Verify the

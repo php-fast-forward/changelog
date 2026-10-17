@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adds consistent short options for common settings, fragment metadata, read-only modes and note output while preserving Symfony global shortcuts and the existing long options.
 - Ships the canonical changelog skill in Composer archives and declares its donor source for optional llm/skills installation, with a verified consumer recipe and an evaluated Fast Forward resource-bundle alternative.
 - Allow every reusable changelog workflow to inherit JSON runner labels, supporting private repositories on existing self-hosted billing fallback runners while retaining the GitHub-hosted default.
+- Supports optional GitHub App credentials in reusable workflows so generated
+  pull requests can trigger application CI without approving each update.
+  Trusted jobs create separate repository-scoped installation tokens while
+  ordinary PR-head checks retain their read-only token.
 - Adopt one reusable changelog lifecycle with exact-head validation, automatic validation of generated branches and configurable sticky PR feedback for successful, failed and recovered checks. Publication remains opt-in during consumer validation.
 - Builds the self-contained CLI under /usr/local with a Composer root version build argument and publishes validated multi-platform release images to GHCR for existing release tags.
 

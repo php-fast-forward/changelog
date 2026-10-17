@@ -1,0 +1,194 @@
+name: Authenticate Trusted GitHub Operations
+description: Select the existing token or mint a repository-scoped, job-local GitHub App token.
+
+inputs:
+  app-client-id:
+    description: Optional GitHub App client ID; requires app-private-key.
+    default: ''
+  app-private-key:
+    description: Optional GitHub App private key; never persisted or forwarded to another job.
+    default: ''
+  token:
+    description: Optional existing token, mutually exclusive with App credentials.
+    default: ''
+  fallback-token:
+    description: Built-in job token used when no other authentication is configured.
+    required: true
+  repository:
+    description: Exact owner/name receiving this operation's token.
+    required: true
+  operation:
+    description: Trusted operation selecting the fixed minimum permissions.
+    required: true
+  read-dependabot-alerts:
+    description: Request Dependabot alert read permission only for explicit alert metadata.
+    default: 'false'
+  base-branch:
+    description: Selected release branch for trusted push or manual events.
+    default: ''
+  automation-actor:
+    description: Explicit managed Bot login, when the operation verifies Bot ownership.
+    default: ''
+
+outputs:
+  token:
+    description: Token for steps in this job only; never expose it as a job or workflow output.
+    value: ${{ steps.app.outputs.token || inputs.token || inputs.fallback-token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate Authentication And Repository Scope
+      id: scope
+      shell: bash
+      env:
+        FF_AUTH_CLIENT_ID: ${{ inputs.app-client-id }}
+        FF_AUTH_PRIVATE_KEY: ${{ inputs.app-private-key }}
+        FF_AUTH_TOKEN: ${{ inputs.token }}
+        FF_AUTH_REPOSITORY: ${{ inputs.repository }}
+        FF_AUTH_OPERATION: ${{ inputs.operation }}
+        FF_AUTH_READ_ALERTS: ${{ inputs.read-dependabot-alerts }}
+        FF_AUTH_BRANCH: ${{ inputs.base-branch || github.event.repository.default_branch }}
+        FF_AUTH_EVENT: ${{ github.event_name }}
+        FF_AUTH_REF: ${{ github.ref }}
+        FF_AUTH_ACTION: ${{ github.event.action }}
+        FF_AUTH_AUTHOR: ${{ github.event.pull_request.user.login }}
+        FF_AUTH_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        FF_AUTH_MERGED: ${{ github.event.pull_request.merged }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! "$FF_AUTH_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+          echo '::error::Authentication requires one exact owner/repository.'
+          exit 1
+        fi
+
+        FF_CONTENTS=read
+        FF_PULL_REQUESTS=
+        FF_ISSUES=
+        FF_STATUSES=
+        FF_ALERTS=
+
+        if [[ "$FF_AUTH_READ_ALERTS" != true && "$FF_AUTH_READ_ALERTS" != false ]]; then
+          echo '::error::read-dependabot-alerts must be true or false.'
+          exit 1
+        fi
+
+        if [[ "$FF_AUTH_READ_ALERTS" == true ]]; then
+          if [[ "$FF_AUTH_OPERATION" != dependabot ]]; then
+            echo '::error::Only Dependabot fragment generation may request alert access.'
+            exit 1
+          fi
+
+          FF_ALERTS=read
+        fi
+
+        case "$FF_AUTH_OPERATION" in
+          version)
+            FF_CONTENTS=write
+            FF_PULL_REQUESTS=write
+            FF_ISSUES=read
+            ;;
+          dependabot|publish)
+            FF_CONTENTS=write
+            FF_PULL_REQUESTS=read
+            ;;
+          status)
+            FF_PULL_REQUESTS=read
+            FF_ISSUES=read
+            FF_STATUSES=write
+            ;;
+          comment)
+            FF_PULL_REQUESTS=write
+            ;;
+          history) ;;
+          *)
+            echo '::error::Unknown trusted authentication operation.'
+            exit 1
+            ;;
+        esac
+
+        FF_APP_ENABLED=false
+        if [[ -n "$FF_AUTH_CLIENT_ID" || -n "$FF_AUTH_PRIVATE_KEY" ]]; then
+          if [[ -z "$FF_AUTH_CLIENT_ID" || -z "$FF_AUTH_PRIVATE_KEY" || -n "$FF_AUTH_TOKEN" ]]; then
+            echo '::error::Provide app-client-id and app-private-key together, without token.'
+            exit 1
+          fi
+
+          case "$FF_AUTH_OPERATION:$FF_AUTH_EVENT" in
+            version:push|version:workflow_dispatch|history:push|history:workflow_dispatch|\
+            status:push|status:workflow_dispatch|comment:push|comment:workflow_dispatch)
+              if [[ "$FF_AUTH_REF" != "refs/heads/$FF_AUTH_BRANCH" ]]; then
+                echo '::error::App authentication requires the selected trusted base branch.'
+                exit 1
+              fi
+              ;;
+            dependabot:pull_request_target)
+              if [[ "$FF_AUTH_ACTION" == closed || "$FF_AUTH_AUTHOR" != 'dependabot[bot]' \
+                  || "$FF_AUTH_HEAD_REPOSITORY" != "$FF_AUTH_REPOSITORY" ]]; then
+                echo '::error::App fragment authentication requires an open same-repository Dependabot event.'
+                exit 1
+              fi
+              ;;
+            status:pull_request_target|comment:pull_request_target)
+              if [[ "$FF_AUTH_ACTION" == closed ]]; then
+                echo '::error::App feedback authentication requires an open PR event.'
+                exit 1
+              fi
+              ;;
+            publish:pull_request_target)
+              if [[ "$FF_AUTH_ACTION" != closed || "$FF_AUTH_MERGED" != true \
+                  || "$FF_AUTH_HEAD_REPOSITORY" != "$FF_AUTH_REPOSITORY" ]]; then
+                echo '::error::App publication authentication requires the merged same-repository PR event.'
+                exit 1
+              fi
+              ;;
+            *)
+              echo '::error::App authentication is unavailable for this untrusted event.'
+              exit 1
+              ;;
+          esac
+
+          FF_APP_ENABLED=true
+        fi
+
+        {
+          printf 'app=%s\n' "$FF_APP_ENABLED"
+          printf 'owner=%s\n' "${FF_AUTH_REPOSITORY%%/*}"
+          printf 'repository=%s\n' "${FF_AUTH_REPOSITORY#*/}"
+          printf 'contents=%s\n' "$FF_CONTENTS"
+          printf 'pull-requests=%s\n' "$FF_PULL_REQUESTS"
+          printf 'issues=%s\n' "$FF_ISSUES"
+          printf 'statuses=%s\n' "$FF_STATUSES"
+          printf 'vulnerability-alerts=%s\n' "$FF_ALERTS"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Create A Repository-Scoped Installation Token
+      id: app
+      if: steps.scope.outputs.app == 'true'
+      uses: actions/create-github-app-token@v3.3.0
+      with:
+        client-id: ${{ inputs.app-client-id }}
+        private-key: ${{ inputs.app-private-key }}
+        owner: ${{ steps.scope.outputs.owner }}
+        repositories: ${{ steps.scope.outputs.repository }}
+        permission-contents: ${{ steps.scope.outputs.contents }}
+        permission-pull-requests: ${{ steps.scope.outputs.pull-requests }}
+        permission-issues: ${{ steps.scope.outputs.issues }}
+        permission-statuses: ${{ steps.scope.outputs.statuses }}
+        permission-vulnerability-alerts: ${{ steps.scope.outputs.vulnerability-alerts }}
+        skip-token-revoke: 'false'
+
+    - name: Confirm The Explicit Managed Bot Identity
+      if: steps.scope.outputs.app == 'true' && inputs.automation-actor != ''
+      shell: bash
+      env:
+        FF_AUTH_ACTOR: ${{ inputs.automation-actor }}
+        FF_AUTH_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "$FF_AUTH_APP_SLUG" || "$FF_AUTH_ACTOR" != "${FF_AUTH_APP_SLUG}[bot]" ]]; then
+          echo '::error::automation-actor must match the authenticated App Bot login.'
+          exit 1
+        fi
