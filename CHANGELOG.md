@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Includes the changelog package name and current-to-next version transition in this repository's automated release PR titles. ([#44](https://github.com/php-fast-forward/changelog/pull/44))
 
+### Fixed
+
+- Keeps release image publication independent of GitHub Actions cache writes and supports explicit recovery from an existing published tag and its approved commit. ([#45](https://github.com/php-fast-forward/changelog/pull/45))
+
 ## [0.1.0] - 2026-10-17
 
 ### Added
