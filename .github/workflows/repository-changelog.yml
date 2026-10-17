@@ -55,6 +55,27 @@ jobs:
     secrets:
       token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
 
+  channels:
+    name: Update Released Major Branch
+    needs: changelog
+    if: >-
+      github.event_name == 'pull_request_target' && github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'changelog/version' &&
+      github.event.pull_request.base.ref == 'main' &&
+      needs.changelog.result == 'success' &&
+      needs.changelog.outputs.published-version != '' &&
+      needs.changelog.outputs.published-tag != '' &&
+      needs.changelog.outputs.published-sha != '' &&
+      needs.changelog.outputs.published-sha == github.event.pull_request.merge_commit_sha
+    permissions:
+      contents: write
+    uses: ./.github/workflows/repository-release-channels.yml
+    with:
+      tag: ${{ needs.changelog.outputs.published-tag }}
+      expected-sha: ${{ needs.changelog.outputs.published-sha }}
+
   image:
     name: Publish Docker CLI
     needs: changelog

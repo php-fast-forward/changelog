@@ -13,8 +13,9 @@ implementations in `.github/workflows`, as required by GitHub.
 ## Start with validation
 
 Copy the [caller example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml) into the consumer's
-`.github/workflows/changelog.yml`. The example selects release `v0.1.0`. Review
-the release notes when changing that version. The
+`.github/workflows/changelog.yml`. The example follows the `v0` branch, which
+selects published `0.x` releases. Minor updates can change contracts; select a
+full tag or SHA for a fixed revision. The
 [example's setup notes](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) describe branch filters,
 runner selection and the optional token.
 

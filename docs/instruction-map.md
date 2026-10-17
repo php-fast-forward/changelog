@@ -65,8 +65,11 @@ branch-selection, backport, review and publication boundaries; the automation
 map explains `base-branch`, unique `managed-branch`, ancestral concrete tags and
 separate optional `v1`/`v2` publication channels. Read root → automation map →
 reusable lifecycle/operation contract. The package's own `main` caller does not
-limit the public reusable's configurable maintenance lines. No channel workflow
-is claimed installed merely because the guide describes its contract.
+limit the public reusable's configurable maintenance lines. The repository's
+internal channel operation has a same-basename companion in
+`.github/update-release-channels.md`; read root → self-changelog guide →
+operation contract for an authorized recovery. This adds an operational
+entrypoint, not a child instruction scope or a consumer installation.
 
 ## Migration, validation and rollback
 
