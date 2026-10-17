@@ -29,6 +29,10 @@ interface ValidationReportFactoryInterface
      *
      * @param list<Changeset>             $changesets valid independently identified fragments
      * @param array<string, list<string>> $errors     diagnostics keyed by identity
+     * @param bool                        $waived     Whether a verified absence-of-new-contribution waiver was applied; schema failures remain blocking.
+     * @param array<string,string>        $hashes     Absolute fragment paths mapped to SHA-256 hashes of the exact bytes accepted by parsing.
+     *
+     * @return ValidationReport Aggregate retaining every successfully parsed sibling, independently keyed diagnostics, waiver state and accepted byte hashes.
      */
     public function create(array $changesets, array $errors, bool $waived, array $hashes = []): ValidationReport;
 }

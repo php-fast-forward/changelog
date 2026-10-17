@@ -29,6 +29,8 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
      * Captures the composition root used when no working directory is supplied.
      *
      * @param string $currentWorkingDirectory absolute composition-root directory
+     *
+     * @throws InvalidArgumentException When the injected composition directory is not syntactically absolute.
      */
     public function __construct(
         private string $currentWorkingDirectory,
@@ -40,6 +42,11 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
     /**
      * Resolves a path without reading or writing the filesystem.
+     *
+     * @param string      $path             Input path interpreted syntactically without reading filesystem state.
+     * @param string|null $workingDirectory Optional resolution base; null selects the injected composition root, and relative bases resolve against it.
+     *
+     * @return string Normalized absolute path resolved against the supplied directory or injected composition root.
      */
     public function absolutePath(string $path, ?string $workingDirectory = null): string
     {
@@ -58,6 +65,11 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
     /**
      * Returns the requested ancestor directory without filesystem access.
+     *
+     * @param string $path   Input path interpreted syntactically without reading filesystem state.
+     * @param int    $levels Positive number of syntactic parent directories to ascend.
+     *
+     * @return string Syntactic ancestor path after ascending the requested number of levels.
      */
     public function directoryPath(string $path, int $levels = 1): string
     {
@@ -66,6 +78,10 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
     /**
      * Determines whether a path is absolute without filesystem access.
+     *
+     * @param string $path Input path interpreted syntactically without reading filesystem state.
+     *
+     * @return bool Whether the syntax identifies a POSIX, drive-rooted or UNC absolute path.
      */
     public function isAbsolute(string $path): bool
     {
@@ -76,6 +92,11 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
     /**
      * Makes an absolute path relative to a base directory.
+     *
+     * @param string $path     Input path interpreted syntactically without reading filesystem state.
+     * @param string $basePath Base directory used for the relative-path calculation.
+     *
+     * @return string Relative path from the base when roots agree; otherwise the normalized absolute target.
      */
     public function relativePath(string $path, string $basePath): string
     {
@@ -105,6 +126,10 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
     /**
      * Normalizes separators and dot segments without consulting the filesystem.
+     *
+     * @param string $path Input path interpreted syntactically without reading filesystem state.
+     *
+     * @return string Path with canonical separators and dot segments normalized without filesystem reads.
      */
     private function normalize(string $path): string
     {
@@ -139,6 +164,10 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
 
     /**
      * Returns the syntactic root of a normalized path.
+     *
+     * @param string $path Input path interpreted syntactically without reading filesystem state.
+     *
+     * @return string Syntactic POSIX, drive or UNC root, or an empty string for a relative path.
      */
     private function root(string $path): string
     {
@@ -160,7 +189,10 @@ final readonly class PackagePathResolver implements PackagePathResolverInterface
     /**
      * Splits the path portion after its root into non-empty segments.
      *
-     * @return list<string>
+     * @param string $path Input path interpreted syntactically without reading filesystem state.
+     * @param string $root Previously determined syntactic path root, including drive or UNC prefix when present.
+     *
+     * @return list<string> Nonempty path segments following the previously identified root.
      */
     private function parts(string $path, string $root): array
     {

@@ -41,7 +41,12 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
     /** @var array<string,Command> Cached lazy wrappers, never eagerly resolved services. */
     private array $commands = [];
 
-    /** Reflects attribute metadata without constructing services or querying the container. */
+    /**
+     * Reflects attribute metadata without constructing services or querying the container.
+     *
+     * @param ContainerInterface          $container Application container consulted only when the selected command is loaded.
+     * @param LazyCommandFactoryInterface $factory   Builds lazy command wrappers without resolving their selected services.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly LazyCommandFactoryInterface $factory,
@@ -52,7 +57,15 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
         }
     }
 
-    /** Returns one cached lazy wrapper while preserving isolated command failures. */
+    /**
+     * Returns one cached lazy wrapper while preserving isolated command failures.
+     *
+     * @param string $name Canonical command name to discover or resolve.
+     *
+     * @return Command Cached lazy wrapper for the requested command; selected dependencies remain deferred.
+     *
+     * @throws CommandNotFoundException When no command metadata declares the requested name.
+     */
     public function get(string $name): Command
     {
         if (! isset($this->definitions[$name])) {
@@ -69,13 +82,23 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
         );
     }
 
-    /** Looks up public names locally without resolving dependencies. */
+    /**
+     * Looks up public names locally without resolving dependencies.
+     *
+     * @param string $name Canonical command name to discover or resolve.
+     *
+     * @return bool Whether the local command metadata declares the requested public name.
+     */
     public function has(string $name): bool
     {
         return isset($this->definitions[$name]);
     }
 
-    /** Lists the exact public command names in stable presentation order. */
+    /**
+     * Lists the exact public command names in stable presentation order.
+     *
+     * @return list<string> Public command names in stable discovery order.
+     */
     public function getNames(): array
     {
         return array_keys($this->definitions);

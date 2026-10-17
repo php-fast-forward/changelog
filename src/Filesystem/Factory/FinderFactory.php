@@ -25,6 +25,8 @@ final readonly class FinderFactory implements FinderFactoryInterface
 {
     /**
      * Creates an unconfigured Finder without touching the filesystem.
+     *
+     * @return Finder Fresh unconfigured Finder; directory traversal has not started.
      */
     public function create(): Finder
     {

@@ -34,13 +34,26 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
     private const string VERSION = '~^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$~D';
     private const string NEXT_VERSION = '~^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$~D';
 
-    /** Injects typed receipt and diagnostic construction without reading a repository. */
+    /**
+     * Injects typed receipt and diagnostic construction without reading a repository.
+     *
+     * @param ReleaseReceiptFactoryInterface   $receipts   Wraps already validated schema-one recovery data without external observation.
+     * @param ReleaseExceptionFactoryInterface $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     */
     public function __construct(
         private ReleaseReceiptFactoryInterface $receipts,
         private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
 
-    /** Rejects unknown, duplicate or malformed JSON evidence before checking its content identity. */
+    /**
+     * Rejects unknown, duplicate or malformed JSON evidence before checking its content identity.
+     *
+     * @param string $contents Complete untrusted recovery JSON, including its deterministic identity.
+     *
+     * @return ReleaseReceipt Schema-validated immutable recovery evidence with verified paths, hashes and identity.
+     *
+     * @throws \InvalidArgumentException When JSON, schema fields, repeated keys, content hashes or the deterministic identity are invalid.
+     */
     public function decode(string $contents): ReleaseReceipt
     {
         try {
@@ -70,7 +83,16 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         return $this->receipts->create(['id' => $id, ...$evidence]);
     }
 
-    /** Creates stable pretty JSON while sharing exactly one evidence identity algorithm. */
+    /**
+     * Creates stable pretty JSON while sharing exactly one evidence identity algorithm.
+     *
+     * @param array<string,mixed> $evidence Complete schema-one transaction fields, excluding the identity; encode validates them before serialization.
+     *
+     * @return string Canonical recovery JSON with ordered fields and its deterministic SHA-256 plan identity.
+     *
+     * @throws \InvalidArgumentException When evidence violates the canonical recovery schema.
+     * @throws \JsonException            When schema-valid strings cannot be encoded as JSON.
+     */
     public function encode(array $evidence): string
     {
         $evidence = $this->validate($evidence);
@@ -81,14 +103,47 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         ) . "\n";
     }
 
-    /** Computes identity from the validated known-order evidence, excluding its own ID. */
+    /**
+     * Computes identity from the validated known-order evidence, excluding its own ID.
+     *
+     * @param array<string,mixed> $evidence Complete schema-one transaction fields, excluding the identity; encode validates them before serialization.
+     *
+     * @return string Lowercase SHA-256 of validated evidence in stable key order, excluding the identity field itself.
+     */
     private function identity(array $evidence): string
     {
         return hash('sha256', json_encode($evidence, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 
-    /** Checks every typed field and keeps only direct canonical fragment names eligible for consumption. */
+    /**
+     * Validates the complete receipt before normalizing its canonical key order.
+     *
+     * @param array<string,mixed> $evidence Untrusted decoded receipt fields without their identity.
+     *
+     * @return array<string,mixed> Validated evidence in stable schema order.
+     */
     private function validate(array $evidence): array
+    {
+        $this->assertSchema($evidence);
+        $this->assertVersions($evidence);
+        $this->assertSettings($evidence);
+        $this->assertContentHashes($evidence);
+        $this->assertHistoricalVersions($evidence);
+        $this->assertConsumedFragments($evidence);
+
+        ksort($evidence['consumed'], SORT_STRING);
+
+        return array_replace(array_fill_keys(self::FIELDS, null), $evidence);
+    }
+
+    /**
+     * Requires the exact schema and an optional complete base commit identity.
+     *
+     * @param array<string,mixed> $evidence Receipt fields after the preceding validation phases.
+     *
+     * @return void Leaves valid fields unchanged or raises the configured validation exception.
+     */
+    private function assertSchema(array $evidence): void
     {
         if ([] !== array_diff(array_keys($evidence), self::FIELDS) || [] !== array_diff(
             self::FIELDS,
@@ -105,6 +160,17 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         ))) {
             throw $this->exceptions->invalid('Release receipt base_sha must be a complete Git commit hash.');
         }
+    }
+
+    /**
+     * Checks stable versions and requires impact to agree with a versioned release.
+     *
+     * @param array<string,mixed> $evidence Receipt fields after the preceding validation phases.
+     *
+     * @return void Leaves valid fields unchanged or raises the configured validation exception.
+     */
+    private function assertVersions(array $evidence): void
+    {
         foreach (['current_version', 'next_version'] as $field) {
             if ('next_version' === $field && null === $evidence[$field]) {
                 continue;
@@ -120,6 +186,17 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
             || ((null === $evidence['next_version']) !== (null === $evidence['impact']))) {
             throw $this->exceptions->invalid('Release receipt impact must agree with its release version.');
         }
+    }
+
+    /**
+     * Validates canonical project paths and the stored presentation settings.
+     *
+     * @param array<string,mixed> $evidence Receipt fields after the preceding validation phases.
+     *
+     * @return void Leaves valid fields unchanged or raises the configured validation exception.
+     */
+    private function assertSettings(array $evidence): void
+    {
         foreach (['changelog_file', 'fragment_directory'] as $field) {
             if (! is_string($evidence[$field]) || ! $this->relativePath($evidence[$field])) {
                 throw $this->exceptions->invalid(
@@ -146,6 +223,17 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
             )))) {
             throw $this->exceptions->invalid('Release receipt contains invalid rendering or repository settings.');
         }
+    }
+
+    /**
+     * Checks stored digest spellings and binds exact target and notes bytes.
+     *
+     * @param array<string,mixed> $evidence Receipt fields after the preceding validation phases.
+     *
+     * @return void Leaves valid fields unchanged or raises the configured validation exception.
+     */
+    private function assertContentHashes(array $evidence): void
+    {
         foreach (['before_changelog_sha256', 'after_changelog_sha256', 'notes_sha256'] as $field) {
             if ('before_changelog_sha256' === $field && null === $evidence[$field]) {
                 continue;
@@ -166,6 +254,17 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         )) {
             throw $this->exceptions->invalid('Release receipt exact notes do not match notes_sha256.');
         }
+    }
+
+    /**
+     * Requires a unique ordered list of stable imported release versions.
+     *
+     * @param array<string,mixed> $evidence Receipt fields after the preceding validation phases.
+     *
+     * @return void Leaves valid fields unchanged or raises the configured validation exception.
+     */
+    private function assertHistoricalVersions(array $evidence): void
+    {
         if (! is_array($evidence['historical_versions']) || ! array_is_list($evidence['historical_versions'])) {
             throw $this->exceptions->invalid('Release receipt historical_versions must be a list.');
         }
@@ -176,6 +275,17 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
             }
             $versions[$version] = true;
         }
+    }
+
+    /**
+     * Requires direct canonical fragment paths with their accepted content hashes.
+     *
+     * @param array<string,mixed> $evidence Receipt fields after the preceding validation phases.
+     *
+     * @return void Leaves valid fields unchanged or raises the configured validation exception.
+     */
+    private function assertConsumedFragments(array $evidence): void
+    {
         if (! is_array($evidence['consumed']) || ([] !== $evidence['consumed'] && array_is_list(
             $evidence['consumed'],
         ))) {
@@ -194,12 +304,15 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
                 );
             }
         }
-        ksort($evidence['consumed'], SORT_STRING);
-
-        return array_replace(array_fill_keys(self::FIELDS, null), $evidence);
     }
 
-    /** Rejects absolute, alternate-separator and dot/traversal spellings without host path access. */
+    /**
+     * Rejects absolute, alternate-separator and dot/traversal spellings without host path access.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return bool Whether the spelling is canonical project-relative syntax without absolute, option-like, alternate-separator or traversal segments.
+     */
     private function relativePath(string $path): bool
     {
         return '' !== $path && ! str_contains($path, "\0") && ! str_contains($path, '\\')

@@ -26,13 +26,20 @@ interface ChangesetParseResultFactoryInterface
 {
     /**
      * Creates a successful parse result.
+     *
+     * @param Changeset $changeset Validated fragment, including its canonical filename and persisted effective impact.
+     *
+     * @return ChangesetParseResult Successful parse result retaining the canonical fragment identity and validated value.
      */
     public function valid(Changeset $changeset): ChangesetParseResult;
 
     /**
      * Creates a failed parse result without discarding fragment identity.
      *
+     * @param string       $id     Canonical fragment filename including .md.
      * @param list<string> $errors all diagnostics found for the fragment
+     *
+     * @return ChangesetParseResult Failed parse result retaining the fragment identity and every supplied diagnostic.
      */
     public function invalid(string $id, array $errors): ChangesetParseResult;
 }

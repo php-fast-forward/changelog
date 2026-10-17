@@ -34,13 +34,26 @@ use Throwable;
 )]
 final readonly class StatusCommand
 {
-    /** Captures planning contracts without accessing files, Git or the network. */
+    /**
+     * Captures planning contracts without accessing files, Git or the network.
+     *
+     * @param ReleaseOptionsFactoryInterface $options Creates validated consumer settings from mapped CLI values.
+     * @param ReleasePlannerInterface        $planner Calculates immutable release or maintenance evidence without applying managed writes.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private ReleasePlannerInterface $planner,
     ) {}
 
-    /** Prints only the shared summary; --json is accepted for explicit machine consumers. */
+    /**
+     * Prints only the shared summary; --json is accepted for explicit machine consumers.
+     *
+     * @param ReleaseInput    $settings Mapped shared consumer paths and release settings from Symfony input.
+     * @param OutputInterface $output   Output stream receiving machine results or controlled command diagnostics.
+     * @param bool            $json     Explicit machine-output request; status always emits the shared JSON plan.
+     *
+     * @return int Symfony exit status reflecting the command's result or controlled input/operation failure.
+     */
     public function __invoke(#[MapInput] ReleaseInput $settings, OutputInterface $output, #[Option(
         description: 'Explicitly select the machine-readable JSON output.',
         shortcut: 'j',

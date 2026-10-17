@@ -20,7 +20,12 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestExcept
 /** Concentrates immutable automation outcome and diagnostic construction without external effects. */
 final class VersionPullRequestExceptionFactory implements VersionPullRequestExceptionFactoryInterface
 {
-    /** Retains explicitly validated data without inspecting host or GitHub state. */
+    /**
+     * Retains explicitly validated data without inspecting host or GitHub state.
+     *
+     * @param  string                      $message Controlled diagnostic or commit message supplied by the owning operation.
+     * @return VersionPullRequestException Controlled version-PR exception without performing or retrying any operation.
+     */
     public function create(string $message): VersionPullRequestException
     {
         return new VersionPullRequestException($message);

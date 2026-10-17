@@ -7,11 +7,11 @@ come from that approved document at its exact merge commit.
 ## Install and verify the runtime
 
 The runtime requires PHP 8.5 or later and Composer. In an authorized consumer
-checkout, install a release or reviewed source revision containing the nine
-commands documented here:
+checkout, select a compatible release or reviewed immutable source revision
+containing the eight contributor/maintainer commands documented here. After
+installing it through Composer:
 
 ```sh
-composer require --dev fast-forward/changelog
 vendor/bin/changelog list --raw
 vendor/bin/changelog add --help
 ```
@@ -32,7 +32,7 @@ is reserved for skills consumed by a project. To discover an explicitly reviewed
 local checkout without installing into another environment:
 
 ```sh
-npx --yes skills@1.7.0 add /path/to/changelog/resources/skills/fast-forward-changelog --list
+npx --yes skills@1.7.2 add /path/to/changelog/resources/skills/fast-forward-changelog --list
 ```
 
 See [skill distribution and evidence](skills.md) for separately authorized
@@ -66,7 +66,11 @@ vendor/bin/changelog check --since=origin/main --no-interaction
 The `--since` check evaluates committed Git differences; run it after committing
 the contribution and fetching/selecting the intended baseline. Review the exact
 created fragment. PR, issue and author metadata are optional, so author before a
-PR exists without placeholders. A generated fragment always persists its category
+PR exists without placeholders. When the PR is known, prefer its verified
+`--pull-request=<number>`; confirm the repository, head branch and exact head SHA
+before copying the number from the actual PR URL or trusted metadata. If it is
+opened later, add `pull_request: <number>` to that same newly added fragment,
+preserving its remaining bytes. A generated fragment always persists its category
 and effective type. For a dependency change preserving the public API, use
 `--category=changed --type=patch`. Category defaults and restricted frontmatter
 are documented in [fragment format](specification/fragment-format.md).
@@ -110,9 +114,6 @@ The prompt preserves Markdown spaces and removes only the terminal's Enter
 delimiter. Explicit message arguments bypass the prompt; existing domain
 validation still rejects invalid descriptions before creating a fragment.
 
-Commands that receive `SymfonyStyle` declare it first in `__invoke()`, followed
-by a blank line before the attributed input parameters.
-
 `--no-interaction` disables prompts. A message argument is required for unattended
 `add`. All commands accept the shared settings below; their use does not imply
 every setting affects every operation.
@@ -130,6 +131,10 @@ Common short options are `-C` for `--cwd`, `-l` for `--locale`, `-T` for
 | `notes` | `-o` output file |
 | `publish` | `-t` approved target, `-d` dry run |
 | `github` | `-S` since, `-p` PR, `-t` approved target; machine-operation settings keep their explicit long forms |
+
+`github` is the internal automation entrypoint used by the Actions and reusable
+workflows. Its explicit metadata contract is described in the
+[Docker runtime guide](docker.md).
 
 `-s` (history source) and `-S` (contribution baseline) are distinct. Template
 uses uppercase `-T` so command-specific `-t` remains available. `-c` means
@@ -255,7 +260,12 @@ through the package's container service provider, or inject these interfaces int
 the consumer's own PSR-11 container. Constructors perform no filesystem, Git,
 network, clock or credential observation. Factories construct values/collaborators.
 
-Register the provider by class name; it has no constructor arguments:
+Register the provider by class name; it has no constructor arguments. This
+composition excerpt shows default and explicitly configured containers. The
+complete [contribution program](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/examples/contribution.php)
+loads the consumer autoloader, writes one fragment and checks its exact bytes;
+the [PHP recipe guide](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/references/php-api.md)
+documents its invocation, expected output and collision behavior.
 
 ```php
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
@@ -288,7 +298,7 @@ their existing injected contracts.
 | --- | --- |
 | `ReleaseOptionsFactoryInterface` | `create(array $values = []): ReleaseOptions`; defaults then explicit values, unknown settings rejected |
 | `FragmentWriterInterface` | `add($options, $message, $category='changed', $type=null, $name=null, $issue=null, $pullRequest=null, $author=null, $commit=false, $commitMessage='chore: record changelog fragment'): string`; absolute created path |
-| `CheckServiceInterface` | `check($options, $since=null, $centralChangeAuthorized=false, $waiverAuthorized=false): ValidationReport`; authorization belongs to verified automation context |
+| `CheckServiceInterface` | `check($options, $since=null, $centralChangeAuthorized=false, $waiverAuthorized=false, $authorizationKind='ordinary'): ValidationReport`; authorization flags and kind belong to verified automation context |
 | `ReleasePlannerInterface` | `plan($options, $operation='version'): ReleasePlan`; version/backfill/format exact evidence without mutation |
 | `ReleaseApplierInterface` | `apply($plan): bool` and read-only `isApplied($plan): bool`; exact journal/snapshot/inventory transaction |
 | `HistoryCodecInterface` | `parse($markdown, $template=null)`, `render($document, $template, $preservePresentation=false)`, `notes($document, $version)`; pure Markdown/history boundary |
@@ -316,3 +326,7 @@ Configure os workflows reutilizáveis com mínimos privilégios e PR de versão 
 Não edite CHANGELOG.md manualmente nem publique tags/releases sem autorização explícita para o SHA aprovado.
 Mostre os arquivos criados, verificações executadas e limites de instalação/ativação observados.
 ```
+
+---
+
+[Documentation index](index.md)

@@ -25,6 +25,9 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
 {
     /**
      * Composes impact aggregation and result construction boundaries.
+     *
+     * @param VersionImpactResolverInterface    $impactResolver Aggregates persisted fragment impacts without inferring them again from categories.
+     * @param VersionResolutionFactoryInterface $resultFactory  Constructs successful or diagnostic-only version results without external observation.
      */
     public function __construct(
         private VersionImpactResolverInterface $impactResolver,
@@ -36,6 +39,11 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
      *
      * Build metadata MUST NOT leak into the next numeric release. Prerelease
      * inputs MUST be rejected until their promotion behavior is specified.
+     *
+     * @param string                                           $currentVersion Validated current stable version used as the numeric release baseline.
+     * @param list<\FastForward\Changelog\Changeset\Changeset> $changesets     Independent validated fragments; aggregation must retain each identity.
+     *
+     * @return VersionResolution Next numeric SemVer and greatest impact, or complete diagnostics without a partial version.
      */
     public function resolve(string $currentVersion, array $changesets): VersionResolution
     {
@@ -71,6 +79,10 @@ final readonly class NextVersionResolver implements NextVersionResolverInterface
      *
      * Semantic-version components MAY exceed the platform integer size, so
      * callers MUST retain them as strings throughout the calculation.
+     *
+     * @param string $component Unsigned decimal SemVer component retained as a string to avoid integer overflow.
+     *
+     * @return string Incremented unsigned decimal component without machine-integer overflow.
      */
     private function increment(string $component): string
     {

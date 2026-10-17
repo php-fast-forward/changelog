@@ -35,14 +35,29 @@ use Throwable;
 )]
 final readonly class PublishCommand
 {
-    /** Captures publication and commit resolution without contacting Git or GitHub. */
+    /**
+     * Captures publication and commit resolution without contacting Git or GitHub.
+     *
+     * @param ReleaseOptionsFactoryInterface $options     Creates validated consumer settings from mapped CLI values.
+     * @param GitRepositoryInterface         $git         Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     * @param PublicationServiceInterface    $publication Validates approved committed evidence and reconciles create-only tag/release state.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private GitRepositoryInterface $git,
         private PublicationServiceInterface $publication,
     ) {}
 
-    /** Defaults the target to checked-out HEAD and passes a complete SHA to the publication contract. */
+    /**
+     * Defaults the target to checked-out HEAD and passes a complete SHA to the publication contract.
+     *
+     * @param ReleaseInput    $settings  Mapped shared consumer paths and release settings from Symfony input.
+     * @param OutputInterface $output    Output stream receiving machine results or controlled command diagnostics.
+     * @param string|null     $targetSha Explicit approved commit selection; null resolves the checked-out HEAD.
+     * @param bool            $dryRun    Whether to prove the operation and inspect state without applying its writes.
+     *
+     * @return int Symfony exit status reflecting the command's result or controlled input/operation failure.
+     */
     public function __invoke(
         #[MapInput]
         ReleaseInput $settings,

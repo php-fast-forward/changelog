@@ -2,7 +2,8 @@
 
 Start with the [README](README.md), the [repository documentation](docs/) and
 [existing issues](https://github.com/php-fast-forward/changelog/issues).
-Development is maintained on `main`; there are currently no published releases.
+Development is maintained on `main`. Include the exact installed version or
+source commit in support requests.
 
 ## Choosing a channel
 

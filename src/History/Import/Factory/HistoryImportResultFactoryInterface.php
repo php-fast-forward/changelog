@@ -23,7 +23,12 @@ interface HistoryImportResultFactoryInterface
 {
     /**
      * Constructs a result from preserved history and a caller-validated stable tag baseline.
-     * @param list<string> $missingVersions canonical identities inserted during import
+     *
+     * @param HistoryDocument $document        Maintained history whose release bodies, introduction and references must be preserved.
+     * @param list<string>    $missingVersions canonical identities inserted during import
+     * @param string          $currentVersion  Validated current stable version used as the numeric release baseline.
+     *
+     * @return HistoryImportResult Import evidence retaining the supplied history, newly inserted versions and stable baseline.
      */
     public function create(
         HistoryDocument $document,

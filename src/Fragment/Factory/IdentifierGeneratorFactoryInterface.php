@@ -22,6 +22,12 @@ use Random\Engine;
 /** Provides composition of random identifiers without global random functions. */
 interface IdentifierGeneratorFactoryInterface
 {
-    /** Builds a generator; a supplied engine isolates every entropy read in tests. */
+    /**
+     * Builds a generator; a supplied engine isolates every entropy read in tests.
+     *
+     * @param Engine|null $engine Optional injected entropy engine; null selects the secure production engine.
+     *
+     * @return IdentifierGeneratorInterface Generator using the injected engine or secure default without requesting bytes during construction.
+     */
     public function create(?Engine $engine = null): IdentifierGeneratorInterface;
 }

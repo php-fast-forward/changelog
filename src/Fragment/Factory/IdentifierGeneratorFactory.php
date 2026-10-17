@@ -25,7 +25,13 @@ use Random\Randomizer;
 /** Concentrates generator, randomizer and default-engine construction. */
 final readonly class IdentifierGeneratorFactory implements IdentifierGeneratorFactoryInterface
 {
-    /** Builds the secure default without generating bytes until generate() is called. */
+    /**
+     * Builds the secure default without generating bytes until generate() is called.
+     *
+     * @param Engine|null $engine Optional injected entropy engine; null selects the secure production engine.
+     *
+     * @return IdentifierGeneratorInterface Generator using the injected engine or secure default without requesting bytes during construction.
+     */
     public function create(?Engine $engine = null): IdentifierGeneratorInterface
     {
         return new RandomIdentifierGenerator(new Randomizer($engine ?? new Secure()));

@@ -21,7 +21,12 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 /** Constructs the Symfony transport without sending traffic during composition. */
 final class HttpClientFactory implements HttpClientFactoryInterface
 {
-    /** Returns a fresh transport; request headers and credentials belong to the adapter. */
+    /**
+     * Returns a fresh transport; request headers and credentials belong to the adapter.
+     *
+     * @return HttpClientInterface Fresh HTTP transport without request-specific headers, credentials or network
+     *                             traffic.
+     */
     public function create(): HttpClientInterface
     {
         return HttpClient::create();

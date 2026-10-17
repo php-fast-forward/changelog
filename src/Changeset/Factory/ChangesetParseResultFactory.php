@@ -26,6 +26,10 @@ final readonly class ChangesetParseResultFactory implements ChangesetParseResult
 {
     /**
      * Creates a successful result that retains the canonical filename.
+     *
+     * @param Changeset $changeset Validated fragment, including its canonical filename and persisted effective impact.
+     *
+     * @return ChangesetParseResult Successful parse result retaining the canonical fragment identity and validated value.
      */
     public function valid(Changeset $changeset): ChangesetParseResult
     {
@@ -35,7 +39,10 @@ final readonly class ChangesetParseResultFactory implements ChangesetParseResult
     /**
      * Creates a failed result containing every accumulated diagnostic.
      *
+     * @param string       $id     Canonical fragment filename including .md.
      * @param list<string> $errors fragment-specific validation messages
+     *
+     * @return ChangesetParseResult Failed parse result retaining the fragment identity and every supplied diagnostic.
      */
     public function invalid(string $id, array $errors): ChangesetParseResult
     {

@@ -102,3 +102,7 @@ unrelated approved work. Then refresh one version PR from that recovered base;
 it consumes the complete combined pending set and recalculates its single
 release impact. Do not delete newer fragments, bypass publication checks, move
 a tag or create a competing version branch to force the old plan through.
+
+---
+
+[Documentation index](index.md)

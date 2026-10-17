@@ -21,7 +21,13 @@ use InvalidArgumentException;
 /** Constructs path-policy exceptions at the object-construction boundary. */
 final readonly class PathExceptionFactory implements PathExceptionFactoryInterface
 {
-    /** Identifies the rejected path without performing any inspection or I/O. */
+    /**
+     * Identifies the rejected path without performing any inspection or I/O.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return InvalidArgumentException Controlled diagnostic identifying the rejected managed path.
+     */
     public function create(string $path): InvalidArgumentException
     {
         return new InvalidArgumentException(sprintf(

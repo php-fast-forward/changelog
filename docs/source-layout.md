@@ -52,12 +52,15 @@ are introduced.
 | `GitHub\Factory\HttpClientFactory` and `HttpClientFactoryInterface` | `Http\Factory\HttpClientFactory` and `HttpClientFactoryInterface` |
 | `Release\ReleaseNotesRenderer` and `ReleaseNotesRendererInterface` | `Release\Renderer\ReleaseNotesRenderer` and `ReleaseNotesRendererInterface` |
 
-The audit inspected all 169 source declarations and their contracts. It moves
-nine declarations and five corresponding unit-test files, without adding runtime
-types or changing method bodies. Source and tests continue to share the single
-root [development contract](../AGENTS.md); these ordinary folders need no child
+Source declarations, composition keys and corresponding unit-test namespaces
+use these canonical names together. Source and tests share the single root
+[development contract](https://github.com/php-fast-forward/changelog/blob/main/AGENTS.md); these ordinary folders need no child
 instruction files.
 
 See the [Git/GitHub dependency assessment](integration-dependencies.md) for engine
-reuse and the [development scripts guide](../scripts/README.md) for maintenance
+reuse and the [development scripts guide](https://github.com/php-fast-forward/changelog/blob/main/scripts/README.md) for maintenance
 tools outside the production CLI.
+
+---
+
+[Documentation index](index.md)

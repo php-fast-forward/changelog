@@ -20,7 +20,13 @@ use InvalidArgumentException;
 /** Constructs history diagnostics at the explicit exception-construction boundary. */
 final class HistoryExceptionFactory implements HistoryExceptionFactoryInterface
 {
-    /** Creates the requested deterministic diagnostic. */
+    /**
+     * Creates the requested deterministic diagnostic.
+     *
+     * @param string $message Diagnostic text retained in the domain exception.
+     *
+     * @return InvalidArgumentException Invalid-input exception retaining the explicit domain diagnostic.
+     */
     public function invalid(string $message): InvalidArgumentException
     {
         return new InvalidArgumentException($message);

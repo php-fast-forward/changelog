@@ -57,6 +57,8 @@ final readonly class Changeset
 
     /**
      * Returns the persisted effective impact; an explicit value overrides its category.
+     *
+     * @return VersionImpact Persisted explicit impact or the materialized category default.
      */
     public function effectiveImpact(): VersionImpact
     {

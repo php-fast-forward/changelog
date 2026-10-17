@@ -21,6 +21,12 @@ use FastForward\Changelog\Release\ReleaseReceipt;
 /** Constructs typed receipts from evidence already validated by the codec. */
 interface ReleaseReceiptFactoryInterface
 {
-    /** Wraps the approved immutable receipt data. */
+    /**
+     * Wraps the approved immutable receipt data.
+     *
+     * @param array<string,mixed> $data Complete recovery evidence already validated against the receipt schema.
+     *
+     * @return ReleaseReceipt Immutable wrapper around already validated recovery evidence.
+     */
     public function create(array $data): ReleaseReceipt;
 }

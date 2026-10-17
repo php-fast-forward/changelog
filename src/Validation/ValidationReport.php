@@ -28,6 +28,7 @@ final readonly class ValidationReport
      *
      * @param list<Changeset>             $changesets every fragment that parsed successfully
      * @param array<string, list<string>> $errors     diagnostics keyed by fragment ID or context
+     * @param bool                        $waived     Whether a verified absence-of-new-contribution waiver was applied; schema failures remain blocking.
      * @param array<string,string>        $hashes     hashes of the exact bytes accepted by the parser
      */
     public function __construct(
@@ -39,6 +40,8 @@ final readonly class ValidationReport
 
     /**
      * Determines whether the complete directory satisfies the selected policy.
+     *
+     * @return bool Whether the aggregate diagnostic map is empty; an authorized waiver cannot hide errors.
      */
     public function isValid(): bool
     {

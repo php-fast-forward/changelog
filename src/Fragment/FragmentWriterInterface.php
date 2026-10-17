@@ -28,7 +28,19 @@ interface FragmentWriterInterface
      * Generated-name collisions retry at most five times. Commit failure MUST
      * preserve the created path and all unrelated working/index state.
      *
-     * @return string                    Absolute path of the created fragment.
+     * @param ReleaseOptions $options       Validated consumer paths, presentation settings and source-selection policy.
+     * @param string         $message       Nonempty author-written Markdown description whose meaningful spaces are preserved.
+     * @param string         $category      Canonical lowercase Keep a Changelog category identifier.
+     * @param string|null    $type          Explicit semantic impact override, or null to materialize the category default.
+     * @param string|null    $name          Optional complete lowercase-dash .md filename; null requests a collision-resistant generated identity.
+     * @param int|null       $issue         Optional positive issue number associated with the fragment.
+     * @param int|null       $pullRequest   Optional positive pull-request number associated with the fragment.
+     * @param string|null    $author        Optional GitHub login to credit, normalized without a leading @.
+     * @param bool           $commit        Whether to commit only the newly created fragment after a successful write.
+     * @param string         $commitMessage Commit text used only when scoped fragment committing is explicitly enabled.
+     *
+     * @return string Absolute path of the created fragment.
+     *
      * @throws \InvalidArgumentException For schema/name/argument failures.
      * @throws \RuntimeException         For I/O, collision exhaustion or commit failures.
      */

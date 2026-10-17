@@ -14,19 +14,28 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Process\Factory;
 
+use Symfony\Component\Process\Exception\LogicException;
 use Symfony\Component\Process\Process;
 
 /** Constructs unstarted processes with an explicit cwd and without automation credentials. */
 final readonly class ProcessFactory implements ProcessFactoryInterface
 {
-    /** Captures the consumer execution root without observing host state. */
+    /**
+     * Captures the consumer execution root without observing host state.
+     *
+     * @param string $workingDirectory Consumer execution root assigned to every constructed child process.
+     */
     public function __construct(
         private string $workingDirectory,
     ) {}
 
     /**
      * Credentials MUST reach only the HTTP boundary, never Git, hooks or configured helper processes.
-     * @param list<string> $command structured executable arguments
+     *
+     * @param  list<string>   $command Executable and structured argv entries used to construct an unstarted process.
+     * @return Process        Unstarted structured process using the configured consumer root and filtered automation
+     *                        credentials.
+     * @throws LogicException When the PHP runtime does not provide proc_open for Symfony Process construction.
      */
     public function create(array $command): Process
     {

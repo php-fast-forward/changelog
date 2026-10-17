@@ -44,6 +44,9 @@ final readonly class ChangesetParser implements ChangesetParserInterface
 
     /**
      * Injects construction boundaries so parsing remains independent of I/O.
+     *
+     * @param ChangesetFactoryInterface            $changesetFactory Constructs normalized fragment values only after schema validation succeeds.
+     * @param ChangesetParseResultFactoryInterface $resultFactory    Builds successful or complete diagnostic-only parse results while retaining fragment identity.
      */
     public function __construct(
         private ChangesetFactoryInterface $changesetFactory,
@@ -56,6 +59,11 @@ final readonly class ChangesetParser implements ChangesetParserInterface
      * Missing type in historical input uses the category default. Explicit type
      * or legacy version overrides it in either direction. Only blank boundary
      * lines are removed from the body; meaningful Markdown whitespace remains.
+     *
+     * @param string $path     Source fragment path whose basename supplies the canonical fragment identity.
+     * @param string $contents Complete fragment Markdown whose restricted scalar frontmatter and body are parsed together.
+     *
+     * @return ChangesetParseResult Validated immutable fragment or the complete independent schema diagnostics, retaining its canonical filename.
      */
     public function parse(string $path, string $contents): ChangesetParseResult
     {
@@ -98,9 +106,48 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             return $this->resultFactory->invalid($id, $errors);
         }
 
+        $metadata = $this->parseMetadata(array_slice($lines, 1, $closingLine - 1), $errors);
+
+        $category = $this->parseCategory($metadata, $errors);
+
+        [$issue, $pullRequest] = $this->parseReferences($metadata, $errors);
+
+        $author = $this->parseAuthor($metadata, $errors);
+
+        $type = $this->parseImpact($metadata, $category, $errors);
+
+        $description = $this->parseDescription(array_slice($lines, $closingLine + 1), $errors);
+
+        if ([] !== $errors) {
+            return $this->resultFactory->invalid($id, $errors);
+        }
+
+        $changeset = $this->changesetFactory->create(
+            $id,
+            $category,
+            $issue,
+            $pullRequest,
+            $author,
+            $description,
+            $type,
+        );
+
+        return $this->resultFactory->valid($changeset);
+    }
+
+    /**
+     * Reads supported scalar metadata while retaining independent schema errors.
+     *
+     * @param list<string> $lines  Frontmatter lines between the two delimiters.
+     * @param list<string> $errors Diagnostics appended in source order.
+     *
+     * @return array<string, string> Canonical keys and their unescaped scalar values.
+     */
+    private function parseMetadata(array $lines, array &$errors): array
+    {
         $metadata = [];
 
-        foreach (array_slice($lines, 1, $closingLine - 1) as $line) {
+        foreach ($lines as $line) {
             if (1 !== preg_match('/^(?<key>[a-z][a-z_-]*):[ ]*(?<value>.*)$/', $line, $matches)) {
                 $errors[] = sprintf('Invalid frontmatter line "%s".', $line);
 
@@ -126,6 +173,19 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $metadata[$key] = $this->parseQuotedScalar(trim($matches['value']));
         }
 
+        return $metadata;
+    }
+
+    /**
+     * Resolves the required category without discarding other diagnostics.
+     *
+     * @param array<string, string> $metadata Parsed frontmatter with canonical key names.
+     * @param list<string>          $errors   Diagnostics appended when category is missing or unknown.
+     *
+     * @return Category|null Recognized category, or null for invalid metadata.
+     */
+    private function parseCategory(array $metadata, array &$errors): ?Category
+    {
         if (! array_key_exists('category', $metadata)) {
             $errors[] = 'Missing required frontmatter key "category".';
         }
@@ -136,6 +196,19 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Category must be one of added, changed, deprecated, removed, fixed, security.';
         }
 
+        return $category;
+    }
+
+    /**
+     * Parses optional issue and pull-request references independently.
+     *
+     * @param array<string, string> $metadata Parsed scalar issue and pull-request fields.
+     * @param list<string>          $errors   Diagnostics appended for nonpositive or malformed references.
+     *
+     * @return array{0: positive-int|null|false, 1: positive-int|null|false} Issue and PR results; false marks an invalid scalar.
+     */
+    private function parseReferences(array $metadata, array &$errors): array
+    {
         $issue = $this->parseReference($metadata['issue'] ?? 'null');
         $pullRequest = $this->parseReference($metadata['pull_request'] ?? 'null');
 
@@ -147,6 +220,19 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Pull request must be a positive integer or null.';
         }
 
+        return [$issue, $pullRequest];
+    }
+
+    /**
+     * Normalizes an optional GitHub login and reports invalid spellings.
+     *
+     * @param array<string, string> $metadata Parsed scalar frontmatter.
+     * @param list<string>          $errors   Diagnostics appended when the supplied login is invalid.
+     *
+     * @return string|null Supplied login without a leading at-sign, or null when omitted.
+     */
+    private function parseAuthor(array $metadata, array &$errors): ?string
+    {
         $author = $metadata['author'] ?? 'null';
         $author = 'null' === $author ? null : (str_starts_with($author, '@') ? substr($author, 1) : $author);
 
@@ -154,6 +240,20 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Author must be a GitHub login or null.';
         }
 
+        return $author;
+    }
+
+    /**
+     * Resolves explicit or inferred impact after checking legacy conflicts.
+     *
+     * @param array<string, string> $metadata Canonical type and optional legacy version fields.
+     * @param Category|null         $category Category whose default applies when impact is omitted.
+     * @param list<string>          $errors   Diagnostics appended for unknown or conflicting impacts.
+     *
+     * @return VersionImpact|null Effective impact, or null when the fields cannot resolve one.
+     */
+    private function parseImpact(array $metadata, ?Category $category, array &$errors): ?VersionImpact
+    {
         $type = null;
 
         foreach (['type', 'version'] as $impactKey) {
@@ -177,8 +277,19 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $type = $category->inferredImpact();
         }
 
-        $body = array_slice($lines, $closingLine + 1);
+        return $type;
+    }
 
+    /**
+     * Trims blank boundary lines while preserving meaningful Markdown bytes.
+     *
+     * @param list<string> $body   Lines following the closing frontmatter delimiter.
+     * @param list<string> $errors Diagnostics appended for empty text or unclosed fences.
+     *
+     * @return string Markdown body with its original internal spacing and line breaks.
+     */
+    private function parseDescription(array $body, array &$errors): string
+    {
         while ([] !== $body && '' === trim($body[0])) {
             array_shift($body);
         }
@@ -198,21 +309,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Fragment code fences must close before the end of their rendered release entry.';
         }
 
-        if ([] !== $errors) {
-            return $this->resultFactory->invalid($id, $errors);
-        }
-
-        $changeset = $this->changesetFactory->create(
-            $id,
-            $category,
-            $issue,
-            $pullRequest,
-            $author,
-            $description,
-            $type,
-        );
-
-        return $this->resultFactory->valid($changeset);
+        return $description;
     }
 
     /**
@@ -220,6 +317,10 @@ final readonly class ChangesetParser implements ChangesetParserInterface
      * Multiline descriptions receive two spaces per line in release notes. Match
      * the history codec's fence rules at that indentation without changing bytes
      * or rejecting deeper indented examples and ordinary inline backtick text.
+     *
+     * @param string $description Validated Markdown description whose meaningful whitespace is retained.
+     *
+     * @return bool Whether the list-wrapped description would leave a structural code fence open across later release content.
      */
     private function hasUnclosedReleaseFence(string $description): bool
     {
@@ -251,7 +352,9 @@ final readonly class ChangesetParser implements ChangesetParserInterface
     /**
      * Reads an optional positive reference without accepting signs or overflow.
      *
-     * @return positive-int|null|false False represents a malformed supplied scalar.
+     * @param string $value Captured terminal line or numeric reference being normalized without unrelated coercion.
+     *
+     * @return positive-int|null|false Positive parsed decimal, null for an omitted/null scalar, or false for malformed or overflowing input.
      */
     private function parseReference(string $value): int|false|null
     {
@@ -271,6 +374,10 @@ final readonly class ChangesetParser implements ChangesetParserInterface
      *
      * Anything else remains unchanged for typed validation to reject; this is
      * deliberately not a general YAML parser or an executable configuration.
+     *
+     * @param string $value Captured terminal line or numeric reference being normalized without unrelated coercion.
+     *
+     * @return string Unquoted simple scalar when supported; otherwise the original spelling for downstream typed validation.
      */
     private function parseQuotedScalar(string $value): string
     {

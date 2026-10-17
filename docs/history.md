@@ -100,8 +100,8 @@ privileged workflows. The codec/template factory themselves load no files.
 The default follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and its [Brazilian Portuguese presentation](https://keepachangelog.com/pt-BR/1.1.0/).
 Verified provenance and the upstream MIT notice remain in
-[template provenance](../src/Template/PROVENANCE.md) and
-[LICENSE.keep-a-changelog](../src/Template/LICENSE.keep-a-changelog).
+[template provenance](https://github.com/php-fast-forward/changelog/blob/main/src/Template/PROVENANCE.md) and
+[LICENSE.keep-a-changelog](https://github.com/php-fast-forward/changelog/blob/main/src/Template/LICENSE.keep-a-changelog).
 
 ## Notes
 
@@ -114,3 +114,7 @@ over Git tags; reachable stable Git tags provide the fallback only when no
 stable maintained section exists. An explicit version may select a prerelease.
 `--output=notes/release.md` exports to a new project-relative file. Existing files,
 the consolidated changelog and all fragment-directory paths are refused.
+
+---
+
+[Documentation index](index.md)

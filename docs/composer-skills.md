@@ -89,7 +89,7 @@ ones. Do not assume a noninteractive run will ask for confirmation or add a
 blanket clean hook. Scoped clean only reinstalls currently selected skills; it
 cannot identify a donor already removed from dependencies. Inventory and archive
 only the exact stale package outside discovery before cleanup. The
-[manual copy guide](skills.md#guarded-manual-copy) supplies guarded backup/update/
+[manual copy guide](skills.md) supplies guarded backup/update/
 restore steps. Adjust donor/trust configuration before removing an installer
 copy so the next sync does not recreate it.
 
@@ -104,3 +104,7 @@ The [llm/skills 1.15.0 source](https://github.com/roxblnfk/skills/tree/1.15.0),
 first-party confirmation. The Fast Forward Composer installer handles separate
 resource-bundle packages; changing this CLI library's type to use it would alter
 ordinary runtime installation and is not required for skill distribution.
+
+---
+
+[Documentation index](index.md)

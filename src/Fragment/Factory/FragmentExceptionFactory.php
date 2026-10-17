@@ -23,13 +23,26 @@ use Throwable;
 /** Constructs exceptions only at the explicit construction boundary. */
 final readonly class FragmentExceptionFactory implements FragmentExceptionFactoryInterface
 {
-    /** Describes invalid author input without reading host state or writing files. */
+    /**
+     * Describes invalid author input without reading host state or writing files.
+     *
+     * @param string $message Diagnostic text retained in the domain exception.
+     *
+     * @return InvalidArgumentException Invalid-input exception retaining the explicit domain diagnostic.
+     */
     public function invalid(string $message): InvalidArgumentException
     {
         return new InvalidArgumentException($message);
     }
 
-    /** Retains an integration error as the previous exception for diagnosis. */
+    /**
+     * Retains an integration error as the previous exception for diagnosis.
+     *
+     * @param string         $message  Diagnostic text retained in the domain exception.
+     * @param Throwable|null $previous Original integration failure retained as the exception cause, when supplied.
+     *
+     * @return RuntimeException Recoverable domain failure retaining the diagnostic and optional original cause.
+     */
     public function failure(string $message, ?Throwable $previous = null): RuntimeException
     {
         return new RuntimeException($message, previous: $previous);

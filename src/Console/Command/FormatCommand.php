@@ -27,12 +27,23 @@ use Symfony\Component\Console\Output\OutputInterface;
 )]
 final readonly class FormatCommand
 {
-    /** Captures the transaction runner without planning or applying a release. */
+    /**
+     * Captures the transaction runner without planning or applying a release.
+     *
+     * @param PlanCommandRunnerInterface $runner Coordinates the shared operation while keeping command-specific adapters thin.
+     */
     public function __construct(
         private PlanCommandRunnerInterface $runner,
     ) {}
 
-    /** Delegates the selected operation through the shared transaction boundary. */
+    /**
+     * Delegates the selected operation through the shared transaction boundary.
+     *
+     * @param MutationInput   $input  Shared release settings and mutually exclusive dry-run/check mode flags.
+     * @param OutputInterface $output Output stream receiving machine results or controlled command diagnostics.
+     *
+     * @return int Symfony exit status reflecting the command's result or controlled input/operation failure.
+     */
     public function __invoke(#[MapInput] MutationInput $input, OutputInterface $output): int
     {
         return $this->runner->run($input, 'format', $output);

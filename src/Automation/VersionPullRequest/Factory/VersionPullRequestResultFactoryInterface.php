@@ -20,7 +20,20 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestResult
 /** Concentrates immutable automation outcome and diagnostic construction without external effects. */
 interface VersionPullRequestResultFactoryInterface
 {
-    /** Retains explicitly validated data without inspecting host or GitHub state. */
+    /**
+     * Retains explicitly validated data without inspecting host or GitHub state.
+     *
+     * @param  string                   $status      Operation outcome used to distinguish success from refusal or a possible partial write.
+     * @param  ?int                     $prNumber    Positive pull-request number whose live authority and head are inspected.
+     * @param  ?string                  $url         Confirmed HTTPS PR or release URL, or null when no remote object is available.
+     * @param  ?string                  $headSha     Immutable generated PR head whose ownership and committed output must be proved.
+     * @param  ?string                  $planId      Validated deterministic transaction hash, or null when no plan was constructed.
+     * @param  ?string                  $version     Planned next semantic version, or null when the transaction does not prepare a release.
+     * @param  bool                     $maintenance Whether the known transaction maintains history without publishing a new version.
+     * @param  list<string>             $diagnostics Controlled explanations for refusal, conflict or exceptional authorization
+     *                                               state.
+     * @return VersionPullRequestResult Typed result preserving the known transaction and remote state.
+     */
     public function create(
         string $status,
         ?int $prNumber = null,

@@ -23,13 +23,27 @@ use Throwable;
 /** Provides replaceable construction for release diagnostics. */
 final readonly class ReleaseExceptionFactory implements ReleaseExceptionFactoryInterface
 {
-    /** Returns the supplied explicit-input diagnostic unchanged. */
+    /**
+     * Returns the supplied explicit-input diagnostic unchanged.
+     *
+     * @param string         $message  Diagnostic text retained in the domain exception.
+     * @param Throwable|null $previous Original integration failure retained as the exception cause, when supplied.
+     *
+     * @return InvalidArgumentException Invalid-input exception retaining the explicit domain diagnostic.
+     */
     public function invalid(string $message, ?Throwable $previous = null): InvalidArgumentException
     {
         return new InvalidArgumentException($message, previous: $previous);
     }
 
-    /** Constructs a recoverable transaction failure, retaining its original cause. */
+    /**
+     * Constructs a recoverable transaction failure, retaining its original cause.
+     *
+     * @param string         $message  Diagnostic text retained in the domain exception.
+     * @param Throwable|null $previous Original integration failure retained as the exception cause, when supplied.
+     *
+     * @return RuntimeException Recoverable domain failure retaining the diagnostic and optional original cause.
+     */
     public function failure(string $message, ?Throwable $previous = null): RuntimeException
     {
         return new RuntimeException($message, 0, $previous);

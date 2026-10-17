@@ -24,7 +24,12 @@ interface ReleaseNotesRendererInterface
 {
     /**
      * Groups changes deterministically without translating author-written descriptions.
-     * @param list<Changeset> $changesets validated fragments
+     *
+     * @param list<Changeset>   $changesets validated fragments
+     * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
+     * @param string|null       $repository Optional GitHub owner/name used for source selection and reference links.
+     *
+     * @return string Deterministically category-grouped release body preserving authored descriptions and optional references.
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string;
 }

@@ -27,7 +27,12 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * Renders descriptions and references without leaking technical fragment metadata.
      * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
      * Prose starts beside its list marker; an opening fence keeps its existing block wrapper for history parsing.
-     * @param list<Changeset> $changesets independent author records
+     *
+     * @param list<Changeset>   $changesets independent author records
+     * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
+     * @param string|null       $repository Optional GitHub owner/name used for source selection and reference links.
+     *
+     * @return string Deterministically category-grouped release body preserving authored descriptions and optional references.
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
     {
@@ -56,7 +61,14 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         return [] === $sections ? '' : implode("\n\n", $sections) . "\n";
     }
 
-    /** Links trusted numeric references when a repository is known, retaining plain references otherwise. */
+    /**
+     * Links trusted numeric references when a repository is known, retaining plain references otherwise.
+     *
+     * @param Changeset   $change     Validated fragment whose optional issue, pull-request and author references are rendered.
+     * @param string|null $repository Optional GitHub owner/name used for source selection and reference links.
+     *
+     * @return string Rendered issue, pull-request and author references, using repository links when available.
+     */
     private function references(Changeset $change, ?string $repository): string
     {
         $references = [];

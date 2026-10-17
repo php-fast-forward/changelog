@@ -20,6 +20,17 @@ use FastForward\Changelog\GitHub\GitHubClientInterface;
 /** Composes a GitHub adapter from explicit credentials and a trusted API base. */
 interface GitHubClientFactoryInterface
 {
-    /** Creates the adapter without discovering credentials from host environment or files. */
-    public function create(string $token = '', string $apiUrl = 'https://api.github.com'): GitHubClientInterface;
+    /**
+     * Creates the adapter without discovering credentials from host environment or files.
+     *
+     * @param  string                $token  Explicit API credential retained only by the HTTP adapter; empty means unauthenticated
+     *                                       requests.
+     * @param  string                $apiUrl Trusted HTTPS REST API base, including an Enterprise Server /api/v3 prefix when applicable.
+     * @return GitHubClientInterface GitHub adapter configured from explicit transport, credential and origin settings;
+     *                               no request starts.
+     */
+    public function create(
+        string $token = '',
+        string $apiUrl = 'https://api.github.com',
+    ): GitHubClientInterface;
 }

@@ -103,6 +103,7 @@ $lifecycle = Yaml::parseFile($root . '/.github/workflows/changelog.yml');
 $repository = Yaml::parseFile($root . '/.github/workflows/repository-changelog.yml');
 $repositoryCi = Yaml::parseFile($root . '/.github/workflows/repository-ci.yml');
 $repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.yml');
+$repositoryDocumentation = Yaml::parseFile($root . '/.github/workflows/repository-documentation.yml');
 $assertions = 0;
 
 verifyWorkflow(
@@ -230,10 +231,41 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    10 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and three repository workflows must remain distinct.',
+    11 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and four repository workflows must remain distinct.',
 );
 $assertions += 6;
+
+verifyWorkflow(
+    'Repository: Documentation' === $repositoryDocumentation['name']
+        && ['contents' => 'read'] === $repositoryDocumentation['permissions']
+        && ['pull_request', 'push', 'workflow_dispatch'] === array_keys($repositoryDocumentation['on'])
+        && ['main'] === $repositoryDocumentation['on']['push']['branches']
+        && ['documentation'] === array_keys($repositoryDocumentation['jobs']),
+    'Documentation must build repository sources with read-only permissions and no publication job.',
+);
+$documentation = $repositoryDocumentation['jobs']['documentation'];
+verifyWorkflow(
+    'ubuntu-latest' === $documentation['runs-on']
+        && ! isset($documentation['permissions'])
+        && ! isset($documentation['secrets'])
+        && false === workflowStep($documentation, 'Check Out Repository')['with']['persist-credentials']
+        && 'composer docs:build' === workflowStep($documentation, 'Build Guides And PHP API Reference')['run'],
+    'The documentation runner must build the checked-out revision without persisted repository credentials.',
+);
+$documentationArtifact = workflowStep($documentation, 'Upload Documentation Preview');
+verifyWorkflow(
+    'actions/upload-artifact@v7.0.1' === $documentationArtifact['uses']
+        && '.build/docs' === $documentationArtifact['with']['path']
+        && 'error' === $documentationArtifact['with']['if-no-files-found']
+        && 14 === $documentationArtifact['with']['retention-days']
+        && str_contains(
+            workflowStep($documentation, 'Require Rendered Guides And API')['run'],
+            'test -s .build/docs/namespaces/fastforward-changelog.html',
+        ),
+    'Documentation must require actual rendered output and upload that site as an artifact.',
+);
+$assertions += 3;
 
 // Every public entrypoint must preserve the caller's runner selection through nested jobs.
 foreach (['changelog', 'changelog-check', 'changelog-dependabot', 'changelog-history',
@@ -718,6 +750,23 @@ try {
           jq() { touch unexpected-daemon-operation; return 73; }
         fi
         BASH);
+
+    // GitHub's default Bash runner stops at the first failing output check.
+    $documentationGuard = "set -e\n" . workflowStep($documentation, 'Require Rendered Guides And API')['run'];
+    workflowGuard($documentationGuard, $directory, [], 1);
+
+    foreach (['index.html', 'adoption.html'] as $page) {
+        $filesystem->dumpFile($directory . '/.build/docs/' . $page, '<html>Fixture guide.</html>');
+        workflowGuard($documentationGuard, $directory, [], 1);
+    }
+
+    $apiPage = $directory . '/.build/docs/namespaces/fastforward-changelog.html';
+    $filesystem->dumpFile($apiPage, '');
+    workflowGuard($documentationGuard, $directory, [], 1);
+    $filesystem->dumpFile($apiPage, '<html>Fixture namespace reference.</html>');
+    workflowGuard($documentationGuard, $directory, [], 0);
+    $assertions += 5;
+
     $cache = Yaml::parseFile($root . '/.github/actions/setup-docker/action.yml');
     workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
         'RUNNER_ENVIRONMENT' => 'self-hosted', 'RUNNER_OS' => 'Linux', 'FF_FIXTURE_FORBID_DOCKER' => '1',

@@ -71,21 +71,20 @@ requires approval for workflows on generated PRs; this does not enable release p
 
 ## 🛠️ CLI
 
-For local authoring and release maintenance, install a release or reviewed
-revision containing these commands. PHP `^8.5` and Composer are required.
-Until that release is published, select `fast-forward/changelog:dev-main` for the current CLI.
-Choose a project installation:
+For local authoring and release maintenance, the Composer distribution exposes
+`vendor/bin/changelog`; a global Composer installation exposes `changelog`.
+PHP `^8.5` and Composer are required. Select a compatible release or reviewed
+immutable source revision under the consuming project's installation policy.
+Run from the project you want to maintain:
 
 ```sh
-composer require --dev fast-forward/changelog:dev-main
 vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
 vendor/bin/changelog check --no-interaction
 ```
 
-Or install globally and run from the repository you want to maintain:
+For a global installation:
 
 ```sh
-composer global require fast-forward/changelog:dev-main
 changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
 changelog check --no-interaction
 ```
@@ -125,6 +124,6 @@ MIT © 2026 [Felipe Sayao Lobato Abreu](https://github.com/coisa). See [LICENSE]
 
 ## 🔗 Links
 
-[Documentation](docs/index.rst) · [Packagist](https://packagist.org/packages/fast-forward/changelog) ·
+[Documentation](docs/index.md) · [Packagist](https://packagist.org/packages/fast-forward/changelog) ·
 [Issues](https://github.com/php-fast-forward/changelog/issues) · [Support](SUPPORT.md) ·
 [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md)

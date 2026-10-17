@@ -21,7 +21,13 @@ use FastForward\Changelog\Release\ReleaseReceipt;
 /** Creates typed release evidence at the explicit construction boundary. */
 final readonly class ReleaseReceiptFactory implements ReleaseReceiptFactoryInterface
 {
-    /** Captures validated data without generating or consulting host state. */
+    /**
+     * Captures validated data without generating or consulting host state.
+     *
+     * @param array<string,mixed> $data Complete recovery evidence already validated against the receipt schema.
+     *
+     * @return ReleaseReceipt Immutable wrapper around already validated recovery evidence.
+     */
     public function create(array $data): ReleaseReceipt
     {
         return new ReleaseReceipt($data);

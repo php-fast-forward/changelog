@@ -26,7 +26,15 @@ use FastForward\Changelog\Template\Factory\TemplateFactoryInterface;
 /** Reads custom PHP only after explicit selection and the managed-path preflight. */
 final readonly class TemplateResolver implements TemplateResolverInterface
 {
-    /** Injects template construction, consumer paths and substitutable config/file boundaries. */
+    /**
+     * Injects template construction, consumer paths and substitutable config/file boundaries.
+     *
+     * @param TemplateFactoryInterface         $templates  Constructs validated localized presentation from built-in defaults and explicit overrides.
+     * @param PackagePathResolverInterface     $paths      Resolves explicit consumer paths without filesystem observation.
+     * @param ManagedFileStoreInterface        $files      Reads and writes guarded managed bytes through an injected filesystem boundary.
+     * @param ConfigSourceFactoryInterface     $sources    Constructs explicitly selected PHP configuration sources without implicit defaults files.
+     * @param ReleaseExceptionFactoryInterface $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     */
     public function __construct(
         private TemplateFactoryInterface $templates,
         private PackagePathResolverInterface $paths,
@@ -35,7 +43,16 @@ final readonly class TemplateResolver implements TemplateResolverInterface
         private ReleaseExceptionFactoryInterface $exceptions,
     ) {}
 
-    /** Loads custom overrides only when requested; privileged callers MUST select a trusted base. */
+    /**
+     * Loads custom overrides only when requested; privileged callers MUST select a trusted base.
+     *
+     * @param ReleaseOptions $options Validated consumer paths, presentation settings and source-selection policy.
+     *
+     * @return TemplateInterface Validated presentation from built-in defaults and only explicitly selected trusted PHP overrides.
+     *
+     * @throws \InvalidArgumentException When the locale, selected template file or override structure is invalid.
+     * @throws \RuntimeException         When guarded access to the selected managed path fails.
+     */
     public function resolve(ReleaseOptions $options): TemplateInterface
     {
         if ('keep-a-changelog' === $options->template) {

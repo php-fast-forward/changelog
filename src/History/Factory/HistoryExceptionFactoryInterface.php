@@ -20,6 +20,12 @@ use InvalidArgumentException;
 /** Constructs deterministic history diagnostics without performing I/O. */
 interface HistoryExceptionFactoryInterface
 {
-    /** Creates an exception describing an unsupported or ambiguous history. */
+    /**
+     * Creates an exception describing an unsupported or ambiguous history.
+     *
+     * @param string $message Diagnostic text retained in the domain exception.
+     *
+     * @return InvalidArgumentException Invalid-input exception retaining the explicit domain diagnostic.
+     */
     public function invalid(string $message): InvalidArgumentException;
 }

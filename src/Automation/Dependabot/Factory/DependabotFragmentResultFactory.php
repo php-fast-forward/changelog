@@ -20,7 +20,17 @@ use FastForward\Changelog\Automation\Dependabot\DependabotFragmentResult;
 /** Concentrates immutable API-operation result construction. */
 final class DependabotFragmentResultFactory implements DependabotFragmentResultFactoryInterface
 {
-    /** Preserves whether a mutation occurred and any safe actionable diagnostic. */
+    /**
+     * Preserves whether a mutation occurred and any safe actionable diagnostic.
+     *
+     * @param  string                   $status      Operation outcome used to distinguish success from refusal or a possible partial write.
+     * @param  string                   $path        Canonical repository-relative managed path selected for this operation.
+     * @param  ?string                  $commitSha   Confirmed fragment commit identity, or null when no commit is known to have been
+     *                                               created.
+     * @param  list<string>             $diagnostics Controlled explanations for refusal, conflict or exceptional authorization
+     *                                               state.
+     * @return DependabotFragmentResult Typed create-only fragment outcome and any confirmed commit identity.
+     */
     public function create(
         string $status,
         string $path,

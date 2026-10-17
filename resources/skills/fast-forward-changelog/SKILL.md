@@ -131,6 +131,29 @@ vendor/bin/changelog status --json --source=tags --no-interaction
 Inspect the generated path: creation adds exactly one fragment without changing
 central history. Empty local inventory is valid; inherited notes do not satisfy
 a new contribution.
+
+When the contribution already has a PR, prefer recording its verified number
+with `add --pull-request=<number>` or `pull_request: <number>` in frontmatter.
+Read the actual PR through the application's existing GitHub tooling, API or
+browser. Confirm its repository, head branch and complete head SHA correspond
+to this contribution, then take the positive number from that PR's canonical
+URL or trusted metadata. An issue number, branch suffix or commit message is
+not sufficient evidence.
+
+With `PULL_REQUEST` set to that verified number, author the same contribution
+with its link:
+
+```sh
+vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+```
+
+If the PR does not exist yet, keep the field absent. Once it is opened, verify
+its identity and add only `pull_request: <number>` to this contribution's
+existing newly added fragment, preserving its other metadata and body. Do not
+create a duplicate note to add the link. Commit that update only under the
+task's existing authority. Unknown PR metadata stays optional and must never
+block authoring or be filled with an invented number.
+
 Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
 history. `status` is read-only. Successful commands exit `0`; invalid arguments
 exit `2`, validation/operational failures exit `1`. Fix all diagnostics and rerun

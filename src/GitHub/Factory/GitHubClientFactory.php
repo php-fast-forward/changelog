@@ -22,15 +22,32 @@ use FastForward\Changelog\Http\Factory\HttpClientFactoryInterface;
 /** Centralizes concrete adapter construction while retaining mocked transport boundaries. */
 final readonly class GitHubClientFactory implements GitHubClientFactoryInterface
 {
-    /** Injects transport and diagnostic construction without reading host credentials. */
+    /**
+     * Injects transport and diagnostic construction without reading host credentials.
+     *
+     * @param HttpClientFactoryInterface      $clients    Factory for replaceable HTTP transports, separate from each adapter's
+     *                                                    API credentials.
+     * @param GitHubExceptionFactoryInterface $exceptions Constructor for controlled API diagnostics that withhold raw
+     *                                                    responses and credentials.
+     */
     public function __construct(
         private HttpClientFactoryInterface $clients,
         private GitHubExceptionFactoryInterface $exceptions,
     ) {}
 
-    /** Builds an adapter from caller-selected credentials and API origin. */
-    public function create(string $token = '', string $apiUrl = 'https://api.github.com'): GitHubClientInterface
-    {
+    /**
+     * Builds an adapter from caller-selected credentials and API origin.
+     *
+     * @param  string                $token  Explicit API credential retained only by the HTTP adapter; empty means unauthenticated
+     *                                       requests.
+     * @param  string                $apiUrl Trusted HTTPS REST API base, including an Enterprise Server /api/v3 prefix when applicable.
+     * @return GitHubClientInterface GitHub adapter configured from explicit transport, credential and origin settings;
+     *                               no request starts.
+     */
+    public function create(
+        string $token = '',
+        string $apiUrl = 'https://api.github.com',
+    ): GitHubClientInterface {
         return new GitHubClient($this->clients->create(), $this->exceptions, $token, $apiUrl);
     }
 }

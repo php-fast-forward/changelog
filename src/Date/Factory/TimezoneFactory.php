@@ -21,7 +21,11 @@ use DateTimeZone;
 /** Constructs the explicit UTC value used by release-date presentation and the runtime clock. */
 final readonly class TimezoneFactory
 {
-    /** Returns UTC without observing the host timezone, clock or environment. */
+    /**
+     * Returns UTC without observing the host timezone, clock or environment.
+     *
+     * @return DateTimeZone UTC timezone independent of the process timezone, environment and current clock.
+     */
     public function create(): DateTimeZone
     {
         return new DateTimeZone('UTC');

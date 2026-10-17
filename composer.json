@@ -59,9 +59,12 @@
     },
     "require-dev": {
         "ext-simplexml": "*",
+        "fast-forward/phpdoc-bootstrap-template": "^2.1",
         "nikic/php-parser": "^5.9",
         "phpspec/prophecy": "^1.26",
         "phpspec/prophecy-phpunit": "^2.5",
+        "phpdocumentor/shim": "^3.10",
+        "phpstan/phpdoc-parser": "^2.3",
         "phpunit/php-code-coverage": "^13.0",
         "phpunit/phpunit": "^13.0",
         "rector/rector": "^2.6",
@@ -90,7 +93,9 @@
             "php": "8.5.0"
         },
         "sort-packages": true,
-        "allow-plugins": false
+        "allow-plugins": {
+            "phpdocumentor/shim": true
+        }
     },
     "extra": {
         "skills": {
@@ -112,6 +117,7 @@
         ],
         "lint": "@php scripts/lint.php",
         "phpdoc": "@php scripts/phpdoc.php",
+        "docs:build": "@php vendor/bin/phpdoc --config=phpdoc.dist.xml --no-progress",
         "coverage:check": "@test:coverage",
         "quality:verify": "@php scripts/verify-quality.php",
         "rector": "rector process --dry-run",

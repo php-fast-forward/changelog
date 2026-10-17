@@ -29,7 +29,16 @@ use Throwable;
 /** Creates a validated fragment and delegates strictly scoped optional Git commits. */
 final readonly class FragmentWriter implements FragmentWriterInterface
 {
-    /** Injects all schema, persistence, entropy, Git and failure-construction boundaries. */
+    /**
+     * Injects all schema, persistence, entropy, Git and failure-construction boundaries.
+     *
+     * @param ChangesetParserInterface          $parser      Validates the complete fragment schema while preserving all independent diagnostics.
+     * @param ChangesetRendererInterface        $renderer    Produces canonical fragment frontmatter while preserving validated Markdown body bytes.
+     * @param ChangesetStoreInterface           $store       Performs guarded fragment creation without replacing a sibling identifier.
+     * @param IdentifierGeneratorInterface      $identifiers Supplies canonical collision-resistant filenames without entropy reads during composition.
+     * @param GitRepositoryInterface            $git         Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     * @param FragmentExceptionFactoryInterface $exceptions  Constructs controlled domain diagnostics without exposing underlying host details.
+     */
     public function __construct(
         private ChangesetParserInterface $parser,
         private ChangesetRendererInterface $renderer,
@@ -44,6 +53,22 @@ final readonly class FragmentWriter implements FragmentWriterInterface
      *
      * Git is invoked only after successful creation and only when commit is true.
      * It receives one repository-relative path; it never receives unrelated files.
+     *
+     * @param ReleaseOptions $options       Validated consumer paths, presentation settings and source-selection policy.
+     * @param string         $message       Nonempty author-written Markdown description whose meaningful spaces are preserved.
+     * @param string         $category      Canonical lowercase Keep a Changelog category identifier.
+     * @param string|null    $type          Explicit semantic impact override, or null to materialize the category default.
+     * @param string|null    $name          Optional complete lowercase-dash .md filename; null permits up to five generated-name attempts.
+     * @param int|null       $issue         Optional positive issue number associated with the fragment.
+     * @param int|null       $pullRequest   Optional positive pull-request number associated with the fragment.
+     * @param string|null    $author        Optional GitHub login to credit, normalized without a leading @.
+     * @param bool           $commit        Whether to commit only the newly created fragment after a successful write.
+     * @param string         $commitMessage Commit text used only when scoped fragment committing is explicitly enabled.
+     *
+     * @return string Absolute path of the new fragment after creation and any requested commit succeed.
+     *
+     * @throws \InvalidArgumentException When description, metadata, filename or an enabled commit message violates the fragment schema.
+     * @throws \RuntimeException         When creation, collision retries or the optional scoped commit fails; a successfully created fragment remains available.
      */
     public function add(
         ReleaseOptions $options,
@@ -86,31 +111,8 @@ final readonly class FragmentWriter implements FragmentWriterInterface
         for ($attempt = 0; $attempt < $attempts; ++$attempt) {
             $id = $name ?? $this->identifiers->generate();
 
-            if (1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, $id)) {
-                throw $this->exceptions->invalid(
-                    sprintf('Invalid fragment name "%s": use lowercase dash segments and .md.', $id),
-                );
-            }
-
             $path = $directory . '/' . $id;
-            $parsed = $this->parser->parse($path, $input);
-
-            if (! $parsed->isValid()) {
-                throw $this->exceptions->invalid(
-                    sprintf('Invalid fragment "%s": %s', $path, implode(' ', $parsed->errors)),
-                );
-            }
-
-            $contents = $this->renderer->render($parsed->changeset);
-
-            try {
-                $result = $this->store->write($path, $contents);
-            } catch (Throwable $failure) {
-                throw $this->exceptions->failure(
-                    sprintf('Cannot create fragment "%s": %s', $path, $failure->getMessage()),
-                    $failure,
-                );
-            }
+            $result = $this->writeFragment($path, $id, $input);
 
             if (WriteResult::Existing === $result && null === $name) {
                 continue;
@@ -121,20 +123,7 @@ final readonly class FragmentWriter implements FragmentWriterInterface
             }
 
             if ($commit) {
-                $relative = trim(str_replace('\\', '/', $options->fragmentDirectory), '/') . '/' . $id;
-
-                try {
-                    $this->git->commitFragment($options->workingDirectory, $relative, $commitMessage);
-                } catch (Throwable $failure) {
-                    throw $this->exceptions->failure(
-                        sprintf(
-                            'Created fragment "%s", but its commit failed: %s. The fragment is preserved for recovery.',
-                            $path,
-                            $failure->getMessage(),
-                        ),
-                        $failure,
-                    );
-                }
+                $this->commitFragment($options, $id, $path, $commitMessage);
             }
 
             return $path;
@@ -146,5 +135,71 @@ final readonly class FragmentWriter implements FragmentWriterInterface
                 $directory,
             ),
         );
+    }
+
+    /**
+     * Validates one identifier and fragment before attempting its guarded creation.
+     *
+     * @param  string                    $path  Absolute destination for the current identifier attempt.
+     * @param  string                    $id    Explicit or generated complete fragment filename.
+     * @param  string                    $input Candidate frontmatter and Markdown description.
+     * @return WriteResult               Store outcome; the caller decides whether a collision permits retry.
+     * @throws \InvalidArgumentException When the filename or complete fragment schema is invalid.
+     * @throws \RuntimeException         When persistence throws, retaining the original failure as the cause.
+     */
+    private function writeFragment(string $path, string $id, string $input): WriteResult
+    {
+        if (1 !== preg_match(ChangesetParserInterface::FILENAME_PATTERN, $id)) {
+            throw $this->exceptions->invalid(
+                sprintf('Invalid fragment name "%s": use lowercase dash segments and .md.', $id),
+            );
+        }
+
+        $parsed = $this->parser->parse($path, $input);
+
+        if (! $parsed->isValid()) {
+            throw $this->exceptions->invalid(
+                sprintf('Invalid fragment "%s": %s', $path, implode(' ', $parsed->errors)),
+            );
+        }
+
+        $contents = $this->renderer->render($parsed->changeset);
+
+        try {
+            return $this->store->write($path, $contents);
+        } catch (Throwable $failure) {
+            throw $this->exceptions->failure(
+                sprintf('Cannot create fragment "%s": %s', $path, $failure->getMessage()),
+                $failure,
+            );
+        }
+    }
+
+    /**
+     * Commits only the successfully created fragment, preserving it when Git fails.
+     *
+     * @param  ReleaseOptions    $options Consumer working directory and relative fragment directory.
+     * @param  string            $id      Complete filename of the newly created fragment.
+     * @param  string            $path    Absolute created path retained in the recovery diagnostic.
+     * @param  string            $message Already validated commit message.
+     * @return void              Completes after the scoped commit succeeds.
+     * @throws \RuntimeException When Git fails; the created fragment remains available for recovery.
+     */
+    private function commitFragment(ReleaseOptions $options, string $id, string $path, string $message): void
+    {
+        $relative = trim(str_replace('\\', '/', $options->fragmentDirectory), '/') . '/' . $id;
+
+        try {
+            $this->git->commitFragment($options->workingDirectory, $relative, $message);
+        } catch (Throwable $failure) {
+            throw $this->exceptions->failure(
+                sprintf(
+                    'Created fragment "%s", but its commit failed: %s. The fragment is preserved for recovery.',
+                    $path,
+                    $failure->getMessage(),
+                ),
+                $failure,
+            );
+        }
     }
 }

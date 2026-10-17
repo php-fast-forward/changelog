@@ -21,6 +21,12 @@ use InvalidArgumentException;
 /** Defines construction of path-policy failures without filesystem access. */
 interface PathExceptionFactoryInterface
 {
-    /** Returns a diagnostic for an unsafe managed path without changing it. */
+    /**
+     * Returns a diagnostic for an unsafe managed path without changing it.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return InvalidArgumentException Controlled diagnostic identifying the rejected managed path.
+     */
     public function create(string $path): InvalidArgumentException;
 }

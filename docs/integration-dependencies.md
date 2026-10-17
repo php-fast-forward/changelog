@@ -62,3 +62,7 @@ error behavior. Preserve every existing safety and exact-history fixture, add
 cases for any newly supported transport behavior, and use explicit retry policy
 for reads and writes. Maintained dependencies improve their own responsibility;
 their adoption still requires evidence for the package's contract.
+
+---
+
+[Documentation index](index.md)

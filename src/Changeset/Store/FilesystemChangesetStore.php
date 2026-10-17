@@ -34,6 +34,11 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
 {
     /**
      * Injects filesystem, discovery, locking and exception-construction boundaries.
+     *
+     * @param Filesystem                    $filesystem       Symfony filesystem boundary used for managed file operations.
+     * @param FinderFactoryInterface        $finderFactory    Creates an unconfigured Finder so traversal occurs only during explicit discovery.
+     * @param LockFactory                   $lockFactory      Builds cooperative directory locks shared by fragment writers and managed release operations.
+     * @param PathExceptionFactoryInterface $exceptionFactory Constructs controlled validation diagnostics without performing the operation itself.
      */
     public function __construct(
         private Filesystem $filesystem,
@@ -47,6 +52,12 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
      *
      * Equivalent separator/dot spellings share a lock. Parent traversal and
      * relative paths fail before a lock can be constructed.
+     *
+     * @param string $directory Absolute fragment-discovery directory shared by cooperating transactions.
+     *
+     * @return string Stable directory-scoped lock resource shared by fragment creation and release application.
+     *
+     * @throws \InvalidArgumentException When the directory is not a supported canonical absolute path.
      */
     public function lockResource(string $directory): string
     {
@@ -61,6 +72,10 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
 
     /**
      * Checks the immutable filename, every symbolic ancestor and existing target.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return WriteResult Whether the exact path is available, already exists or violates the managed-path policy.
      */
     public function inspectWrite(string $path): WriteResult
     {
@@ -82,6 +97,8 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
      * Only the root-level AGENTS.md is reserved. Validation owns diagnostics
      * for all other candidates. An absent directory is a read-only empty result.
      * Converts native separators without collapsing invalid path segments.
+     *
+     * @param string $directory Absolute fragment-discovery directory shared by cooperating transactions.
      *
      * @return list<string>|null Paths, or null for unsafe root ancestry.
      */
@@ -119,6 +136,12 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
 
     /**
      * Reads original contents only after every ancestor passes symbolic checks.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return string|null Exact regular fragment bytes, or null when path normalization or symbolic ancestry is unsafe.
+     *
+     * @throws \Symfony\Component\Filesystem\Exception\IOExceptionInterface When a regular fragment cannot be read after path preflight.
      */
     public function read(string $path): ?string
     {
@@ -136,6 +159,13 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
      *
      * A cooperating second writer observes Existing. Locks are released on every
      * result and exception; a failed write leaves its recoverable filesystem state.
+     *
+     * @param string $path     Caller-selected managed path, validated before filesystem effects.
+     * @param string $contents Exact managed-file bytes supplied by the caller.
+     *
+     * @return WriteResult Creation outcome distinguishing a written fragment, a collision, an unsafe path or lock failure.
+     *
+     * @throws \Symfony\Component\Filesystem\Exception\IOExceptionInterface When directory creation or the guarded new-file write fails.
      */
     public function write(string $path, string $contents): WriteResult
     {
@@ -183,6 +213,11 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
      * The caller holds lockResource(directory) throughout release application.
      *
      * @param list<string> $paths Exact consumed fragment paths from a release plan.
+     *
+     * @return void Completion after the selected files are removed or confirmed absent.
+     *
+     * @throws \InvalidArgumentException                                    When any explicitly selected path is invalid or has symbolic ancestry.
+     * @throws \Symfony\Component\Filesystem\Exception\IOExceptionInterface When a preflighted selected fragment cannot be removed.
      */
     public function remove(array $paths): void
     {
@@ -208,6 +243,10 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
 
     /**
      * Walks the final path and every ancestor through the injected filesystem.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return bool Whether the target itself or any observed ancestor is a symbolic link.
      */
     private function isUnsafePath(string $path): bool
     {
@@ -239,6 +278,10 @@ final readonly class FilesystemChangesetStore implements ChangesetStoreInterface
      *
      * Lexical validation performs no filesystem/host-state access. The caller
      * resolves cwd at composition time and provides its physical absolute root.
+     *
+     * @param string $path Caller-selected managed path, validated before filesystem effects.
+     *
+     * @return string|null Normalized absolute POSIX, drive or UNC path, or null for traversal, NUL bytes or relative syntax.
      */
     private function normalizePath(string $path): ?string
     {

@@ -31,13 +31,26 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         'tagPrefix' => 'v', 'repository' => null, 'source' => 'auto',
     ];
 
-    /** Injects consumer paths and a read-only Git boundary without consulting configuration or host state. */
+    /**
+     * Injects consumer paths and a read-only Git boundary without consulting configuration or host state.
+     *
+     * @param PackagePathResolverInterface $paths Resolves explicit consumer paths without filesystem observation.
+     * @param GitRepositoryInterface       $git   Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     */
     public function __construct(
         private PackagePathResolverInterface $paths,
         private GitRepositoryInterface $git,
     ) {}
 
-    /** Applies explicit values to defaults; paths to managed files MUST stay in the project. */
+    /**
+     * Applies explicit values to defaults; paths to managed files MUST stay in the project.
+     *
+     * @param array<string,mixed> $values Explicit settings merged after defaults and rejected when unknown or malformed.
+     *
+     * @return ReleaseOptions Validated consumer settings after built-in defaults and explicit values are resolved.
+     *
+     * @throws \InvalidArgumentException When settings are unknown, malformed or allow managed paths to escape or overlap the consumer project.
+     */
     public function create(array $values = []): ReleaseOptions
     {
         $unknown = array_diff(array_keys($values), array_keys(self::DEFAULTS));
@@ -125,6 +138,9 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
      * A namespace component MUST NOT be empty, start with a dot or end with .lock; consecutive dots are forbidden.
      * The appended stable SemVer makes a trailing prefix dot or .lock valid in the final component.
      *
+     * @param string $prefix Configured tag prefix whose spelling and appended stable version must form a valid Git ref.
+     *
+     * @return bool Whether the supported prefix and its appended stable version form a valid complete Git ref.
      * @see https://git-scm.com/docs/git-check-ref-format
      */
     private function isValidTagPrefix(string $prefix): bool

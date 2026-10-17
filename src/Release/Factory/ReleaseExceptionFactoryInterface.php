@@ -23,9 +23,23 @@ use Throwable;
 /** Constructs validation and transaction failures without side effects. */
 interface ReleaseExceptionFactoryInterface
 {
-    /** Describes an invalid explicit setting before mutation is attempted. */
+    /**
+     * Describes an invalid explicit setting before mutation is attempted.
+     *
+     * @param string         $message  Diagnostic text retained in the domain exception.
+     * @param Throwable|null $previous Original integration failure retained as the exception cause, when supplied.
+     *
+     * @return InvalidArgumentException Invalid-input exception retaining the explicit domain diagnostic.
+     */
     public function invalid(string $message, ?Throwable $previous = null): InvalidArgumentException;
 
-    /** Retains a failed collaborator as the cause without converting failure into success. */
+    /**
+     * Retains a failed collaborator as the cause without converting failure into success.
+     *
+     * @param string         $message  Diagnostic text retained in the domain exception.
+     * @param Throwable|null $previous Original integration failure retained as the exception cause, when supplied.
+     *
+     * @return RuntimeException Recoverable domain failure retaining the diagnostic and optional original cause.
+     */
     public function failure(string $message, ?Throwable $previous = null): RuntimeException;
 }

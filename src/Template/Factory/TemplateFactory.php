@@ -28,6 +28,13 @@ final class TemplateFactory implements TemplateFactoryInterface
      *
      * Unknown keys MUST fail early. Templates MUST retain level-two release
      * headings and level-three categories so selected-template parsing can round-trip.
+     *
+     * @param string              $locale    Supported structural language identifier, en or pt-BR.
+     * @param array<string,mixed> $overrides Explicit trusted presentation overrides; unknown keys and invalid shapes are rejected.
+     *
+     * @return TemplateInterface Validated localized template with only the supported explicit presentation overrides.
+     *
+     * @throws \InvalidArgumentException When a locale, override key, heading shape or placeholder grammar violates the presentation contract.
      */
     public function create(string $locale = 'en', array $overrides = []): TemplateInterface
     {
@@ -117,7 +124,15 @@ final class TemplateFactory implements TemplateFactoryInterface
         );
     }
 
-    /** Rejects pending headings that also identify valid custom, bare or bracketed releases, including valid dates. */
+    /**
+     * Rejects pending headings that also identify valid custom, bare or bracketed releases, including valid dates.
+     *
+     * @param array<string,mixed> $settings Merged presentation settings whose heading grammars must remain distinct and round-trip safely.
+     *
+     * @return void Completion only when the pending heading cannot also identify a valid custom, bare or bracketed release.
+     *
+     * @throws \InvalidArgumentException When a pending heading also matches a valid concrete release grammar.
+     */
     private function validateUnreleasedHeading(array $settings): void
     {
         $identifier = '(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)';
@@ -154,7 +169,14 @@ final class TemplateFactory implements TemplateFactoryInterface
         }
     }
 
-    /** Mirrors selected-template placeholder captures, requiring repeated version/date tokens to retain the same identity. */
+    /**
+     * Mirrors selected-template placeholder captures, requiring repeated version/date tokens to retain the same identity.
+     *
+     * @param string               $heading  Candidate structural heading checked for the required Markdown level, placeholders and single-line spelling.
+     * @param array<string,string> $captures Named version/date regular-expression captures substituted into the quoted heading pattern.
+     *
+     * @return string Escaped regex fragment with one named capture per placeholder and backreferences for repeated occurrences.
+     */
     private function headingPattern(string $heading, array $captures): string
     {
         $pattern = preg_quote($heading, '~');
@@ -171,7 +193,15 @@ final class TemplateFactory implements TemplateFactoryInterface
         return $pattern;
     }
 
-    /** Rejects mixed placeholders without a literal delimiter that makes plain Markdown capture boundaries unambiguous. */
+    /**
+     * Rejects mixed placeholders without a literal delimiter that makes plain Markdown capture boundaries unambiguous.
+     *
+     * @param string $heading Candidate structural heading checked for the required Markdown level, placeholders and single-line spelling.
+     *
+     * @return void Completion only when mixed version/date placeholders have a literal delimiter outside their overlapping alphabets.
+     *
+     * @throws \InvalidArgumentException When adjacent mixed placeholders have no unambiguous literal delimiter.
+     */
     private function validatePlaceholderBoundaries(string $heading): void
     {
         $parts = preg_split('/(\{(?:version|date)\})/', $heading, -1, PREG_SPLIT_DELIM_CAPTURE);
@@ -184,7 +214,16 @@ final class TemplateFactory implements TemplateFactoryInterface
         }
     }
 
-    /** Rejects multiline or structurally incompatible headings before construction. */
+    /**
+     * Rejects multiline or structurally incompatible headings before construction.
+     *
+     * @param mixed  $heading Candidate structural heading checked for the required Markdown level, placeholders and single-line spelling.
+     * @param string $prefix  Required Markdown heading prefix, including its separating space.
+     *
+     * @return void Completion only when the candidate is a nonempty single-line heading at the required Markdown level.
+     *
+     * @throws \InvalidArgumentException When the candidate is not a nonempty single-line heading with the required prefix.
+     */
     private function validateHeading(mixed $heading, string $prefix): void
     {
         if (! is_string($heading) || ! str_starts_with($heading, $prefix)

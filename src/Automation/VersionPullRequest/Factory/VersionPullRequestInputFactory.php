@@ -15,19 +15,34 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Automation\VersionPullRequest\Factory;
 
+use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestException;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 
 /** Concentrates input validation and immutable settings construction. */
 final readonly class VersionPullRequestInputFactory implements VersionPullRequestInputFactoryInterface
 {
-    /** Injects controlled diagnostic construction without resolving environment or repository state. */
+    /**
+     * Injects controlled diagnostic construction without resolving environment or repository state.
+     *
+     * @param VersionPullRequestExceptionFactoryInterface $exceptions Constructor for controlled version-PR exception
+     *                                                                without performing or retrying any operation.
+     */
     public function __construct(
         private VersionPullRequestExceptionFactoryInterface $exceptions,
     ) {}
 
     /**
      * Rejects unsafe branches, identities and presentation controls before planning.
+     *
      * Literal titles retain the 256-byte bound; known placeholder templates may use 1024 bytes before resolution.
+     *
+     * @param  string                      $baseBranch      Trusted release-line branch that supplies the fresh source base.
+     * @param  string                      $managedBranch   Exclusive automation branch reserved for the generated version PR.
+     * @param  string                      $automationActor Canonical GitHub Bot login required to own and sign generated commits.
+     * @param  string                      $title           Single-line PR title or supported version-placeholder template; never publication authority.
+     * @param  bool                        $dryRun          Whether to return the proposed transaction without creating or updating remote content.
+     * @return VersionPullRequestInput     Validated immutable branch, Bot, title and preview settings.
+     * @throws VersionPullRequestException When branch, Bot identity or bounded single-line title settings are invalid.
      */
     public function create(
         string $baseBranch = 'main',
@@ -38,6 +53,7 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
     ): VersionPullRequestInput {
         $template = str_contains($title, '{current_version}') || str_contains($title, '{next_version}');
         $maximum = $template ? VersionPullRequestInput::MAX_TEMPLATE_BYTES : VersionPullRequestInput::MAX_TITLE_BYTES;
+
         if (! $this->branch($baseBranch) || ! $this->branch($managedBranch) || $baseBranch === $managedBranch
             || 1 !== preg_match('/\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\[bot\]\z/', $automationActor)
             || '' === trim($title) || strlen($title) > $maximum || preg_match('/[\x00-\x1f\x7f]/', $title)
@@ -50,7 +66,12 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
         return new VersionPullRequestInput($baseBranch, $managedBranch, $automationActor, $title, $dryRun);
     }
 
-    /** Implements the supported safe subset of Git branch refs without invoking Git on user input. */
+    /**
+     * Implements the supported safe subset of Git branch refs without invoking Git on user input.
+     *
+     * @param  string $branch Validated branch name used for the exact remote reference or release line.
+     * @return bool   Whether the name belongs to the supported safe subset of Git branch refs.
+     */
     private function branch(string $branch): bool
     {
         if (strlen($branch) > 255 || 1 !== preg_match('~\A[A-Za-z0-9_][A-Za-z0-9_/.+-]*\z~', $branch)

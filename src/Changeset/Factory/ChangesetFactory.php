@@ -27,6 +27,16 @@ final readonly class ChangesetFactory implements ChangesetFactoryInterface
 {
     /**
      * Creates one immutable changeset from already validated data.
+     *
+     * @param string             $id          Canonical fragment filename including .md.
+     * @param Category           $category    Canonical lowercase Keep a Changelog category identifier.
+     * @param int|null           $issue       Optional positive issue number associated with the fragment.
+     * @param int|null           $pullRequest Optional positive pull-request number associated with the fragment.
+     * @param string|null        $author      Optional GitHub login to credit, normalized without a leading @.
+     * @param string             $description Validated Markdown description whose meaningful whitespace is retained.
+     * @param VersionImpact|null $type        Explicit semantic impact override, or null to materialize the category default.
+     *
+     * @return Changeset Immutable normalized fragment; schema validation remains the caller's responsibility.
      */
     public function create(
         string $id,

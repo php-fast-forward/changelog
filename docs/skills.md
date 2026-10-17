@@ -102,3 +102,7 @@ scripts, tests and docs from archives; source clones have different contents.
 Official [Agent Skills format validation](https://agentskills.io/specification#validation)
 and [Skills CLI](https://github.com/vercel-labs/skills) documentation supplement
 these checks. Native host acceptance remains a separate consumer operation.
+
+---
+
+[Documentation index](index.md)

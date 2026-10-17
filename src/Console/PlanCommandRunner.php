@@ -28,14 +28,28 @@ use Throwable;
 /** Uses one planner and one applier for release and maintenance commands. */
 final readonly class PlanCommandRunner implements PlanCommandRunnerInterface
 {
-    /** Captures replaceable business collaborators without constructing an I/O transaction. */
+    /**
+     * Captures replaceable business collaborators without constructing an I/O transaction.
+     *
+     * @param ReleaseOptionsFactoryInterface $options Creates validated consumer settings from mapped CLI values.
+     * @param ReleasePlannerInterface        $planner Calculates immutable release or maintenance evidence without applying managed writes.
+     * @param ReleaseApplierInterface        $applier Applies or verifies one exact planned transaction under the shared fragment-directory lock.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private ReleasePlannerInterface $planner,
         private ReleaseApplierInterface $applier,
     ) {}
 
-    /** Rejects contradictory modes before planning and keeps dry-run/check entirely read-only. */
+    /**
+     * Rejects contradictory modes before planning and keeps dry-run/check entirely read-only.
+     *
+     * @param MutationInput   $input     Shared release settings and mutually exclusive dry-run/check mode flags.
+     * @param string          $operation Requested shared operation; version, backfill and format have separate write semantics.
+     * @param OutputInterface $output    Output stream receiving machine results or controlled command diagnostics.
+     *
+     * @return int Symfony exit status distinguishing successful preview/application, detected drift and invalid or failed execution.
+     */
     public function run(MutationInput $input, string $operation, OutputInterface $output): int
     {
         try {

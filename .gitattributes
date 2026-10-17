@@ -23,4 +23,5 @@
 /composer-dependency-analyser.php export-ignore
 /AGENTS.md              export-ignore
 /phpunit.xml.dist       export-ignore
+/phpdoc.dist.xml        export-ignore
 /README*.md              export-ignore

@@ -35,7 +35,14 @@ use Throwable;
 )]
 final readonly class CheckCommand
 {
-    /** Captures validation, trusted policy and checkout identity without reading user environment. */
+    /**
+     * Captures validation, trusted policy and checkout identity without reading user environment.
+     *
+     * @param ReleaseOptionsFactoryInterface $options Creates validated consumer settings from mapped CLI values.
+     * @param CheckServiceInterface          $checks  Runs schema and contribution-delta validation through injected boundaries.
+     * @param PullRequestPolicyInterface     $policy  Verifies live pull-request authority independently of labels, prose and branch names.
+     * @param GitRepositoryInterface         $git     Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private CheckServiceInterface $checks,
@@ -43,7 +50,16 @@ final readonly class CheckCommand
         private GitRepositoryInterface $git,
     ) {}
 
-    /** Verifies policy belongs to this checkout before exposing its authorization to schema validation. */
+    /**
+     * Verifies policy belongs to this checkout before exposing its authorization to schema validation.
+     *
+     * @param SymfonyStyle $io          Symfony terminal style used for human-facing results and diagnostics.
+     * @param ReleaseInput $settings    Mapped shared consumer paths and release settings from Symfony input.
+     * @param string|null  $since       Optional committed Git baseline used to inspect this contribution's exact delta.
+     * @param string|null  $pullRequest Optional PR number whose independently verified authority must match this checkout.
+     *
+     * @return int Symfony exit status reflecting the command's result or controlled input/operation failure.
+     */
     public function __invoke(
         SymfonyStyle $io,
 

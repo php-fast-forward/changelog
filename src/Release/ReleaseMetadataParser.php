@@ -20,14 +20,23 @@ use FastForward\Changelog\Release\Factory\ReleaseExceptionFactoryInterface;
 /** Parses only complete transaction trailers; their presence never grants publication authority. */
 final readonly class ReleaseMetadataParser
 {
-    /** Retains the existing controlled metadata failure contract without observing external state. */
+    /**
+     * Retains the existing controlled metadata failure contract without observing external state.
+     *
+     * @param ReleaseExceptionFactoryInterface $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     */
     public function __construct(
         private ReleaseExceptionFactoryInterface $exceptions = new ReleaseExceptionFactory(),
     ) {}
 
     /**
      * Rejects malformed, duplicate and partial trailers; unrelated prose contains no transaction.
-     * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null
+     *
+     * @param string $message Complete commit message inspected for the scalar Changelog transaction trailers.
+     *
+     * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null Complete scalar transaction metadata, or null when the message has no transaction trailers.
+     *
+     * @throws \RuntimeException When any recognized trailer is malformed, repeated or part of an incomplete transaction.
      */
     public function parse(string $message): ?array
     {

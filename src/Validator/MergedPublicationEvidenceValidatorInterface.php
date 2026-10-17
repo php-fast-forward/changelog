@@ -20,6 +20,19 @@ use FastForward\Changelog\Release\ReleaseOptions;
 /** Additional read-only proof capability; merged-PR authority remains with the contextual publisher. */
 interface MergedPublicationEvidenceValidatorInterface extends PublicationEvidenceValidatorInterface
 {
-    /** Recomputes the merge's complete domain using immutable head metadata and identical complete trees. */
-    public function validateMerged(ReleaseOptions $options, string $mergeSha, string $headSha): PublicationEvidence;
+    /**
+     * Recomputes the merge's complete domain using immutable head metadata and identical complete trees.
+     *
+     * @param  ReleaseOptions      $options  Trusted consumer paths, rendering settings and repository selection for this
+     *                                       operation.
+     * @param  string              $mergeSha Exact approved merge commit that will be validated and, if applicable, tagged.
+     * @param  string              $headSha  Immutable generated PR head whose ownership and committed output must be proved.
+     * @return PublicationEvidence Exact merge publication evidence proved from immutable approved-head and merge
+     *                             objects.
+     */
+    public function validateMerged(
+        ReleaseOptions $options,
+        string $mergeSha,
+        string $headSha,
+    ): PublicationEvidence;
 }

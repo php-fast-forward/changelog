@@ -55,6 +55,12 @@ final class Changelog extends Application
      * Converts GitHub command binding/validation failures to the machine contract before services execute.
      * Add's required-input failures keep human Symfony diagnostics and the existing invalid-input exit status.
      * Other commands retain Symfony errors; successful invocations keep their existing result and exit status.
+     *
+     * @param Command         $command Selected Symfony command whose execution or binding failure is handled.
+     * @param InputInterface  $input   Bound Symfony arguments and options for the selected command.
+     * @param OutputInterface $output  Output stream receiving machine results or controlled command diagnostics.
+     *
+     * @return int Selected command's exit status, preserving the machine contract for GitHub binding failures.
      */
     protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int
     {

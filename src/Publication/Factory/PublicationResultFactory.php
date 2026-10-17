@@ -21,7 +21,17 @@ use FastForward\Changelog\Publication\PublicationResult;
 /** Constructs immutable publication output at the explicit factory boundary. */
 final readonly class PublicationResultFactory implements PublicationResultFactoryInterface
 {
-    /** Retains approved identity and actions exactly without I/O. */
+    /**
+     * Retains approved identity and actions exactly without I/O.
+     *
+     * @param  string            $state   Publication or commit-status state selected by the owning operation.
+     * @param  ?string           $version Semantic version selected for comparison, planning or publication.
+     * @param  ?string           $tag     Exact release tag name selected by the transaction.
+     * @param  string            $sha     Complete immutable Git object identity selected for this evidence or result.
+     * @param  ?string           $url     Confirmed HTTPS PR or release URL, or null when no remote object is available.
+     * @param  list<string>      $actions Ordered create_tag/create_release attempts, or the corresponding dry-run proposals.
+     * @return PublicationResult Immutable publication outcome retaining the approved SHA and ordered actions.
+     */
     public function create(
         string $state,
         ?string $version,

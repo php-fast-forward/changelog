@@ -20,6 +20,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 /** Concentrates concrete HTTP transport construction at the composition boundary. */
 interface HttpClientFactoryInterface
 {
-    /** Creates an HTTP client without starting a request or reading a token. */
+    /**
+     * Creates an HTTP client without starting a request or reading a token.
+     *
+     * @return HttpClientInterface Fresh HTTP transport without request-specific headers, credentials or network
+     *                             traffic.
+     */
     public function create(): HttpClientInterface;
 }

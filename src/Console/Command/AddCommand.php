@@ -36,13 +36,34 @@ use Throwable;
 )]
 final readonly class AddCommand
 {
-    /** Captures fragment creation and shared settings without observing external state. */
+    /**
+     * Captures fragment creation and shared settings without observing external state.
+     *
+     * @param ReleaseOptionsFactoryInterface $options Creates validated consumer settings from mapped CLI values.
+     * @param FragmentWriterInterface        $writer  Creates one independent fragment through injected validation, filesystem and Git boundaries.
+     */
     public function __construct(
         private ReleaseOptionsFactoryInterface $options,
         private FragmentWriterInterface $writer,
     ) {}
 
-    /** Declares the required description's native prompt and delegates validated input to the writer. */
+    /**
+     * Declares the required description's native prompt and delegates validated input to the writer.
+     *
+     * @param SymfonyStyle $io            Symfony terminal style used for human-facing results and diagnostics.
+     * @param ReleaseInput $settings      Mapped shared consumer paths and release settings from Symfony input.
+     * @param string       $message       Nonempty author-written Markdown description whose meaningful spaces are preserved.
+     * @param string       $category      Canonical lowercase Keep a Changelog category identifier.
+     * @param string|null  $type          Explicit semantic impact override, or null to materialize the category default.
+     * @param string|null  $name          Optional complete lowercase-dash .md filename; null requests a generated identity.
+     * @param string|null  $issue         Optional positive issue number associated with the fragment.
+     * @param string|null  $pullRequest   Optional positive pull-request number associated with the fragment.
+     * @param string|null  $author        Optional GitHub login to credit, normalized without a leading @.
+     * @param bool         $commit        Whether to commit only the newly created fragment after a successful write.
+     * @param string       $commitMessage Commit text used only when scoped fragment committing is explicitly enabled.
+     *
+     * @return int Symfony exit status reflecting the command's result or controlled input/operation failure.
+     */
     public function __invoke(
         SymfonyStyle $io,
 
@@ -108,7 +129,13 @@ final readonly class AddCommand
         }
     }
 
-    /** Rejects malformed or overflowing references before the writer can mutate a fragment. */
+    /**
+     * Rejects malformed or overflowing references before the writer can mutate a fragment.
+     *
+     * @param string|null $value Optional raw issue or PR number, accepted only as a positive decimal within PHP's integer range.
+     *
+     * @return int|null Positive parsed issue or PR number, or null when no reference was supplied.
+     */
     private function number(?string $value): ?int
     {
         if (null === $value) {

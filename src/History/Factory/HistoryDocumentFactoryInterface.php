@@ -23,7 +23,13 @@ interface HistoryDocumentFactoryInterface
     /**
      * Creates a document while validating unique canonical release identities.
      *
-     * @param list<\FastForward\Changelog\History\HistoryRelease> $releases historical sections
+     * @param list<\FastForward\Changelog\History\HistoryRelease> $releases   historical sections
+     * @param string                                              $prefix     Raw introductory Markdown preceding the first release boundary.
+     * @param string                                              $references Raw terminal Markdown reference definitions and preserved following text.
+     *
+     * @return HistoryDocument History value with unique canonical section identities and unchanged introduction and footer.
+     *
+     * @throws \InvalidArgumentException When a section is not a HistoryRelease or repeats a canonical version identity.
      */
     public function create(array $releases = [], string $prefix = '', string $references = ''): HistoryDocument;
 }

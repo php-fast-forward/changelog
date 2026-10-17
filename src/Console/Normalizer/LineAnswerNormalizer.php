@@ -17,7 +17,13 @@ namespace FastForward\Changelog\Console\Normalizer;
 /** Removes the terminal's Enter delimiter without trimming Markdown spaces or preceding blank lines. */
 final readonly class LineAnswerNormalizer
 {
-    /** Preserves an absent answer; removes only one final LF or CRLF sequence from a captured line. */
+    /**
+     * Preserves an absent answer; removes only one final LF or CRLF sequence from a captured line.
+     *
+     * @param string|null $value Optional captured terminal answer; only one final LF or CRLF delimiter may be removed.
+     *
+     * @return string|null Absent answer unchanged, or captured text with only its final terminal line delimiter removed.
+     */
     public function __invoke(?string $value): ?string
     {
         return null === $value ? null : preg_replace('/\r?\n\z/', '', $value);

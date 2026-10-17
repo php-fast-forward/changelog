@@ -13,11 +13,20 @@ with their own lock; the library's lock does not pin a consumer's dependency gra
 The shared Dockerfile installs its trusted runtime with `--no-dev --no-scripts
 --no-plugins` at build time. Actions execute the included CLI; consumer
 dependencies are not installed by an Action. Docker bases use explicit full
-version tags; external Action code remains SHA-bound with readable version
-comments. Release image builds pass COMPOSER_ROOT_VERSION as a build argument.
+version tags; external Actions use verified full version tags. Consumer
+references to this package use reviewed immutable commits. Release image builds
+pass COMPOSER_ROOT_VERSION as a build argument.
 
 PHPUnit, Prophecy, Rector, ECS, PHP Parser and coverage tooling are development
-requirements. Running the CLI needs none of them and does not load DevTools.
+requirements. The separate documentation build uses the phpDocumentor shim and
+Fast Forward Bootstrap template as development dependencies; only that shim is
+permitted as a Composer plugin. The quality installation disables plugins. See
+[documentation tooling and its isolated dependency graph](documentation.md).
+Running the CLI needs none of these development tools and does not load DevTools.
 Use `composer show --locked` and the disposable packaging verification to inspect
 the effective graphs. There is no `version` field in the package manifest;
 published package versions derive from Git tags.
+
+---
+
+[Documentation index](index.md)

@@ -24,7 +24,10 @@ interface ReleaseOptionsFactoryInterface
     /**
      * Resolves defaults followed by explicit values and rejects unknown settings.
      *
-     * @param  array<string, mixed>      $values settings supplied by flags or Action inputs
+     * @param array<string, mixed> $values settings supplied by flags or Action inputs
+     *
+     * @return ReleaseOptions Validated consumer settings after built-in defaults and explicit values are resolved.
+     *
      * @throws \InvalidArgumentException when values cannot be used safely and deterministically
      */
     public function create(array $values = []): ReleaseOptions;

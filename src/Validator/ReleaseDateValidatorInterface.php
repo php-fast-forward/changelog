@@ -31,7 +31,9 @@ interface ReleaseDateValidatorInterface
      * Implementations MUST reject malformed values and impossible calendar
      * dates before a changelog mutation performs any I/O.
      *
-     * @throws InvalidArgumentException when the value is not a valid release date
+     * @param  string                   $date Zero-padded Gregorian release date in the exact YYYY-MM-DD representation.
+     * @return void                     No value; only an exact valid Gregorian YYYY-MM-DD date is accepted.
+     * @throws InvalidArgumentException When the value is not a real Gregorian date in exact YYYY-MM-DD format.
      */
     public function validate(string $date): void;
 }

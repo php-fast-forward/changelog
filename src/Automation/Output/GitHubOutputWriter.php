@@ -16,6 +16,8 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Automation\Output;
 
 use InvalidArgumentException;
+use JsonException;
+use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
 use Symfony\Component\Filesystem\Filesystem;
 
 /** Preserves stable machine output while appending guarded scalar records to the caller-owned Action file. */
@@ -24,31 +26,50 @@ final readonly class GitHubOutputWriter implements GitHubOutputWriterInterface
     private const array SCALARS = ['status', 'state', 'version', 'pull_request', 'url', 'head_sha', 'plan_id',
         'fragments', 'maintenance', 'path', 'tag', 'sha'];
 
-    /** Captures the filesystem and explicit output path; construction reads no environment or host state. */
+    /**
+     * Captures the filesystem and explicit output path; construction reads no environment or host state.
+     *
+     * @param Filesystem $filesystem Injected filesystem boundary used for the caller-owned locked GitHub output append.
+     * @param ?string    $outputFile Caller-owned GitHub output file; null disables file appends and retains JSON output
+     *                               only.
+     */
     public function __construct(
         private Filesystem $filesystem,
         private ?string $outputFile = null,
     ) {}
 
-    /** Validates the entire payload before one append; null output paths produce stdout-only results. */
+    /**
+     * Validates the entire payload before one append; null output paths produce stdout-only results.
+     *
+     * @param  array<string,mixed>      $result Stable operation result map encoded as JSON and, where configured, guarded
+     *                                          Action outputs.
+     * @return string                   Single-line JSON representation; configured file outputs are appended together under a lock.
+     * @throws InvalidArgumentException When a declared scalar or configured output-file path cannot be written safely.
+     * @throws JsonException            When the complete result cannot be encoded as JSON.
+     * @throws IOExceptionInterface     When the locked caller-owned output append fails.
+     */
     public function write(array $result): string
     {
         $json = json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $lines = ['result=' . $json];
+
         foreach (self::SCALARS as $key) {
             if (! array_key_exists($key, $result) || null === $result[$key]) {
                 continue;
             }
             $value = $result[$key];
+
             if (! is_scalar($value)) {
                 throw new InvalidArgumentException('An Action scalar output must be a string, number or boolean.');
             }
             $value = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
+
             if (1 === preg_match('/[\\r\\n\\0]/', $value)) {
                 throw new InvalidArgumentException('An Action scalar output contains an unsafe line separator.');
             }
             $lines[] = str_replace('_', '-', $key) . '=' . $value;
         }
+
         if (null !== $this->outputFile) {
             if ('' === $this->outputFile) {
                 throw new InvalidArgumentException('The Action output path must not be empty.');

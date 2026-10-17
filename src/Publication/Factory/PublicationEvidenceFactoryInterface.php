@@ -21,7 +21,16 @@ use FastForward\Changelog\Publication\PublicationEvidence;
 /** Constructs typed publication evidence after local Git and domain proof. */
 interface PublicationEvidenceFactoryInterface
 {
-    /** Retains the validated target identity, central notes and repository selection. */
+    /**
+     * Retains the validated target identity, central notes and repository selection.
+     *
+     * @param  string              $sha        Complete immutable Git object identity selected for this evidence or result.
+     * @param  ?string             $version    Semantic version selected for comparison, planning or publication.
+     * @param  ?string             $tag        Exact release tag name selected by the transaction.
+     * @param  string              $notes      Exact approved release-note bytes; presentation or newline changes are significant.
+     * @param  ?string             $repository Explicit GitHub owner/name used to construct repository-scoped API endpoints.
+     * @return PublicationEvidence Immutable already-proved publication identity and exact central note bytes.
+     */
     public function create(
         string $sha,
         ?string $version,

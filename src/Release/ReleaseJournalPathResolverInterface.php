@@ -19,6 +19,12 @@ namespace FastForward\Changelog\Release;
 /** Places interrupted transaction state outside every versioned consumer directory. */
 interface ReleaseJournalPathResolverInterface
 {
-    /** Returns a worktree-local Git path or an injected temporary path for a non-Git consumer. */
+    /**
+     * Returns a worktree-local Git path or an injected temporary path for a non-Git consumer.
+     *
+     * @param ReleaseOptions $options Validated consumer paths, presentation settings and source-selection policy.
+     *
+     * @return string Private recovery-journal path in the Git administrative directory or injected temporary storage.
+     */
     public function resolve(ReleaseOptions $options): string;
 }

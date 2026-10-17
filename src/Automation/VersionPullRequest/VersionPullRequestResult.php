@@ -18,7 +18,19 @@ namespace FastForward\Changelog\Automation\VersionPullRequest;
 /** Exposes the exact remote transaction outcome, including pending publication and uncertain writes. */
 final readonly class VersionPullRequestResult
 {
-    /** Does not imply a tag/release was published; conflict requires remote inspection before retrying. */
+    /**
+     * Does not imply a tag/release was published; conflict requires remote inspection before retrying.
+     *
+     * @param string       $status      Operation outcome used to distinguish success from refusal or a possible partial write.
+     * @param ?int         $prNumber    Positive pull-request number whose live authority and head are inspected.
+     * @param ?string      $url         Confirmed HTTPS PR or release URL, or null when no remote object is available.
+     * @param ?string      $headSha     Immutable generated PR head whose ownership and committed output must be proved.
+     * @param ?string      $planId      Validated deterministic transaction hash, or null when no plan was constructed.
+     * @param ?string      $version     Planned next semantic version, or null when the transaction does not prepare a release.
+     * @param bool         $maintenance Whether the known transaction maintains history without publishing a new version.
+     * @param list<string> $diagnostics Controlled explanations for refusal, conflict or exceptional authorization
+     *                                  state.
+     */
     public function __construct(
         public string $status,
         public ?int $prNumber = null,

@@ -21,12 +21,20 @@ use Random\Randomizer;
 /** Generates stable individual identities using an injected random engine. */
 final readonly class RandomIdentifierGenerator implements IdentifierGeneratorInterface
 {
-    /** Captures the randomizer without requesting entropy during composition. */
+    /**
+     * Captures the randomizer without requesting entropy during composition.
+     *
+     * @param Randomizer $randomizer Injected source of random bytes; construction does not request entropy.
+     */
     public function __construct(
         private Randomizer $randomizer,
     ) {}
 
-    /** Returns a canonical filename carrying 128 bits of independent entropy. */
+    /**
+     * Returns a canonical filename carrying 128 bits of independent entropy.
+     *
+     * @return string Canonical change-<128-bit lowercase hex>.md filename.
+     */
     public function generate(): string
     {
         return 'change-' . bin2hex($this->randomizer->getBytes(16)) . '.md';

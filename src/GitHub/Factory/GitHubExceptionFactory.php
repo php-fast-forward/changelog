@@ -20,7 +20,12 @@ use RuntimeException;
 /** Keeps GitHub failures independent from raw headers, bodies and access tokens. */
 final class GitHubExceptionFactory implements GitHubExceptionFactoryInterface
 {
-    /** Constructs a diagnostic containing only the caller's controlled explanation. */
+    /**
+     * Constructs a diagnostic containing only the caller's controlled explanation.
+     *
+     * @param  string           $message Controlled diagnostic or commit message supplied by the owning operation.
+     * @return RuntimeException Controlled RuntimeException containing only the supplied diagnostic, without API I/O.
+     */
     public function failure(string $message): RuntimeException
     {
         return new RuntimeException($message);

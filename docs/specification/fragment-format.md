@@ -26,6 +26,11 @@ Updates a dependency while preserving the public API.
 `category` and effective `type` are always serialized. `issue`, `pull_request`
 and `author` are optional and omitted when unavailable. A number for a pull
 request that has not been opened is not required to create a fragment.
+When the contribution's PR exists, prefer recording its verified positive
+number as `pull_request` or through `add --pull-request=<number>`. Confirm the
+actual repository, head branch and complete head SHA before copying that number
+from its canonical PR URL or trusted metadata. If opened later, update the same
+newly added fragment; unknown numbers stay absent.
 
 | Field | Contract |
 | --- | --- |
@@ -105,3 +110,7 @@ external writers must also honor the resource to participate in serialization.
 rejects reserved/invalid/symbolic paths, deduplicates repeated paths and leaves
 missing paths as an idempotent no-op. It does not remove a directory or discover
 extra files to delete. The release plan selects the exact consumed fragments.
+
+---
+
+[Documentation index](../index.md)

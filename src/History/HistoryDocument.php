@@ -21,7 +21,9 @@ final class HistoryDocument
     /**
      * Stores releases in caller-selected order without performing I/O.
      *
-     * @param list<HistoryRelease> $releases retained historical sections
+     * @param list<HistoryRelease> $releases   retained historical sections
+     * @param string               $prefix     Raw introductory Markdown preceding the first release boundary.
+     * @param string               $references Raw terminal Markdown reference definitions and preserved following text.
      */
     public function __construct(
         private array $releases = [],
@@ -29,25 +31,43 @@ final class HistoryDocument
         private string $references = '',
     ) {}
 
-    /** Returns the release sections in their stored presentation order. */
+    /**
+     * Returns the release sections in their stored presentation order.
+     *
+     * @return list<HistoryRelease> Historical sections in their stored presentation order.
+     */
     public function getReleases(): array
     {
         return $this->releases;
     }
 
-    /** Returns everything preceding the first release heading unchanged. */
+    /**
+     * Returns everything preceding the first release heading unchanged.
+     *
+     * @return string Unchanged introductory Markdown preceding the first release.
+     */
     public function getPrefix(): string
     {
         return $this->prefix;
     }
 
-    /** Returns the raw reference footer and any following boilerplate. */
+    /**
+     * Returns the raw reference footer and any following boilerplate.
+     *
+     * @return string Unchanged document reference footer and following boilerplate.
+     */
     public function getReferences(): string
     {
         return $this->references;
     }
 
-    /** Looks up a canonical version, accepting one conventional v prefix. */
+    /**
+     * Looks up a canonical version, accepting one conventional v prefix.
+     *
+     * @param string $version Canonical release identity to render or select; lookup accepts one conventional v prefix.
+     *
+     * @return HistoryRelease|null Matching canonical release section, or null when the document lacks it.
+     */
     public function getRelease(string $version): ?HistoryRelease
     {
         $version = preg_replace('/^[vV](?=\d)/', '', $version);
@@ -65,6 +85,8 @@ final class HistoryDocument
      * Returns an independent document with the supplied section order.
      *
      * @param list<HistoryRelease> $releases replacement sections
+     *
+     * @return self Independent document with the supplied sections and the original introduction and footer.
      */
     public function withReleases(array $releases): self
     {

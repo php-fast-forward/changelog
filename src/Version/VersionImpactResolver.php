@@ -27,6 +27,8 @@ final readonly class VersionImpactResolver implements VersionImpactResolverInter
      * Aggregates without deduplicating PR, author, category, or description.
      *
      * @param list<Changeset> $changesets independently identified fragments
+     *
+     * @return VersionImpact|null Greatest persisted fragment impact, or null for an empty collection.
      */
     public function resolve(array $changesets): ?VersionImpact
     {

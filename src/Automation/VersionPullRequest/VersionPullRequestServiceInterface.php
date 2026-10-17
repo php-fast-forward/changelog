@@ -20,6 +20,18 @@ use FastForward\Changelog\Release\ReleaseOptions;
 /** Maintains one trusted version PR by planning exclusively from the freshly checked-out base. */
 interface VersionPullRequestServiceInterface
 {
-    /** Never checks out a managed head, force-pushes a human branch or publishes tags/releases. */
-    public function synchronize(ReleaseOptions $options, VersionPullRequestInput $input): VersionPullRequestResult;
+    /**
+     * Never checks out a managed head, force-pushes a human branch or publishes tags/releases.
+     *
+     * @param  ReleaseOptions           $options Trusted consumer paths, rendering settings and repository selection for this
+     *                                           operation.
+     * @param  VersionPullRequestInput  $input   Validated operation settings and the immutable remote snapshot selected by
+     *                                           the caller.
+     * @return VersionPullRequestResult Known none/unchanged/created/updated/dry-run/refused/conflict outcome;
+     *                                  uncertainty never becomes success.
+     */
+    public function synchronize(
+        ReleaseOptions $options,
+        VersionPullRequestInput $input,
+    ): VersionPullRequestResult;
 }

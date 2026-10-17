@@ -54,8 +54,22 @@ constructing trusted PR context from user-controlled arguments.
    vendor/bin/changelog check --no-interaction
    ```
 
-   `--issue=123`, `--pull-request=456`, and `--author=login` are optional. Create a
-   fragment before its PR exists without placeholders. Login may have a leading
+   `--issue`, `--pull-request`, and `--author` are optional. Prefer
+   `--pull-request=<number>` when this contribution's PR already exists. Verify
+   the repository, head branch and complete head SHA through the application's
+   existing GitHub tooling, read-only API or browser; copy the positive number
+   from that actual PR's canonical URL or metadata. Do not derive it from an
+   issue, branch name or commit message. With `PULL_REQUEST` set to that verified
+   number:
+
+   ```sh
+   vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+   ```
+
+   Before a PR exists, author without the field. After opening and verifying
+   it, add `pull_request: <number>` to the same newly added fragment, leaving
+   every other byte intact; do not create a second note. Existing commit
+   authority still governs recording that update. Login may have a leading
    `@`; serialization stores the canonical login without it.
 4. Inspect the exact created path and content. Generated names are collision
    resistant and never overwrite another fragment. An optional explicit
@@ -181,9 +195,12 @@ to independent `.changelog/` fragments.
 
 ## Historical notes and presentation
 
-Backfill and format are explicit maintainer maintenance operations, normally
-performed by the history workflow in its own reviewable PR. An ordinary change
-request does not authorize those operations. Choose history evidence explicitly
+Backfill and format are explicit maintainer maintenance operations. The history
+workflow previews them or applies them only on its disposable runner; it does
+not commit, push or create a maintenance PR. To retain reviewed changes, apply
+them in an authorized local checkout and submit the central-history diff through
+the application's normal PR process. An ordinary change request does not
+authorize those operations. Choose history evidence explicitly
 when needed. `--source=tags` uses actual stable
 Git tags without fetching GitHub notes. `--source=github --repository=owner/repo`
 uses GitHub published notes for versions established by Git tags. With an explicit

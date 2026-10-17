@@ -25,6 +25,13 @@ final readonly class ValidationReportFactory implements ValidationReportFactoryI
 {
     /**
      * Creates an immutable aggregate after non-fail-fast validation.
+     *
+     * @param list<\FastForward\Changelog\Changeset\Changeset> $changesets Every independently identified fragment that parsed successfully, including valid siblings of failures.
+     * @param array<string,list<string>>                       $errors     Independent diagnostics keyed by fragment identity or operation context.
+     * @param bool                                             $waived     Whether a verified absence-of-new-contribution waiver was applied; schema failures remain blocking.
+     * @param array<string,string>                             $hashes     Absolute fragment paths mapped to SHA-256 hashes of the exact bytes accepted by parsing.
+     *
+     * @return ValidationReport Aggregate retaining every successfully parsed sibling, independently keyed diagnostics, waiver state and accepted byte hashes.
      */
     public function create(array $changesets, array $errors, bool $waived, array $hashes = []): ValidationReport
     {

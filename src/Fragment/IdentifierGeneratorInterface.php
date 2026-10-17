@@ -19,6 +19,10 @@ namespace FastForward\Changelog\Fragment;
 /** Replaces entropy when independently named fragments are created. */
 interface IdentifierGeneratorInterface
 {
-    /** Returns a complete canonical lowercase-dash filename including .md. */
+    /**
+     * Returns a complete canonical lowercase-dash filename including .md.
+     *
+     * @return string Canonical change-<128-bit lowercase hex>.md filename.
+     */
     public function generate(): string;
 }

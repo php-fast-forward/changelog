@@ -18,7 +18,16 @@ namespace FastForward\Changelog\Automation\Dependabot;
 /** Records a create-only operation; conflict may include a commit already created by the Contents API. */
 final readonly class DependabotFragmentResult
 {
-    /** Status is created, unchanged, filtered, refused or conflict; diagnostics contain no raw server details. */
+    /**
+     * Status is created, unchanged, filtered, refused or conflict; diagnostics contain no raw server details.
+     *
+     * @param string       $status      Operation outcome used to distinguish success from refusal or a possible partial write.
+     * @param string       $path        Canonical repository-relative managed path selected for this operation.
+     * @param ?string      $commitSha   Confirmed fragment commit identity, or null when no commit is known to have been
+     *                                  created.
+     * @param list<string> $diagnostics Controlled explanations for refusal, conflict or exceptional authorization
+     *                                  state.
+     */
     public function __construct(
         public string $status,
         public string $path,

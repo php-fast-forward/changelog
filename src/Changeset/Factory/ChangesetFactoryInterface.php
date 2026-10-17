@@ -30,9 +30,15 @@ interface ChangesetFactoryInterface
      *
      * Callers MUST validate the schema before invoking this factory.
      *
-     * @param string            $id          canonical fragment filename, including `.md`
-     * @param positive-int|null $issue       related issue number
-     * @param positive-int|null $pullRequest related pull-request number
+     * @param string             $id          canonical fragment filename, including `.md`
+     * @param Category           $category    Canonical lowercase Keep a Changelog category identifier.
+     * @param positive-int|null  $issue       related issue number
+     * @param positive-int|null  $pullRequest related pull-request number
+     * @param string|null        $author      Optional GitHub login to credit, normalized without a leading @.
+     * @param string             $description Validated Markdown description whose meaningful whitespace is retained.
+     * @param VersionImpact|null $type        Explicit semantic impact override, or null to materialize the category default.
+     *
+     * @return Changeset Immutable normalized fragment; schema validation remains the caller's responsibility.
      */
     public function create(
         string $id,

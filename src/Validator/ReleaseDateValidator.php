@@ -31,7 +31,9 @@ final readonly class ReleaseDateValidator implements ReleaseDateValidatorInterfa
      * The method MUST reject alternate separators, omitted zero-padding, and
      * calendar dates that do not exist. It MUST NOT read the system clock.
      *
-     * @throws InvalidArgumentException when the value is not a valid release date
+     * @param  string                   $date Zero-padded Gregorian release date in the exact YYYY-MM-DD representation.
+     * @return void                     No value; only an exact valid Gregorian YYYY-MM-DD date is accepted.
+     * @throws InvalidArgumentException When the value is not a real Gregorian date in exact YYYY-MM-DD format.
      */
     public function validate(string $date): void
     {

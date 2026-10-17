@@ -20,7 +20,18 @@ use FastForward\Changelog\Automation\Policy\PullRequestAuthorization;
 /** Concentrates immutable authorization construction without resolving policy or contacting GitHub. */
 final class PullRequestAuthorizationFactory implements PullRequestAuthorizationFactoryInterface
 {
-    /** Retains inspected authority and diagnostic evidence; a missing head grants no reusable skip. */
+    /**
+     * Retains inspected authority and diagnostic evidence; a missing head grants no reusable skip.
+     *
+     * @param  bool                     $waiverAuthorized        Whether a verified human grant authorizes the fragment-presence exception.
+     * @param  bool                     $centralChangeAuthorized Whether verified maintenance or managed-version policy authorizes
+     *                                                           central-history changes.
+     * @param  string                   $kind                    Verified policy classification used by contribution validation rather than editable PR text.
+     * @param  list<string>             $diagnostics             Controlled explanations for refusal, conflict or exceptional authorization
+     *                                                           state.
+     * @param  ?string                  $headSha                 Immutable generated PR head whose ownership and committed output must be proved.
+     * @return PullRequestAuthorization Immutable authorization value with the observed head and controlled diagnostics.
+     */
     public function create(
         bool $waiverAuthorized,
         bool $centralChangeAuthorized,
@@ -28,6 +39,12 @@ final class PullRequestAuthorizationFactory implements PullRequestAuthorizationF
         array $diagnostics,
         ?string $headSha = null,
     ): PullRequestAuthorization {
-        return new PullRequestAuthorization($waiverAuthorized, $centralChangeAuthorized, $kind, $diagnostics, $headSha);
+        return new PullRequestAuthorization(
+            $waiverAuthorized,
+            $centralChangeAuthorized,
+            $kind,
+            $diagnostics,
+            $headSha,
+        );
     }
 }

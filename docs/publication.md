@@ -126,3 +126,7 @@ no real release and use no user credentials.
 
 See [local recovery](release-receipts.md), [managed PRs](version-pull-request.md)
 and [workflow contracts](github-actions.md).
+
+---
+
+[Documentation index](index.md)

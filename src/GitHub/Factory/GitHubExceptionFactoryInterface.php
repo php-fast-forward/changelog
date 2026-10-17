@@ -20,6 +20,11 @@ use RuntimeException;
 /** Constructs redacted diagnostics without retaining secret-bearing transport exceptions. */
 interface GitHubExceptionFactoryInterface
 {
-    /** Creates a failure from an application-controlled message without chained response data. */
+    /**
+     * Creates a failure from an application-controlled message without chained response data.
+     *
+     * @param  string           $message Controlled diagnostic or commit message supplied by the owning operation.
+     * @return RuntimeException Controlled RuntimeException containing only the supplied diagnostic, without API I/O.
+     */
     public function failure(string $message): RuntimeException;
 }

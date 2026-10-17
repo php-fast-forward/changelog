@@ -27,7 +27,18 @@ use Throwable;
 /** Applies exact approved bytes under the same directory lock used by fragment creation. */
 final readonly class ReleaseApplier implements ReleaseApplierInterface
 {
-    /** Injects all I/O, locking, evidence and diagnostic boundaries without consulting host state. */
+    /**
+     * Injects all I/O, locking, evidence and diagnostic boundaries without consulting host state.
+     *
+     * @param GitRepositoryInterface                 $git        Observes repository identities, committed bytes and scoped operations through an injected boundary.
+     * @param ChangesetStoreInterface                $fragments  Injected fragment store sharing the directory-scoped transaction lock and exact managed-path policy.
+     * @param LockFactory                            $locks      Builds cooperative directory locks shared by fragment writers and managed release operations.
+     * @param ManagedFileStoreInterface              $files      Reads and writes guarded managed bytes through an injected filesystem boundary.
+     * @param ReceiptCodecInterface                  $codec      Validates and serializes deterministic private recovery evidence, including its content-bound identity.
+     * @param ReleaseExceptionFactoryInterface       $exceptions Constructs controlled domain diagnostics without exposing underlying host details.
+     * @param ReleaseInputEvidenceValidatorInterface $inputs     Verifies planned or selected-template bytes against the approved committed source evidence.
+     * @param ReleaseJournalPathResolverInterface    $journals   Selects private recovery storage scoped to the consumer project and managed paths.
+     */
     public function __construct(
         private GitRepositoryInterface $git,
         private ChangesetStoreInterface $fragments,
@@ -39,7 +50,15 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         private ReleaseJournalPathResolverInterface $journals,
     ) {}
 
-    /** Writes history and consumes fragments; its Git-internal recovery journal is removed on success. */
+    /**
+     * Writes exact history and consumes only selected fragments; removes its private journal on success.
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return bool True when pending transaction work was applied; false for an already applied or unchanged plan.
+     *
+     * @throws \RuntimeException When locking, evidence checks or a managed write/removal fails; retain recovery bytes and remaining fragments.
+     */
     public function apply(ReleasePlan $plan): bool
     {
         if ('none' === $plan->mode()) {
@@ -82,13 +101,28 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         }
     }
 
-    /** Performs the same evidence checks without acquiring a lock or writing any file. */
+    /**
+     * Performs the same evidence checks without acquiring a lock or writing any file.
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return bool Whether the exact planned output and fragment-removal state already match durable managed bytes.
+     *
+     * @throws \InvalidArgumentException When the plan fields do not match their approved canonical receipt.
+     * @throws \RuntimeException         When the observed repository or managed inputs no longer match the accepted before/after state.
+     */
     public function isApplied(ReleasePlan $plan): bool
     {
         return 'none' === $plan->mode() || $this->preflight($plan)['complete'];
     }
 
-    /** Resolves the caller's configured fragment directory without reading cwd. */
+    /**
+     * Resolves the caller's configured fragment directory without reading cwd.
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return string Absolute consumer fragment-directory spelling used to select the shared lock and inventory.
+     */
     private function directory(ReleasePlan $plan): string
     {
         return rtrim(
@@ -97,7 +131,13 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
         ) . '/' . $plan->options->fragmentDirectory;
     }
 
-    /** Checks approved schema, options, exact paths and every immutable plan field before I/O. */
+    /**
+     * Checks approved schema, options, exact paths and every immutable plan field before I/O.
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return array<string,mixed> Decoded canonical journal fields after every plan value, option and managed path matches its approved evidence.
+     */
     private function evidence(ReleasePlan $plan): array
     {
         $data = $this->codec->decode($plan->receiptContents)->data;
@@ -140,7 +180,10 @@ final readonly class ReleaseApplier implements ReleaseApplierInterface
     /**
      * Reads full inventory and all hashes before allowing any write or removal.
      * Missing consumed files are allowed only after the approved history is durable.
-     * @return array{central:?string,receipt:?string,remaining:list<string>,complete:bool}
+     *
+     * @param ReleasePlan $plan Immutable accepted inputs and exact output bytes for one release or maintenance transaction.
+     *
+     * @return array{central:?string,receipt:?string,remaining:list<string>,complete:bool} Observed central/journal bytes, exact remaining consumed paths and whether durable history plus consumption is complete.
      */
     private function preflight(ReleasePlan $plan): array
     {
