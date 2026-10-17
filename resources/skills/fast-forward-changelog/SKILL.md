@@ -170,7 +170,10 @@ explicit references. Local CLI commands keep discovery disabled unless
 tag-based historical imports do not suppress enabled PR-origin API reads.
 
 Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
-history. `status` is read-only. Successful commands exit `0`; invalid arguments
+history. Explicit human editorial maintenance can replace pending notes only
+through the verified maintenance policy and committed summary proofs described
+in the CLI reference; it grants no release or publication authority.
+`status` is read-only. Successful commands exit `0`; invalid arguments
 exit `2`, validation/operational failures exit `1`. Fix all diagnostics and rerun
 the same check. Do not use an editable label as waiver authority.
 
