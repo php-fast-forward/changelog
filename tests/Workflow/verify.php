@@ -504,14 +504,14 @@ $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(
 $filesystem->mkdir($directory);
 
 try {
-    $imageGuard = <<<'JS'
-        const snapshot = JSON.parse(process.env.FF_IMAGE_CONTEXT);
-        const condition = process.env.FF_IMAGE_CONDITION.replace(
-          /\b(?:github|needs)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
-          path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
-        );
-        core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
-        JS;
+    $imageGuard = <<<'JS_WRAP'
+    const snapshot = JSON.parse(process.env.FF_IMAGE_CONTEXT);
+    const condition = process.env.FF_IMAGE_CONDITION.replace(
+      /\b(?:github|needs)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
+      path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
+    );
+    core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
+    JS_WRAP;
     $approvedImage = str_repeat('a', 40);
     $imageContext = [
         'github' => [
