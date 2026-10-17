@@ -100,6 +100,11 @@ jobs:
       - name: Smoke Test The CLI
         run: php bin/changelog list --raw
 
+      - name: Verify Squash Publication In Disposable Git Repositories
+        run: composer test:integration
+        env:
+          XDEBUG_MODE: 'off'
+
       - name: Verify Reusable Workflow Guards And Contracts Without Network
         if: startsWith(matrix.os, 'ubuntu-')
         run: composer test:workflows

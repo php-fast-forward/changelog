@@ -33,8 +33,11 @@ final class SquashPublicationTest extends TestCase
 {
     /** A clone of main/tags has no H object, while the deleted branch's H survives only in the origin PR ref. */
     #[DataProvider('squashModes')]
-    public function testDeletedBranchAndMissingLocalHead(bool $staleTrailers, bool $customTemplate, bool $hostileGitEnvironment = false): void
-    {
+    public function testDeletedBranchAndMissingLocalHead(
+        bool $staleTrailers,
+        bool $customTemplate,
+        bool $hostileGitEnvironment = false,
+    ): void {
         $root = realpath(sys_get_temp_dir()) . '/changelog-squash-' . bin2hex(random_bytes(8));
         if ($hostileGitEnvironment) {
             putenv('GIT_DIR=' . $root . '/must-not-be-a-git-dir');
@@ -48,16 +51,22 @@ final class SquashPublicationTest extends TestCase
                 unset($_ENV[$name], $_SERVER[$name]);
             }
         }
-        foreach (['HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => '/dev/null', 'GIT_TERMINAL_PROMPT' => '0'] as $name => $value) {
+        foreach (['HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => $root . '/empty-gitconfig', 'GIT_TERMINAL_PROMPT' => '0'] as $name => $value) {
             putenv($name . '=' . $value);
             $_ENV[$name] = $_SERVER[$name] = $value;
         }
         new Filesystem()->mkdir($root, 0700);
+        file_put_contents($root . '/empty-gitconfig', '');
         $producer = $root . '/origin';
         $consumer = $root . '/consumer';
         /** Runs only disposable fixture commands, with host configuration and credentials disabled. */
-        $git = static fn(string $directory, array $arguments): string => new Process(['git', '-C', $directory, ...$arguments], $root, [
-            'HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => '/dev/null',
+        $git = static fn(string $directory, array $arguments): string => new Process([
+            'git',
+            '-C',
+            $directory,
+            ...$arguments,
+        ], $root, [
+            'HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => $root . '/empty-gitconfig',
             'GIT_TERMINAL_PROMPT' => '0', 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'FF_CHANGELOG_TOKEN' => false,
         ])->mustRun()->getOutput();
         try {
@@ -117,7 +126,7 @@ final class SquashPublicationTest extends TestCase
             self::assertSame('', $git($producer, ['branch', '--list', 'changelog/version']));
             self::assertSame($head, trim($git($producer, ['rev-parse', 'refs/pull/7/head'])));
             $missing = new Process(['git', '-C', $consumer, 'cat-file', '-e', $head . '^{commit}'], $root, [
-                'HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => '/dev/null',
+                'HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => $root . '/empty-gitconfig',
                 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'FF_CHANGELOG_TOKEN' => false,
             ]);
             $missing->run();
@@ -251,7 +260,7 @@ final class SquashPublicationTest extends TestCase
             self::assertSame('1.0.1', $result['version']);
             self::assertSame(['create_tag', 'create_release'], $result['actions']);
             self::assertSame([
-                ],
+            ],
                 array_values(array_filter($calls, static fn(array $call): bool => 'GET' !== $call[0])),
             );
             $failed = false;

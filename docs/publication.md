@@ -81,10 +81,12 @@ path. Existing injected service/validator interfaces remain compatible; adapters
 without the additional contextual capability fail closed for that operation.
 
 Run the separate disposable Git integration fixture with
-`php vendor/bin/phpunit tests/Integration/SquashPublicationTest.php`. It retains
+`composer test:integration`. The existing test matrix runs this separate suite
+without coverage on Linux amd64, Linux arm64 and Windows. It retains
 the head only in an origin PR ref, deletes the generated branch, clones main/tags
 without that head, and verifies missing/stale squash metadata and a committed
-custom template. Its HTTP adapter is synthetic and forbids every mutation.
+custom template. Each case isolates inherited Git variables and global config
+in a PHPUnit subprocess. Its HTTP adapter is synthetic and forbids every mutation.
 
 ## Remote reconciliation
 
