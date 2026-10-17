@@ -20,7 +20,7 @@ All seven public reusable paths remain stable:
 | [`changelog-history.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-history.yml) | Preview or apply backfill/format maintenance on the disposable runner; creates no commit, push or PR. |
 
 The six individual operations are available for advanced composition; ordinary
-adoption needs only the entrypoint. The facade does not schedule historical
+adoption needs only the entrypoint. The lifecycle does not schedule historical
 backfill or formatting automatically. See [the lifecycle guide](reusable-lifecycle.md)
 and [operation contracts](github-actions.md).
 
@@ -30,7 +30,7 @@ does not support a subdirectory there. Moving their implementation into
 requirements](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#creating-a-reusable-workflow).
 The [copyable caller](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) belongs in `resources`
 because it is an adoption example; GitHub executes it only after a consumer
-copies it into its own `.github/workflows` and selects a reviewed product commit.
+copies it into its own `.github/workflows` and selects a published version or reviewed full commit.
 
 ## This repository's workflows
 
@@ -51,17 +51,11 @@ an existing release tag to the approved source SHA. It is not an additional
 consumer changelog operation. See [this repository's flow](self-changelog.md)
 and [the Docker runtime](docker.md).
 
-The internal caller uses the public contribution module for read-only PR checks
-and the public lifecycle for trusted events. This keeps write secrets out of the
-PR caller and preserves the required `Check Contribution / Check Changelog`
-context. A facade caller must permit its nested jobs' maximum permissions even
-when an event skips them, so the two event routes are deliberately separate.
-After an effective publication, `published-tag` and `published-sha`
-connect to the internal image workflow. Preparation and skipped publication do
-not start an image publication. The image caller also requires the closed,
-merged, same-repository managed PR and a published SHA equal to its merge event.
-The four previous internal changelog callers are
-replaced together, avoiding competing runs for the same event.
+The internal caller separates read-only PR checks from trusted write events.
+Its `Check Contribution / Check Changelog` status is a consumer protection
+setting; skipped jobs do not remove the caller's permission requirements.
+Only successful publication outputs can start the internal image job, and its
+published SHA must match the approved merged event. Preparation alone does not publish an image.
 
 Version and publication retain their shared repository/base lock inside the
 public operations. Dependabot and feedback have PR-specific locks; the image
@@ -69,11 +63,44 @@ has a tag-specific lock and rechecks its exact source. The caller adds no outer
 lock with a nested operation's group: that could make a job wait for its own
 workflow. Only the read-only check retains the caller's cancellation group.
 
-Reusable workflows must remain directly in `.github/workflows`; Actions have no
-such location restriction. Keeping the six public Action paths in `.github/actions`
-preserves existing references and the shared `../../../Dockerfile` build context.
-Moving them into `resources/actions` would mix executable adapters with copyable
-adoption examples and require a path migration without changing their behavior.
+## Parallel maintenance lines
+
+Use separate base and managed branches when maintaining more than one release
+line. Each line gets its own version PR and central history:
+
+| Setting | Example 1.x line | Example 2.x line |
+| --- | --- | --- |
+| Event branch filters and `base-branch` | `1.x` | `2.x` |
+| Exclusive `managed-branch` | `changelog/version-1.x` | `changelog/version-2.x` |
+| Concrete published baseline | `v1.8.4` | `v2.3.0` |
+| Next compatible security patch | `v1.8.5` | `v2.3.1` |
+
+1. Route PR, PR-target and push events to their matching base and managed branch.
+   A manual preparation selects that maintenance branch as its workflow ref.
+2. Backport the selected fix and a unique validated fragment to each maintained
+   line. Keep rendering, history source and PR-reference settings consistent
+   between that line's preparation and publication.
+3. Review each PR's current/next version, exact history and fragment deletions.
+   Publication and review authority remain separate for each line.
+
+A shared managed branch is refused when another base already owns it. Version
+and publication serialize per repository/base; distinct locks do not make a
+shared managed branch safe. Conflicting ref writes require inspection before retry.
+
+Only tags ancestral to the selected base establish its baseline. Branch names
+do not enforce a major range: merging complete 2.x history into 1.x, even with
+the `ours` strategy, can make the 2.x tag reachable there. Backport selected
+commits and verify the planned major; there is no `expected-major` guard.
+Local recovery journals remain scoped to their consumer working tree. Two
+lines can share an options fingerprint while their exact base SHA and consumed
+hashes still identify different transactions.
+
+Concrete release tags stay immutable. An optional publication channel, if
+configured separately, points to an already published commit; it is not a
+maintenance branch where fragments accumulate. A channel update must verify
+the published commit and progression within that line, not require ancestry
+between different major lines or point at an unreviewed maintenance tip.
+This guide does not create channels or install a channel workflow in a consumer.
 
 ## Lower-level actions
 
@@ -91,7 +118,7 @@ the reusable workflows:
 
 These Docker actions share the root `Dockerfile` and call the packaged PHP CLI.
 Advanced callers can compose them directly with the required trusted checkout,
-permissions and event evidence. The facade supplies that orchestration for
+permissions and event evidence. The lifecycle supplies that orchestration for
 ordinary adoption. [`setup-docker`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/setup-docker/action.yml)
 is an internal optional cache helper; it does not implement a changelog operation
 and skips persistent self-hosted daemons.
@@ -104,12 +131,9 @@ Runtime code and action implementations stay in their current paths. Resources
 hold consumer examples and the [published skill](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md),
 so packaged instructions remain distinct from GitHub's executable entrypoints.
 
-GitHub Action downloads and Composer dist can share the same source archive.
-Archive rules retain the six public Docker Action metadata files and their root
-Docker context, while excluding internal helpers, workflows and maintenance
-files. Those small public metadata files are therefore also present in the
-Composer dist. `archive.exclude` cannot rewrite a ZIP supplied by GitHub.
-See [distribution and runtime verification](docker.md).
+Public Action paths retain their shared Docker build context. GitHub Action
+downloads and Composer dist can use the same source archive; see
+[archive contents and runtime verification](docker.md) for the inclusion rules.
 
 ---
 

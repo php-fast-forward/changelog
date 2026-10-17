@@ -13,9 +13,8 @@ implementations in `.github/workflows`, as required by GitHub.
 ## Start with validation
 
 Copy the [caller example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml) into the consumer's
-`.github/workflows/changelog.yml`. Its full product commit is a reviewed revision
-already integrated into this package's release line. Update that pin deliberately;
-do not select a temporary PR branch or unmerged PR commit. The
+`.github/workflows/changelog.yml`. The example selects release `v0.1.0`. Review
+the release notes when changing that version. The
 [example's setup notes](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) describe branch filters,
 runner selection and the optional token.
 
@@ -38,28 +37,24 @@ contribution status and comments remain feedback operations.
 
 ## Operation coverage
 
-| Reference Changesets step | Changelog support |
+| Task | What the lifecycle does |
 | --- | --- |
-| Validate changesets | Existing `check` action/workflow, with exact event head/base. |
-| Select mode | The facade routes by event; the version service already distinguishes release, maintenance and no changes. An empty inventory never grants publication. |
-| Rehearse versioning | `changelog version --dry-run` and version workflow `dry-run` validate the shared plan without writes; transaction fixtures test actual application separately. |
-| Read PR changesets | `pr-status` Docker action and `github pr-status` CLI operation. The count describes added valid fragments, excluding inherited inventory. |
-| Create/update PR comment | The feedback workflow calls the pinned sticky-comment action, in a separate job with PR write permission. |
-| Add Dependabot changeset | Existing verified metadata and create-only fragment service; the facade validates the resulting head in the same run. |
-| Prepare one version PR | Existing version action/workflow and signed-Bot ownership policy. |
-| Validate generated version branch | The facade invokes exact-head feedback after version synchronization, including when a PR event created by `GITHUB_TOKEN` needs approval. |
-| Publish reviewed tag/release | Existing publisher, routed from the closed, merged managed PR, with its original head and exact merge SHA. |
+| Validate a contribution | Check the exact event head/base and require new valid fragments. |
+| Preview versioning | `dry-run` computes the plan without version/publication content writes. |
+| Show PR changes | Count added valid fragments, excluding inherited inventory. |
+| Update PR feedback | Maintain one sticky comment and the checked commit's status. |
+| Handle Dependabot | Create one verified dependency fragment and validate the resulting head. |
+| Prepare a version | Create or refresh one signed-Bot version PR from the current base. |
+| Check generated heads | Validate them in the current run, even when another PR workflow needs token-event approval. |
+| Publish | Use the closed, merged managed PR's original head and exact approved merge SHA. |
 
-The reference uses npm manifests to carry its package versions. This PHP
-library intentionally resolves releases from Git tags and committed transaction
-evidence, without adding a Composer `version` field or technical files to the
-release PR. History maintenance remains available through its individual
-workflow and CLI commands.
+An empty inventory does not authorize publication. History backfill/formatting
+is an individual operation, not an automatic step in this lifecycle.
 
 Dependabot package identifiers use a deliberately restricted character set.
 Ordinary Composer, GitHub Actions and Docker names fit that set; names containing
 colons, including Maven coordinates such as `org.example:artifact`, are rejected.
-The facade does not claim unrestricted support for every Dependabot ecosystem.
+The lifecycle does not claim unrestricted support for every Dependabot ecosystem.
 
 ## Comments and failure behavior
 
@@ -106,7 +101,7 @@ elsewhere remains supported through `secrets.token`.
 
 ## Optional settings and composition
 
-All facade inputs are optional. The copyable caller makes several choices
+All lifecycle inputs are optional. The copyable caller makes several choices
 explicit; omitted values use these reusable defaults:
 
 | Input | Default | Purpose |
@@ -140,47 +135,23 @@ output boundaries. [Complete setup](github-app.md).
 Keep settings consistent across all operations. PR operations work at repository
 root; select nested packages through repository-relative managed paths.
 
-PR references are resolved without a follow-up fragment commit. The planner
-matches exact committed fragment bytes and canonical paths to first-parent Git
-history, then verifies the associated merged PR through GitHub. Explicit metadata
-remains unchanged. No qualifying PR leaves the description alone; unavailable,
-incomplete or ambiguous evidence fails before managed writes. Resolution never
-adds an author or commit link. See [entry references and origin proof](history.md).
+`resolve-pull-requests` defaults to `true` in automation and `false` locally.
+It enriches rendered notes without editing fragments; explicit metadata remains
+unchanged. Set it to `false` to keep only explicit references. This is independent
+of `source: tags`: enabled origin lookup still reads GitHub. Checks/feedback carry
+the value for ownership but perform no origin lookup. Keep it consistent across
+separately composed operations. Changing it for a prepared PR requires
+regeneration and review of the new head; see [reference evidence](history.md).
 
-The setting is independent of `source: tags`: historical imports can remain
-tag-based while PR discovery reads GitHub. Local CLI use defaults to disabled;
-the lifecycle and individual version/publish Actions default to enabled.
-Individual check/PR-feedback operations carry the same setting solely for the
-approved transaction's ownership fingerprint; they do not resolve fragment
-origins. Keep its value consistent across every operation when composing them
-separately. No caller input is required for the default lifecycle.
-
-To keep references explicit, configure `resolve-pull-requests: false` on the
-facade. Changing this setting for a prepared version PR requires regeneration
-and review; publication recomputes the enabled discovery and refuses a result
-that differs from the approved notes. Use the version workflow to regenerate
-the transaction, then review its new exact head before publication.
-
-To show the version transition, configure the facade with:
+To show the version transition, configure the lifecycle with:
 
 ```yaml
     with:
       version-pr-title: 'chore(release): {current_version} → {next_version}'
 ```
 
-The versions come from the validated release plan. For example, a `1.2.0` baseline
-and a `1.3.0` release produce `chore(release): 1.2.0 → 1.3.0`. A first release uses
-the initial `0.0.0` baseline. Historical maintenance has no next release, so both
-placeholders resolve to the current version. Literal titles keep their bytes;
-only these two placeholders are expanded. Templates may use at most 1024 bytes;
-literal and fully resolved titles must remain a single line of at most 256 bytes.
-Updating only the configured title refreshes the owned PR without changing its
-body, creating another commit or changing its release plan. `dry-run` previews
-that update without writing it.
-
-The individual `changelog-version.yml` workflow and Docker version action use
-their existing `title` input for the same contract. The CLI accepts it through
-`github version --title='chore(release): {current_version} → {next_version}'`.
+Values come from the validated plan. The individual workflow/Action uses `title`
+for the same setting; see [title rules and repeatability](version-pull-request.md).
 
 The public default is `ubuntu-latest`, without repository-specific variables.
 All individual lifecycle reusables also accept `runs-on`. A consumer with an
@@ -213,7 +184,7 @@ still built from its pinned Dockerfile; publishing an image does not implicitly
 switch the actions to consuming GHCR.
 
 The individual reusable workflows remain supported for advanced composition;
-the facade does not replace their business services. See [the complete operation
+the lifecycle does not replace their business services. See [the complete operation
 contracts](github-actions.md), [publication](publication.md) and
 [isolated workflow fixtures](https://github.com/php-fast-forward/changelog/blob/main/tests/Workflow/README.md).
 

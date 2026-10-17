@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Makes GitHub adoption and local CPX execution easier to follow, separates skill installation from runtime and PHP integration, and organizes the guides by task while retaining detailed release, recovery and policy contracts. ([#47](https://github.com/php-fast-forward/changelog/pull/47))
 - Includes the changelog package name and current-to-next version transition in this repository's automated release PR titles. ([#44](https://github.com/php-fast-forward/changelog/pull/44))
 
 ### Fixed

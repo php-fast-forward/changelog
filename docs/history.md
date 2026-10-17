@@ -1,5 +1,18 @@
 # Historical Markdown and templates
 
+Use this guide to adopt an existing changelog, import missing releases or change
+presentation. Preview from the consumer project before applying maintenance:
+
+```sh
+cpx --skip-local fast-forward/changelog:^0.1 backfill --dry-run --source=tags
+cpx --skip-local fast-forward/changelog:^0.1 format --dry-run --locale=pt-BR
+```
+
+Backfill adds missing tagged versions; format changes recognized headings while
+preserving descriptions. Review the proposed output before applying an
+authorized operation. [Transactions and recovery](release-receipts.md) explain
+application; the contracts below describe preservation, links and templates.
+
 `CHANGELOG.md` is the single published history. A release preserves published
 sections and promotes legacy `Unreleased` descriptions into the new version,
 removing the pending heading and combining matching categories. Backfill and
@@ -209,15 +222,9 @@ Verified provenance and the upstream MIT notice remain in
 
 ## Notes
 
-`notes [version]` returns the exact maintained body. Without a version, it selects
-the highest stable SemVer maintained in the document, independently of section
-order or release dates. Unreleased and prerelease sections do not become the
-default. Equal core versions with different build metadata use lexical ordering
-to make the selection deterministic. The stable maintained section takes priority
-over Git tags; reachable stable Git tags provide the fallback only when no
-stable maintained section exists. An explicit version may select a prerelease.
-`--output=notes/release.md` exports to a new project-relative file. Existing files,
-the consolidated changelog and all fragment-directory paths are refused.
+Use `notes [version]` for an exact maintained body, or `--output` for a new export
+file. Version selection and file protection are specified in the
+[CLI reference](cli-fragments.md).
 
 ---
 

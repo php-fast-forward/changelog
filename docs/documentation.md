@@ -1,5 +1,8 @@
 # Building The Documentation
 
+Use this contributor guide to render the guides and API for local review or CI.
+The result is `.build/docs/index.html`; building it does not publish a website.
+
 The documentation combines the Markdown guides in `docs/` with the PHP API
 reference generated from `src/`. `phpdoc.dist.xml` selects those sources and the
 Fast Forward Bootstrap template. The rendered homepage is `docs/index.md`.

@@ -1,5 +1,8 @@
 # Optional Composer skill synchronization
 
+Use this route when Composer already manages your project's skills. For a direct
+installation from GitHub, use [Skills CLI](skills.md) instead.
+
 `fast-forward/changelog ^0.1` ships the complete
 `resources/skills/fast-forward-changelog` package. It declares
 `extra.skills.source: resources/skills` and suggests `llm/skills` while retaining

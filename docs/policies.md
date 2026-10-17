@@ -1,5 +1,10 @@
 # Pull-request and Dependabot policies
 
+Use this reference when a contribution is refused, an exception is needed or
+you are integrating the policy services. First read the run's diagnostic and
+confirm the checked PR commit. Ordinary contributions add new fragments;
+human editorial maintenance and generated version PRs have different authority.
+
 Privileged base workflows own the trusted configuration, the checked-out runtime
 and metadata collection. They MUST NOT execute PHP, Composer, scripts or workflow
 code from an untrusted pull-request head. API reads inspect that head as data.
@@ -31,6 +36,8 @@ authority. Ordinary `write`, unknown/custom role names, inaccessible permission
 records and Bot label actors do not grant an exception. Maintainers may grant
 an exception to a fork PR; this does not authorize privileged writes to the fork.
 
+### Correct an optional author
+
 The same verified maintenance grant permits one narrow attribution correction:
 remove exactly one `author` line from a pending fragment's frontmatter. The
 committed base/head must be regular files of the same mode, the validated bytes
@@ -38,6 +45,8 @@ must match HEAD, and every remaining byte must stay identical. This does not
 permit replacing the author, changing impact, descriptions, references, paths
 or permissions, or consuming fragments. Ordinary PRs, waivers, unbound kinds
 and missing Git evidence cannot grant this exception.
+
+### Curate pending notes
 
 Verified human maintenance can also curate pending notes before consolidation:
 modify or delete inherited regular fragments while adding at least one new valid
@@ -109,6 +118,9 @@ GitHub can provide Bot signature verification. See
 [GitHub Bot signatures](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification#signature-verification-for-bots).
 
 ## Dependabot fragments
+
+For workflow setup, use [the individual operation](github-actions.md). The
+reference below explains the accepted metadata, created note and refusal states.
 
 `DependabotInputFactoryInterface::create()` validates a positive PR number, a
 complete expected head SHA, package identifiers, dependency scope, ecosystem

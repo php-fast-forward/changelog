@@ -2,7 +2,7 @@
 name: fast-forward-changelog
 description: Adopt Fast Forward Changelog GitHub automation, write and validate independent fragments, preview releases, and use its CLI or PHP services. Use for application changelog integration and approved release maintenance.
 license: MIT
-compatibility: Supports fast-forward/changelog ^0.1 (minimum 0.1.0). GitHub automation requires Linux with Docker, Bash and Git; no consumer PHP installation. Local CLI/PHP integration requires PHP ^8.5 and Composer. GitHub credentials are needed only for authorized remote operations.
+compatibility: Supports fast-forward/changelog ^0.1 (minimum 0.1.0). GitHub automation requires Linux with Docker, Bash and Git; no consumer PHP installation. Local CLI requires PHP ^8.5, Git and CPX; PHP integration requires Composer. GitHub credentials are needed only for authorized remote operations.
 metadata:
   author: php-fast-forward
   source: original
@@ -30,8 +30,10 @@ alone; failed or ambiguous evidence blocks preparation before writes.
 Read applicable application instructions and Git status first. Preserve existing
 work, repository policies, workflows, plugin choices and secrets. This skill
 supports the `fast-forward/changelog ^0.1` product contract from `0.1.0`; earlier
-versions are outside it. For CLI/API use, inspect
-`composer show fast-forward/changelog` and `vendor/bin/changelog list --raw`.
+versions are outside it. For local CLI use, select the supported runtime with
+`cpx --skip-local fast-forward/changelog:^0.1 list --raw`; inspect the relevant
+`help <command>` before choosing flags. PHP API integration instead uses the
+application's Composer installation; inspect `composer show fast-forward/changelog`.
 A mismatch calls for compatible documentation or a separately authorized upgrade.
 Installing this skill copies instructions; it does not install the runtime or
 activate a host session.
@@ -39,7 +41,7 @@ activate a host session.
 ## Start with GitHub automation
 
 Create `.github/workflows/changelog.yml` in the application, using this caller.
-Its `uses` points to a reviewed immutable implementation commit. Review the
+Its `uses` selects the published `v0.1.0` implementation. Review the
 selected revision and update the pin deliberately when adopting another version.
 GitHub requires reusable implementations directly in `.github/workflows`;
 `resources/workflows/changelog.yml` in the library is a copyable caller.
@@ -64,7 +66,7 @@ jobs:
       pull-requests: write
       issues: read
       statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@v0.1.0
     with:
       base-branch: main
       source: tags
@@ -129,12 +131,20 @@ can override the category default when justified, such as a compatible dependenc
 update using `changed`/`patch`. Unknown metadata, conflicting legacy fields,
 nested/hidden fragments and symlinks fail. `.changelog/AGENTS.md` is reserved.
 
-With an existing local CLI, the equivalent first-use commands are:
+For local authoring, use [CPX](https://github.com/laravel/cpx) with PHP `^8.5`
+and Git available. Obtain the executor through its official installation guide
+when installation is authorized. `--skip-local` selects a separate tool
+installation instead of a project binary; the package constraint keeps this
+skill on its supported `0.1.x` line. It does not add the changelog package to the
+application's Composer dependencies. Installing these instructions with NPX
+Skills is independent of installing or executing CPX.
+
+Run from the application directory:
 
 ```sh
-vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-vendor/bin/changelog check --no-interaction
-vendor/bin/changelog status --json --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 status --json --source=tags --no-interaction
 ```
 
 Inspect the generated path: creation adds exactly one fragment without changing
@@ -153,7 +163,7 @@ With `PULL_REQUEST` set to that verified number, author the same contribution
 with its link:
 
 ```sh
-vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
 ```
 
 If the PR number is unknown, keep the field absent. Contribution checks do not
@@ -181,7 +191,7 @@ After the intended contribution is committed under existing task authority,
 compare its committed PR changes with a fetched, explicit baseline:
 
 ```sh
-vendor/bin/changelog check --since=origin/main --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 check --since=origin/main --no-interaction
 ```
 
 This comparison reads the committed baseline-to-`HEAD` diff. An untracked or

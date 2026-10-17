@@ -3,31 +3,14 @@
 Start with [one reusable lifecycle](reusable-lifecycle.md) for the normal
 contribution, Dependabot, version and approved-merge flow, including PR feedback
 and exact-head status. The individual workflows below remain available for
-advanced composition. Publication is disabled by default in the facade while
+advanced composition. Publication is disabled by default in the lifecycle while
 consumer validation is in progress.
 
-The six individual reusable workflows run the same PHP services as the local CLI. A
-contribution adds a fragment; version automation opens one managed PR; approval
-and merge precede publication of its verified tag and GitHub Release.
-History maintenance is a separate operation.
-
-Each example pins a reviewed full product commit containing its operation.
-Keep every consumer reference immutable when updating the runtime.
-The workflows check out their own runtime using the called workflow's immutable
-`job.workflow_repository` and `job.workflow_sha`, separately from consumer data.
-The caller's `github` context still identifies the consumer. This follows
-[GitHub's reusable-workflow contexts](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts)
-and [caller context rules](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
-A platform lacking those runtime identity fields fails before checkout.
-
-Actions live under `.github/actions/` and run the packaged CLI from one shared
-Dockerfile. Docker actions require a Linux runner. Reusable workflows pass
-`project/<working-directory>` inside the mounted workspace, rather than a host
-filesystem path. The runtime is installed at `/usr/local`; consumer data
-is mounted under `/github/workspace`. Tokens are environment inputs, and the
-CLI writes its declared outputs to `GITHUB_OUTPUT`. The image is built from the
-trusted runtime checkout and installs locked production dependencies at build
-time. See [the image and direct CLI contract](docker.md).
+Choose only the operations your custom workflow needs. Do not add these callers
+alongside the lifecycle for the same events: that would run the operation twice.
+The examples below use release `v0.1.0` and require a Linux runner with Docker.
+They run the packaged CLI separately from consumer files and dependencies.
+See [runtime paths and identity](docker.md) for the Action implementation contract.
 
 ## Shared configuration
 
@@ -42,6 +25,7 @@ time. See [the image and direct CLI contract](docker.md).
 | `tag-prefix` | `v` | Exact prefix for stable SemVer tags. |
 | `repository` | Caller repository | GitHub `owner/name`; normally omit this override. |
 | `source` | `auto` | Backfill source: `auto`, `github` or `tags`. |
+| `resolve-pull-requests` | `true` | Version/publish reference discovery; check/feedback use the same value for transaction ownership. |
 
 The trusted write/feedback workflows also accept optional `app-client-id` and
 `secrets.app-private-key`. Each job can generate a separate scoped installation
@@ -51,10 +35,8 @@ see [credentials, permissions and migration](github-app.md).
 
 Alternatively supply an already issued Bot token as `secrets.token`. Do not
 combine it with the App pair. Without either route, jobs use `github.token`.
-The older pinned examples below demonstrate the default route; select a reviewed
-revision containing App authentication before using the new optional inputs.
-Each job requests its
-own minimum permissions, and the caller must permit those permissions. A caller
+Each example uses the default token route. Each job requests its own minimum
+permissions, and the caller must permit those permissions. A caller
 cannot grant permissions withheld by repository or organization policy. Creating
 PRs with `GITHUB_TOKEN` also requires the repository's
 [Actions PR creation setting](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
@@ -88,7 +70,7 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog-check.yml@v0.1.0
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -124,7 +106,7 @@ jobs:
       pull-requests: write
       issues: read
       statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog-pr-status.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog-pr-status.yml@v0.1.0
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -138,7 +120,7 @@ updates one sticky comment. `comment-mode` accepts `always`, `on-failure` or
 templates or Composer scripts. A failed contribution can still receive feedback.
 After an automated dependency commit, pass its verified new head; omitting
 `base-sha` resolves the live PR base before validation. Keep the comparison
-immutable within that validation. Do not add this caller alongside the facade's
+immutable within that validation. Do not add this caller alongside the lifecycle's
 feedback for the same events.
 
 ## Dependabot fragments
@@ -157,7 +139,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog-dependabot.yml@v0.1.0
     with:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -218,7 +200,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog-version.yml@v0.1.0
     with:
       base-branch: main
       managed-branch: changelog/version
@@ -237,7 +219,7 @@ version transaction. A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
 The version workflow's `title` accepts a literal title or the placeholders
-`{current_version}` and `{next_version}`. The facade exposes the same setting as
+`{current_version}` and `{next_version}`. The lifecycle exposes the same setting as
 `version-pr-title`; see [title settings](reusable-lifecycle.md).
 The default remains `chore: update changelog`. A title-only refresh preserves
 the signed branch head and transaction identity.
@@ -278,7 +260,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog-publish.yml@v0.1.0
     with:
       base-branch: main
       pull-request: ${{ github.event.pull_request.number }}
@@ -315,7 +297,7 @@ jobs:
   changelog:
     permissions:
       contents: read
-    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog-history.yml@v0.1.0
     with:
       base-branch: main
       operation: ${{ inputs.operation }}

@@ -1,5 +1,11 @@
 # Release transactions and local recovery
 
+Use this guide before applying a local release plan or retrying an interrupted
+transaction. Start with the read-only [release preview](adoption.md). After an
+interruption, preserve the journal and remaining inputs, fix the reported cause
+and rerun the same operation with the same settings. Do not edit recovery data
+to force a different result.
+
 A release PR updates `CHANGELOG.md` and removes the consumed Markdown fragments.
 It adds no `.changelog/release-plan.json`, manifest or second release history.
 New history is ordinary readable Markdown, without generated JSON comments.

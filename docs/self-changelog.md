@@ -1,98 +1,71 @@
 # Changelog in this repository
 
-This package uses its own public reusable lifecycle and Docker Actions. Ordinary changes add
-one pending fragment; the managed version PR updates `CHANGELOG.md` after those
-changes reach `main`. Contributors do not maintain a central `Unreleased` list.
+Use this guide when contributing to Fast Forward Changelog itself. Consumer
+repositories should start with [adoption](adoption.md). This package uses the
+same fragments and reusable lifecycle it distributes.
 
-The [published skill](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md) is also
-the internal procedure. Read it directly from `resources`; the repository does
-not need a second copy in `.agents/skills`. In a source checkout, substitute
-`php bin/changelog` for the skill's consumer command `vendor/bin/changelog`.
+## Record a contribution
 
-Initial development notes, including the former central `Unreleased` content,
-were curated into independent first-delivery fragments before publication.
-The normal version transaction consolidates those summaries. New contributions
-add only independent fragments; do not recreate a central pending list.
-
-From the package checkout, install dependencies and create a fragment:
+Read the root [development contract](https://github.com/php-fast-forward/changelog/blob/main/AGENTS.md)
+and [canonical skill](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md).
+Use `php bin/changelog <command>` from this source checkout in place of the
+skill's CPX package prefix. No installed copy of the skill is needed here.
 
 ```sh
 composer install
-php bin/changelog add "Validate the approved release identity" --category fixed --type patch
-php bin/changelog status
+php bin/changelog add "Documents the contribution flow." --category=changed --type=patch
+php bin/changelog check
 composer check
 ```
 
-Commit the generated `.changelog/*.md` with the implementation. The CLI also
-accepts `--commit` to commit only that new fragment. Local `php bin/changelog
-check` validates pending fragments. Maintainers can preview consolidation with
-`php bin/changelog version --dry-run`; applying it locally is an explicit
-maintenance operation, separate from the ordinary contribution flow.
+Review and commit only the generated fragment with the implementation.
+`add --commit` can commit that one file explicitly; it does not push. After
+committing and fetching the intended base, run
+`php bin/changelog check --since=origin/main` for the committed contribution.
 
-The following event workflows belong to this package. Consumers copy the
-[single caller example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) instead. The
-[automation map](automation-map.md) lists all public reusable interfaces and
-explains why their implementations remain in `.github/workflows`.
+New changes belong in independent `.changelog/*.md` files. Do not edit central
+history, modify inherited fragments or recreate `Unreleased` in an ordinary PR.
+Initial development notes were curated before the first publication; their
+original content remains in Git. Further editorial curation requires the
+verified human maintenance policy described in [policies](policies.md).
 
-| Repository workflow | Trigger | Package operation |
-| --- | --- | --- |
-| [`repository-ci`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-ci.yml) | PR, push and manual checks | Validate quality, supported runners and installed package behavior. |
-| [`repository-changelog`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-changelog.yml) | PR to `main`, including label changes | Call the public contribution module with read-only permissions and no write secret. |
-| `repository-changelog` | Trusted PR event | Update exact-head status and sticky feedback; Dependabot additionally authors its deterministic fragment. Native test workflows may still require approval. |
-| `repository-changelog` | Push to `main` | Prepare or update the single `changelog/version` PR. |
-| `repository-changelog` | Merge of the managed version PR into `main` | Verify approved consolidation, publish its tag/release and pass successful publication outputs to the image workflow. |
-| [`repository-image`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) | Verified publication call with an approved SHA | Validate both platform variants and the exact release commit, recheck the remote tag after preparing the image, then publish it. |
+## What automation does
 
-The public lifecycle selects the appropriate reusable operation. Each operation
-calls its Action from the selected trusted runtime checkout. The six public
-Docker Actions use the shared root Dockerfile, whose image includes PHP 8.5,
-Git, this package and its locked production dependencies. The container runs
-`bin/changelog github <operation>` directly. The installed package stays at
-`/usr/local`, separate from the mounted consumer checkout. Action outputs
-come from the CLI through `GITHUB_OUTPUT`. See [the Docker runtime guide](docker.md).
-The contribution job checks out the exact PR head; its token has read permissions
-and checkout credentials are not persisted. The write jobs execute the trusted
-base or the approved merge, never a pending PR head. Version and publication
-share one concurrency group and finish without cancelling each other.
+| Event | Result |
+| --- | --- |
+| Contribution PR | Read-only contribution check, exact-head status and sticky feedback from trusted code. |
+| Dependabot PR | A verified dependency fragment, followed by validation of the resulting head. |
+| Push to `main` | Create or refresh the single `changelog/version` PR. |
+| Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication can start the image workflow. |
 
-Defaults are `.changelog`, `CHANGELOG.md`, English structural headings,
-`keep-a-changelog`, `v` tags and one managed branch `changelog/version`. The
-contribution Action verifies labels and generated-PR authority through the
-same services used by the CLI; branch names alone do not grant an exception.
-A version PR modifies `CHANGELOG.md` and removes its consumed fragments; it adds
-no plan file. New history is readable Markdown without generated metadata
-comments. A maintenance-only consolidation produces no public version.
+The [automation map](automation-map.md) lists the repository CI, documentation,
+lifecycle and image jobs. The lifecycle uses the public Docker Actions;
+consumer dependencies and PR-head PHP never run in privileged jobs.
+Version and publication share a concurrency group and do not cancel each other.
 
-Write operations use `secrets.CHANGELOG_TOKEN` when configured, otherwise the
-job's `github.token`. Set `vars.CHANGELOG_AUTOMATION_ACTOR` to the exact Bot login
-when using an App token; all three authority checks use that same setting. The
-default actor is `github-actions[bot]`. The token must have the permissions
-listed in its job and the repository must allow Actions to create PRs.
-GitHub's event rules may require approval for CI on PRs created with the default
-token; use an appropriately scoped App token when automatic downstream runs
-are needed. See [GitHub's current token event rules](https://docs.github.com/en/actions/concepts/security/github_token)
-and [the package's permission guidance](github-actions.md).
+This repository enables publication for an approved merged version PR.
+Preparing that PR alone creates no release. Maintainers review its exact head,
+central history and fragment deletions before merging. Consumer examples start
+with `publish: false`; see [the lifecycle](reusable-lifecycle.md).
 
-Dependabot metadata collection keeps actor and commit verification enabled.
-New fragments start with the complete PR title as a literal paragraph, preserving
-the versions and directory supplied by Dependabot, followed by the verified
-package list. Group titles are retained without inventing missing per-package
-versions. Titles do not determine category, impact, security evidence or paths.
-Missing or unusable titles use the localized package summary. Reruns preserve
-exact current or legacy generated bytes without rewriting existing fragments;
-manual differences, retitles and metadata changes require review.
+## Credentials and maintenance
 
-Security alert IDs default to `[]`; associating an alert requires a trusted
-collector and the service's live alert verification. The collector exposes
-dependency names, type and ecosystem in its
-[pinned output contract](https://github.com/dependabot/fetch-metadata/blob/21025c705c08248db411dc16f3619e6b5f9ea21a/action.yml).
+Write jobs use `secrets.CHANGELOG_TOKEN` when configured, otherwise
+`github.token`. `vars.CHANGELOG_AUTOMATION_ACTOR` selects the exact Bot login
+(default `github-actions[bot]`). Repository policy must permit PR creation and
+that token's job permissions. For automatically triggered downstream CI, see
+[GitHub App authentication](github-app.md).
 
-A generated version PR remains open for review and approval; merging it
-activates this repository's publication workflow for the approved merge SHA.
-Preparing or validating that PR does not publish a release. Consumers should
-follow [the reusable lifecycle guide](reusable-lifecycle.md) and pin package
-references to a reviewed, integrated product commit. Their caller example
-keeps publication disabled during validation.
+Dependabot descriptions preserve the live PR title, its supplied versions and
+location, then list verified packages. Security alert IDs default to `[]` and
+require an independently trusted collector plus live verification; the detailed
+[Dependabot policy](policies.md) owns those rules.
+
+Local `status` and `version --dry-run` can preview a release. Applying a version
+or history maintenance locally is an explicit maintainer operation, separate
+from an ordinary contribution. Follow [transactions and recovery](release-receipts.md)
+and [publication](publication.md); never bypass checks to force a stale plan.
+For image-only failures after a published release, use [Docker recovery](docker.md).
 
 ---
 

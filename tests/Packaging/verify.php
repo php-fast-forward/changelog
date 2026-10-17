@@ -781,7 +781,7 @@ function exerciseSkill(string $installation, string $consumer, array $environmen
     $failure = execute([PHP_BINARY, $example, $autoload, $blocked], $installation, $environment, 255);
     verify(str_contains($failure['stderr'], 'Cannot create fragment'), 'Example I/O failure lost its diagnostic.');
     verify($blockedBefore === snapshot($blocked), 'Example I/O failure modified the existing application file.');
-    fwrite(STDOUT, "Installed skill example and inline contribution commands PASS.\n");
+    fwrite(STDOUT, "Installed skill PHP example and installed runtime contribution arguments PASS.\n");
 }
 
 /** Verifies that non-Git consolidation keeps recovery state outside the consumer and cleans it on success. */
