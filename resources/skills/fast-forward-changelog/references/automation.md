@@ -9,6 +9,13 @@ moving branch or an unmerged implementation PR. Reusables stay directly in
 
 ## Settings and advanced composition
 
+The library's `changelog*.yml` files are public reusable contracts;
+`repository-*.yml` files automate the library itself. Consumers copy the caller
+from `resources/workflows`, then select the lifecycle or individual operations.
+The six public Docker Actions stay in `.github/actions`; `github-auth` and
+`setup-docker` are internal helpers. See the product's automation map for these
+boundaries. Resource paths are copyable assets, not executable reusable URLs.
+
 The facade accepts `base-branch`, `fragment-directory`, `changelog-file`,
 `locale`, `tag-prefix`, `source`, `managed-branch`, `automation-actor`, `app-client-id`,
 `waiver-label` and `maintenance-label`. Preserve consistent values across
@@ -44,6 +51,7 @@ orchestration. The corresponding lower-level Docker actions are available under
 | Operation | Reusable workflow | Effect |
 | --- | --- | --- |
 | Check | `.github/workflows/changelog-check.yml` | Validate contribution and verified policy. |
+| PR Feedback | `.github/workflows/changelog-pr-status.yml` | Validate the exact head, set status and maintain one sticky comment. |
 | Dependabot | `.github/workflows/changelog-dependabot.yml` | Create one verified dependency fragment. |
 | Version | `.github/workflows/changelog-version.yml` | Synchronize one reviewable managed PR. |
 | Publish | `.github/workflows/changelog-publish.yml` | Publish the approved consolidation SHA. |

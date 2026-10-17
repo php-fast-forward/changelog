@@ -6,12 +6,13 @@ and exact-head status. The individual workflows below remain available for
 advanced composition. Publication is disabled by default in the facade while
 consumer validation is in progress.
 
-The five reusable workflows run the same PHP services as the local CLI. A
+The six individual reusable workflows run the same PHP services as the local CLI. A
 contribution adds a fragment; version automation opens one managed PR; approval
 and merge precede publication of its verified tag and GitHub Release.
 History maintenance is a separate operation.
 
-The examples below pin the reviewed full product commit `35c7653ef3fbe0704dd457a5a058137531eaf171`. Keep every consumer reference immutable when updating the runtime.
+Each example pins a reviewed full product commit containing its operation.
+Keep every consumer reference immutable when updating the runtime.
 The workflows check out their own runtime using the called workflow's immutable
 `job.workflow_repository` and `job.workflow_sha`, separately from consumer data.
 The caller's `github` context still identifies the consumer. This follows
@@ -101,6 +102,44 @@ shared check. The public labels `changelog-not-required` and
 `changelog-maintenance` are requests: the latest label grant must be by a current
 maintainer/admin to authorize a waiver or central-history edit. Editable PR text
 and copied commit trailers confer no authority. See [the policy contract](policies.md).
+
+## PR status and sticky feedback
+
+For feedback without the full lifecycle, create a trusted caller:
+
+```yaml
+name: Changelog PR Feedback
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  changelog:
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      statuses: write
+    uses: php-fast-forward/changelog/.github/workflows/changelog-pr-status.yml@0f4d5a7b10d4af19e0cd64f7bbe8653aed232ce3
+    with:
+      pull-request: ${{ github.event.pull_request.number }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
+      base-sha: ${{ github.event.pull_request.base.sha }}
+      comment-mode: always
+```
+
+This workflow validates exact PR identities, sets `Fast Forward Changelog` and
+updates one sticky comment. `comment-mode` accepts `always`, `on-failure` or
+`never`. It uses the trusted runtime and reads PR data without executing PR PHP,
+templates or Composer scripts. A failed contribution can still receive feedback.
+After an automated dependency commit, pass its verified new head; omitting
+`base-sha` resolves the live PR base before validation. Keep the comparison
+immutable within that validation. Do not add this caller alongside the facade's
+feedback for the same events.
 
 ## Dependabot fragments
 
@@ -301,6 +340,7 @@ outputs are strings and are empty when the operation does not provide them.
 | Workflow | Additional outputs |
 | --- | --- |
 | `changelog-check` | `status`, `fragments` |
+| `changelog-pr-status` | `status` |
 | `changelog-dependabot` | `status`, `path`, `head-sha` |
 | `changelog-version` | `status`, `version`, `pull-request`, `url`, `head-sha`, `plan-id`, `maintenance` |
 | `changelog-publish` | `state`, `version`, `tag`, `sha`, `url` |

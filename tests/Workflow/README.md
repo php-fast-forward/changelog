@@ -13,6 +13,10 @@ request, real credential, consumer installation, tag or release is used.
 Cases cover trusted base events, default branch overrides, explicit and resolved
 base SHAs, invalid identities/modes, inert shell metacharacters, operational
 feedback, failed gates, and comments discarded after a PR moves or closes.
+Repository contracts preserve required check names, route PRs through the read-only
+module and trusted events through the facade, and bind image inputs only to
+publication outputs. Lock checks prevent a caller from holding the same group
+as its nested release operation; the public modules own trusted-operation locks.
 PHP unit tests separately cover validation, exact committed blobs, status writes,
 failure output, policy and bounded Markdown previews.
 

@@ -15,6 +15,7 @@ used across Fast Forward PHP packages.
 - Filesystem, Git and GitHub boundaries: [`src/Filesystem/`](src/Filesystem/), [`src/Git/`](src/Git/), [`src/GitHub/`](src/GitHub/)
 - Generic transport construction: [`src/Http/`](src/Http/), [`src/Process/`](src/Process/)
 - Trusted automation and Docker actions: [`src/Automation/`](src/Automation/), [`.github/actions/`](.github/actions/)
+- GitHub orchestration: [`.github/workflows/`](.github/workflows/); `changelog*` are public reusables and `repository-*` belong to this package.
 - Packaged CLI image: [`Dockerfile`](Dockerfile), [runtime guide](docs/docker.md)
 - Tests: [`tests/`](tests/)
 - Docs: [`docs/`](docs/)
@@ -104,6 +105,6 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
-- [Automation map](docs/automation-map.md): distinguishes stable public reusables, repository workflows and lower-level actions; consumers copy the caller from resources without moving GitHub entrypoints.
+- [Automation map](docs/automation-map.md): maps stable public reusables/Actions, repository-prefixed internal workflows and helpers; defines consumption paths and shared-archive boundaries.
 - [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; publication starts disabled.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

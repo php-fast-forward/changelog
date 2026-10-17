@@ -34,21 +34,43 @@ copies it into its own `.github/workflows` and selects a reviewed product commit
 
 ## This repository's workflows
 
-These event workflows operate on this package and are not consumer templates:
+Internal files use the `repository-` prefix; public reusable paths retain their
+`changelog` names. Display names use `Repository: ...` for internal event
+workflows and the image helper, and `Reusable: ...` for public
+contracts. These names distinguish ownership without changing consumer paths.
 
 | Repository workflow | Trigger and purpose |
 | --- | --- |
-| [`tests.yml`](../.github/workflows/tests.yml) | PR, push and manual checks for this package: quality, tests, coverage and installed-runtime fixtures. |
-| [`check-changelog.yml`](../.github/workflows/check-changelog.yml) | PR contribution gate using the local action under read permissions. |
-| [`dependabot-changelog.yml`](../.github/workflows/dependabot-changelog.yml) | Trusted Dependabot PR event creates this package's dependency fragment. |
-| [`release-changelog.yml`](../.github/workflows/release-changelog.yml) | A push to `main` prepares this package's version PR. |
-| [`publish-changelog.yml`](../.github/workflows/publish-changelog.yml) | A merged managed version PR verifies and publishes this package, then calls its image build. |
+| [`repository-ci.yml`](../.github/workflows/repository-ci.yml) | PR, push and manual checks for this package: quality, tests, coverage and installed-runtime fixtures. |
+| [`repository-changelog.yml`](../.github/workflows/repository-changelog.yml) | One caller for this package's contribution checks, trusted PR feedback, Dependabot fragments, version preparation and approved-merge publication. |
 
-[`docker-cli.yml`](../.github/workflows/docker-cli.yml) also uses `workflow_call`,
+[`repository-image.yml`](../.github/workflows/repository-image.yml) also uses `workflow_call`,
 but is an internal release step for this product's GHCR image. Its inputs bind
 an existing release tag to the approved source SHA. It is not an additional
 consumer changelog operation. See [this repository's flow](self-changelog.md)
 and [the Docker runtime](docker.md).
+
+The internal caller uses the public contribution module for read-only PR checks
+and the public lifecycle for trusted events. This keeps write secrets out of the
+PR caller and preserves the required `Check Contribution / Check Changelog`
+context. A facade caller must permit its nested jobs' maximum permissions even
+when an event skips them, so the two event routes are deliberately separate.
+After an effective publication, `published-tag` and `published-sha`
+connect to the internal image workflow. Preparation and skipped publication do
+not start an image publication. The four previous internal changelog callers are
+replaced together, avoiding competing runs for the same event.
+
+Version and publication retain their shared repository/base lock inside the
+public operations. Dependabot and feedback have PR-specific locks; the image
+has a tag-specific lock and rechecks its exact source. The caller adds no outer
+lock with a nested operation's group: that could make a job wait for its own
+workflow. Only the read-only check retains the caller's cancellation group.
+
+Reusable workflows must remain directly in `.github/workflows`; Actions have no
+such location restriction. Keeping the six public Action paths in `.github/actions`
+preserves existing references and the shared `../../../Dockerfile` build context.
+Moving them into `resources/actions` would mix executable adapters with copyable
+adoption examples and require a path migration without changing their behavior.
 
 ## Lower-level actions
 
@@ -78,3 +100,10 @@ it does not expose tokens as workflow outputs or alter PR-head permissions.
 Runtime code and action implementations stay in their current paths. Resources
 hold consumer examples and the [published skill](../resources/skills/fast-forward-changelog/SKILL.md),
 so packaged instructions remain distinct from GitHub's executable entrypoints.
+
+GitHub Action downloads and Composer dist can share the same source archive.
+Archive rules retain the six public Docker Action metadata files and their root
+Docker context, while excluding internal helpers, workflows and maintenance
+files. Those small public metadata files are therefore also present in the
+Composer dist. `archive.exclude` cannot rewrite a ZIP supplied by GitHub.
+See [distribution and runtime verification](docker.md).

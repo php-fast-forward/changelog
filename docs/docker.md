@@ -50,8 +50,8 @@ approval and exact committed evidence.
 ## Direct GitHub operations
 
 The native command `changelog github <operation>` delegates to the same shared
-automation services as the workflows. Its operations are `check`, `dependabot`,
-`version`, `publish` and `history`:
+automation services as the workflows. Its operations are `check`, `pr-status`,
+`dependabot`, `version`, `publish` and `history`:
 
 ```sh
 php bin/changelog github check --since=origin/main --repository=owner/project
@@ -75,10 +75,13 @@ GitHub tokens.
 
 ## Action layout and runner paths
 
-The five metadata files live in [`.github/actions/`](../.github/actions/). Each
-uses `../../../Dockerfile`, passes direct CLI args and forwards its token through
-the environment. Docker actions run on Linux runners. GitHub builds from the
-Dockerfile's parent directory and mounts consumer data at `/github/workspace`;
+The six public Docker Actions live in
+[`.github/actions/`](../.github/actions/): `check`, `pr-status`, `dependabot`,
+`version`, `publish` and `history`. Each uses `../../../Dockerfile`, passes direct
+CLI args and forwards its token through the environment. The `github-auth` and
+`setup-docker` composites are internal workflow helpers. Docker Actions run on
+Linux runners with Docker available, including self-hosted runners. GitHub builds
+from the Dockerfile's parent directory and mounts consumer data at `/github/workspace`;
 the CLI stays at `/usr/local`. No shell entrypoint or action PHP script is
 needed. See the [GitHub runner implementation](https://github.com/actions/runner/blob/main/src/Runner.Worker/Handlers/ContainerActionHandler.cs)
 and [Docker action documentation](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-a-docker-container-action).
@@ -90,15 +93,24 @@ and select nested fragment/history paths through their normal inputs. Token
 permissions, event validation, signatures and committed publication proof are
 still enforced by the existing services.
 
-Action resources and the root Dockerfile remain available in repository
-archives; workflow and skill folders are excluded individually from Composer
-archives. Old action paths remain available at older pinned commits. Update
-consumers to `.github/actions/<operation>` at a reviewed immutable commit when
-adopting this layout.
+The six public Action metadata files, shared Dockerfile, `.dockerignore`,
+`composer.json`, `composer.lock`, license, executable and complete `src/` tree
+remain in Git archives. The packaged skill and consumer workflow example remain
+in `resources/`. Repository workflows, issue/PR templates, funding configuration
+and the two internal composites are excluded individually, along with development
+files. Keeping the root Docker build context is necessary for remote Action use.
+
+A Composer installation using the GitHub dist archive receives that same small
+Action payload. `composer.json`'s `archive.exclude` controls archives created by
+Composer; it does not provide a separate filter for a GitHub-hosted dist ZIP.
+See [Git archive attributes](https://git-scm.com/docs/gitattributes#_creating_an_archive)
+and [Composer archive configuration](https://getcomposer.org/doc/04-schema.md#archive).
+Public `.github/actions/<operation>` paths remain stable; consumers select a
+reviewed immutable commit during validation.
 
 ## Versioned GHCR publication
 
-[Publish Docker CLI](../.github/workflows/docker-cli.yml) accepts an existing
+[Publish Docker CLI](../.github/workflows/repository-image.yml) accepts an existing
 semantic release tag. The repository publication workflow calls it explicitly
 after approved release publication, supplying its exact approved SHA. Failed
 image jobs can be rerun from that publication run. This single launch path
@@ -118,9 +130,9 @@ to `ghcr.io/php-fast-forward/changelog:<version>` with provenance, SBOM and
 repository/version/commit labels. Only the publication job receives
 `packages: write`. Image tags use the full version, without moving aliases.
 
-External Actions remain SHA-pinned with readable version comments. This is the
-immutable dependency boundary; Docker image versions follow the separate
-version-tag preference.
+Community Actions use explicit version tags. Consumer references to this package
+use reviewed immutable commits until a release is available. Docker base images
+also use full version tags.
 
 Current Action metadata builds the shared Dockerfile during initial development.
 After the first release image exists and is publicly accessible, consumers can
@@ -164,6 +176,14 @@ Run the [actual-image verifier](../tests/Container/verify.md) after building. It
 uses disposable Git repositories, synthetic credentials and network-disabled
 containers. Native unit/coverage checks still run on Linux and Windows. Linux
 CI also invokes a real local Docker action and checks its runner outputs.
+
+`composer test:packaging` verifies the archive's exact public Action inventory,
+Docker context and skill bytes, then installs that extracted payload in local
+and global Composer consumers. This proves distribution separately from the
+runner's remote Action download/build path. Validate that path with a native
+Linux job using `php-fast-forward/changelog/.github/actions/check@<reviewed-sha>`,
+an exact PR checkout and read-only permissions; retain its SHA and run URL with
+the review evidence. This check requires no tag, release or registry publication.
 
 Build failures leave consumer data untouched. Operation failures retain the
 existing service recovery rules; inspect the exact result and remote state

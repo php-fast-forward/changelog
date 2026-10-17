@@ -1,0 +1,71 @@
+name: 'Repository: Changelog'
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  check:
+    name: Check Contribution
+    if: github.event_name == 'pull_request'
+    concurrency:
+      group: check-changelog-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    uses: ./.github/workflows/changelog-check.yml
+    with:
+      working-directory: '.'
+      repository: ${{ github.repository }}
+      pull-request: ${{ github.event.pull_request.number }}
+      head-sha: ${{ github.event.pull_request.head.sha }}
+      base-sha: ${{ github.event.pull_request.base.sha }}
+      managed-branch: changelog/version
+      automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+
+  changelog:
+    name: Changelog Lifecycle
+    if: github.event_name != 'pull_request'
+    # Each public operation owns its lock; reusing a nested group here would deadlock.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      statuses: write
+    uses: ./.github/workflows/changelog.yml
+    with:
+      base-branch: main
+      automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+      comment-mode: always
+      prepare-release: true
+      publish: true
+    secrets:
+      token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
+
+  image:
+    name: Publish Docker CLI
+    needs: changelog
+    if: >-
+      needs.changelog.result == 'success' &&
+      needs.changelog.outputs.published-version != '' &&
+      needs.changelog.outputs.published-tag != '' &&
+      needs.changelog.outputs.published-sha != ''
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/repository-image.yml
+    with:
+      tag: ${{ needs.changelog.outputs.published-tag }}
+      expected-sha: ${{ needs.changelog.outputs.published-sha }}

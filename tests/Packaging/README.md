@@ -10,10 +10,12 @@ The harness requires PHP 8.5, Composer 2, Git, tar and RTK on `PATH` for local r
 The dedicated CI job sets `CHANGELOG_PACKAGING_DIRECT=1` to execute its structured
 arguments directly on the disposable runner, without an RTK prerequisite. Composer may
 download the package's public runtime dependencies. It exports the current
-tracked and unignored source into a clean temporary package snapshot, then uses
-a Composer path repository with `symlink: false` and an explicit `dev-main`
-version. Both installs disable development dependencies, plugins and scripts.
-This snapshot excludes the development checkout's ignored `vendor/` directory.
+tracked and unignored source into a synthetic Git repository, creates an archive
+using the candidate `.gitattributes`, then extracts that archive as the package
+for a Composer path repository with `symlink: false` and an explicit `dev-main`
+version. Both installs disable development dependencies, plugins and scripts,
+and must mirror the archive payload exactly. Checkout dependencies and caches
+never enter that payload.
 
 `CHANGELOG_PACKAGING_DEPENDENCIES=highest` is the default fresh resolution.
 Set it to `lowest` to exercise the minimum stable runtime dependency graph with
@@ -30,7 +32,11 @@ temporary consumer repositories.
 
 The checks cover:
 
-- A synthetic Git archive retaining every canonical skill file byte for byte, while excluding repository automation, host configuration and dev files.
+- A synthetic Git archive retaining exactly the six public Docker Action
+  metadata files under `.github`, their shared root Docker build context and
+  every canonical skill file byte for byte. Repository workflows, templates,
+  funding and internal Action helpers stay out of that archive, as do host
+  configuration and development files.
 - The shipped PHP contribution example with success, missing input, collision
   and I/O failure, plus the skill's inline CLI commands and read-only preview.
 - The runtime dependency graph and native local/global Composer proxies, including
@@ -61,3 +67,9 @@ system temporary directory; the user's normal Composer cache is rejected.
 These integration checks live outside the unit suite and its source coverage
 gate. Unit tests continue to replace filesystem, process, network and environment
 collaborators with doubles.
+
+Archive checks do not execute GitHub's remote Action downloader or build an
+image. A native Linux smoke must separately reference the reviewed commit as
+`php-fast-forward/changelog/.github/actions/check@<reviewed-sha>`, validate the
+exact PR checkout and retain its run evidence. Local Action invocation after a
+Git checkout exercises a different distribution path.

@@ -10,7 +10,7 @@ there is no generator, synchronization service or dependency on DevTools.
 | `composer.json` structure, PSR-4 autoload, dev tools and scripts | Name, description, runtime PHP constraint, source/test namespaces, paths and package dependencies |
 | `phpunit.xml.dist` unit isolation and strict coverage metadata | Test namespace, suite paths and bootstrap; add explicit integration configurations only when needed |
 | `rector.php`, `ecs.php`, `scripts/` and `tests/verify-coverage.php` | Minimum PHP target, package-owned paths, style decisions and any deliberate legacy fixture directory |
-| `.github/workflows/tests.yml` | PHP versions, supported operating systems, pinned Actions and branch triggers |
+| `.github/workflows/repository-ci.yml` | PHP versions, supported operating systems, pinned Actions and branch triggers |
 | `CONTRIBUTING.md` and scoped `AGENTS.md` | Actual development workflow, responsibilities and instruction hierarchy |
 | `README.md`, `docs/`, PR template and badges | Real installation, public API, commands, URLs, default branch and workflow names |
 | License, authors, copyright, support and funding metadata | Preserve real provenance; set actual maintainers and license instead of inventing identities |

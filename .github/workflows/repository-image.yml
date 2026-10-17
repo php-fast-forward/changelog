@@ -1,4 +1,4 @@
-name: Publish Docker CLI
+name: 'Repository: Publish Docker CLI'
 
 on:
   workflow_call:
