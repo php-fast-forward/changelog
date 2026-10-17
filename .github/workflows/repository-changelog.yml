@@ -47,6 +47,7 @@ jobs:
     uses: ./.github/workflows/changelog.yml
     with:
       base-branch: main
+      version-pr-title: 'chore(release): changelog {current_version} → {next_version}'
       automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
       comment-mode: always
       prepare-release: true
