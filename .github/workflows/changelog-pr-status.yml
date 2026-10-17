@@ -5,6 +5,11 @@ on:
   workflow_call:
     inputs:
 
+      app-client-id:
+        description: Optional GitHub App client ID; requires app-private-key.
+        type: string
+        default: ''
+
       runs-on:
         description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
@@ -71,6 +76,10 @@ on:
         type: string
         default: 'always'
     secrets:
+
+      app-private-key:
+        description: Optional GitHub App private key; mutually exclusive with token.
+        required: false
 
       token:
         description: Optional scoped App token; defaults to github.token.
@@ -157,15 +166,6 @@ jobs:
 
             core.setOutput('base', base);
 
-      - name: Check Out Consumer Data Without Executing It
-        uses: actions/checkout@v7.0.1
-        with:
-          repository: ${{ github.repository }}
-          ref: ${{ inputs.head-sha }}
-          path: project
-          fetch-depth: 0
-          persist-credentials: false
-
       - name: Check Out The Called Workflow Runtime
         uses: actions/checkout@v7.0.1
         with:
@@ -173,6 +173,29 @@ jobs:
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           path: .changelog-runtime
           fetch-depth: 1
+          persist-credentials: false
+
+      - name: Authenticate Trusted GitHub Operations
+        id: auth
+        uses: ./.changelog-runtime/.github/actions/github-auth
+        with:
+          app-client-id: ${{ inputs.app-client-id }}
+          app-private-key: ${{ secrets.app-private-key }}
+          token: ${{ secrets.token }}
+          fallback-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          operation: status
+          base-branch: ${{ inputs.base-branch || github.event.repository.default_branch }}
+          automation-actor: ${{ inputs.automation-actor }}
+
+      - name: Check Out Consumer Data Without Executing It
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ inputs.head-sha }}
+          token: ${{ steps.auth.outputs.token }}
+          path: project
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Prepare The Trusted Runtime Base Image Cache
@@ -187,7 +210,7 @@ jobs:
         with:
           working-directory: project
           repository: ${{ github.repository }}
-          token: ${{ secrets.token || github.token }}
+          token: ${{ steps.auth.outputs.token }}
           pull-request: ${{ inputs.pull-request }}
           head-sha: ${{ inputs.head-sha }}
           base-sha: ${{ steps.snapshot.outputs.base }}
@@ -216,6 +239,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 5
     permissions:
+      contents: read
       pull-requests: write
     steps:
 
@@ -246,11 +270,35 @@ jobs:
               core.setOutput('current', 'true');
             }
 
+      - name: Check Out The Called Workflow Runtime
+        if: steps.fresh.outputs.current == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          path: .changelog-runtime
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Authenticate Trusted GitHub Operations
+        id: auth
+        if: steps.fresh.outputs.current == 'true'
+        uses: ./.changelog-runtime/.github/actions/github-auth
+        with:
+          app-client-id: ${{ inputs.app-client-id }}
+          app-private-key: ${{ secrets.app-private-key }}
+          token: ${{ secrets.token }}
+          fallback-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          operation: comment
+          base-branch: ${{ inputs.base-branch || github.event.repository.default_branch }}
+          automation-actor: ${{ inputs.automation-actor }}
+
       - name: Create Or Update One Changelog Comment
         if: steps.fresh.outputs.current == 'true'
         uses: marocchino/sticky-pull-request-comment@v2.9.4
         with:
-          GITHUB_TOKEN: ${{ secrets.token || github.token }}
+          GITHUB_TOKEN: ${{ steps.auth.outputs.token }}
           number: ${{ inputs.pull-request }}
           header: fast-forward-changelog
           only_update: ${{ inputs.comment-mode == 'on-failure' && needs.status.outputs.status == 'valid' }}

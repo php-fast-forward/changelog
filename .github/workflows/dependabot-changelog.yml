@@ -42,8 +42,6 @@ jobs:
         uses: dependabot/fetch-metadata@v2.5.0
         with:
           github-token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
-          alert-lookup: 'false'
-          compat-lookup: 'false'
           skip-verification: 'false'
           skip-commit-verification: 'false'
 

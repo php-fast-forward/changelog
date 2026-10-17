@@ -98,9 +98,11 @@ and merge settings must be observed on the GitHub platform during the pilot.
 
 This validates the changelog contribution directly in the current run. Other
 consumer tests still follow GitHub's token/event rules: runs created by
-`GITHUB_TOKEN` may require approval. A separately configured App token can enable
-their normal event-driven CI. An optional App token may be supplied as
-`secrets.token`; its Bot identity must match `automation-actor`.
+`GITHUB_TOKEN` require approval. For automatic downstream CI, configure the
+optional App Client ID/private key so each trusted job creates its own token.
+Its Bot identity must match `automation-actor`. See the
+[App setup and credentials](github-app.md); a compatible token already issued
+elsewhere remains supported through `secrets.token`.
 
 ## Optional settings and composition
 
@@ -118,6 +120,7 @@ explicit; omitted values use these reusable defaults:
 | `source` | `auto` | Historical release notes source: `auto`, `github` or `tags`. |
 | `managed-branch` | `changelog/version` | Branch for the single version PR. |
 | `automation-actor` | `github-actions[bot]` | Expected Bot identity for managed transactions. |
+| `app-client-id` | `''` | Optional GitHub App Client ID; pair with `secrets.app-private-key` and the App's Bot identity. |
 | `waiver-label` | `changelog-not-required` | Label used by the verified maintainer waiver policy. |
 | `maintenance-label` | `changelog-maintenance` | Label used by the verified history-maintenance policy. |
 | `comment-mode` | `always` | Sticky feedback: `always`, `on-failure` or `never`. |
@@ -125,9 +128,12 @@ explicit; omitted values use these reusable defaults:
 | `publish` | `false` | Enable publication from an approved, merged managed PR. |
 | `dry-run` | `false` | Preview version/publication without remote content writes. |
 
-The optional reusable secret `token` defaults to `github.token`. When supplying
-an approved App token for trusted operations, set `automation-actor` to its Bot
-identity; PR-head checks continue using the ordinary read-only token.
+The optional secrets are `token` and `app-private-key`. With no custom
+authentication, jobs use `github.token`. Supply either an already issued Bot
+`token`, or the App Client ID/private-key pair, never both. Set
+`automation-actor` to that App's Bot identity. PR-head checks continue using the
+ordinary read-only token; private keys and generated tokens do not cross job
+output boundaries. [Complete setup](github-app.md).
 
 Keep settings consistent across all operations. PR operations work at repository
 root; select nested packages through repository-relative managed paths.

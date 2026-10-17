@@ -65,6 +65,9 @@ The example pins a reviewed implementation commit and keeps publication disabled
 Each reusable job narrows the caller's permissions; PR-head checks are read-only.
 The workflow never merges its version PR. See [setup and token permissions](resources/workflows/README.md),
 [all optional inputs and defaults](docs/reusable-lifecycle.md#optional-settings-and-composition) and the [automation map](docs/automation-map.md).
+For downstream CI without manual approval, use the optional
+[GitHub App authentication](docs/github-app.md). The default `GITHUB_TOKEN`
+requires approval for workflows on generated PRs; this does not enable release publication.
 
 ## 🛠️ CLI
 

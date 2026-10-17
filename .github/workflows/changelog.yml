@@ -5,6 +5,11 @@ on:
   workflow_call:
     inputs:
 
+      app-client-id:
+        description: Optional GitHub App client ID; requires app-private-key and the matching automation-actor.
+        type: string
+        default: ''
+
       runs-on:
         description: JSON runner labels; Linux with Docker, Bash and Git is required.
         type: string
@@ -72,6 +77,10 @@ on:
         default: false
     secrets:
 
+      app-private-key:
+        description: Optional GitHub App private key; mutually exclusive with token.
+        required: false
+
       token:
         description: Optional scoped App token for trusted operations; PR checks use github.token.
         required: false
@@ -132,6 +141,7 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/changelog-dependabot.yml
     with:
+      app-client-id: ${{ inputs.app-client-id }}
       runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
@@ -141,7 +151,8 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
     secrets:
-      token: ${{ secrets.token || github.token }}
+      token: ${{ secrets.token }}
+      app-private-key: ${{ secrets.app-private-key }}
 
   feedback:
     name: PR Feedback
@@ -156,6 +167,7 @@ jobs:
       statuses: write
     uses: ./.github/workflows/changelog-pr-status.yml
     with:
+      app-client-id: ${{ inputs.app-client-id }}
       runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ needs.dependabot.outputs.head-sha || github.event.pull_request.head.sha }}
@@ -172,7 +184,8 @@ jobs:
       maintenance-label: ${{ inputs.maintenance-label }}
       comment-mode: ${{ inputs.comment-mode }}
     secrets:
-      token: ${{ secrets.token || github.token }}
+      token: ${{ secrets.token }}
+      app-private-key: ${{ secrets.app-private-key }}
 
   version:
     name: Prepare Version PR
@@ -186,6 +199,7 @@ jobs:
       issues: read
     uses: ./.github/workflows/changelog-version.yml
     with:
+      app-client-id: ${{ inputs.app-client-id }}
       runs-on: ${{ inputs.runs-on }}
       base-branch: ${{ inputs.base-branch || github.event.repository.default_branch }}
       managed-branch: ${{ inputs.managed-branch }}
@@ -197,7 +211,8 @@ jobs:
       source: ${{ inputs.source }}
       dry-run: ${{ inputs.dry-run }}
     secrets:
-      token: ${{ secrets.token || github.token }}
+      token: ${{ secrets.token }}
+      app-private-key: ${{ secrets.app-private-key }}
 
   validate-version:
     name: Validate Generated Version Head
@@ -212,6 +227,7 @@ jobs:
       statuses: write
     uses: ./.github/workflows/changelog-pr-status.yml
     with:
+      app-client-id: ${{ inputs.app-client-id }}
       runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ fromJSON(needs.version.outputs.pull-request) }}
       head-sha: ${{ needs.version.outputs.head-sha }}
@@ -227,7 +243,8 @@ jobs:
       maintenance-label: ${{ inputs.maintenance-label }}
       comment-mode: ${{ inputs.comment-mode }}
     secrets:
-      token: ${{ secrets.token || github.token }}
+      token: ${{ secrets.token }}
+      app-private-key: ${{ secrets.app-private-key }}
 
   publish:
     name: Publish Approved Consolidation
@@ -242,6 +259,7 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/changelog-publish.yml
     with:
+      app-client-id: ${{ inputs.app-client-id }}
       runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       target-sha: ${{ github.event.pull_request.merge_commit_sha }}
@@ -256,4 +274,5 @@ jobs:
       source: ${{ inputs.source }}
       dry-run: ${{ inputs.dry-run }}
     secrets:
-      token: ${{ secrets.token || github.token }}
+      token: ${{ secrets.token }}
+      app-private-key: ${{ secrets.app-private-key }}
