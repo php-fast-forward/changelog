@@ -51,7 +51,9 @@ used across Fast Forward PHP packages.
   source. Reserve `.agents/skills` for skills consumed by this project; do not
   generate host aliases or copies there. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
-  remain explicit operations, separate from package distribution.
+  remain explicit operations, separate from package distribution. Keep the skill's
+  `^1.0` consumer contract, references and executable examples aligned when changing
+  consumer integration; this source reference needs no installed copy or host alias.
 
 ## This Repository's Changelog
 

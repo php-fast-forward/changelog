@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Distribute the repository skill from one real GitHub package, with relative links for other hosts and explicit validation of Windows checkout behavior.
+- Documents the versioned consumer skill with GitHub adoption, executable PHP examples and explicit installation lifecycle choices.
 - Release pull requests now update readable Markdown history and remove consumed fragments without adding a tracked release plan. Recovery journals stay outside the versioned tree and are removed after successful consolidation.
 - Adds contextual Dash artwork organizing change fragments into a release history.
 - Update dependencies: `shivammathur/setup-php`. ([#28](https://github.com/php-fast-forward/changelog/pull/28), @dependabot[bot])
