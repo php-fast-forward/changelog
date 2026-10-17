@@ -18,6 +18,13 @@ array of Linux runner labels. Docker, Bash and Git are required. Runner selectio
 and access belong to the application. The library's
 [complete optional-input table](https://github.com/php-fast-forward/changelog/blob/main/docs/reusable-lifecycle.md#optional-settings-and-composition)
 lists the defaults, including `prepare-release: true` and `publish: false`.
+Use optional `version-pr-title: 'chore(release): {current_version} → {next_version}'`
+to show the plan's version transition. The individual version workflow/action
+uses `title`; the CLI uses `github version --title=...`. The default title stays
+`chore: update changelog`. Only these two placeholders expand; maintenance uses
+the current version for both. Titles must remain single-line and at most 256
+bytes after expansion. A title-only rerun updates the owned PR without moving its
+head or changing its release plan; `dry-run` performs no title write.
 For monorepos select paths such as `packages/example/.changelog` and
 `packages/example/CHANGELOG.md`, relative to the Git repository root.
 A local CLI may use a package cwd; GitHub API paths remain repository-rooted.

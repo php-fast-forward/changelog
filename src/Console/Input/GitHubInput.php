@@ -66,7 +66,7 @@ final class GitHubInput
     #[Option(description: 'Trusted source release-line branch.')]
     public ?string $baseBranch = null;
 
-    #[Option(description: 'Generated version PR title.')]
+    #[Option(description: 'Generated version PR title; accepts {current_version} and {next_version}.')]
     public ?string $title = null;
 
     #[Option(description: 'Inspect without remote writes: true or false.')]

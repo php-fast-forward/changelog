@@ -197,6 +197,12 @@ produce no new PR, and a merged consolidation awaiting publication blocks a seco
 version transaction. A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
+The version workflow's `title` accepts a literal title or the placeholders
+`{current_version}` and `{next_version}`. The facade exposes the same setting as
+`version-pr-title`; see [title settings](reusable-lifecycle.md#optional-settings-and-composition).
+The default remains `chore: update changelog`. A title-only refresh preserves
+the signed branch head and transaction identity.
+
 Before merging, the generated source base must equal the live PR base. A later
 base push resynchronizes the same PR and includes the newly accepted fragments;
 the contribution check refuses a stale generated head. Make that check required

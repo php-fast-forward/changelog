@@ -487,6 +487,7 @@ final class VersionPullRequestDateStabilityTest extends TestCase
                     $pr['head']['sha'] = $this->state['head'];
                     $pr['base']['sha'] = $this->state['base'];
                     $pr['html_url'] = 'https://github.com/owner/project/pull/7';
+                    $pr['title'] = $body['title'];
                     $this->state['pr'] = $pr;
 
                     return $pr;

@@ -236,6 +236,20 @@ verifyWorkflow(
     'always' === $lifecycle['on']['workflow_call']['inputs']['comment-mode']['default'],
     'Feedback must default to one updated comment.',
 );
+$versionWorkflow = Yaml::parseFile($root . '/.github/workflows/changelog-version.yml');
+$versionAction = Yaml::parseFile($root . '/.github/actions/version/action.yml');
+verifyWorkflow(
+    'chore: update changelog' === $lifecycle['on']['workflow_call']['inputs']['version-pr-title']['default']
+        && '${{ inputs.version-pr-title }}' === $lifecycle['jobs']['version']['with']['title']
+        && 'chore: update changelog' === $versionWorkflow['on']['workflow_call']['inputs']['title']['default']
+        && '${{ inputs.title }}' === workflowStep(
+            $versionWorkflow['jobs']['changelog'],
+            'Run The Shared Version Action',
+        )['with']['title']
+        && in_array('--title=${{ inputs.title }}', $versionAction['runs']['args'], true),
+    'The facade must forward the optional title through the existing workflow, action and CLI without changing defaults.',
+);
+++$assertions;
 $comment = $feedback['jobs']['comment'];
 $sticky = workflowStep($comment, 'Create Or Update One Changelog Comment');
 $preserveFailure = workflowStep($feedback['jobs']['status'], 'Preserve The Contribution Gate Failure');

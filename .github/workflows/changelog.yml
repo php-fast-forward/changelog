@@ -44,6 +44,11 @@ on:
         type: string
         default: 'changelog/version'
 
+      version-pr-title:
+        description: 'Version PR title; accepts {current_version} and {next_version}.'
+        type: string
+        default: 'chore: update changelog'
+
       automation-actor:
         type: string
         default: 'github-actions[bot]'
@@ -199,6 +204,7 @@ jobs:
       issues: read
     uses: ./.github/workflows/changelog-version.yml
     with:
+      title: ${{ inputs.version-pr-title }}
       app-client-id: ${{ inputs.app-client-id }}
       runs-on: ${{ inputs.runs-on }}
       base-branch: ${{ inputs.base-branch || github.event.repository.default_branch }}
