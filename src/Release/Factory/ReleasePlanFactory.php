@@ -85,6 +85,9 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
             'changelog_contents' => $changelogContents, 'after_changelog_sha256' => hash('sha256', $changelogContents),
             'notes' => $notes, 'notes_sha256' => hash('sha256', $notes),
         ];
+        if ($options->resolvePullRequests) {
+            $evidence['resolve_pull_requests'] = true;
+        }
         $receiptContents = $this->codec->encode($evidence);
         $receipt = $this->codec->decode($receiptContents);
 

@@ -55,6 +55,11 @@ on:
         type: string
         default: 'auto'
 
+      resolve-pull-requests:
+        description: 'PR-resolution setting for ownership checks; no fragment origin lookup occurs.'
+        type: boolean
+        default: true
+
       managed-branch:
         type: string
         default: 'changelog/version'
@@ -220,6 +225,7 @@ jobs:
           locale: ${{ inputs.locale }}
           tag-prefix: ${{ inputs.tag-prefix }}
           source: ${{ inputs.source }}
+          resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           managed-branch: ${{ inputs.managed-branch }}
           automation-actor: ${{ inputs.automation-actor }}
           waiver-label: ${{ inputs.waiver-label }}

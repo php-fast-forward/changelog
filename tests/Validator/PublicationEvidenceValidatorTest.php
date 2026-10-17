@@ -58,6 +58,30 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(\FastForward\Changelog\Automation\Policy\GitHubEvidence::class)]
 final class PublicationEvidenceValidatorTest extends TestCase
 {
+    /** The positive policy is reconstructed against its immutable source base, rather than approved prose or current files. */
+    public function testPublicationRecomputesReferencesBeforeComparingApprovedNotes(): void
+    {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', resolvePullRequests: true);
+        $state = $this->state($options);
+        $references = $this->createMock(
+            \FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class,
+        );
+        $references->expects(self::once())->method('resolve')->with(
+            $options,
+            self::BASE,
+            self::callback(static fn(mixed $value): bool => is_array($value)),
+        )->willReturnCallback(
+            static function (ReleaseOptions $actual, string $base, array $changes): array {
+                self::assertSame(['a.md', 'b.md'], array_column($changes, 'id'));
+
+                return $changes;
+            },
+        );
+        $evidence = $this->validator($state, $references)->validate($options, self::APPROVED);
+
+        self::assertSame('1.0.1', $evidence->version);
+        self::assertSame(0, $state['live_reads']);
+    }
     private const string BASE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     private const string APPROVED = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     private const string PR_HEAD = 'ffffffffffffffffffffffffffffffffffffffff';
@@ -1157,8 +1181,10 @@ final class PublicationEvidenceValidatorTest extends TestCase
     }
 
     /** Replaces every Git, file, template and domain boundary without process, filesystem or network access. */
-    private function validator(array &$state): PublicationEvidenceValidator
-    {
+    private function validator(
+        array &$state,
+        ?\FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface $references = null,
+    ): PublicationEvidenceValidator {
         $git = ($state['merged'] ?? false)
             ? $this->createMockForIntersectionOfInterfaces(
                 [GitRepositoryInterface::class, GitCommitTreeReaderInterface::class],
@@ -1419,6 +1445,9 @@ final class PublicationEvidenceValidatorTest extends TestCase
             $releases,
             new \FastForward\Changelog\Release\ReleaseHistoryConsolidator(
                 $releases,
+            ),
+            $references ?? $this->createStub(
+                \FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class,
             ),
             $github,
         );

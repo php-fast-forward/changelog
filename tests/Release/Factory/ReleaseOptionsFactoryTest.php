@@ -29,6 +29,30 @@ final class ReleaseOptionsFactoryTest extends TestCase
         self::assertSame('v', $options->tagPrefix);
         self::assertNull($options->repository);
         self::assertSame('auto', $options->source);
+        self::assertFalse($options->resolvePullRequests);
+        self::assertSame('891aece19cb7fb12f086b169a1a3db4a1ef3af3a76c7b94bb8e45bd71fbf2c4f', $options->evidenceHash());
+    }
+
+    /** PR discovery is an independent explicit policy and changes the approved fingerprint only when enabled. */
+    public function testPullRequestDiscoveryDoesNotChangeTheHistoricalSource(): void
+    {
+        $plain = $this->factory()->create(['source' => 'tags']);
+        $enabled = $this->factory()->create(['source' => 'tags', 'resolvePullRequests' => true]);
+
+        self::assertSame('tags', $enabled->source);
+        self::assertTrue($enabled->resolvePullRequests);
+        self::assertNotSame($plain->evidenceHash(), $enabled->evidenceHash());
+        self::assertSame(
+            $plain->evidenceHash(),
+            $this->factory()->create(['source' => 'tags', 'resolvePullRequests' => false])->evidenceHash(),
+        );
+    }
+
+    /** Public API callers must supply a boolean rather than rely on PHP truthiness. */
+    public function testTextReferencePolicyIsRejectedByTheOptionsFactory(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->factory()->create(['resolvePullRequests' => 'false']);
     }
 
     public function testExplicitSettingsOverrideDefaultsAndNormalizeManagedSeparators(): void

@@ -17,7 +17,7 @@ The six public Docker Actions stay in `.github/actions`; `github-auth` and
 boundaries. Resource paths are copyable assets, not executable reusable URLs.
 
 The facade accepts `base-branch`, `fragment-directory`, `changelog-file`,
-`locale`, `tag-prefix`, `source`, `managed-branch`, `automation-actor`, `app-client-id`,
+`locale`, `tag-prefix`, `source`, `resolve-pull-requests`, `managed-branch`, `automation-actor`, `app-client-id`,
 `waiver-label` and `maintenance-label`. Preserve consistent values across
 operations. `base-branch` otherwise follows the repository default branch.
 Jobs default to `ubuntu-latest`; the optional `runs-on` input accepts a JSON
@@ -36,6 +36,29 @@ title write.
 For monorepos select paths such as `packages/example/.changelog` and
 `packages/example/CHANGELOG.md`, relative to the Git repository root.
 A local CLI may use a package cwd; GitHub API paths remain repository-rooted.
+
+`resolve-pull-requests` defaults to `true` in the lifecycle and individual
+version/publish operations. Preparation matches exact committed fragment bytes
+and canonical paths through first-parent Git history, then accepts only verified
+merged-PR repository and ancestry evidence. It adds missing PR references to the
+rendered notes in memory, preserving explicit metadata and fragment bytes. It
+adds no author or commit link. No qualifying PR leaves the description alone;
+incomplete, ambiguous or unavailable evidence fails before managed writes.
+
+Check/PR-feedback operations carry the same setting for the approved ownership
+fingerprint without resolving fragment origins. Preserve its value across all
+operations when composing them independently. `source: tags` controls historical
+notes independently and does not suppress enabled PR-origin API reads. Set
+`resolve-pull-requests: false` on the facade to retain explicit references only;
+local CLI commands use that disabled default unless their flag is selected.
+
+Publication recomputes the origin proof and requires the approved central notes
+to match exactly. A changed association or option fingerprint requires a newly
+generated and reviewed version PR. Do not edit an approved head to force it
+through; enabling this policy on an older prepared PR requires regeneration.
+No new tracked plan, association snapshot or commit trailer carries the lookup.
+Interrupted local application instead resumes the existing recovery journal's
+exact saved output without repeating origin lookup.
 
 `comment-mode` is `always`, `on-failure` or `never`. `on-failure` updates an
 existing failed comment on recovery without creating a new success-only comment.

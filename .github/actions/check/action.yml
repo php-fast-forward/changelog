@@ -47,6 +47,11 @@ inputs:
     required: false
     default: "auto"
 
+  resolve-pull-requests:
+    description: "PR-resolution setting of the approved version transaction; checking performs no origin lookup."
+    required: false
+    default: "true"
+
   token:
     description: "GitHub token with the minimum permissions required by this operation."
     required: false
@@ -109,6 +114,7 @@ runs:
     - "--tag-prefix=${{ inputs.tag-prefix }}"
     - "--repository=${{ inputs.repository }}"
     - "--source=${{ inputs.source }}"
+    - "--resolve-pull-requests=${{ inputs.resolve-pull-requests }}"
     - "--since=${{ inputs.since }}"
     - "--pull-request=${{ inputs.pull-request }}"
     - "--managed-branch=${{ inputs.managed-branch }}"

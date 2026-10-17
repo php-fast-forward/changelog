@@ -64,6 +64,12 @@ on:
         required: false
         default: 'auto'
 
+      resolve-pull-requests:
+        description: 'PR-resolution setting of the approved version transaction; checking performs no origin lookup.'
+        type: boolean
+        required: false
+        default: true
+
       pull-request:
         description: 'Live pull-request number, bound to its supplied head.'
         type: number
@@ -225,6 +231,7 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           repository: ${{ inputs.repository || github.repository }}
           source: ${{ inputs.source }}
+          resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           token: ${{ secrets.token || github.token }}
           pull-request: ${{ inputs.pull-request }}
           since: ${{ inputs.base-sha }}

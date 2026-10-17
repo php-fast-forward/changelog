@@ -33,6 +33,9 @@ Before any remote mutation, publication verifies:
   source-base release bodies and existing reference definitions remain unchanged.
   Missing deterministic release-reference definitions are reconstructed by the
   same [footer completion contract](history.md) used during version planning.
+  With `resolvePullRequests` enabled, missing fragment PR references are
+  recomputed from exact committed bytes, first-parent Git history and verified
+  merged-PR API evidence before comparing the canonical notes.
   Missing reachable tagged sections
   imported during planning are taken from the reviewed approved bytes for
   `auto`/`github`, rather than fetched again during publication; `tags` retains
@@ -42,6 +45,24 @@ Before any remote mutation, publication verifies:
 Neither copied trailers nor a consistent hash grant publication authority.
 The contextual merged-PR publisher verifies repository, branches, Bot identity,
 signed original head and approved merge target before invoking its private writer.
+
+PR-origin resolution is part of the approved option fingerprint. Local CLI
+publication defaults to disabled and accepts `--resolve-pull-requests` to match
+an enabled plan. The publish Action and reusable workflow default to
+`resolve-pull-requests: true`, matching version preparation; check and feedback
+carry the same setting for ownership validation without doing origin discovery.
+Keep that value consistent when composing operations independently.
+
+No association snapshot, extra commit trailer or tracked plan file is added.
+The publisher recomputes the evidence rather than trusting a discovered number
+from mutable PR text. A complete lookup without a matching PR preserves a
+description-only entry. Missing, incomplete or ambiguous evidence, or a newly
+discovered reference that changes the approved notes, blocks publication before
+tag/release writes. Regenerate and review a version PR with the intended setting
+and current evidence; do not amend approved history to force publication.
+Historical `source: tags` does not turn these PR-origin API reads off.
+Origin reconstruction uses immutable source-base blobs, independently of later
+staged or unstaged work at the same fragment path.
 
 No unstaged central or fragment bytes are used. Built-in presentation can target
 an older approved commit. A custom PHP template additionally requires that exact

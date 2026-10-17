@@ -22,7 +22,7 @@ final class ReleasePlanFactoryTest extends TestCase
     /** The factory MUST supply canonical input evidence while delegating receipt identity to its codec. */
     public function testReleasePlanDelegatesIdentityAndUsesRelativeReceiptPaths(): void
     {
-        $options = new ReleaseOptions('/consumer');
+        $options = new ReleaseOptions('/consumer', resolvePullRequests: true);
         $codec = $this->createMock(ReceiptCodecInterface::class);
         $changes = ['/consumer/.changelog/b.md' => hash('sha256', 'b'), '/consumer/.changelog/a.md' => hash(
             'sha256',
@@ -73,6 +73,7 @@ final class ReleasePlanFactoryTest extends TestCase
         );
         self::assertSame($captured[0], $captured[1]);
         self::assertSame($base, $captured[0]['base_sha']);
+        self::assertTrue($captured[0]['resolve_pull_requests']);
         self::assertSame('1.0.0+build.001', $captured[0]['current_version']);
         self::assertSame(['0.1.0+legacy.docs'], $captured[0]['historical_versions']);
         self::assertSame(['.changelog/a.md', '.changelog/b.md'], array_keys($captured[0]['consumed']));

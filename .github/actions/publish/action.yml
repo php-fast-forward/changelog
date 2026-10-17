@@ -47,6 +47,11 @@ inputs:
     required: false
     default: "auto"
 
+  resolve-pull-requests:
+    description: "Recompute verified fragment PR references before comparing approved release notes."
+    required: false
+    default: "true"
+
   token:
     description: "GitHub token with the minimum permissions required by this operation."
     required: false
@@ -123,6 +128,7 @@ runs:
     - "--tag-prefix=${{ inputs.tag-prefix }}"
     - "--repository=${{ inputs.repository }}"
     - "--source=${{ inputs.source }}"
+    - "--resolve-pull-requests=${{ inputs.resolve-pull-requests }}"
     - "--target-sha=${{ inputs.target-sha }}"
     - "--pull-request=${{ inputs.pull-request }}"
     - "--expected-head-sha=${{ inputs.expected-head-sha }}"

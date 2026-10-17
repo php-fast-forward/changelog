@@ -23,15 +23,16 @@ final readonly class ReleaseOptions
      * Captures explicit consumer paths and release policy without reading host state.
      * The factory MUST validate these settings before any side effect is attempted.
      *
-     * @param string      $workingDirectory  Consumer project root used to resolve managed paths independently of the installed package.
-     * @param string      $fragmentDirectory Project-relative directory containing independent pending Markdown fragments.
-     * @param string      $changelogFile     Project-relative path of the sole consolidated history file.
-     * @param string      $locale            Supported structural language identifier, en or pt-BR.
-     * @param string      $template          Built-in presentation name or explicitly trusted project-relative PHP template path.
-     * @param string      $baseRef           Git revision from which committed release evidence is selected.
-     * @param string      $tagPrefix         Exact prefix removed from candidate stable Git tag identities.
-     * @param string|null $repository        Optional GitHub owner/name used for source selection and reference links.
-     * @param string      $source            History evidence policy: auto, github or tags.
+     * @param string      $workingDirectory    Consumer project root used to resolve managed paths independently of the installed package.
+     * @param string      $fragmentDirectory   Project-relative directory containing independent pending Markdown fragments.
+     * @param string      $changelogFile       Project-relative path of the sole consolidated history file.
+     * @param string      $locale              Supported structural language identifier, en or pt-BR.
+     * @param string      $template            Built-in presentation name or explicitly trusted project-relative PHP template path.
+     * @param string      $baseRef             Git revision from which committed release evidence is selected.
+     * @param string      $tagPrefix           Exact prefix removed from candidate stable Git tag identities.
+     * @param string|null $repository          Optional GitHub owner/name used for source selection and reference links.
+     * @param string      $source              History evidence policy: auto, github or tags.
+     * @param bool        $resolvePullRequests Whether consolidation proves missing PR references through Git and GitHub; independent of the history source.
      */
     public function __construct(
         public string $workingDirectory,
@@ -43,6 +44,7 @@ final readonly class ReleaseOptions
         public string $tagPrefix = 'v',
         public ?string $repository = null,
         public string $source = 'auto',
+        public bool $resolvePullRequests = false,
     ) {}
 
     /**
@@ -52,10 +54,17 @@ final readonly class ReleaseOptions
      */
     public function evidenceHash(): string
     {
-        return hash('sha256', json_encode([
+        $settings = [
             'repository' => $this->repository, 'changelog_file' => $this->changelogFile,
             'fragment_directory' => $this->fragmentDirectory, 'locale' => $this->locale,
             'template' => $this->template, 'tag_prefix' => $this->tagPrefix, 'source' => $this->source,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        ];
+
+        // Keep already approved offline transactions byte-compatible with their original settings fingerprint.
+        if ($this->resolvePullRequests) {
+            $settings['resolve_pull_requests'] = true;
+        }
+
+        return hash('sha256', json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 }

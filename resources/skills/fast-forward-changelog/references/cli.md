@@ -14,14 +14,17 @@ The defaults are `.changelog/`, `CHANGELOG.md`, English Keep a Changelog,
 configuration file. `--cwd=/absolute/project` selects the working directory;
 `--fragment-directory`, `--changelog-file`, `--base-ref`, `--locale`,
 `--tag-prefix`, `--repository` and `--source` supply explicit settings.
+`--resolve-pull-requests` enables verified discovery of missing fragment PR
+references; local commands default to disabled.
 Inspect command help for supported combinations. Credentials come from the
 application's approved secret mechanism, never from notes or copied skill files.
 The executable accepts `FF_CHANGELOG_TOKEN` (including an explicitly empty value), falling back to
 `GITHUB_TOKEN` only when the first variable is absent.
 
 When no repository setting is explicit, a canonical GitHub `origin` supplies
-`owner/name`. This inferred identity keeps `auto` history on local tags without
-GitHub requests. Explicit `--repository` retains `auto` source behavior;
+`owner/name`. This inferred identity keeps `auto` historical imports on local
+tags. PR-origin discovery is a separate opt-in API operation. Explicit
+`--repository` retains `auto` source behavior;
 `--source=tags` and `--source=github` select their source directly.
 `github` contains automation operations; inspect `help github` rather than
 constructing trusted PR context from user-controlled arguments.
@@ -167,6 +170,32 @@ without `--dry-run`/`--check`:
 vendor/bin/changelog version --source=tags --no-interaction
 ```
 
+For verified PR references during an authorized preview, opt in explicitly:
+
+```sh
+vendor/bin/changelog version --dry-run --source=tags \
+  --resolve-pull-requests --repository=owner/repo --no-interaction
+```
+
+This setting is independent of historical `--source`: tag-based imports can
+still perform PR-origin API reads. The resolver first proves the exact committed
+fragment bytes and canonical path through first-parent Git history, then verifies
+associated merged-PR repository and ancestry evidence. Explicit `pull_request`,
+issue and author metadata is preserved. No qualifying PR produces a
+description-only entry; it never adds author or commit attribution. Non-Git or
+uncommitted input supplies no invented origin and remains subject to ordinary
+release-input validation. Incomplete, ambiguous or unavailable API evidence
+fails before managed writes.
+
+Discovery enriches only in-memory values; it does not make a follow-up fragment
+commit. Keep the setting unchanged when applying the preview and publishing.
+The Actions/reusable lifecycle defaults to `resolve-pull-requests: true`, so local
+reproduction of that plan must include the flag. Managed-PR ownership checks also
+need the same option fingerprint, even though checking does not discover origins.
+Local previews require accepted fragment hashes to match committed blobs;
+publication instead reconstructs from the immutable source base independently
+of later worktree edits at those paths.
+
 For a Git-backed release, the central document, complete pending fragment set and
 accepted byte hashes must match the selected base before any journal write.
 Keep intended release inputs committed at that base. Unrelated dirty files and
@@ -182,6 +211,8 @@ New history is readable Markdown without generated metadata comments. If
 interrupted, preserve the local journal and remaining fragments and retry the
 same settings. Changed inputs block stale recovery; inspect the diagnostic
 rather than editing the journal or deleting newer inputs to force a retry.
+Recovery reuses the journal's saved exact output without another PR-origin API
+lookup; the resolution setting remains validated with the transaction options.
 The machine summary includes `commit_message` with the same scalar trailers
 used by version automation. If explicitly tasked with committing a local
 consolidation for later publication, commit only its `affected_files` with that
@@ -289,6 +320,14 @@ identical complete Git trees. It can use that head's trailers after an ordinary
 squash, including after branch deletion; it still tags the approved merge and
 recomputes the full release against that merge's committed bytes. It never
 infers this context from a branch name or PR-body assertion.
+
+If preparation enabled PR-origin discovery, add `--resolve-pull-requests` to
+publication as well. Publication recomputes that evidence from committed blobs
+and Git/API identities; no association snapshot or extra trailer is persisted.
+If a discovered reference changes or cannot be proved, publication refuses the
+approved output. Prepare and review a regenerated version PR with consistent
+settings rather than editing approved history or moving a tag. Enabling the new
+policy for an existing prepared PR likewise requires regeneration before approval.
 
 Existing conflicting tags are never moved; divergent release notes are never
 updated. A matching tag without its release or an uncertain create response is

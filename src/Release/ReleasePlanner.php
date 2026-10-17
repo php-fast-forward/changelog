@@ -25,6 +25,7 @@ use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
@@ -58,6 +59,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param ReleasePlanFactoryInterface            $plans         Builds or restores immutable transactions from exact accepted inputs and resulting history bytes.
      * @param ReleaseInputEvidenceValidatorInterface $inputs        Verifies planned or selected-template bytes against the approved committed source evidence.
      * @param ReleaseJournalPathResolverInterface    $journals      Selects private recovery storage scoped to the consumer project and managed paths.
+     * @param PullRequestReferenceResolverInterface  $pullRequests  Proves optional PR references against immutable fragment origins without modifying authored files.
      * @param HistoryReferenceBuilder                $references    Completes missing concrete release links without altering historical Markdown or observing external state.
      */
     public function __construct(
@@ -77,6 +79,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private ReleasePlanFactoryInterface $plans,
         private ReleaseInputEvidenceValidatorInterface $inputs,
         private ReleaseJournalPathResolverInterface $journals,
+        private PullRequestReferenceResolverInterface $pullRequests,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
     ) {}
 
@@ -139,6 +142,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                 $currentVersion,
                 $tags,
                 $template,
+                $baseSha,
             );
         }
 
@@ -203,6 +207,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param string                    $currentVersion Latest observed stable release baseline.
      * @param list<array<string,mixed>> $tags           Reachable tags used to prove the published baseline.
      * @param TemplateInterface         $template       Presentation used for notes and structural headings.
+     * @param ?string                   $baseSha        Complete selected source commit, or null outside a Git repository.
      *
      * @return array{0:HistoryDocument,1:string,2:string,3:array<string,string>,4:string} Promoted history, next version, impact, consumed hashes and notes.
      */
@@ -213,6 +218,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         string $currentVersion,
         array $tags,
         TemplateInterface $template,
+        ?string $baseSha,
     ): array {
         $this->assertPublishedHistory(
             $document,
@@ -233,7 +239,10 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         }
         $impact = $resolved->impact->value;
         $consumed = $inventory->hashes;
-        $notes = $this->notesRenderer->render($inventory->changesets, $template, $options->repository);
+        $changesets = $options->resolvePullRequests
+            ? $this->pullRequests->resolve($options, $baseSha, $inventory->changesets, $inventory->hashes)
+            : $inventory->changesets;
+        $notes = $this->notesRenderer->render($changesets, $template, $options->repository);
         $document = $this->consolidator->promote(
             $document,
             $next,
@@ -331,6 +340,9 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         ?ValidationReport $inventory,
     ): void {
         $data = $receipt->data;
+        if (($data['resolve_pull_requests'] ?? false) !== $options->resolvePullRequests) {
+            throw new RuntimeException('Pending release PR discovery differs from the saved plan.');
+        }
         foreach (['changelog_file' => $options->changelogFile, 'fragment_directory' => $options->fragmentDirectory,
             'locale' => $options->locale, 'template' => $options->template, 'tag_prefix' => $options->tagPrefix,
             'repository' => $options->repository] as $key => $value) {

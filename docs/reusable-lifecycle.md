@@ -118,6 +118,7 @@ explicit; omitted values use these reusable defaults:
 | `locale` | `en` | Language for generated headings and messages. |
 | `tag-prefix` | `v` | Prefix for version tags. |
 | `source` | `auto` | Historical release notes source: `auto`, `github` or `tags`. |
+| `resolve-pull-requests` | `true` | Resolve missing fragment PR references during versioning and recompute them before publication; ownership checks use the same setting without doing origin lookup. |
 | `managed-branch` | `changelog/version` | Branch for the single version PR. |
 | `version-pr-title` | `chore: update changelog` | PR title, optionally containing `{current_version}` and `{next_version}`. |
 | `automation-actor` | `github-actions[bot]` | Expected Bot identity for managed transactions. |
@@ -138,6 +139,27 @@ output boundaries. [Complete setup](github-app.md).
 
 Keep settings consistent across all operations. PR operations work at repository
 root; select nested packages through repository-relative managed paths.
+
+PR references are resolved without a follow-up fragment commit. The planner
+matches exact committed fragment bytes and canonical paths to first-parent Git
+history, then verifies the associated merged PR through GitHub. Explicit metadata
+remains unchanged. No qualifying PR leaves the description alone; unavailable,
+incomplete or ambiguous evidence fails before managed writes. Resolution never
+adds an author or commit link. See [entry references and origin proof](history.md).
+
+The setting is independent of `source: tags`: historical imports can remain
+tag-based while PR discovery reads GitHub. Local CLI use defaults to disabled;
+the lifecycle and individual version/publish Actions default to enabled.
+Individual check/PR-feedback operations carry the same setting solely for the
+approved transaction's ownership fingerprint; they do not resolve fragment
+origins. Keep its value consistent across every operation when composing them
+separately. No caller input is required for the default lifecycle.
+
+To keep references explicit, configure `resolve-pull-requests: false` on the
+facade. Changing this setting for a prepared version PR requires regeneration
+and review; publication recomputes the enabled discovery and refuses a result
+that differs from the approved notes. Use the version workflow to regenerate
+the transaction, then review its new exact head before publication.
 
 To show the version transition, configure the facade with:
 
