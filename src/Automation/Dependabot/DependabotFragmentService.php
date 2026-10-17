@@ -123,22 +123,18 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
                 ', ',
                 array_map(static fn(string $name): string => '`' . $name . '`', $input->packageNames),
             );
-            $description = ('pt-BR' === $options->locale ? 'Atualizar dependências: ' : 'Update dependencies: ') . $packages . '.';
-            $contents = $this->renderer->render(
-                $this->changesets->create(
-                    $id,
-                    $category,
-                    null,
-                    $input->pullRequest,
-                    'dependabot[bot]',
-                    $description,
-                    VersionImpact::Patch,
-                ),
-            );
+            $legacyDescription = ('pt-BR' === $options->locale ? 'Atualizar dependências: ' : 'Update dependencies: ') . $packages . '.';
+            $title = $this->literalTitle($pr['title'] ?? null);
+            $description = null === $title ? $legacyDescription : $title . "\n\n" . $legacyDescription;
+            $contents = $this->renderFragment($id, $category, $input, $description);
             $readPath = GitHubEvidence::contentsPath($repository, $path, $input->expectedHeadSha);
             $existing = $this->github->request('GET', $readPath);
             if (null !== $existing) {
-                if (GitHubEvidence::content($existing) === $contents) {
+                $existingContents = GitHubEvidence::content($existing);
+                if ($existingContents === $contents
+                    || ($description !== $legacyDescription
+                        && $existingContents === $this->renderFragment($id, $category, $input, $legacyDescription))
+                ) {
                     return $this->results->create('unchanged', $path);
                 }
 
@@ -156,12 +152,14 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
                 $fresh,
                 $repository,
                 $input,
-            ) || $fresh['head']['ref'] !== $pr['head']['ref'] || $fresh['user']['id'] !== $pr['user']['id']) {
+            ) || $fresh['head']['ref'] !== $pr['head']['ref'] || $fresh['user']['id'] !== $pr['user']['id']
+                || $this->literalTitle($fresh['title'] ?? null) !== $title
+            ) {
                 return $this->results->create(
                     'conflict',
                     $path,
                     null,
-                    ['The PR head changed before creation; no fragment was written.'],
+                    ['The PR snapshot or metadata changed before creation; no fragment was written.'],
                 );
             }
             $writing = true;
@@ -200,6 +198,51 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
                 ],
             );
         }
+    }
+
+    /** Renders the same validated identity and patch metadata for current output and exact legacy-byte comparison. */
+    private function renderFragment(string $id, Category $category, DependabotInput $input, string $description): string
+    {
+        return $this->renderer->render($this->changesets->create(
+            $id,
+            $category,
+            null,
+            $input->pullRequest,
+            'dependabot[bot]',
+            $description,
+            VersionImpact::Patch,
+        ));
+    }
+
+    /**
+     * Keeps a bounded UTF-8 title as one literal paragraph without changing ordinary versions, paths or punctuation.
+     * HTML, Markdown delimiters, block markers, mentions and autolinks cannot introduce active presentation structure.
+     */
+    private function literalTitle(mixed $title): ?string
+    {
+        if (! is_string($title) || strlen($title) > 1024 || 1 !== preg_match('//u', $title)) {
+            return null;
+        }
+
+        $title = trim(preg_replace('/[\x00-\x20\x7f\p{Z}]+/u', ' ', $title));
+        if ('' === $title) {
+            return null;
+        }
+
+        $title = htmlspecialchars($title, ENT_NOQUOTES, 'UTF-8');
+        $title = strtr($title, [
+            '\\' => '\\\\', '`' => '\\`', '*' => '\\*', '_' => '\\_',
+            '[' => '\\[', ']' => '\\]', '~' => '\\~', '#' => '\\#', '$' => '\\$',
+        ]);
+        $title = preg_replace('~\b([a-z][a-z0-9+.-]*):(?=//)~i', '$1&#58;', $title);
+        $title = preg_replace('/\b(www)\./i', '$1&#46;', $title);
+        $title = preg_replace(
+            '/\A(?:([0-9]{1,9})([.)])(?= )|([-+])(?= )|(-)(?=(?: *-){2,}\z))/',
+            '$1\\\\$2$3$4',
+            $title,
+        );
+
+        return str_replace('@', '&#64;', $title);
     }
 
     /** Checks immutable creator metadata and the exact caller-provided head snapshot, rejecting fork writes. */
