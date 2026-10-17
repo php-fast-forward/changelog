@@ -1,13 +1,8 @@
 # Packaged Docker CLI
 
-The root [Dockerfile](https://github.com/php-fast-forward/changelog/blob/main/Dockerfile) installs the locked production dependencies
-at build time and runs `/usr/local/bin/changelog` directly. PHP 8.5 and Git
-are included. Composer, development tools and action scripts are absent from the
-runtime image. PHP and Composer use explicit full version tags without digests.
-The runtime layout is `/usr/local/bin/changelog`, `/usr/local/src` and
-`/usr/local/vendor`, so the ordinary CLI relative autoloader remains coherent.
-The allowlisted build context excludes host credentials, Git state and vendor
-directories. No image registry publication is required to use the Dockerfile.
+Use Docker when you want the CLI with PHP and Git included. Build from the
+repository root using the [Dockerfile](https://github.com/php-fast-forward/changelog/blob/main/Dockerfile),
+then mount the project you want to maintain. A local build needs no registry publication.
 
 Build and inspect locally:
 
@@ -49,6 +44,9 @@ approval and exact committed evidence.
 
 ## Direct GitHub operations
 
+This section is the advanced Action runtime reference. For ordinary local tasks,
+use the contributor commands above; for GitHub setup, use the [lifecycle](reusable-lifecycle.md).
+
 The native command `changelog github <operation>` delegates to the same shared
 automation services as the workflows. Its operations are `check`, `pr-status`,
 `dependabot`, `version`, `publish` and `history`:
@@ -82,11 +80,18 @@ CLI args and forwards its token through the environment. The `github-auth` and
 `setup-docker` composites are internal workflow helpers. Docker Actions run on
 Linux runners with Docker available, including self-hosted runners. GitHub builds
 from the Dockerfile's parent directory and mounts consumer data at `/github/workspace`;
-the CLI stays at `/usr/local`. No shell entrypoint or action PHP script is
+the CLI stays at `/usr/local/bin/changelog`, with source and dependencies in
+`/usr/local/src` and `/usr/local/vendor`. PHP 8.5 and Git are included; Composer,
+development tools and Action scripts are absent from the runtime image. The
+allowlisted build context excludes host credentials, Git state and vendor files.
+No shell entrypoint or action PHP script is
 needed. See the [GitHub runner implementation](https://github.com/actions/runner/blob/main/src/Runner.Worker/Handlers/ContainerActionHandler.cs)
 and [Docker action documentation](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-a-docker-container-action).
 
 Reusable workflows check out trusted runtime code and consumer data separately.
+The runtime identity is the called workflow's `job.workflow_repository` and
+`job.workflow_sha`; the caller's `github` context still identifies the consumer.
+Missing runtime identity fails before checkout. See [GitHub's reusable contexts](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts).
 They pass container-relative `project/<working-directory>` paths. Direct local
 Actions use `.` for the repository root. Monorepo PR operations keep that root
 and select nested fragment/history paths through their normal inputs. Token
@@ -106,16 +111,16 @@ Composer; it does not provide a separate filter for a GitHub-hosted dist ZIP.
 See [Git archive attributes](https://git-scm.com/docs/gitattributes#_creating_an_archive)
 and [Composer archive configuration](https://getcomposer.org/doc/04-schema.md#archive).
 Public `.github/actions/<operation>` paths remain stable; consumers select a
-reviewed immutable commit during validation.
+published version or reviewed full commit.
 
 ## Versioned GHCR publication
 
 [Publish Docker CLI](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) accepts an existing
 semantic release tag. The repository publication workflow calls it explicitly
 after approved release publication, supplying its exact approved SHA. Failed
-image jobs can be rerun from that publication run. This single launch path
-works with GITHUB_TOKEN and App tokens
-without also dispatching a duplicate run from a tag-push event.
+image jobs can be rerun from that publication run. The normal launch works with
+GITHUB_TOKEN and App tokens without a duplicate tag-push run. Image-only
+failures also have the manual recovery path described below.
 
 The validation matrix binds the tag to the checked-out commit and the exact
 approved SHA. It builds and executes each platform variant on a native GitHub
@@ -130,9 +135,8 @@ to `ghcr.io/php-fast-forward/changelog:<version>` with provenance, SBOM and
 repository/version/commit labels. Only the publication job receives
 `packages: write`. Image tags use the full version, without moving aliases.
 
-Community Actions use explicit full version tags. Consumer references to this
-package use reviewed immutable commits. Docker base images also use full version
-tags.
+Community Actions and Docker bases use full version tags. Consumer references
+to this package can select a published version or a reviewed full commit.
 
 The Action metadata builds the shared Dockerfile. Consumers may instead run a
 prebuilt CLI after verifying the selected versioned image exists and is accessible

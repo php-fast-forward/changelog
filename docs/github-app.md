@@ -1,9 +1,8 @@
 # Automatic CI with a GitHub App
 
-The reusable works with `GITHUB_TOKEN` by default. GitHub requires approval for
-PR workflows created by that token. This affects automation tools, including
-Changesets, independently of the release implementation. An installation token
-from a separate GitHub App allows ordinary PR workflows to start automatically.
+Use this optional setup when CI on generated version PRs should start without
+manual approval. The default `GITHUB_TOKEN` route requires that approval;
+a separate GitHub App's installation token allows ordinary PR workflows to start automatically.
 See [GitHub's token/event rules](https://docs.github.com/en/actions/concepts/security/github_token).
 
 An App is optional. It is needed when the consumer requires downstream CI to
@@ -29,7 +28,7 @@ or approve its own CI. A consumer that supplies its own extra jobs still owns
 their credentials, triggers, permissions and runner policy.
 The individual Dependabot workflow additionally requires Dependabot alerts
 read access when `security-alert-numbers` selects alerts to verify; the ordinary
-facade does not request that permission for dependency updates without alerts.
+lifecycle does not request that permission for dependency updates without alerts.
 
 Configure these consumer Actions settings, or organization settings explicitly
 shared with that repository:
@@ -47,8 +46,7 @@ sufficient. See [GitHub's App authentication setup](https://docs.github.com/en/a
 
 ## Caller configuration
 
-Select a reviewed product revision containing App authentication. Keep the
-existing event filters and job permissions from the ordinary caller, and add
+Keep the existing event filters and job permissions from the ordinary caller, and add
 these settings to its reusable job:
 
 ```yaml

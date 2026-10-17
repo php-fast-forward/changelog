@@ -2,12 +2,35 @@
 
 Load for local authoring, contribution diagnostics, read-only plans, history
 maintenance or separately authorized publication. Supports
-`fast-forward/changelog ^0.1` (minimum `0.1.0`) on PHP `^8.5` with Composer and
-Git. Inspect `composer show fast-forward/changelog`, then
-`vendor/bin/changelog list --raw` and the relevant `help <command>`.
-Use `changelog` instead when an existing global Composer install is selected.
-A missing or older runtime needs a separately authorized installation or a
-compatible procedure; do not silently change application dependencies.
+`fast-forward/changelog ^0.1` (minimum `0.1.0`) on PHP `^8.5` with Git and
+[CPX](https://github.com/laravel/cpx). Obtain CPX using its official installation
+guide when authorized; CPX manages the tool's Composer dependencies separately.
+Installing this skill with NPX Skills does not install that executor or runtime.
+
+Run from the application directory and inspect the actual commands before use:
+
+```sh
+cpx --skip-local fast-forward/changelog:^0.1 list --raw
+cpx --skip-local fast-forward/changelog:^0.1 help add
+```
+
+Use `help <command>` to inspect the changelog command. CPX may handle global
+`--help` and `--version` itself; its version identifies the executor, not the
+resolved changelog release. To reproduce one release, replace `^0.1` with its
+exact supported version, such as `fast-forward/changelog:0.1.0`.
+
+`--skip-local` belongs before the package and forces CPX's separate tool
+installation rather than a project binary. Arguments after the package reach
+the changelog CLI. This route does not require adding the library to the
+application's `composer.json`, lock or `vendor/`; the CLI still reads and writes
+the selected application's files. Dependency isolation is not a filesystem
+sandbox or a replacement PHP runtime. A missing or older runtime needs a
+separately authorized installation or a compatible procedure.
+
+An application that already manages this library through Composer may use its
+`vendor/bin/changelog` directly with the same arguments. PHP API integration
+continues to use the application's Composer autoloader. Do not change its
+dependencies merely to execute the CLI.
 
 The defaults are `.changelog/`, `CHANGELOG.md`, English Keep a Changelog,
 `v`-prefixed stable tags and baseline `HEAD`. There is no `init` or mandatory
@@ -52,9 +75,9 @@ constructing trusted PR context from user-controlled arguments.
 3. Run `add` with a message argument for unattended work:
 
    ```sh
-   vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-   vendor/bin/changelog add "Updates a dependency while preserving the public API." --category=changed --type=patch --no-interaction
-   vendor/bin/changelog check --no-interaction
+   cpx --skip-local fast-forward/changelog:^0.1 add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+   cpx --skip-local fast-forward/changelog:^0.1 add "Updates a dependency while preserving the public API." --category=changed --type=patch --no-interaction
+   cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
    ```
 
    `--issue`, `--pull-request`, and `--author` are optional. Supply
@@ -66,7 +89,7 @@ constructing trusted PR context from user-controlled arguments.
    number:
 
    ```sh
-   vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+   cpx --skip-local fast-forward/changelog:^0.1 add "Fixes Markdown parsing." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
    ```
 
    When the number is unknown, author without the field. Contribution checks do
@@ -103,7 +126,7 @@ Without commit intent, leave the fragment as a reviewed local file. With existin
 authorization to commit it, use the scoped option:
 
 ```sh
-vendor/bin/changelog add "Fixes the documented parser behavior." --category=fixed --commit --commit-message="chore: document parser fix" --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 add "Fixes the documented parser behavior." --category=fixed --commit --commit-message="chore: document parser fix" --no-interaction
 ```
 
 The CLI commits only the generated fragment and never pushes. Verify the created
@@ -121,7 +144,7 @@ uncommitted notes cannot satisfy it. After the contribution is committed under
 existing task authority, compare the PR to an explicit fetched baseline:
 
 ```sh
-vendor/bin/changelog check --since=origin/main --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 check --since=origin/main --no-interaction
 ```
 
 An inherited pending fragment does not satisfy a new contribution. A valid added
@@ -163,9 +186,9 @@ following version commands only when explicitly tasked with maintaining that
 workflow or performing a maintainer-authorized release transaction:
 
 ```sh
-vendor/bin/changelog status --json --source=tags --no-interaction
-vendor/bin/changelog version --dry-run --source=tags --no-interaction
-vendor/bin/changelog version --check --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 status --json --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 version --dry-run --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 version --check --source=tags --no-interaction
 ```
 
 `status` prints the machine plan without writes. `--dry-run` describes changes
@@ -180,13 +203,13 @@ version is numeric. With existing consolidation authority, run the same settings
 without `--dry-run`/`--check`:
 
 ```sh
-vendor/bin/changelog version --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 version --source=tags --no-interaction
 ```
 
 For verified PR references during an authorized preview, opt in explicitly:
 
 ```sh
-vendor/bin/changelog version --dry-run --source=tags \
+cpx --skip-local fast-forward/changelog:^0.1 version --dry-run --source=tags \
   --resolve-pull-requests --repository=owner/repo --no-interaction
 ```
 
@@ -262,11 +285,11 @@ message. Unknown dates remain unknown; neither commit time nor today's date is
 invented as a historical publication date. Existing sections retain their notes.
 
 ```sh
-vendor/bin/changelog backfill --dry-run --source=tags --no-interaction
-vendor/bin/changelog backfill --source=tags --no-interaction
-vendor/bin/changelog format --dry-run --locale=pt-BR --source=tags --no-interaction
-vendor/bin/changelog format --locale=pt-BR --source=tags --no-interaction
-vendor/bin/changelog notes 1.2.3 --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 backfill --dry-run --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 backfill --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 format --dry-run --locale=pt-BR --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 format --locale=pt-BR --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 notes 1.2.3 --no-interaction
 ```
 
 Backfill and format preserve all pending fragments. Maintenance PRs commit only
@@ -298,7 +321,7 @@ return [
 In Git, the selected template must already be a reviewed regular file in the
 selected base and match its exact working bytes before execution. Outside Git,
 an explicitly trusted local PHP template remains supported. Then preview
-`vendor/bin/changelog format --template=changelog-template.php
+`cpx --skip-local fast-forward/changelog:^0.1 format --template=changelog-template.php
 --dry-run --no-interaction`. Category keys remain the six canonical identifiers;
 release headings require level two and `{version}`, dated headings also `{date}`,
 and category headings require level three. Unknown settings fail. Custom PHP
@@ -312,7 +335,7 @@ the caller's normal authorized secret mechanism, never in fragments or this skil
 Preview with the full approved SHA:
 
 ```sh
-vendor/bin/changelog publish --repository=owner/repo --target-sha="$APPROVED_SHA" --dry-run --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 publish --repository=owner/repo --target-sha="$APPROVED_SHA" --dry-run --no-interaction
 ```
 
 Set `APPROVED_SHA` to the full approved merge SHA from the task's verified evidence.

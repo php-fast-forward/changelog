@@ -1,10 +1,14 @@
 # Managed version pull requests
 
-`VersionPullRequestServiceInterface::synchronize(ReleaseOptions,
-VersionPullRequestInput)` maintains one exclusive automation branch and PR.
-The defaults are base `main`, managed branch `changelog/version` and creator
-`github-actions[bot]`. Trusted composition supplies these values; no PR-head
-configuration is executed.
+Use this guide to review or refresh the PR that prepares a release. The workflow
+collects merged fragments into central history; it does not publish or merge that
+PR itself. Defaults are base `main`, branch `changelog/version` and Bot
+`github-actions[bot]`.
+
+1. Review the planned version, notes and consumed fragment deletions.
+2. If the base advances, run preparation again and review the refreshed head.
+3. Merge only after required checks and review pass. Publication then follows
+   the consumer's configured [publication workflow](publication.md).
 
 ## Fresh source base
 
@@ -54,6 +58,17 @@ An unchanged plan produces no additional commit. An uncertain PR creation is
 recovered by querying the exclusive branch. Empty plans create no empty commit
 or PR. Dry runs make no GitHub writes.
 
+## Title customization
+
+The lifecycle's `version-pr-title` and the individual workflow/Action's `title`
+accept `{current_version}` and `{next_version}`. A `1.2.0` → `1.3.0` plan can
+render `chore(release): 1.2.0 → 1.3.0`; the first baseline is `0.0.0`.
+Maintenance has no next release, so both values are the current version.
+Only these two placeholders expand. Templates allow at most 1024 bytes;
+literal/resolved titles must be a single line of at most 256 bytes.
+A title-only update preserves the signed head, body and plan; `dry-run` previews it.
+The internal CLI entrypoint accepts `github version --title=<template>`.
+
 ## Git transaction
 
 Central entries are regular `100644` blobs; fragment deletions use null blob IDs.
@@ -80,8 +95,9 @@ consolidation returns none. New fragments cannot prepare the same version again
 while any later stable section remains in the maintained history without a
 reachable stable tag.
 
-The service needs contents/PR write permissions and the policy's read permissions.
-Unit tests replace Git, GitHub, planner and authority boundaries.
+The PHP entrypoint is `VersionPullRequestServiceInterface::synchronize(ReleaseOptions,
+VersionPullRequestInput)`. It needs contents/PR write permissions and the
+policy's read permissions; trusted composition supplies its settings.
 
 ## Refresh before merge and recover a stale consolidation
 

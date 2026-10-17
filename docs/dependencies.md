@@ -1,14 +1,21 @@
-# Runtime dependencies and the development lock
+# Requirements and dependency compatibility
 
-PHP `^8.5` remains the runtime baseline. Symfony Console requires `^8.1` because
-the native `Ask` attribute uses its `constraints` argument. The other Symfony
-components accept `^7.4 || ^8.0`: Filesystem/Finder guard managed paths and discover fragments; Lock
-coordinates fragment and journal transactions; Process isolates Git argv; HTTP
-Client implements the GitHub boundary. Fast Forward Container, Clock and Config
-provide composition, UTC time and explicitly selected PHP presentation settings.
-Config is not required to initialize a consumer project.
+Use this guide for PHP integration requirements or a Composer resolution failure.
+For CLI-only use, [CPX](adoption.md) keeps the tool's dependency installation
+separate from the application's graph.
 
-Fast Forward Container retains `~1.6.0` while Config accepts `^1.7`.
+| Key requirement | Supported range / reason |
+| --- | --- |
+| PHP | `^8.5`, including when the CLI is run through CPX. |
+| Symfony Console | `^8.1`; interactive `Ask` uses its `constraints` argument. |
+| Other Symfony components | `^7.4 || ^8.0`; filesystem, discovery, HTTP, locks, process and validation boundaries. |
+| Fast Forward Container / Config | `~1.6.0` / `^1.7`; composition and optional explicit settings. |
+
+The [manifest](https://github.com/php-fast-forward/changelog/blob/main/composer.json)
+contains all direct requirements. No local configuration file is needed for CLI use.
+
+## Container bound
+
 Container 1.10 still retries a failed explicit concrete factory through
 autowiring: an independently injected throwing factory returned a healthy
 command instead of propagating the sentinel exception. The identical probe
@@ -21,8 +28,9 @@ against the installed packages, alongside the CLI and domain suites.
 The package does not support a complete Symfony 7.4 dependency graph: an
 application that requires Console 7.4 cannot install this library into the same
 Composer graph. Accepting the other 7.4 components does not remove the Console
-8.1 requirement. The [self-contained Docker CLI](docker.md) executes independently
-of the application's Composer installation.
+8.1 requirement. [CPX with `--skip-local`](adoption.md) uses a
+separate dependency installation while retaining the PHP `^8.5` requirement.
+The [self-contained Docker CLI](docker.md) supplies its own PHP runtime as well.
 
 ## Compatible Dependency Bounds
 
@@ -53,7 +61,7 @@ provider-based contribution recipe; PHP and PHPUnit deprecations fail the jobs.
 The separate fresh Composer packaging jobs still resolve complete highest and
 lowest consumer runtime graphs without development dependencies.
 
-## Reproducible Builds And Development Tools
+## Contributor builds and development tools
 
 `composer.lock` pins this repository's development and Docker image
 installation. Composer consumers resolve the version constraints in `require`
@@ -62,7 +70,7 @@ The shared Dockerfile installs its trusted runtime with `--no-dev --no-scripts
 --no-plugins` at build time. Actions execute the included CLI; consumer
 dependencies are not installed by an Action. Docker bases use explicit full
 version tags; external Actions use verified full version tags. Consumer
-references to this package use reviewed immutable commits. Release image builds
+references select a published version or reviewed full commit. Release image builds
 pass COMPOSER_ROOT_VERSION as a build argument.
 
 PHPUnit `^13.4`, Prophecy, Rector `^2.7`, ECS, PHP Parser and code-coverage

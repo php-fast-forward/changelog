@@ -6,10 +6,9 @@ GitHub does not execute the example while it remains in `resources/workflows`.
 
 Before enabling it:
 
-1. Review the full product commit already selected in the example. It is an
-   integrated revision containing the tested reusable workflow, not a claim that
-   a tagged release exists. Update it deliberately after validation; do not pin
-   a temporary PR branch or its unmerged commit.
+1. The example selects release `v0.1.0`. Review the workflow and release notes
+   when choosing another version; use a published release or a reviewed full
+   commit, rather than a temporary PR branch.
 2. Adjust both event branch filters and `base-branch` if the consumer's release
    branch is not `main`.
 3. Keep `publish: false` during validation. The example checks contributions,

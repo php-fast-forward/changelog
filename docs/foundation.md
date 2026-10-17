@@ -1,9 +1,13 @@
-# Reusable PHP library foundation
+# Contributor quality and reusable foundation
 
-This package is an extraction reference for a future PHP library template. It
-keeps the existing Changelog source and tests and owns its Composer, test and
-quality entrypoints. Copy the relevant files and adapt them to the new package;
-there is no generator, synchronization service or dependency on DevTools.
+Use this guide when contributing code or reusing the package's development
+setup. Start with `composer check`; the sections below explain its quality
+requirements. Runtime users can follow [adoption](adoption.md) independently.
+
+## Reusing the development setup
+
+The files below can be adapted to another PHP library. They are a reference,
+not a generator or synchronization service, and require no DevTools dependency.
 
 | Reusable base | What to adapt |
 | --- | --- |
@@ -21,12 +25,11 @@ They stay under `require-dev`; executing the consumer CLI loads none of them.
 For an ordinary library, remove `bin`, CLI smoke tests and CLI-specific runtime
 dependencies. Do not invent empty classes or artificial tests for coverage.
 
-The Changelog-specific choices are Symfony Console, Filesystem and Process
-`^8.1`, Fast Forward Container and Clock, their service-provider/PSR contracts,
-Composer runtime metadata and Safe. Container and Clock are focused packages;
-`fast-forward/config` is also a direct dependency for optional consumer settings. They do
-not depend on DevTools. A different library chooses its own runtime boundaries.
-None of these packages is mandatory for every future library.
+The runtime choices belong to this package; see [requirements and compatibility](dependencies.md)
+for the actual ranges. A different library chooses its own Console, filesystem,
+process, container and clock boundaries rather than copying these dependencies.
+
+## Formatting and PHP target
 
 PHP is `^8.5`, with Composer's development platform fixed at `8.5.0`. Rector
 uses its verified installed API `withPhpVersion(PHP_85)` and
@@ -49,6 +52,16 @@ references may exceed the wrapping target when splitting would harm clarity.
 Git attributes keep PHP and the CLI executable in LF on every checkout, including
 Windows. ECS also selects LF explicitly, matching `.editorconfig` and preventing
 the native Windows line ending from changing formatter results.
+
+## Validation and coverage
+
+| Command | Use |
+| --- | --- |
+| `composer check` | Manifest/platform checks, source quality and unit coverage. |
+| `composer test:integration` | Real Git operations with disposable repositories and synthetic HTTP. |
+| `composer test:workflows` | Workflow contracts and isolated event fixtures. |
+| `composer test:packaging` | Archive, installed CLI and packaged skill/PHP example. |
+| `composer --no-plugins docs:build` | Guides/API build after preparing documentation dependencies. |
 
 The full local gate is `composer check`. Quality installation disables Composer
 plugins and scripts with `--no-plugins --no-scripts`. The separate

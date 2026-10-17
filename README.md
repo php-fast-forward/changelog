@@ -48,7 +48,7 @@ jobs:
       issues: read
       statuses: write
 
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@9361890c918f8662e2de8cfcbff41923be57c536
+    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@v0.1.0
 
     with:
       base-branch: main
@@ -58,71 +58,54 @@ jobs:
       publish: false
 ```
 
-This single caller checks contributions, updates one sticky PR comment, creates
-verified Dependabot fragments and prepares the `changelog/version` PR. It uses
-Docker, Bash and Git on Linux; no consumer PHP or Composer installation is needed.
-Jobs use `ubuntu-latest` by default. The optional `runs-on` input selects other Linux runner labels.
-Adjust both event filters and `base-branch` when your release branch is not `main`.
+Each contribution PR adds a fragment. This workflow checks it, updates one PR
+comment and creates notes for Dependabot updates. After contributions merge,
+it prepares `changelog/version`: review that PR to update the central history
+and remove the consumed fragments. The workflow never merges it for you.
 
-The example pins a reviewed implementation commit and keeps publication disabled.
-Each reusable job narrows the caller's permissions; PR-head checks are read-only.
-The workflow never merges its version PR. See [setup and token permissions](resources/workflows/README.md),
-[all optional inputs and defaults](docs/reusable-lifecycle.md#optional-settings-and-composition) and the [automation map](docs/automation-map.md).
-For downstream CI without manual approval, use the optional
-[GitHub App authentication](docs/github-app.md). The default `GITHUB_TOKEN`
-requires approval for workflows on generated PRs; this does not enable release publication.
+Leave `publish: false` while trying the flow. Jobs run on Ubuntu with Docker,
+Bash and Git; your project needs no PHP or Composer installation for automation.
+For another release branch, adjust both event filters and `base-branch`.
+See [setup](resources/workflows/README.md) and [optional settings](docs/reusable-lifecycle.md#optional-settings-and-composition).
+Use an optional [GitHub App](docs/github-app.md) when generated PRs need CI
+without the approval required by the default token.
+When ready to publish, set `publish: true`: merging the approved version PR
+then publishes its tag and GitHub release. See [publication](docs/publication.md).
 
 ## 🛠️ CLI
 
-For local authoring and release maintenance, the Composer distribution exposes
-`vendor/bin/changelog`; a global Composer installation exposes `changelog`.
-PHP `^8.5` and Composer are required. Select a compatible release or reviewed
-immutable source revision under the consuming project's installation policy.
-Run from the project you want to maintain:
+Use PHP `^8.5` and [CPX](https://github.com/laravel/cpx) to run the CLI without
+adding it to the application's Composer dependencies. From your project:
 
 ```sh
-vendor/bin/changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
-vendor/bin/changelog check --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 add \
+  "Fixes Markdown parsing." --category=fixed --no-interaction
+cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
 ```
 
-For a global installation:
-
-```sh
-changelog add "Fixes Markdown parsing." --category=fixed --no-interaction
-changelog check --no-interaction
-```
-
-The global executable must be on your `PATH`. Both installations operate on the
-current project; `--cwd=/path/to/project` selects another directory. No `init`
-or local configuration file is required. Use `help <command>` for options and
-`check --since=origin/main` to compare a committed contribution with a fetched baseline.
-The [CLI guide](docs/adoption.md) also covers `status`, `version`, `notes`,
-`backfill`, `format` and `publish`, including dry runs and publication authority.
+`--skip-local` selects CPX's separate installation. The commands create one
+fragment and validate pending notes; no `init` is needed. See
+[local setup and previews](docs/adoption.md#run-the-cli-with-cpx) and the
+[command reference](docs/cli-fragments.md#public-cli). The [Docker CLI](docs/docker.md)
+is an alternative with its own PHP runtime.
 
 ## 🧠 Agent skill
 
-The portable [fast-forward-changelog skill](resources/skills/fast-forward-changelog/SKILL.md)
-supports the `fast-forward/changelog ^0.1` contract and leads with GitHub automation,
-then local CLI and optional PHP service integration. Its source is
-`resources/skills/fast-forward-changelog`; a consumer installs it as
-`.agents/skills/fast-forward-changelog`. Install it directly from GitHub with
-Node.js `22.20.0+`, npm and Git; PHP and Composer are not needed
-to copy the skill:
+Install the optional consumer instructions with [Skills CLI](docs/skills.md):
 
 ```sh
 npx skills add php-fast-forward/changelog --skill fast-forward-changelog
 ```
 
-The installer discovers the canonical package under `resources/skills`, then
-detects the current agent or asks for the host. See
-[scope, updates and host compatibility](docs/skills.md) or the optional
-[`llm/skills ^1.15` Composer synchronization](docs/composer-skills.md).
-Copying instructions does not install the PHP CLI or establish native activation.
+NPX Skills copies instructions; CPX runs the CLI. The
+[fast-forward-changelog skill](resources/skills/fast-forward-changelog/SKILL.md)
+supports `fast-forward/changelog ^0.1`. See [requirements, scope and updates](docs/skills.md)
+for installation and agent activation, or [optional Composer synchronization](docs/composer-skills.md).
 
 ## 🔌 Further integration
 
-Use the [PHP service contracts](docs/adoption.md#php-api) for an
-existing application, [Docker commands](docs/docker.md) for container usage, or
+Use the [optional Composer/PHP integration](docs/adoption.md#php-api) for classes
+inside an existing application, or
 [individual actions](docs/github-actions.md) for custom automation. Localized
 headings and trusted PHP templates are covered in [history and templates](docs/history.md).
 
