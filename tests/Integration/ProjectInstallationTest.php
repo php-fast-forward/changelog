@@ -60,15 +60,17 @@ final class ProjectInstallationTest extends TestCase
             self::assertDirectoryDoesNotExist($root . '/.agents');
             $created = $run(['--yes' => true]);
             self::assertSame('installed', $created['workflow']['state']);
+            self::assertSame('v9.9.9', $created['workflow']['reference']);
             self::assertSame('installed', $created['skill']['state']);
             self::assertSame('9.9.9', $created['skill']['installed_source']['version']);
             $workflow = $root . '/.github/workflows/changelog.yml';
             $payload = file_get_contents($workflow);
             $parsed = Yaml::parse($payload);
             self::assertSame(
-                'php-fast-forward/changelog/.github/workflows/changelog.yml@v9.9.9',
+                'php-fast-forward/changelog/.github/workflows/changelog.yml@' . str_repeat('a', 40),
                 $parsed['jobs']['changelog']['uses'],
             );
+            self::assertStringContainsString('# v9.9.9', $payload);
             self::assertTrue($parsed['jobs']['changelog']['with']['publish']);
             self::assertSame(['main'], $parsed['on']['push']['branches']);
             self::assertStringContainsString("\non:\n", $payload);

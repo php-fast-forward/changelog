@@ -207,9 +207,11 @@ YAML;
         self::assertSame('planned', $result['state']);
         self::assertSame('absent', $result['skill']['state']);
         self::assertSame(
-            'php-fast-forward/changelog/.github/workflows/changelog.yml@v0.2.0',
+            'php-fast-forward/changelog/.github/workflows/changelog.yml@' . str_repeat('a', 40),
             $document['jobs']['changelog']['uses'],
         );
+        self::assertSame('v0.2.0', $result['workflow']['reference']);
+        self::assertStringContainsString('# v0.2.0', $content);
         self::assertSame([
             'base-branch' => 'maintenance/1.x', 'publish' => true, 'ratio' => 0.5],
             $document['jobs']['changelog']['with'],
@@ -219,6 +221,20 @@ YAML;
         self::assertSame([], $document['permissions']);
         self::assertStringContainsString("\non:\n", $content);
         self::assertStringNotContainsString('---', $content);
+    }
+
+    /** The readable release comment belongs only to the reusable job and cannot change literal input values. */
+    public function testReleaseCommentDoesNotRewriteAnInputMatchingTheWorkflowPin(): void
+    {
+        $release = $this->release();
+        $release['inputs']['version-pr-title'] = ['type' => 'string', 'default' => ''];
+        $title = 'php-fast-forward/changelog/.github/workflows/changelog.yml@' . $release['sha'];
+        $result = $this->plan(['version-pr-title' => $title], $release);
+        $content = $result['workflow']['content'];
+        $document = Yaml::parse($content);
+
+        self::assertSame($title, $document['jobs']['changelog']['with']['version-pr-title']);
+        self::assertSame(1, substr_count($content, '# v0.2.0'));
     }
 
     /** Complete installation validates the skill first, creates only one caller and then installs the absent payload. */
@@ -290,6 +306,45 @@ YAML;
         );
 
         self::assertSame('installed', $accepted['state']);
+    }
+
+    /** A release tag retargeted after preview changes the immutable caller and blocks both workflow and skill installation. */
+    public function testRetargetedReleaseBlocksEveryWriteAfterConfirmation(): void
+    {
+        $filesystem = $this->createMock(InstallationFilesystemInterface::class);
+        $filesystem->method('inspect')->willReturn($this->snapshot());
+        $filesystem->expects(self::exactly(2))->method('read')->with('/project', 'skills-lock.json')->willReturn(null);
+        $filesystem->expects(self::never())->method('create');
+        $release = $this->release();
+        $retargeted = array_replace($release, ['sha' => str_repeat('b', 40)]);
+        $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
+        $releases->expects(self::exactly(2))->method('resolve')->with('v0.2.0')->willReturnOnConsecutiveCalls(
+            $release,
+            $retargeted,
+        );
+        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills->expects(self::exactly(2))->method('run')->with(
+            '/project',
+            '.agents/skills',
+            false,
+            'install',
+            true,
+        )->willReturn(['state' => 'absent']);
+        $installer = new ProjectInstaller($filesystem, $releases, $skills);
+        $preview = $installer->run('/project', 'v0.2.0', [], true, true);
+        $result = $installer->run(
+            '/project',
+            'v0.2.0',
+            [],
+            true,
+            false,
+            hash('sha256', json_encode($preview['workflow'], JSON_THROW_ON_ERROR)),
+        );
+
+        self::assertSame('blocked', $result['state']);
+        self::assertSame('v0.2.0', $preview['workflow']['reference']);
+        self::assertSame('v0.2.0', $result['workflow']['reference']);
+        self::assertStringContainsString('changed after confirmation', implode("\n", $result['diagnostics']));
     }
 
     /** A native install can refuse without throwing when another installer changes ownership during the operation. */

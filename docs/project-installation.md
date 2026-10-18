@@ -46,12 +46,14 @@ runner labels, PR comment mode and version-PR title. Blank answers retain the
 selected release's defaults. Inspect [lifecycle settings](reusable-lifecycle.md)
 for their meaning, and that published revision for its exact supported inputs.
 
-Setup renders `.github/workflows/changelog.yml` with the chosen full release
-tag, event branch filters and only input values that differ from the verified
-defaults. Review the complete YAML and skill state, then approve the final
-confirmation. The command rechecks the proposed workflow before applying it;
-a changed plan blocks writes instead of applying different choices silently.
-No technical plan file is added to the repository.
+Setup renders `.github/workflows/changelog.yml` with the release's verified
+commit SHA in `uses` and its full version in a readable comment. It sets event
+branch filters and only input values that differ from the verified defaults.
+Review the complete YAML and skill state, then approve the final confirmation.
+The command rechecks the proposed workflow before applying it; a changed plan,
+including a release tag retargeted to another commit, blocks writes. Later tag
+changes cannot change the commit selected by the installed caller. No technical
+plan file is added to the repository.
 
 Installation creates local files only. It does not commit, push, change GitHub
 settings, run workflows or publish a tag/release. Review the diff and configure
@@ -85,7 +87,7 @@ It emits the structured result on stdout and JSON errors on stderr.
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `--cwd`, `-C` | `.` | Existing consumer Git checkout; operates from its repository root. |
-| `--ref`, `-r` | Executing package's stable version | Published full workflow tag, such as `vX.Y.Z`. Required when the executing runtime has a development version. |
+| `--ref`, `-r` | Executing package's stable version | Select a published full release tag, such as `vX.Y.Z`; the new caller uses its verified commit SHA. Required from a development runtime. |
 | `--base-branch` | Local `origin/HEAD`, otherwise `main` | Release branch and caller event filters. |
 | `--publish=true\|false` | `true` | Configure publication after the reviewed version PR is merged. |
 | `--no-skill` | Off | Skip native skill installation and preserve any existing skill owner. |
@@ -103,8 +105,10 @@ names supplied with `--set`.
 
 For a missing caller, the selected workflow version defaults to the executing
 package's stable version. `--ref` selects another published full tag without
-changing the executing CLI or its bundled skill. Moving channels, development
-refs and prereleases are rejected as installation evidence. Setup verifies a
+changing the executing CLI or its bundled skill. The result's
+`workflow.reference` records this release tag; the caller's `uses` selects its
+verified commit. Moving channels, development refs and prereleases are rejected
+as installation evidence. Setup verifies a
 published stable GitHub Release, its tag/commit and both YAML blobs from the
 canonical public repository. These read-only public API requests use no consumer
 credentials, with a 10-second timeout and 30-second maximum duration per request;

@@ -276,11 +276,11 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
     }
 
     /**
-     * Renders the selected release's caller with literal overrides and its original event/permission structure.
+     * Renders the selected release's caller with its verified commit pin and literal input overrides.
      *
      * @param  array{ref:string,sha:string,caller:string,inputs:array<string,array<string,mixed>>} $release  Verified release contract.
      * @param  array<string,mixed>                                                                 $settings Explicit selected reusable input overrides.
-     * @return string                                                                              Complete YAML with unquoted on and no optional overrides equal to declared defaults.
+     * @return string                                                                              Complete YAML with the release tag as a comment, unquoted on and non-default overrides.
      * @throws InvalidArgumentException                                                            When an input or branch cannot be represented as a safe literal.
      * @throws RuntimeException                                                                    When the selected caller does not contain one expected reusable job.
      */
@@ -304,7 +304,7 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
         }
 
         $key = $keys[0];
-        $document['jobs'][$key]['uses'] = self::WORKFLOW . $release['ref'];
+        $document['jobs'][$key]['uses'] = self::WORKFLOW . $release['sha'];
         unset($document['jobs'][$key]['with']);
         if ([] !== $overrides) {
             $document['jobs'][$key]['with'] = $overrides;
@@ -317,6 +317,11 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
 
         $yaml = Yaml::dump($document, 8, 2);
         $yaml = preg_replace('/^\x27on\x27:/m', 'on:', $yaml);
+        $yaml = preg_replace(
+            '/^(    uses: ' . preg_quote($document['jobs'][$key]['uses'], '/') . ')$/m',
+            '$1 # ' . $release['ref'],
+            $yaml,
+        );
 
         return preg_replace('/\n(?=(?:on|permissions|jobs):)/', "\n\n", $yaml);
     }

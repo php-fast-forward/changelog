@@ -19,7 +19,11 @@ before choosing a route. Guided setup can ask for the release branch, publicatio
 choice, advanced overrides and optional project skill, then preview a missing
 caller. It must preserve an existing caller and refuse ambiguous or competing
 automation. Use read-only preview first; noninteractive application requires its
-documented confirmation option. The workflow and bundled skill may have separate
+documented confirmation option. For a new caller, select the published release
+through that command's supported release option; its installer can pin `uses`
+to the verified commit and retain the version as a readable comment. Confirm
+both identities in the preview. Preserve the selected pin of an existing caller.
+The workflow and bundled skill may have separate
 provenance: a workflow ref does not change the executing CLI's instructions.
 
 For manual setup, copy the caller into the application's `.github/workflows/`, review its events,
@@ -42,8 +46,9 @@ branch per release line and verify its actual planned version; a branch's name
 does not enforce a SemVer range. Use individual workflows or Docker actions only
 when their release-specific contracts suit the application's orchestration.
 
-Full tags preserve a concrete implementation. A moving major channel is an
-explicit update policy and must be documented by the selected product release;
+Full tags identify concrete releases; an immutable commit pin also keeps execution
+bound to the reviewed code if an upstream tag is changed. A moving major channel
+is an explicit update policy and must be documented by the selected product release;
 do not assume it exists. In particular `@v0` may cross breaking `0.x` minors and
 does not mean Composer `^0.1`. Changing a workflow ref is a deliberate update.
 
