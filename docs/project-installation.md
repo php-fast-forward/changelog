@@ -55,6 +55,10 @@ including a release tag retargeted to another commit, blocks writes. Later tag
 changes cannot change the commit selected by the installed caller. No technical
 plan file is added to the repository.
 
+Event branch filters escape [GitHub pattern operators](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet)
+so names such as `release/1.2+` match literally; the reusable workflow's
+`base-branch` input retains the original branch name.
+
 Installation creates local files only. It does not commit, push, change GitHub
 settings, run workflows or publish a tag/release. Review the diff and configure
 any required [GitHub App credentials](github-app.md) through GitHub's secret

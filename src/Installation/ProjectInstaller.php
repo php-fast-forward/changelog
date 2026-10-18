@@ -311,7 +311,7 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
         }
         foreach (['pull_request', 'pull_request_target', 'push'] as $event) {
             if (isset($document['on'][$event])) {
-                $document['on'][$event]['branches'] = [$branch];
+                $document['on'][$event]['branches'] = [strtr($branch, ['+' => '\\+', '!' => '\\!'])];
             }
         }
 

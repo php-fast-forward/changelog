@@ -237,6 +237,27 @@ YAML;
         self::assertSame(1, substr_count($content, '# v0.2.0'));
     }
 
+    /** Valid Git branch names stay literal inputs while event filters escape GitHub pattern operators. */
+    #[DataProvider('literalEventBranches')]
+    public function testBranchEventFiltersMatchTheLiteralSelectedBranch(string $branch, string $pattern): void
+    {
+        $result = $this->plan(['base-branch' => $branch], $this->release());
+        $document = Yaml::parse($result['workflow']['content']);
+
+        self::assertSame($branch, $document['jobs']['changelog']['with']['base-branch']);
+        foreach (['pull_request', 'pull_request_target', 'push'] as $event) {
+            self::assertSame([$pattern], $document['on'][$event]['branches']);
+        }
+    }
+
+    /** Covers repetition operators, leading negation and literal operators inside a valid branch name. */
+    public static function literalEventBranches(): iterable
+    {
+        yield 'plus' => ['release/1.2+', 'release/1.2\\+'];
+        yield 'leading exclamation' => ['!maintenance', '\\!maintenance'];
+        yield 'combined literal operators' => ['release/!1.2++', 'release/\\!1.2\\+\\+'];
+    }
+
     /** Complete installation validates the skill first, creates only one caller and then installs the absent payload. */
     public function testInstallsCallerAndSkillInExplicitOrder(): void
     {
