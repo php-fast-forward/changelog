@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Console;
 
-use FastForward\Changelog\Skill\SkillInstallerInterface;
+use Closure;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -14,11 +14,11 @@ final readonly class SkillInstallationWarning
     /**
      * Captures a lazy inspection boundary and explicitly composed terminal/CI eligibility.
      *
-     * @param SkillInstallerInterface $installer Read-only local comparison with this runtime's actual payload.
-     * @param bool                    $enabled   Whether both terminal streams are attached and the process is outside CI.
+     * @param Closure(string):array<string,mixed> $inspect Lazy read-only comparison; disabled warnings never compose installation dependencies.
+     * @param bool                                $enabled Whether both terminal streams are attached and the process is outside CI.
      */
     public function __construct(
-        private SkillInstallerInterface $installer,
+        private Closure $inspect,
         private bool $enabled,
     ) {}
 
@@ -35,7 +35,7 @@ final readonly class SkillInstallationWarning
             return;
         }
         try {
-            $result = $this->installer->run($cwd, mode: 'check');
+            $result = ($this->inspect)($cwd);
             $message = match ($result['state']) {
                 'outdated' => 'The managed changelog skill is older than this CLI\'s bundled payload. Review skill:install --check before an explicit skill:install --update.',
                 default => null,

@@ -150,7 +150,7 @@ final class ChangelogServiceProviderTest extends TestCase
     }
 
     /** Human callback reads raw cwd only when selected and retains the configured inspector instance. */
-    public function testWarningFactoryUsesInjectedProjectAndStaysLazyForRawList(): void
+    public function testWarningFactoryDefersInstallerUntilAnEligibleHumanInvocation(): void
     {
         $factories = new ChangelogServiceProvider()->getFactories();
         $installer = $this->createMock(SkillInstallerInterface::class);
@@ -169,6 +169,7 @@ final class ChangelogServiceProviderTest extends TestCase
             CommandLoaderInterface::class => $this->createStub(
                 CommandLoaderInterface::class,
             ), 'config.changelog.skill_warning_enabled' => true];
+        $lookups = [];
         $container = $this->createStub(ContainerInterface::class);
         $container->method('has')->willReturnCallback(static function (string $id) use (
             &$values
@@ -179,11 +180,15 @@ final class ChangelogServiceProviderTest extends TestCase
             );
         });
         $container->method('get')->willReturnCallback(static function (string $id) use (
-            &$values
+            &$values,
+            &$lookups,
         ): mixed {
+            $lookups[] = $id;
+
             return $values[$id];
         });
         $values[SkillInstallationWarning::class] = $factories[SkillInstallationWarning::class]($container);
+        self::assertNotContains(SkillInstallerInterface::class, $lookups);
         $app = $factories[Changelog::class]($container);
         $app->addCommand(
             new Command('check')->addOption('cwd', 'C', InputOption::VALUE_REQUIRED)->setCode(static fn(): int => 0),
@@ -193,11 +198,17 @@ final class ChangelogServiceProviderTest extends TestCase
         $output->method('getErrorOutput')->willReturn($error);
         self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check', '--cwd=/chosen']), $output));
         self::assertStringContainsString('older than', $error->fetch());
+        self::assertSame(
+            1,
+            count(array_filter($lookups, static fn(string $id): bool => SkillInstallerInterface::class === $id)),
+        );
         self::assertSame(0, RuntimeDefaults::$calls);
         unset($values['config.changelog.skill_warning_enabled']);
+        $lookups = [];
         $warning = $factories[SkillInstallationWarning::class]($container);
         $warning->warn('/unobserved', $error);
         self::assertSame('', $error->fetch());
+        self::assertNotContains(SkillInstallerInterface::class, $lookups);
         self::assertGreaterThan(0, RuntimeDefaults::$calls);
     }
 

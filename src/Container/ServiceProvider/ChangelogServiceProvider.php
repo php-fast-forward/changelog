@@ -346,7 +346,10 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 self::configuration($container, 'installed_reference', static fn(): ?string => null),
             ),
             Console\SkillInstallationWarning::class => static fn(ContainerInterface $container): Console\SkillInstallationWarning => new Console\SkillInstallationWarning(
-                $container->get(Skill\SkillInstallerInterface::class),
+                static fn(string $cwd): array => $container->get(Skill\SkillInstallerInterface::class)->run(
+                    $cwd,
+                    mode: 'check',
+                ),
                 self::configuration(
                     $container,
                     'skill_warning_enabled',
