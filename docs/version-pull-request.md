@@ -39,6 +39,14 @@ approved stable tag unblocks the next transaction. History-only maintenance and
 an empty fragment inventory do not invent another version. This service never
 publishes tags or releases.
 
+If a version PR was merged with `publish: false`, its history can therefore block
+the next preparation. The workflow reports the consolidated version and latest
+reachable stable version. Complete that exact approved publication or make a
+reviewed recovery of its notes before preparing another version. Changing the
+publication setting does not publish an older merged PR automatically, and
+rerunning preparation cannot repair the missing tag. Unrelated API and transport
+errors remain redacted.
+
 ## Ownership and repeatability
 
 The service inventories PRs on the exclusive branch. Multiple PRs, other base

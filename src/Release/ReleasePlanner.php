@@ -92,8 +92,9 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      *
      * @return ReleasePlan Immutable release or maintenance transaction with exact accepted inputs and resulting bytes.
      *
-     * @throws \InvalidArgumentException When the operation, pending fragment schema or next-version inputs are invalid.
-     * @throws \RuntimeException         When approved source bytes, publication baseline or recovery evidence cannot be reconciled.
+     * @throws \InvalidArgumentException   When the operation, pending fragment schema or next-version inputs are invalid.
+     * @throws \RuntimeException           When approved source bytes, publication baseline or recovery evidence cannot be reconciled.
+     * @throws PendingPublicationException When maintained stable history still awaits its reachable published tag.
      */
     public function plan(ReleaseOptions $options, string $operation = 'version'): ReleasePlan
     {
@@ -264,7 +265,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      *
      * @return void Completion only when maintained stable sections do not exceed an actual reachable published tag baseline.
      *
-     * @throws \RuntimeException When maintained stable history lacks its reachable published tag or exceeds the observed stable baseline.
+     * @throws PendingPublicationException When maintained stable history lacks its reachable published tag or exceeds the observed stable baseline.
      */
     private function assertPublishedHistory(HistoryDocument $document, string $currentVersion, bool $publishedTag): void
     {
@@ -284,7 +285,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                     $comparison = strcmp($component, $published[$index]);
                 }
                 if (! $publishedTag || 0 < $comparison) {
-                    throw new RuntimeException(
+                    throw new PendingPublicationException(
                         'Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.',
                     );
                 }

@@ -25,6 +25,7 @@ use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\PendingPublicationException;
 use FastForward\Changelog\Release\ReceiptCodec;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
@@ -58,6 +59,7 @@ use RuntimeException;
 
 #[CoversClass(ReleasePlanner::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[UsesClass(PendingPublicationException::class)]
 #[UsesClass(ReleasePlan::class)]
 #[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(ReleaseReceipt::class)]
@@ -545,6 +547,7 @@ final class ReleasePlannerTest extends TestCase
         $parts['versions']->expects(self::never())->method('resolve');
         $parts['clock']->expects(self::never())->method('now');
         $parts['plans']->expects(self::never())->method('create');
+        $this->expectException(PendingPublicationException::class);
         $this->expectExceptionMessage('Maintained release 1.0.1 is awaiting its reachable stable Git tag');
         $planner->plan(new ReleaseOptions('/consumer'));
     }

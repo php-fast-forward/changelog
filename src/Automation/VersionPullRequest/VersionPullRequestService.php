@@ -24,6 +24,7 @@ use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\PendingPublicationException;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
@@ -201,7 +202,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $pr = $this->writePullRequest($repo, $input, $pr, $head, $this->body($options, $plan, $data));
 
             return $this->result($hadPr ? 'updated' : 'created', $plan, $pr, $head);
-        } catch (VersionPullRequestException $error) {
+        } catch (VersionPullRequestException|PendingPublicationException $error) {
             return $this->result($writing ? 'conflict' : 'refused', $plan, $pr, $head, [$error->getMessage()]);
         } catch (Throwable) {
             return $this->result(
