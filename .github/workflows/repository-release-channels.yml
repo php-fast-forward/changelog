@@ -11,6 +11,13 @@ on:
         description: 'Full commit SHA of the existing release tag.'
         type: string
         required: true
+    secrets:
+      token:
+        description: 'Optional approved token for updating refs at released commits.'
+        required: false
+      CHANGELOG_TOKEN:
+        description: 'Optional configured changelog token; the caller token takes precedence.'
+        required: false
   workflow_dispatch:
     inputs:
       tag:
@@ -95,7 +102,7 @@ jobs:
       - name: Advance The Verified Released Major Branch
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.token || secrets.CHANGELOG_TOKEN || github.token }}
           FF_REPOSITORY: ${{ github.repository }}
           FF_TAG: ${{ inputs.tag }}
           FF_EXPECTED_SHA: ${{ inputs.expected-sha }}

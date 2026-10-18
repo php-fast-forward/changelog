@@ -27,6 +27,19 @@ closed merged managed PR event and the exact approved merge SHA. Manual dispatch
 is restricted to `refs/heads/main`. Code is checked out at the called workflow's
 verified repository and exact implementation SHA, never the PR head or release notes.
 
+Reusable callers may pass the optional `token` secret. This repository forwards
+the same `CHANGELOG_TOKEN` used by its lifecycle, falling back to `github.token`.
+Direct manual dispatch uses the repository's `CHANGELOG_TOKEN` when configured.
+The final token order is caller `token`, repository `CHANGELOG_TOKEN`, then
+`github.token`; none of these values is copied into inputs or outputs.
+
+Updating a ref to a historical released commit with different workflow files
+may require an approved token with repository **Contents: write** and
+**Workflows: write**. The default `GITHUB_TOKEN` does not always satisfy that
+guard, and YAML has no `workflows: write` permission to add. Use the existing
+approved secret mechanism and a suitably scoped token; this operation does not
+create an App, fetch credentials or bypass repository rules.
+
 For an already authorized local diagnostic/recovery from a trusted source clone,
 PHP `^8.5`, Composer and the locked runtime dependencies are required:
 
@@ -37,6 +50,7 @@ php .github/update-release-channels.php php-fast-forward/changelog v0.1.0 FULL_R
 
 Replace the tag/SHA with verified release evidence. Supply `GH_TOKEN` through the
 existing approved secret mechanism; it needs repository contents write access.
+The historical-workflow permission requirement above applies to this route too.
 The program does not load a dotenv file, inspect other token variables, print
 the token, or persist credentials in Git remotes. It rejects another repository.
 Do not run it against a real repository as a test.
