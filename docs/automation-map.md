@@ -43,6 +43,7 @@ contracts. These names distinguish ownership without changing consumer paths.
 | --- | --- |
 | [`repository-ci.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-ci.yml) | PR, push and manual checks for this package: quality, tests, coverage and installed-runtime fixtures. |
 | [`repository-documentation.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-documentation.yml) | Read-only PR, push and manual builds of Markdown guides and the phpDocumentor API; uploads a site artifact without publishing Pages or Wiki. |
+| [`repository-impact.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-impact.yml) | Internal read-only helper for tests and documentation: classifies the complete immutable PR diff without hiding required checks. |
 | [`repository-changelog.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-changelog.yml) | One caller for this package's contribution checks, trusted PR feedback, Dependabot fragments, version preparation and approved-merge publication. |
 | [`repository-release-channels.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-release-channels.yml) | Advance a major branch only to a verified published release; supports explicit recovery with tag and SHA. |
 
@@ -51,6 +52,19 @@ but is an internal release step for this product's GHCR image. Its inputs bind
 an existing release tag to the approved source SHA. It is not an additional
 consumer changelog operation. See [this repository's flow](self-changelog.md)
 and [the Docker runtime](docker.md).
+
+On a PR, changelog-only and editorial changes keep the required test contexts
+visible with a short explanation instead of reinstalling dependencies and running
+the package matrix. A version PR receives this treatment only when its actual
+paths qualify; its branch name grants no exemption. Guide and asset changes build
+documentation. Runtime, shipped resources, configuration, tooling and unclassified
+paths run all gates, as do main pushes, manual runs and unavailable comparisons.
+The independent contribution check still validates the exact version transaction
+and consumed fragments. A failed scope job fails the dependent validation contexts.
+
+Common quality gates and 100% source-line coverage run on Ubuntu. Windows and ARM
+retain unit and real integration tests without repeating coverage or static tools.
+Windows integration uploads JUnit timings for measured performance investigations.
 
 The internal caller separates read-only PR checks from trusted write events.
 Its `Check Contribution / Check Changelog` status is a consumer protection

@@ -1,0 +1,37 @@
+name: 'Repository: Validation Scope'
+
+on:
+  workflow_call:
+    outputs:
+      runtime:
+        description: Whether runtime, compatibility and packaging validation is required.
+        value: ${{ jobs.impact.outputs.runtime }}
+      documentation:
+        description: Whether guide or API documentation inputs changed.
+        value: ${{ jobs.impact.outputs.documentation }}
+
+permissions:
+  contents: read
+
+jobs:
+  impact:
+    name: Classify The Complete Change
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runtime: ${{ steps.scope.outputs.runtime }}
+      documentation: ${{ steps.scope.outputs.documentation }}
+    steps:
+      - name: Check Out The Comparison History
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select Validation From Immutable PR Changes
+        id: scope
+        env:
+          FF_EVENT: ${{ github.event_name }}
+          FF_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          FF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/ci-impact.mjs

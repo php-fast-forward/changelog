@@ -19,7 +19,12 @@ env:
   COMPOSER_PROCESS_TIMEOUT: '600'
 
 jobs:
+  impact:
+    uses: ./.github/workflows/repository-impact.yml
+
   packaging:
+    needs: impact
+    if: ${{ always() && !cancelled() }}
     name: Fresh Composer Installations (${{ matrix.dependencies }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -33,12 +38,30 @@ jobs:
         dependencies: [highest, lowest]
 
     steps:
+      - name: Require A Complete Validation Decision
+        env:
+          FF_RESULT: ${{ needs.impact.result }}
+          FF_RUNTIME: ${{ needs.impact.outputs.runtime }}
+        shell: bash
+        run: |
+          if [[ "$FF_RESULT" != 'success' || ! "$FF_RUNTIME" =~ ^(true|false)$ ]]; then
+            echo '::error::Validation scope failed or is incomplete; this required check cannot pass.'
+            exit 1
+          fi
+
+      - name: Explain The Editorial Validation Scope
+        if: needs.impact.outputs.runtime == 'false'
+        shell: bash
+        run: echo 'No runtime inputs changed. Changelog contribution validation remains required.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check Out Repository
+        if: needs.impact.outputs.runtime == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set Up PHP
+        if: needs.impact.outputs.runtime == 'true'
         uses: shivammathur/setup-php@2.37.1
         with:
           php-version: '8.5'
@@ -46,12 +69,15 @@ jobs:
           tools: composer:v2
 
       - name: Validate Fresh Local And Global Consumers
+        if: needs.impact.outputs.runtime == 'true'
         run: php tests/Packaging/verify.php
         env:
           CHANGELOG_PACKAGING_DIRECT: '1'
           CHANGELOG_PACKAGING_DEPENDENCIES: ${{ matrix.dependencies }}
 
   component-compatibility:
+    needs: impact
+    if: ${{ always() && !cancelled() }}
     name: Symfony ${{ matrix.components }} Component Minimums
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -62,12 +88,30 @@ jobs:
         components: ['7.4', '8.0']
 
     steps:
+      - name: Require A Complete Validation Decision
+        env:
+          FF_RESULT: ${{ needs.impact.result }}
+          FF_RUNTIME: ${{ needs.impact.outputs.runtime }}
+        shell: bash
+        run: |
+          if [[ "$FF_RESULT" != 'success' || ! "$FF_RUNTIME" =~ ^(true|false)$ ]]; then
+            echo '::error::Validation scope failed or is incomplete; this required check cannot pass.'
+            exit 1
+          fi
+
+      - name: Explain The Editorial Validation Scope
+        if: needs.impact.outputs.runtime == 'false'
+        shell: bash
+        run: echo 'No runtime inputs changed. Changelog contribution validation remains required.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check Out Repository
+        if: needs.impact.outputs.runtime == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set Up PHP
+        if: needs.impact.outputs.runtime == 'true'
         uses: shivammathur/setup-php@2.37.1
         with:
           php-version: '8.5'
@@ -75,11 +119,13 @@ jobs:
           tools: composer:v2
 
       - name: Isolate Composer State
+        if: needs.impact.outputs.runtime == 'true'
         run: |
           echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
           echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
 
       - name: Resolve The Compatible Minimum Graph
+        if: needs.impact.outputs.runtime == 'true'
         env:
           SYMFONY_COMPONENT_VERSION: ${{ matrix.components }}
         run: |
@@ -116,9 +162,11 @@ jobs:
             --prefer-dist
 
       - name: Verify Actual Platform Requirements
+        if: needs.impact.outputs.runtime == 'true'
         run: composer check-platform-reqs --no-plugins
 
       - name: Test Unit Contracts On The Minimum Graph
+        if: needs.impact.outputs.runtime == 'true'
         run: >-
           vendor/bin/phpunit
           --testsuite unit
@@ -127,6 +175,7 @@ jobs:
           --fail-on-phpunit-deprecation
 
       - name: Test Real Git And HTTP Integration
+        if: needs.impact.outputs.runtime == 'true'
         run: >-
           vendor/bin/phpunit
           --testsuite integration
@@ -135,6 +184,7 @@ jobs:
           --fail-on-phpunit-deprecation
 
       - name: Verify CLI And Provider Composition
+        if: needs.impact.outputs.runtime == 'true'
         run: |
           php bin/changelog list --raw
 
@@ -145,6 +195,8 @@ jobs:
             "$compatibility_project"
 
   tests:
+    needs: impact
+    if: ${{ always() && !cancelled() }}
     name: PHP 8.5 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -155,28 +207,49 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
 
     steps:
+      - name: Require A Complete Validation Decision
+        env:
+          FF_RESULT: ${{ needs.impact.result }}
+          FF_RUNTIME: ${{ needs.impact.outputs.runtime }}
+        shell: bash
+        run: |
+          if [[ "$FF_RESULT" != 'success' || ! "$FF_RUNTIME" =~ ^(true|false)$ ]]; then
+            echo '::error::Validation scope failed or is incomplete; this required check cannot pass.'
+            exit 1
+          fi
+
+      - name: Explain The Editorial Validation Scope
+        if: needs.impact.outputs.runtime == 'false'
+        shell: bash
+        run: echo 'No runtime inputs changed. Changelog contribution validation remains required.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check Out Repository
+        if: needs.impact.outputs.runtime == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set Up PHP
+        if: needs.impact.outputs.runtime == 'true'
         uses: shivammathur/setup-php@2.37.1
         with:
           php-version: '8.5'
-          coverage: xdebug
+          coverage: ${{ matrix.os == 'ubuntu-latest' && 'xdebug' || 'none' }}
           tools: composer:v2
 
       - name: Isolate Composer State
+        if: needs.impact.outputs.runtime == 'true'
         shell: bash
         run: |
           echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
           echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
 
       - name: Validate Composer Metadata
+        if: needs.impact.outputs.runtime == 'true'
         run: composer validate --strict
 
       - name: Install Development Dependencies
+        if: needs.impact.outputs.runtime == 'true'
         run: >-
           composer install
           --no-interaction
@@ -186,37 +259,58 @@ jobs:
           --no-progress
 
       - name: Run The Package Quality And Unit Coverage Gates
+        if: needs.impact.outputs.runtime == 'true' && matrix.os == 'ubuntu-latest'
         run: composer check
         env:
           XDEBUG_MODE: coverage
 
+      - name: Test Unit Contracts On This Platform
+        if: needs.impact.outputs.runtime == 'true' && matrix.os != 'ubuntu-latest'
+        run: vendor/bin/phpunit --testsuite unit --no-coverage
+
       - name: Smoke Test The CLI
+        if: needs.impact.outputs.runtime == 'true'
         run: php bin/changelog list --raw
 
       - name: Verify Squash Publication In Disposable Git Repositories
-        run: composer test:integration
+        if: needs.impact.outputs.runtime == 'true'
+        run: >-
+          vendor/bin/phpunit
+          --testsuite integration
+          --no-coverage
+          --log-junit .build/integration.xml
+          --testdox
         env:
           XDEBUG_MODE: 'off'
 
+      - name: Preserve Windows Integration Timings
+        if: always() && needs.impact.outputs.runtime == 'true' && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: windows-integration-timings
+          path: .build/integration.xml
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify Reusable Workflow Guards And Contracts Without Network
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         run: composer test:workflows
 
       - name: Prepare The Runner-Local Base Image Cache
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         uses: ./.github/actions/setup-docker
 
       - name: Build The Packaged CLI Image
         # Base images are preloaded by the preceding runner-local cache step.
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         run: docker build --progress=plain -t fast-forward-changelog:ci .
 
       - name: Verify The Actual Container CLI In Disposable Consumers
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         run: php tests/Container/verify.php fast-forward-changelog:ci
 
       - name: Verify The Composer Root Version Build Argument
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         run: |
           docker build \
             --build-arg COMPOSER_ROOT_VERSION=1.2.3 \
@@ -226,7 +320,7 @@ jobs:
           php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
 
       - name: Verify Docker Action Invocation And Runner Outputs
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         id: docker-action
         uses: ./.github/actions/history
         with:
@@ -235,7 +329,7 @@ jobs:
           source: tags
 
       - name: Verify The Docker Action Output Contract
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         env:
           FF_ACTION_RESULT: ${{ steps.docker-action.outputs.result }}
           FF_ACTION_STATUS: ${{ steps.docker-action.outputs.status }}
@@ -260,7 +354,7 @@ jobs:
 
       - name: Upload Native Line Coverage From This Run
         if: >-
-          ${{ success() && matrix.os == 'ubuntu-latest' &&
+          ${{ needs.impact.outputs.runtime == 'true' && success() && matrix.os == 'ubuntu-latest' &&
               ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
                (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
         uses: actions/upload-artifact@v7.0.1
@@ -272,9 +366,9 @@ jobs:
 
   coverage-report:
     name: Line Coverage Report
-    needs: tests
+    needs: [impact, tests]
     if: >-
-      ${{ needs.tests.result == 'success' &&
+      ${{ needs.impact.outputs.runtime == 'true' && needs.tests.result == 'success' &&
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
            (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     runs-on: ubuntu-latest
