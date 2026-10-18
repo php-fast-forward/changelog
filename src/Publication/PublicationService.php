@@ -19,6 +19,7 @@ namespace FastForward\Changelog\Publication;
 use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubRetryPolicy;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface;
 use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
@@ -37,11 +38,13 @@ final readonly class PublicationService implements MergedPublicationServiceInter
      * @param GitHubClientInterface                 $github   Authenticated, replaceable GitHub API boundary for scoped reads and writes.
      * @param ?PullRequestPolicyInterface           $policy   Optional signed-head ownership verifier; merged-PR publication is
      *                                                        refused when this capability is absent.
+     * @param ?GitHubRetryPolicy                    $retries  Optional bounded retry policy, consulted only after authoritative create-only reconciliation.
      */
     public function __construct(
         private PublicationEvidenceValidatorInterface $evidence,
         private GitHubClientInterface $github,
         private ?PullRequestPolicyInterface $policy = null,
+        private ?GitHubRetryPolicy $retries = null,
     ) {}
 
     /**
@@ -282,7 +285,7 @@ GRAPHQL,
     }
 
     /**
-     * Creates a missing tag once and confirms its immutable target even after an uncertain response.
+     * Reconciles a missing tag after each uncertain response before any bounded transient retry.
      *
      * @param  PublicationEvidence $evidence Independently validated transaction evidence required before publication or
      *                                       deterministic reuse.
@@ -294,45 +297,78 @@ GRAPHQL,
      */
     private function createTag(PublicationEvidence $evidence, string $root, string $tag): void
     {
-        $error = $this->create($root . '/git/refs', ['ref' => 'refs/tags/' . $tag, 'sha' => $evidence->sha]);
-        $sha = $this->tagSha($root, $tag);
+        for ($attempt = 1; ; ++$attempt) {
+            if ($attempt > 1) {
+                $sha = $this->tagSha($root, $tag);
 
-        if ($sha !== $evidence->sha) {
-            throw new RuntimeException(
-                'Tag creation outcome is missing or conflicts with the approved commit; retry after checking remote state.',
-                previous: $error,
-            );
+                if ($sha === $evidence->sha) {
+                    return;
+                }
+
+                if (null !== $sha) {
+                    throw new RuntimeException('The release tag changed before retry; publication refused.');
+                }
+            }
+            $error = $this->create($root . '/git/refs', ['ref' => 'refs/tags/' . $tag, 'sha' => $evidence->sha]);
+            $sha = $this->tagSha($root, $tag);
+
+            if ($sha === $evidence->sha) {
+                return;
+            }
+
+            if (null !== $sha || null === $this->retries || ! $this->retries->retry($error, $attempt)) {
+                throw new RuntimeException(
+                    'Tag creation outcome is missing or conflicts with the approved commit; retry after checking remote state.',
+                    previous: $error,
+                );
+            }
         }
     }
 
     /**
-     * Rechecks the tag, creates a missing release once and confirms persisted release evidence by GET.
+     * Rechecks the tag and exact release state before each bounded transient create retry.
      *
      * @param  PublicationEvidence $evidence Independently validated transaction evidence required before publication or
      *                                       deterministic reuse.
      * @param  string              $root     Trusted /repos/owner/name API prefix, never an external request URL.
      * @param  string              $tag      Exact release tag name selected by the transaction.
-     * @return array               Persisted release response obtained by GET after its single creation attempt.
+     * @return array               Persisted release response obtained by GET, with exact notes and stable publication state.
      * @throws RuntimeException    When immutable API authority or matching create-only publication state cannot be
      *                             confirmed.
      */
     private function createRelease(PublicationEvidence $evidence, string $root, string $tag): array
     {
-        if ($this->tagSha($root, $tag) !== $evidence->sha) {
-            throw new RuntimeException('The verified tag changed before release creation; publication refused.');
-        }
-        $error = $this->create($root . '/releases', ['tag_name' => $tag, 'target_commitish' => $evidence->sha,
-            'name' => $tag, 'body' => $evidence->notes, 'draft' => false, 'prerelease' => false, 'generate_release_notes' => false]);
-        $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
+        for ($attempt = 1; ; ++$attempt) {
+            if ($this->tagSha($root, $tag) !== $evidence->sha) {
+                throw new RuntimeException('The verified tag changed before release creation; publication refused.');
+            }
 
-        if (null === $release) {
-            throw new RuntimeException(
-                'The matching tag is retained but release creation is unverified; retry the same approved SHA.',
-                previous: $error,
-            );
-        }
+            if ($attempt > 1) {
+                $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
 
-        return $release;
+                if (null !== $release) {
+                    $this->releaseUrl($release, $tag, $evidence->notes);
+
+                    return $release;
+                }
+            }
+            $error = $this->create($root . '/releases', ['tag_name' => $tag, 'target_commitish' => $evidence->sha,
+                'name' => $tag, 'body' => $evidence->notes, 'draft' => false, 'prerelease' => false, 'generate_release_notes' => false]);
+            $release = $this->github->request('GET', $root . '/releases/tags/' . rawurlencode($tag));
+
+            if (null !== $release) {
+                $this->releaseUrl($release, $tag, $evidence->notes);
+
+                return $release;
+            }
+
+            if (null === $this->retries || ! $this->retries->retry($error, $attempt)) {
+                throw new RuntimeException(
+                    'The matching tag is retained but release creation is unverified; retry the same approved SHA.',
+                    previous: $error,
+                );
+            }
+        }
     }
 
     /**
@@ -340,7 +376,7 @@ GRAPHQL,
      *
      * @param  string              $path Trusted repository-scoped create-only API endpoint, never an external URL.
      * @param  array<string,mixed> $body Exact create-only tag or release JSON payload; the request is never
-     *                                   automatically retried.
+     *                                   replayed by this low-level helper; owners reconcile state before any retry.
      * @return ?Throwable          Captured creation failure, or null after a successful response; neither result establishes
      *                             persistence.
      */

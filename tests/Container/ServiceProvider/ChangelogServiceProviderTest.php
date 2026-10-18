@@ -88,7 +88,9 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(GitHubOutputWriter::class)]
 #[UsesClass(GitHubClient::class)]
+#[UsesClass(\FastForward\Changelog\GitHub\GitHubRetryPolicy::class)]
 #[UsesClass(PublicationService::class)]
+#[UsesClass(\FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestService::class)]
 #[UsesClass(PublicationEvidenceValidator::class)]
 #[UsesClass(RandomIdentifierGenerator::class)]
 #[UsesClass(GitHubEvidence::class)]
@@ -102,8 +104,36 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(SkillInstaller::class)]
 #[UsesClass(SkillInstallationWarning::class)]
 #[UsesClass(Changelog::class)]
+#[UsesClass(\FastForward\Changelog\Automation\Policy\PullRequestPolicy::class)]
+#[UsesClass(\FastForward\Changelog\Changeset\Store\FilesystemChangesetStore::class)]
+#[UsesClass(\FastForward\Changelog\Filesystem\ManagedFileStore::class)]
+#[UsesClass(\FastForward\Changelog\Git\GitRepository::class)]
+#[UsesClass(\FastForward\Changelog\Release\Factory\ReleasePlanFactory::class)]
+#[UsesClass(\FastForward\Changelog\Release\ReleasePlanner::class)]
+#[UsesClass(\FastForward\Changelog\Validator\ChangesetValidator::class)]
+#[UsesClass(\FastForward\Changelog\Validator\ReleaseInputEvidenceValidator::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
+    /** Normal composition activates bounded retries without reading the host or invoking a delay. */
+    public function testRuntimeServicesReceiveTheSharedRetryBoundary(): void
+    {
+        $retries = new \FastForward\Changelog\GitHub\GitHubRetryPolicy(
+            static function (): void {
+                self::fail('Resolving services must not execute a retry delay.');
+            },
+        );
+        $container = container(new ArrayServiceProvider([
+            \FastForward\Changelog\GitHub\GitHubRetryPolicy::class => static fn() => $retries,
+        ]), ChangelogServiceProvider::class);
+
+        foreach ([PublicationServiceInterface::class, VersionPullRequestServiceInterface::class] as $id) {
+            $service = $container->get($id);
+            $property = new \ReflectionProperty($service, 'retries');
+
+            self::assertSame($retries, $property->getValue($service));
+        }
+    }
+
     /** Resets synthetic defaults before each test; unit tests never observe the real host. */
     protected function setUp(): void
     {
@@ -280,10 +310,12 @@ final class ChangelogServiceProviderTest extends TestCase
             'max_redirects' => 0,
         ])->willReturn($response);
         $timezone = new DateTimeZone('UTC');
-        $container->expects(self::exactly(7))->method('get')->willReturnMap(
+        $container->expects(self::exactly(8))->method('get')->willReturnMap(
             [[HttpClientInterface::class, $http],
                 [ChangelogServiceProvider::CONFIG, new ArrayConfig(['working_directory' => '/consumer', 'installed_version' => '1.2.3', 'token' => 'fixture-token', 'api_url' => 'https://api.example.test'])],
-                [DateTimeZone::class, $timezone]],
+                [DateTimeZone::class, $timezone],
+                [\FastForward\Changelog\GitHub\GitHubRetryPolicy::class,
+                    $factories[\FastForward\Changelog\GitHub\GitHubRetryPolicy::class]()]],
         );
         self::assertSame('1.2.3', $factories[ComposerPackageVersionResolver::class]($container)->resolve());
         self::assertSame(

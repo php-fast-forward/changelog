@@ -15,6 +15,8 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServic
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubRetryPolicy;
+use FastForward\Changelog\GitHub\GitHubTransientException;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
@@ -44,6 +46,8 @@ use RuntimeException;
 #[UsesClass(PendingPublicationException::class)]
 #[UsesClass(ReleasePlan::class)]
 #[UsesClass(ReleaseReceipt::class)]
+#[UsesClass(GitHubRetryPolicy::class)]
+#[UsesClass(GitHubTransientException::class)]
 final class VersionPullRequestServiceTest extends TestCase
 {
     use PolicyFixtureTrait;
@@ -53,6 +57,7 @@ final class VersionPullRequestServiceTest extends TestCase
     private array $plannerCalls = [];
     private array $pullRequestSnapshots = [];
     private array $referencePolicies = [];
+    private array $retryDelays = [];
 
     /** Pending publication explains the recovery boundary; unrelated planner failures remain redacted before writes. */
     #[TestWith([true])]
@@ -565,6 +570,127 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertCount(1, $this->writes('pulls'));
     }
 
+    /**
+     * Reconciles absent/unchanged state before retrying the narrow ref or PR mutation.
+     *
+     * @param  string $operation Ref or PR mutation whose first requests fail transiently without persistence.
+     * @param  int    $failures  Number of transient failures before a successful write can be returned.
+     * @param  bool   $existing  Whether the operation updates an existing owned PR/branch instead of creating one.
+     * @return void   Write counts and delay counts prove at most three attempts with stable transaction identities.
+     */
+    #[TestWith(['ref', 1, false])]
+    #[TestWith(['ref', 2, false])]
+    #[TestWith(['ref', 3, false])]
+    #[TestWith(['ref', 2, true])]
+    #[TestWith(['pr', 1, false])]
+    #[TestWith(['pr', 2, false])]
+    #[TestWith(['pr', 3, false])]
+    #[TestWith(['pr', 2, true])]
+    public function testTransientManagedWritesRecoverWithinThreeAttempts(
+        string $operation,
+        int $failures,
+        bool $existing,
+    ): void {
+        $result = $this->synchronizeFixture(['transient_' . $operation . '_failures' => $failures]
+            + ($existing ? ['existing' => true] : []));
+        self::assertSame(
+            $failures >= 3 ? 'conflict' : ($existing ? 'updated' : 'created'),
+            $result->status,
+            implode('\n', $result->diagnostics),
+        );
+        $writes = array_filter($this->writes(), static fn(array $call): bool => 'ref' === $operation
+            ? str_contains($call[1], '/git/refs') : str_contains($call[1], '/pulls'));
+        self::assertCount(min(3, $failures + 1), $writes);
+        self::assertSame(array_slice([1_000_000, 2_000_000], 0, min(2, $failures)), $this->retryDelays);
+        self::assertCount(1, $this->writes('/git/commits'));
+    }
+
+    /**
+     * Matching persisted responses prove success after a lost transient response without another mutation.
+     *
+     * @param  string $operation Ref or PR creation whose response is lost after persistence.
+     * @return void   Each target is written once and no recovery delay is taken.
+     */
+    #[TestWith(['ref'])]
+    #[TestWith(['pr'])]
+    public function testLostTransientWriteResponseDoesNotCreateDuplicates(string $operation): void
+    {
+        $result = $this->synchronizeFixture([$operation . '_lost_confirmed' => true, 'typed_lost' => true]);
+        self::assertSame('created', $result->status, implode('\n', $result->diagnostics));
+        self::assertSame([], $this->retryDelays);
+        self::assertCount(1, array_filter($this->writes(), static fn(array $call): bool => 'ref' === $operation
+            ? str_contains($call[1], '/git/refs') : str_contains($call[1], '/pulls')));
+    }
+
+    /**
+     * Drift during a recovery wait cannot authorize another write to a changed base, head or human PR body.
+     *
+     * @param  string $operation Narrow write that first fails transiently.
+     * @param  string $drift     Remote identity or editable field changed by the injected delay double.
+     * @return void   Only the first failed mutation occurs; unrelated remote changes are preserved.
+     */
+    #[TestWith(['ref', 'base'])]
+    #[TestWith(['ref', 'head'])]
+    #[TestWith(['pr', 'base'])]
+    #[TestWith(['pr', 'head'])]
+    #[TestWith(['pr', 'body'])]
+    public function testRecoveryStopsIfRemoteStateChangesDuringTheDelay(string $operation, string $drift): void
+    {
+        $result = $this->synchronizeFixture(['transient_' . $operation . '_failures' => 1,
+            'retry_drift' => $drift, 'existing' => true]);
+        self::assertSame('conflict', $result->status);
+        self::assertCount(1, array_filter($this->writes(), static fn(array $call): bool => 'ref' === $operation
+            ? str_contains($call[1], '/git/refs') : str_contains($call[1], '/pulls')));
+    }
+
+    /**
+     * A late successful PR creation is recognized before another POST can duplicate the request.
+     *
+     * @return void Fresh branch and PR evidence suffices after the first transient response.
+     */
+    public function testPrCreationAppearingDuringDelayIsUsedWithoutASecondPost(): void
+    {
+        $result = $this->synchronizeFixture(['transient_pr_failures' => 1, 'retry_drift' => 'appeared']);
+        self::assertSame('created', $result->status, implode('\n', $result->diagnostics));
+        self::assertCount(
+            1,
+            array_filter($this->writes(), static fn(array $call): bool => str_contains($call[1], '/pulls')),
+        );
+    }
+
+    /**
+     * A PR created then closed at the intended head cannot masquerade as an absent creation during retry.
+     *
+     * @param  string $closedState Complete closed evidence, an older head, or malformed remote state.
+     * @return void   Closed current transactions stop; unrelated older transactions do not block a safe create retry.
+     */
+    #[TestWith(['current'])]
+    #[TestWith(['older'])]
+    #[TestWith(['malformed'])]
+    public function testClosedPrEvidenceCannotAuthorizeDuplicateCreation(string $closedState): void
+    {
+        $result = $this->synchronizeFixture(['transient_pr_failures' => 1, 'closed_pr' => $closedState]);
+        self::assertSame('older' === $closedState ? 'created' : 'conflict', $result->status);
+        self::assertCount('older' === $closedState ? 2 : 1,
+            array_filter($this->writes(), static fn(array $call): bool => str_contains($call[1], '/pulls')));
+    }
+
+    /**
+     * A successful HTTP response with unexpected PR prose is a contract failure rather than a retryable transport error.
+     *
+     * @return void Divergent response bytes stop after one write without a delay or duplicate create.
+     */
+    public function testDivergentSuccessfulCreateResponseIsNotRetried(): void
+    {
+        $result = $this->synchronizeFixture(['pr_response_body' => 'Unexpected remote body.']);
+        self::assertSame('conflict', $result->status);
+        self::assertSame([], $this->retryDelays);
+        self::assertCount(
+            1,
+            array_filter($this->writes(), static fn(array $call): bool => str_contains($call[1], '/pulls')),
+        );
+    }
+
     private function writes(string $suffix = ''): array
     {
         return array_values(
@@ -629,8 +755,26 @@ final class VersionPullRequestServiceTest extends TestCase
             }
         }
         $baseReads = $headReads = $localReads = 0;
+        $refAttempts = $prAttempts = 0;
+        $retryBaseRace = false;
+        $lastPrWrite = null;
         $github = $this->createStub(GitHubClientInterface::class);
-        $github->method('paginate')->willReturnCallback(static function (string $path) use (&$pr, $settings): array {
+        $github->method('paginate')->willReturnCallback(function (string $path) use (&$pr, &$head, $settings): array {
+            if (str_contains($path, 'state=closed')) {
+                if (!isset($settings['closed_pr'])) {
+                    return [];
+                }
+                $closed = $this->pr('github-actions[bot]', 'Bot', 'changelog/version');
+                $closed['state'] = 'closed';
+                $closed['head']['sha'] = 'older' === $settings['closed_pr'] ? str_repeat('a', 40) : $head;
+
+                if ('malformed' === $settings['closed_pr']) {
+                    unset($closed['head']['repo']);
+                }
+
+                return [$closed];
+            }
+
             return null === $pr ? [] : (isset($settings['duplicate_pr']) ? [$pr, $pr] : [$pr]);
         });
         $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (
@@ -638,6 +782,10 @@ final class VersionPullRequestServiceTest extends TestCase
             &$pr,
             &$baseReads,
             &$headReads,
+            &$refAttempts,
+            &$prAttempts,
+            &$retryBaseRace,
+            &$lastPrWrite,
             $base,
             $settings,
             $input,
@@ -659,7 +807,7 @@ final class VersionPullRequestServiceTest extends TestCase
                 if (isset($settings['missing_base'])) {
                     return null;
                 }
-                $sha = (isset($settings['base_race']) && $baseReads >= 2) || (isset($settings['late_base_race']) && $baseReads >= 3) || (isset($settings['post_update_race']) && $baseReads >= 4) ? str_repeat(
+                $sha = $retryBaseRace || (isset($settings['base_race']) && $baseReads >= 2) || (isset($settings['late_base_race']) && $baseReads >= 3) || (isset($settings['post_update_race']) && $baseReads >= 4) ? str_repeat(
                     'f',
                     40,
                 ) : $base;
@@ -698,10 +846,21 @@ final class VersionPullRequestServiceTest extends TestCase
                 ), 'verification' => $settings['commit_verification'] ?? null, 'author' => ['email' => 'synthetic-super-secret']];
             }
             if ('GET' !== $method && str_contains($path, '/git/refs')) {
+                if (++$refAttempts <= ($settings['transient_ref_failures'] ?? 0)) {
+                    throw new GitHubTransientException('controlled transient ref failure');
+                }
                 if (! isset($settings['ref_lost_unconfirmed']) && ! isset($settings['ref_success_unconfirmed'])) {
                     $head = $body['sha'];
+
+                    if (null !== $pr) {
+                        $pr['head']['sha'] = $head;
+                    }
                 }
                 if (isset($settings['ref_lost_confirmed']) || isset($settings['ref_lost_unconfirmed'])) {
+                    if (isset($settings['typed_lost'])) {
+                        throw new GitHubTransientException('controlled lost ref response');
+                    }
+
                     throw new RuntimeException('super-secret');
                 }
 
@@ -761,6 +920,11 @@ final class VersionPullRequestServiceTest extends TestCase
 
                     return $confirmation;
                 }
+                $lastPrWrite = $body;
+
+                if (++$prAttempts <= ($settings['transient_pr_failures'] ?? 0)) {
+                    throw new GitHubTransientException('controlled transient PR failure');
+                }
                 $previousBody = $pr['body'] ?? null;
                 $pr = $this->pr($input->automationActor, 'Bot', $input->managedBranch);
                 $pr['title'] = $body['title'];
@@ -768,9 +932,16 @@ final class VersionPullRequestServiceTest extends TestCase
                 $pr['head']['sha'] = $head;
                 $pr['html_url'] = 'https://github.com/owner/project/pull/7';
                 if (isset($settings['pr_lost_confirmed'])) {
+                    if (isset($settings['typed_lost'])) {
+                        throw new GitHubTransientException('controlled lost PR response');
+                    }
+
                     throw new RuntimeException('super-secret');
                 }
                 $response = $pr;
+                if (isset($settings['pr_response_body'])) {
+                    $response['body'] = $settings['pr_response_body'];
+                }
                 if (isset($settings['stale_patch_response']) && 'PATCH' === $method) {
                     $response['head']['sha'] = str_repeat('a', 40);
                 }
@@ -854,6 +1025,31 @@ final class VersionPullRequestServiceTest extends TestCase
             }
         });
 
+        $retries = new GitHubRetryPolicy(function (int $delay) use (
+            &$head,
+            &$pr,
+            &$retryBaseRace,
+            &$lastPrWrite,
+            $settings,
+            $input
+        ): void {
+            $this->retryDelays[] = $delay;
+
+            if ('base' === ($settings['retry_drift'] ?? null)) {
+                $retryBaseRace = true;
+            } elseif ('head' === ($settings['retry_drift'] ?? null)) {
+                $head = str_repeat('f', 40);
+            } elseif ('body' === ($settings['retry_drift'] ?? null)) {
+                $pr['body'] = 'New human changes during recovery.';
+            } elseif ('appeared' === ($settings['retry_drift'] ?? null)) {
+                $pr = $this->pr($input->automationActor, 'Bot', $input->managedBranch);
+                $pr['head']['sha'] = $head;
+                $pr['title'] = $lastPrWrite['title'];
+                $pr['body'] = $lastPrWrite['body'];
+                $pr['html_url'] = 'https://github.com/owner/project/pull/7';
+            }
+        });
+
         return new VersionPullRequestService(
             $github,
             $git,
@@ -867,6 +1063,7 @@ final class VersionPullRequestServiceTest extends TestCase
             $this->createStub(TemplateResolverInterface::class),
             $this->createStub(HistoryReleaseFactoryInterface::class),
             $this->createStub(ReleasePlanFactoryInterface::class),
+            $retries,
         )->synchronize(
             $options,
             $input,

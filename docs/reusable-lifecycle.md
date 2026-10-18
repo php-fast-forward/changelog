@@ -205,3 +205,22 @@ Local fixtures, 100% coverage and a code review do not replace this platform tes
 ---
 
 [Documentation index](index.md)
+
+## Transient GitHub failures
+
+Transient transport failures, HTTP 429 and HTTP 5xx receive at most three
+attempts: the original request plus two retries. Delays are one and two seconds,
+respecting a numeric `Retry-After` up to 30 seconds. HTTP 429 without that numeric
+header stops automatic recovery; the runtime never invents an early retry while
+rate limited. An unsupported date or a longer requested delay also stops recovery.
+HTTP 403, other permanent errors, malformed responses and validation failures
+are not retried.
+Follow [GitHub's rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately)
+before retrying a stopped rate-limited operation.
+
+Safe API reads retry directly. Tag/release creation and managed PR/ref updates
+first reconcile exact remote state, then retry only when absence or the unchanged
+owned state proves replay safe. Matching persisted results are reused. Human
+edits, a closed PR or divergent identities stop recovery. An uncertain Git tree
+or commit creation is not blindly replayed. These limits belong to the CLI
+runtime; whole jobs and completed business operations are not restarted.

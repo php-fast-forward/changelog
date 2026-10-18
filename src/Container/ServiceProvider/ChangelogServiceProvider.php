@@ -158,6 +158,23 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Automation\VersionPullRequest\VersionPullRequestServiceInterface::class => new AliasFactory(
                 Automation\VersionPullRequest\VersionPullRequestService::class,
             ),
+            // The supported autowirer retains optional defaults; retries need the runtime delay boundary.
+            Automation\VersionPullRequest\VersionPullRequestService::class => new InvokableFactory(
+                Automation\VersionPullRequest\VersionPullRequestService::class,
+                GitHubClientInterface::class,
+                Git\GitRepositoryInterface::class,
+                Release\ReleasePlannerInterface::class,
+                Release\ReceiptCodecInterface::class,
+                Filesystem\PackagePathResolverInterface::class,
+                Automation\Policy\PullRequestPolicyInterface::class,
+                Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface::class,
+                Validator\ReleaseInputEvidenceValidatorInterface::class,
+                History\HistoryCodecInterface::class,
+                Template\TemplateResolverInterface::class,
+                History\Factory\HistoryReleaseFactoryInterface::class,
+                Release\Factory\ReleasePlanFactoryInterface::class,
+                GitHub\GitHubRetryPolicy::class,
+            ),
             Automation\Dependabot\DependabotFragmentServiceInterface::class => new AliasFactory(
                 Automation\Dependabot\DependabotFragmentService::class,
             ),
@@ -224,6 +241,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 Validator\PublicationEvidenceValidatorInterface::class,
                 GitHubClientInterface::class,
                 Automation\Policy\PullRequestPolicyInterface::class,
+                GitHub\GitHubRetryPolicy::class,
             ),
             Validator\ReleaseDateValidatorInterface::class => new AliasFactory(
                 Validator\ReleaseDateValidator::class,
@@ -432,11 +450,14 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Randomizer::class => static fn(): Randomizer => new Randomizer(new Secure()),
             HttpClientInterface::class => static fn(): HttpClientInterface => HttpClient::create(),
             GitHubClientInterface::class => new AliasFactory(GitHub\GitHubClient::class),
+            GitHub\GitHubRetryPolicy::class => static fn(): GitHub\GitHubRetryPolicy
+                => new GitHub\GitHubRetryPolicy(\usleep(...)),
             GitHub\GitHubClient::class => static fn(ContainerInterface $container): GitHub\GitHubClient
                 => new GitHub\GitHubClient(
                     $container->get(HttpClientInterface::class),
                     $container->get(self::CONFIG)->get('token'),
                     $container->get(self::CONFIG)->get('api_url'),
+                    retries: $container->get(GitHub\GitHubRetryPolicy::class),
                 ),
             PersistingStoreInterface::class => new AliasFactory(FlockStore::class),
             ClockInterface::class => new AliasFactory(SystemClock::class),
