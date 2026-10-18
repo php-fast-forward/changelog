@@ -288,10 +288,10 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
     {
         $overrides = $this->settings($release['inputs'], $settings);
         $branch = $settings['base-branch'];
-        if (! is_string($branch) || '' === $branch || str_starts_with($branch, '-')
-            || str_ends_with($branch, '.') || str_ends_with($branch, '.lock')
+        if (! is_string($branch) || '' === $branch || 'HEAD' === $branch || str_starts_with($branch, '-')
+            || str_ends_with($branch, '.')
             || str_contains($branch, '..') || str_contains($branch, '@{')
-            || 1 === preg_match('~[\x00-\x20\x7f\~^:?*\[\\\\]|\A/|/\z|//|/\.~', $branch)) {
+            || 1 === preg_match('~[\x00-\x20\x7f\~^:?*\[\\\\]|\A/|/\z|//|(?:\A|/)\.|\.lock(?:/|\z)~', $branch)) {
             throw new InvalidArgumentException('base-branch must be one literal Git branch name.');
         }
 
