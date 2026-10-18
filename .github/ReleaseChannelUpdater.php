@@ -240,7 +240,19 @@ final readonly class ReleaseChannelUpdater
             ]],
         ]);
         if (! empty($mutation['errors']) || ! isset($mutation['data']['updateRefs'])) {
-            throw new RuntimeException('The conditional channel update was rejected; verify the ref before retrying.');
+            $types = [];
+            $errors = is_array($mutation['errors'] ?? null) ? $mutation['errors'] : [];
+            foreach ($errors as $error) {
+                $type = is_array($error) ? ($error['type'] ?? null) : null;
+                if (in_array($type, ['FORBIDDEN', 'UNAUTHORIZED', 'NOT_FOUND', 'UNPROCESSABLE', 'CONFLICT'], true)) {
+                    $types[] = $type;
+                }
+            }
+            $reason = [] === $types ? 'unknown response' : implode(', ', array_unique($types));
+
+            throw new RuntimeException(
+                'The conditional channel update was rejected (' . $reason . '); verify token permissions and the ref before retrying.',
+            );
         }
 
         $updated = $this->reference($repository, 'heads/' . $channel);

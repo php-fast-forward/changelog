@@ -24,6 +24,7 @@ final class ReleaseChannelFixture
     public bool $loseResponse = false;
     public bool $tagCycle = false;
     public bool $wrongTagIdentity = false;
+    public ?array $mutationErrors = null;
     public string $repository = 'fixture/library';
     private readonly string $directory;
     private int $releaseReads = 0;
@@ -157,7 +158,9 @@ final class ReleaseChannelFixture
                 ($this->beforeMutation)();
             }
             $current = $this->git(['show-ref', '--verify', '--hash', $change['name']], true);
-            if (null !== $current && null === $this->git(
+            if (null !== $this->mutationErrors) {
+                $data = ['errors' => $this->mutationErrors];
+            } elseif (null !== $current && null === $this->git(
                 ['merge-base', '--is-ancestor', $current, $change['afterOid']],
                 true,
             )) {
