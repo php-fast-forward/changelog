@@ -32,9 +32,14 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retain/update | `docs/automation-map.md` | Navigation separating stable public interfaces, repository-prefixed workflows, internal helpers and copyable resources. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
+| Retain/update | `src/Installation/`, `docs/project-installation.md` | Explicit project inspection, verified workflow rendering and create-only application under the same root; existing automation and foreign ownership are preserved. |
 
 The root index points to these durable guides and the canonical package.
 No extra child contract is created for resources, scripts or the skill itself.
+Guided setup adds no child contract. Read root → project installation guide →
+the executing command's help. Its preview does not grant workflow execution,
+merge or release authority. Restore source, tests, provider, guide and root index
+together on rollback; never remove consumer-owned files as a rollback shortcut.
 Native skill installation remains source behavior under the same root. Read
 root → skill distribution guide → the selected runtime's actual help. The
 canonical resource procedure discovers release-specific contracts instead of

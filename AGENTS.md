@@ -8,6 +8,7 @@ used across Fast Forward PHP packages.
 - CLI entrypoint: [`bin/changelog`](bin/changelog)
 - Console wiring and invokable commands: [`src/Console/`](src/Console/)
 - Native skill payload installation and integrity: [`src/Skill/`](src/Skill/)
+- Explicit project setup, published workflow discovery and create-only caller writes: [`src/Installation/`](src/Installation/)
 - Independent fragments and effective impact: [`src/Changeset/`](src/Changeset/), [`src/Fragment/`](src/Fragment/), [`src/Version/`](src/Version/)
 - Contribution validation: [`src/Validation/`](src/Validation/)
 - Historical Markdown and presentation: [`src/History/`](src/History/), [`src/Template/`](src/Template/)
@@ -121,6 +122,12 @@ used across Fast Forward PHP packages.
   with runtime inputs. Create pure values and standard exceptions directly; do not
   introduce wrapper factories merely to mock construction in tests.
 - Preserve deterministic rendering and exact historical Markdown.
+- Project setup is an explicit `install` operation. Preserve existing callers,
+  their pins/settings and foreign installer ownership. Derive new defaults from
+  the selected published workflow, bind application to the reviewed preview and
+  create only absent files. Dry runs and JSON previews never install a skill or
+  create directories. Native skill receipts retain their own version/integrity
+  contract; do not manufacture NPX ownership or claim host activation.
 - The native skill installer manages only this runtime's canonical payload through
   explicit install/check/update operations. Preserve local edits, foreign installer
   ownership and recovery evidence. Its receipt records local provenance, not trust
@@ -146,6 +153,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Development scripts](scripts/README.md): maps the four used PHP quality helpers; production CLI and images do not invoke them.
 - [Published changelog skill](resources/skills/fast-forward-changelog/SKILL.md): uniquely named portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
+- [Guided project installation](docs/project-installation.md): owns `install` questions, published workflow defaults, confirmation and separate component results; never replaces existing automation or third-party skill state.
 - [Skill distribution guide](docs/skills.md): owns native install/check/update, independent installer ownership and discovery validation; distinguishes copies from native host activation.
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.

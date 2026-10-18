@@ -6,25 +6,36 @@ checks those contributions and prepares one version PR that consolidates
 
 | What you need | Start here |
 | --- | --- |
-| Changelog automation on GitHub | [Reusable lifecycle](reusable-lifecycle.md) |
+| Changelog automation on GitHub | [Guided project setup](project-installation.md) |
 | Local authoring and maintenance | Run the CLI with CPX, below. |
 | Instructions for an agent | [Install the optional skill](skills.md) |
 | Services inside an existing PHP application | PHP API, below. |
 
 ## GitHub automation
 
-Copy the [consumer workflow](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml)
+Use [`install` via CPX](project-installation.md) when the selected release offers
+it. The guided command explains publication, chooses the release branch, offers
+the project skill and previews a caller before confirmation. It preserves
+existing integrations and emits only non-default reusable inputs.
+
+For manual setup, copy the [consumer workflow](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml)
 to `.github/workflows/changelog.yml`. The [README](https://github.com/php-fast-forward/changelog/blob/main/README.md)
 shows the complete caller; [setup and permissions](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md)
 explain its event filters and credentials. The jobs need Linux, Docker, Bash and
-Git. They do not install consumer PHP, Composer dependencies or Node.js.
+Git. Read those files at the selected published tag before copying them. The jobs
+do not install consumer PHP, Composer dependencies or Node.js.
 
-Start with `publish: false`. Open a contribution PR and verify its check and
+Choose `publish: true` for normal automatic publication after the reviewed
+version PR is merged. Use `publish: false` explicitly for a validation-only pilot,
+and inspect that release's publication/recovery contract before merging a version
+PR without publication. Installation itself publishes nothing.
+
+Open a contribution PR and verify its check and
 sticky comment, then inspect the generated `changelog/version` PR. It should
 update central history and delete the consumed fragments, without plan files,
 generated metadata comments or a new `Unreleased` section. The workflow does
-not merge that PR. Enable publication only after validating the pilot and the
-[approved-commit publication contract](publication.md).
+not merge that PR. Review the [approved-commit publication contract](publication.md)
+before enabling or using publication.
 
 Jobs default to `ubuntu-latest`; `runs-on` accepts other Linux runner labels.
 Optional [GitHub App credentials](github-app.md) allow generated PR workflows
@@ -43,14 +54,16 @@ CLI in a separate installation; the application does not need to require
 `fast-forward/changelog`. Put `--skip-local` before the package to select that
 copy instead of a matching project-local executable.
 
-From the project you want to maintain:
+Select the application's reviewed release, or a published stable version for new
+adoption, and set `CHANGELOG_VERSION` to that numeric version. From the project
+you want to maintain:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 list --raw
-cpx --skip-local fast-forward/changelog:^0.1 help add
-cpx --skip-local fast-forward/changelog:^0.1 add \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
 ```
 
 The first command lists the available commands. `help add` explains authoring.
@@ -64,7 +77,7 @@ and diagnostics.
 Run from another directory by passing the CLI's `--cwd` after the package:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 check \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
   --cwd=/path/to/project --no-interaction
 ```
 
@@ -72,7 +85,7 @@ After committing the contribution and fetching the intended baseline, compare
 its committed changes with:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 check \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
   --since=origin/main --no-interaction
 ```
 
@@ -89,8 +102,8 @@ the global binary path; the command arguments are the same.
 ## Preview a release
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 status --json --source=tags
-cpx --skip-local fast-forward/changelog:^0.1 version --dry-run --source=tags
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags
 ```
 
 Both calls are read-only. Review the current/next version, effective impact,

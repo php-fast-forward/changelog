@@ -27,6 +27,7 @@ verify that structural contract.
 | `Git` | Repository observations and exact Git command results needed by changelog services. |
 | `GitHub` | Authenticated GitHub API adaptation with bounded complete evidence and controlled diagnostics. |
 | `History` | Maintained Markdown, release values and historical import. |
+| `Installation` | Explicit project setup, verified published workflow contracts and create-only caller writes; preserves existing integrations and delegates skill ownership to `Skill`. |
 | `Process` | Structured process construction and credential isolation, independent of Git command semantics. |
 | `Publication` | Approved-commit publication evidence and create-only tag/release reconciliation. |
 | `Release` | Exact plans, receipts, journals, consolidation and application; `Renderer` owns release-note presentation. |

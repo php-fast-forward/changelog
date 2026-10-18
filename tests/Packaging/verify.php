@@ -410,7 +410,19 @@ function exercise(string $installation, string $consumer, array $environment): v
         rmdir($installed . '/vendor');
     }
     $listing = cli($binary, $consumer, $environment, ['list', '--raw']);
-    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $command) {
+    $publicCommands = [
+        'add',
+        'check',
+        'status',
+        'version',
+        'notes',
+        'publish',
+        'backfill',
+        'format',
+        'github',
+        'install',
+    ];
+    foreach ($publicCommands as $command) {
         verify(1 === preg_match('/^' . $command . '\s/m', $listing['stdout']), 'Missing public command: ' . $command);
         verify(!str_contains($listing['stdout'], 'changelog:' . $command), 'A legacy prefixed alias leaked.');
     }
@@ -419,7 +431,7 @@ function exercise(string $installation, string $consumer, array $environment): v
         'The binary did not use native installed package metadata.',
     );
     cli($binary, $consumer, $environment, ['--help']);
-    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $command) {
+    foreach ($publicCommands as $command) {
         cli($binary, $consumer, $environment, ['help', $command]);
     }
 

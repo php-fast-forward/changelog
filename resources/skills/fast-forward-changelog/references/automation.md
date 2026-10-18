@@ -14,7 +14,15 @@ workflow referenced by that caller. Consult that tag's relevant guides, includin
 present. If paths moved, follow that release's README rather than guessing.
 Do not combine a caller from one version with settings copied from `main`.
 
-Copy the caller into the application's `.github/workflows/`, review its events,
+If that release lists `install`, inspect its command help and installation guide
+before choosing a route. Guided setup can ask for the release branch, publication
+choice, advanced overrides and optional project skill, then preview a missing
+caller. It must preserve an existing caller and refuse ambiguous or competing
+automation. Use read-only preview first; noninteractive application requires its
+documented confirmation option. The workflow and bundled skill may have separate
+provenance: a workflow ref does not change the executing CLI's instructions.
+
+For manual setup, copy the caller into the application's `.github/workflows/`, review its events,
 inputs and effective permissions, then set its product references to the selected
 published complete tag or verified immutable release commit. Review older pins
 embedded in the copied caller. After replacing a pin, inspect the reusable
@@ -24,8 +32,11 @@ GitHub `uses` references the executable reusable
 workflow under `.github/workflows`; the resource caller is a copyable asset.
 Internal `repository-*` workflows belong to the library, not the consumer.
 
-Keep publication disabled during adoption. Choose base and managed branches,
-fragment/history paths, historical sources and PR-reference policy consistently
+For normal automatic publication, explain that merging the reviewed version PR
+creates its approved tag and GitHub Release; setup does not merge or publish it.
+Choose disabled publication only for an explicitly requested validation-only
+pilot, after reviewing that release's recovery contract. Choose base and managed
+branches, fragment/history paths, historical sources and PR-reference policy consistently
 across enabled operations. For parallel maintenance, select a separate managed
 branch per release line and verify its actual planned version; a branch's name
 does not enforce a SemVer range. Use individual workflows or Docker actions only
@@ -44,8 +55,8 @@ permissions. Never check out untrusted PR code in a privileged custom job.
 Token-generated events may behave differently from human/App events; consult
 the selected release and GitHub's current rules before promising downstream CI.
 
-Run a small pilot with publication disabled. Verify a valid fragment, missing or
-malformed notes, the exact PR head's required status and sticky-comment recovery,
+When a validation-only pilot is requested, keep publication disabled. Verify a
+valid fragment, missing or malformed notes, the exact PR head's required status and sticky-comment recovery,
 any enabled bot operation, and the generated version PR. Check the actual runner
 requirements and access when changing Linux/self-hosted selection. Test custom
 policy changes relevant to the application rather than assuming a default-branch
