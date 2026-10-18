@@ -31,6 +31,7 @@ final class SkillInstallerTest extends TestCase
     private array $bytes = [];
     private array $directories = [];
     private array $links = [];
+    private array $observedLinks = [];
     private array $scans = [];
     private string $version = '1.0.0';
     private int $writes = 0;
@@ -291,16 +292,60 @@ final class SkillInstallerTest extends TestCase
     }
 
     #[DataProvider('absoluteScopes')]
-    public function testDriveAndUncGuardsStopAtTheirActualRoot(string $scope, string $unrelated): void
+    public function testDriveAndUncGuardsStopAtTheirActualRoot(string $scope, string $unrelated, string $root): void
     {
-        $this->directories[$scope] = true;
+        $this->directories[str_replace('\\', '/', $scope)] = true;
         $this->links[$unrelated] = '/outside-scope';
         self::assertSame('absent', $this->installer->run($scope, mode: 'check')['state']);
+        self::assertContains($root, $this->observedLinks);
+        self::assertNotContains($unrelated, $this->observedLinks);
     }
 
     public static function absoluteScopes(): array
     {
-        return [['C:/project', 'C:'], ['//server/share/project', '//server']];
+        return [['C:/project', 'C:', 'C:/'], ['C:\\project', 'C:', 'C:/'],
+            ['//server/share/project', '//server', '//server/share'], [
+                '\\\\server\\share\\project',
+                '//server',
+                '//server/share',
+            ]];
+    }
+
+    #[DataProvider('symbolicRoots')]
+    public function testNativeRootLinksAreRejectedBeforeInventoryOrWrites(string $scope, string $root): void
+    {
+        $this->directories[$scope] = true;
+        $this->links[$root] = '/outside-scope';
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('symbolic links');
+        try {
+            $this->installer->run($scope, mode: 'check');
+        } finally {
+            self::assertSame([], $this->scans);
+            self::assertSame(0, $this->writes);
+        }
+    }
+
+    public static function symbolicRoots(): array
+    {
+        return [['C:/project', 'C:/'], ['//server/share/project', '//server/share'], ['/project', '/']];
+    }
+
+    #[DataProvider('nativeDonorRoots')]
+    public function testNativeDonorRootSpellingDoesNotTraverseBeyondItsRoot(string $root, string $unrelated): void
+    {
+        $this->directories[$root] = true;
+        $this->bytes[$root . '/SKILL.md'] = 'Canonical root payload';
+        $this->bytes[$root . '/LICENSE'] = 'MIT';
+        $this->links[$unrelated] = '/outside-scope';
+        self::assertSame('absent', $this->compose(source: $root)->run(mode: 'check')['state']);
+        self::assertContains($root, $this->observedLinks);
+        self::assertNotContains($unrelated, $this->observedLinks);
+    }
+
+    public static function nativeDonorRoots(): array
+    {
+        return [['C:\\', 'C:'], ['\\\\server\\share', '//server']];
     }
 
     #[DataProvider('invalidDonors')]
@@ -368,6 +413,77 @@ final class SkillInstallerTest extends TestCase
     public static function recoveryKinds(): array
     {
         return [['stage'], ['backup']];
+    }
+
+    #[DataProvider('discoveryTargets')]
+    public function testStageAndBackupStayOutsideEverySelectedDiscoveryRoot(string $target): void
+    {
+        $destination = '/project/' . $target . '/' . SkillInstaller::NAME;
+        $prefix = '/project/.fast-forward-changelog-' . substr(
+            hash('sha256', $target . '/' . SkillInstaller::NAME),
+            0,
+            16,
+        );
+        $this->installer->run(target: $target);
+        $this->bytes['/payload/SKILL.md'] .= 'New payload';
+        $this->version = '1.1.0';
+        $this->onRename = static function (string $from): void {
+            if (str_ends_with($from, '.stage') || str_ends_with($from, '.backup')) {
+                throw new RuntimeException('Unavailable recovery rename');
+            }
+        };
+        $this->expectException(RuntimeException::class);
+        try {
+            $this->installer->run(target: $target, mode: 'update');
+        } finally {
+            foreach (['stage', 'backup'] as $suffix) {
+                self::assertArrayHasKey($prefix . '.' . $suffix . '/SKILL.md', $this->bytes);
+                self::assertFalse(str_starts_with($prefix . '.' . $suffix, '/project/' . $target . '/'));
+            }
+            self::assertArrayNotHasKey($destination . '/SKILL.md', $this->bytes);
+        }
+    }
+
+    public static function discoveryTargets(): array
+    {
+        return [['.agents/skills'], ['.agents/skills/fast-forward'], ['tools/deep/custom/skills']];
+    }
+
+    public function testRecoveryEvidenceRemainsVisibleAfterMovingTheProject(): void
+    {
+        $this->installer->run();
+        $this->put(
+            '/project/.fast-forward-changelog-' . substr(
+                hash('sha256', '.agents/skills/' . SkillInstaller::NAME),
+                0,
+                16,
+            ) . '.stage/preserve.md',
+            'Recovery evidence',
+        );
+        $this->move('/project', '/moved');
+        $before = $this->bytes;
+        self::assertSame('recovery-required', $this->installer->run('/moved', mode: 'update')['state']);
+        self::assertSame($before, $this->bytes);
+    }
+
+    #[DataProvider('rootScopes')]
+    public function testRecoveryNamesStayInsidePosixDriveAndShareScopeRoots(string $scope): void
+    {
+        $this->directories[$scope] = true;
+        $prefix = rtrim($scope, '/') . '/.fast-forward-changelog-' . substr(
+            hash('sha256', '.agents/skills/' . SkillInstaller::NAME),
+            0,
+            16,
+        );
+        $this->put($prefix . '.stage/preserve.md', 'Recovery evidence');
+        $this->links['//server'] = '/outside-share';
+        self::assertSame('recovery-required', $this->installer->run($scope, mode: 'check')['state']);
+        self::assertSame(0, $this->writes);
+    }
+
+    public static function rootScopes(): array
+    {
+        return [['/'], ['C:/'], ['//server/share']];
     }
 
     #[DataProvider('racePhases')]
@@ -540,7 +656,11 @@ final class SkillInstallerTest extends TestCase
         ?string $reference = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     ): SkillInstaller {
         $filesystem = $this->createStub(Filesystem::class);
-        $filesystem->method('readlink')->willReturnCallback(fn(string $path): ?string => $this->links[$path] ?? null);
+        $filesystem->method('readlink')->willReturnCallback(function (string $path): ?string {
+            $this->observedLinks[] = $path;
+
+            return $this->links[$path] ?? null;
+        });
         $filesystem->method('exists')->willReturnCallback(
             fn(string $path): bool => isset($this->directories[$path]) || isset($this->bytes[$path]),
         );
@@ -681,7 +801,11 @@ final class SkillInstallerTest extends TestCase
     /** Selects the target's deterministic recovery evidence outside discovery. */
     private function temporary(string $suffix): string
     {
-        return '/project/.agents/.fast-forward-changelog-' . substr(hash('sha256', self::DEST), 0, 16) . '.' . $suffix;
+        return '/project/.fast-forward-changelog-' . substr(
+            hash('sha256', '.agents/skills/' . SkillInstaller::NAME),
+            0,
+            16,
+        ) . '.' . $suffix;
     }
 
     /** Establishes an intact older installation and then changes only its executing donor. */

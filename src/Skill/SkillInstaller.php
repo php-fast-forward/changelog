@@ -12,6 +12,7 @@ use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Filesystem\Path;
 use Symfony\Component\Lock\LockFactory;
 use Throwable;
 
@@ -131,7 +132,7 @@ final readonly class SkillInstaller implements SkillInstallerInterface
      */
     private function inspect(string $destination, string $relative, string $scope, array $payload, string $mode): array
     {
-        [$stage, $backup] = $this->temporaryPaths($destination);
+        [$stage, $backup] = $this->temporaryPaths($destination, $relative);
         $this->guard($stage);
         $this->guard($backup);
         $result = ['state' => 'absent', 'scope' => $scope, 'target' => $relative, 'installed_sha256' => null,
@@ -241,7 +242,7 @@ final readonly class SkillInstaller implements SkillInstallerInterface
         array $payload,
         ?string $acceptedHash,
     ): void {
-        [$stage, $backup] = $this->temporaryPaths($destination);
+        [$stage, $backup] = $this->temporaryPaths($destination, $relative);
         $before = $this->snapshot($destination);
         if ((null === $before ? null : $this->digest($this->hashes($before))) !== $acceptedHash) {
             throw new RuntimeException('The skill destination changed after its ownership was inspected.');
@@ -421,13 +422,13 @@ final readonly class SkillInstaller implements SkillInstallerInterface
             if (null !== $this->filesystem->readlink($path)) {
                 throw new RuntimeException('Skill source, destination and ancestors must not be symbolic links.');
             }
-            if (1 === preg_match('~\A(?:[A-Za-z]:/|//[^/]+/[^/]+/?)\z~', $path)) {
+            $normalized = str_replace('\\', '/', $path);
+            if (1 === preg_match('~\A(?:[A-Za-z]:/|//[^/]+/[^/]+/?)\z~', $normalized)) {
                 break;
             }
-            $parent = dirname($path);
-            if (1 === preg_match('~\A[A-Za-z]:\z~', $parent)) {
-                $parent .= '/';
-            }
+            // Symfony treats UNC roots as POSIX paths on POSIX; preserve their leading separator explicitly.
+            $unc = str_starts_with($normalized, '//');
+            $parent = ($unc ? '/' : '') . Path::getDirectory($unc ? substr($normalized, 1) : $normalized);
             if ($parent === $path) {
                 break;
             }
@@ -456,14 +457,16 @@ final readonly class SkillInstaller implements SkillInstallerInterface
     }
 
     /**
-     * Places recovery evidence beside the discovery root, never inside discovered skills.
+     * Places portable recovery evidence at the scope root, outside every selected discovery root.
      *
      * @param  string               $destination Absolute fixed-name installation leaf.
+     * @param  string               $relative    Validated scope-relative installation leaf, including its fixed skill name.
      * @return array{string,string} Deterministic staging and previous-tree paths, serialized by the target lock.
      */
-    private function temporaryPaths(string $destination): array
+    private function temporaryPaths(string $destination, string $relative): array
     {
-        $prefix = dirname($destination, 2) . '/.fast-forward-changelog-' . substr(hash('sha256', $destination), 0, 16);
+        $scopeRoot = rtrim(dirname($destination, substr_count($relative, '/') + 1), '/');
+        $prefix = $scopeRoot . '/.fast-forward-changelog-' . substr(hash('sha256', $relative), 0, 16);
 
         return [$prefix . '.stage', $prefix . '.backup'];
     }
