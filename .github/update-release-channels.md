@@ -73,6 +73,8 @@ not mutate refs. An older selector is accepted as `superseded` only when the
 channel already points to the newest release. Otherwise select the newest
 tag/SHA explicitly for recovery. Exit `0` means confirmed success, `2` means
 invalid invocation/missing token and `1` means failed verification or mutation.
+Rejected GraphQL writes report only recognized error categories, such as
+`FORBIDDEN`; raw server messages and authentication context are never printed.
 
 After an uncertain API response, inspect the actual branch and rerun the same
 verified selector under existing authority. If the accepted update already
