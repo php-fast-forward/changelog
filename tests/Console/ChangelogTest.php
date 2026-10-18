@@ -59,7 +59,7 @@ final class ChangelogTest extends TestCase
         $app->addCommand(new Command('check')->setCode(static fn(): int => 0));
         self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check']), $output));
         self::assertSame(1, $calls);
-        self::assertSame("Local skill hint\n", $error->fetch());
+        self::assertSame('Local skill hint' . PHP_EOL, $error->fetch());
     }
 
     /** Machine or unattended paths never resolve skill dependencies, even when an optional callback is broken. */

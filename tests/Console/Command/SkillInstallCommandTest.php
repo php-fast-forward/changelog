@@ -90,13 +90,14 @@ final class SkillInstallCommandTest extends TestCase
         self::assertStringContainsString('No files were replaced', $text);
     }
 
+    /** A successful human response uses the console's native newline and omits refusal diagnostics. */
     public function testHumanSuccessDoesNotAddRefusalDiagnostics(): void
     {
         $installer = $this->createStub(SkillInstallerInterface::class);
         $installer->method('run')->willReturn(['state' => 'current', 'target' => 'skills/name', 'action' => null]);
         $output = new BufferedOutput();
         self::assertSame(0, new SkillInstallCommand($installer)(new SymfonyStyle(new ArrayInput([]), $output)));
-        self::assertSame("Skill state: current; target: skills/name\n", $output->fetch());
+        self::assertSame('Skill state: current; target: skills/name' . PHP_EOL, $output->fetch());
     }
 
     #[DataProvider('failures')]
