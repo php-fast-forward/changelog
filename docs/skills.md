@@ -45,9 +45,11 @@ automatic warning; inspect them with `--check`. JSON, pipelines and CI retain
 their ordinary output. No warning installs or updates anything.
 Check custom or global targets explicitly with their original scope options.
 
-Interrupted updates retain staging/backup evidence outside discovery and refuse
-another replacement until inspected. Follow the reported paths and preserve
-both copies; do not delete recovery data to force a retry.
+Interrupted updates retain `.fast-forward-changelog-*.stage` or
+`.fast-forward-changelog-*.backup` directories in the selected project or home
+root, outside skill discovery. Inspect and preserve the retained copies; another
+replacement is refused until recovery is completed. Do not delete recovery data
+merely to force a retry.
 
 Choose one owner for the installed copy. This receipt is not the NPX Skills
 lock or `llm/skills` configuration, and the command does not adopt their copies.
