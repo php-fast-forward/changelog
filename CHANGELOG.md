@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Reports recognized GitHub error categories when a release-channel update is refused, while keeping server messages and authentication context out of logs. ([#49](https://github.com/php-fast-forward/changelog/pull/49))
+- Uses the configured changelog token for released major branches during publication and manual recovery, allowing appropriately scoped credentials for historical commits with workflow changes. ([#51](https://github.com/php-fast-forward/changelog/pull/51))
 - Keeps release image publication independent of GitHub Actions cache writes and supports explicit recovery from an existing published tag and its approved commit. ([#45](https://github.com/php-fast-forward/changelog/pull/45))
 
 ## [0.1.0] - 2026-10-17

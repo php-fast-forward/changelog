@@ -71,9 +71,15 @@ For image-only failures after a published release, use [Docker recovery](docker.
 
 After publication, the repository workflow updates the matching `v<major>`
 branch, such as `v0`, to the exact published stable release commit. This explicit
-call works with `GITHUB_TOKEN`; it does not wait for a tag event to start another
+call does not wait for a token-generated tag event to start another
 workflow. Concrete release tags remain immutable. These channels are distinct
 from maintenance branches where fixes and fragments accumulate.
+
+The caller forwards the lifecycle's configured `CHANGELOG_TOKEN`, with
+`github.token` as fallback; manual dispatch also uses `CHANGELOG_TOKEN` when
+configured. Historical targets with different workflow files may require a
+token with Contents and Workflows write access. The default token cannot always
+perform this update; no nonexistent YAML `workflows: write` permission is added.
 
 For recovery, open **Repository: Release Channels**, select `main`, and supply
 the newest published full tag for that major and its exact 40-character commit
