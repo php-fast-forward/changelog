@@ -39,8 +39,12 @@ approval.
    do not retain an obsolete embedded pin blindly. After setting the final ref,
    inspect the reusable workflow at that exact ref and confirm its inputs,
    permissions and runner requirements before saving the application caller.
-   Keep publication
-   disabled for adoption. Change existing integration only within task scope.
+   Explain that release's publication default and confirm the intended policy.
+   The lifecycle defaults to `publish: true`; confirm this at the selected ref.
+   Its automatic route publishes a version tag and GitHub Release
+   after the reviewed managed PR is merged; it does not merge the PR. A
+   validation-only trial must choose `publish: false` explicitly. Change existing
+   integration only within task scope.
 4. For local CLI work, set `CHANGELOG_VERSION` to the verified exact numeric
    release, without the tag's `v`. Discover commands and inspect their arguments:
 
@@ -127,6 +131,13 @@ malformed note and any enabled bot route. Inspect the generated version PR:
 planned version/impact, exact notes, central-history changes and only the accepted
 fragment deletions. Review again after its head changes. The workflow does not
 merge its own version PR.
+
+For the selected release, verify how committed history and ancestral tags define
+the version baseline. The current lifecycle advances from the greatest stable
+version in either source: tag `v1.7.0`, committed history through `1.7.1` and a
+new patch produce `1.7.2`. Skipping publication does not block the next PR or
+authorize retroactive publication of `1.7.1`. Preserve earlier history and review
+the proposed next version; do not create missing tags as an incidental repair.
 
 Load only the reference needed for the task:
 

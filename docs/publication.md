@@ -1,9 +1,12 @@
 # Publication from an approved commit
 
 Use this guide when enabling release publication or diagnosing a refused run.
-For the GitHub lifecycle, validate with `publish: false`, review the generated
-version PR, then enable `publish: true` when publication is intended. Merging
-that approved version PR starts verification and tag/release creation.
+The GitHub lifecycle defaults to `publish: true`. Merging a reviewed managed
+version PR starts verification, creates its exact version tag and publishes a
+GitHub Release. The workflow does not merge the PR itself. Set `publish: false`
+explicitly for a validation-only integration; that merge creates neither tag nor
+Release. Later version PRs still advance from committed history, and enabling
+publication does not retroactively publish older consolidated versions.
 The [setup guide](reusable-lifecycle.md) owns the caller configuration.
 
 Publication receives the complete approved commit SHA. It never chooses a moving
@@ -30,10 +33,13 @@ Before any remote mutation, publication verifies:
   Markdown inventory consists of direct canonical regular fragments.
 - Every source fragment is parsed from its exact committed blob and is absent
   from the approved target. No pending Markdown remains at that target.
-- Stable tags reachable from the source base establish the current version.
-  The complete source fragment set establishes SemVer impact and next version.
-  With no reachable stable tag, an existing stable source section (including
-  `0.0.0`) is pending publication and blocks another release.
+- The greatest stable version from committed source history and stable tags
+  ancestral to the source base establishes the current version. The complete
+  source fragment set establishes SemVer impact and next version. With tag
+  `v1.7.0`, source history through `1.7.1` and a patch fragment, the approved next
+  version is `1.7.2`. An untagged source section does not block that progression
+  or authorize publication of the older section. With no stable history or tag,
+  the initial baseline is `0.0.0`.
 - Notes extracted from the approved central section exactly match the complete
   canonical fragment rendering and supported history round trip. Existing
   source-base release bodies and existing reference definitions remain unchanged.
@@ -52,8 +58,8 @@ Neither copied trailers nor a consistent hash grant publication authority.
 The contextual merged-PR publisher verifies repository, branches, Bot identity,
 signed original head and approved merge target before invoking its private writer.
 
-PR-origin resolution is part of the approved option fingerprint. Local CLI
-publication defaults to disabled and accepts `--resolve-pull-requests` to match
+PR-origin resolution is part of the approved option fingerprint. The local CLI
+defaults that resolution to disabled; pass `--resolve-pull-requests` to match
 an enabled plan. The publish Action and reusable workflow default to
 `resolve-pull-requests: true`, matching version preparation; check and feedback
 carry the same setting for ownership validation without doing origin discovery.
@@ -141,6 +147,12 @@ flags disabled. Fresh reads confirm persisted state after each creation.
 A matching tag without its release is completed on retry. Uncertain responses
 are reconciled by authoritative reads; absent or conflicting results fail with
 a recoverable diagnostic. Repeating a complete publication returns unchanged.
+
+Classified transient failures receive bounded retries. A tag or Release write
+is retried only after fresh reads establish that the first attempt did not
+complete and that the same approved target remains safe. A matching remote result
+counts as completion; a conflicting target or notes stop the operation. Retries
+do not regenerate the plan, change the approved SHA or rewrite an earlier tag.
 
 Dry-run performs proof and remote reads without mutations. Contextual evidence
 uses fixed GraphQL queries sent by POST; no GraphQL mutation, tag or Release

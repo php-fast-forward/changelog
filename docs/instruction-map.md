@@ -30,6 +30,7 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Consolidate/rename | `.github/workflows/repository-{ci,changelog,documentation,image}.yml` | Internal quality, one lifecycle caller, read-only documentation builds and product image publication; excluded from consumer archives. |
 | Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
 | Retain/update | `docs/automation-map.md` | Navigation separating stable public interfaces, repository-prefixed workflows, internal helpers and copyable resources. |
+| Retain/update | `docs/workflow-reference.md` | Complete public parameters, defaults, secrets, outputs and permissions under the same root authority; no new instruction scope. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
 
@@ -69,7 +70,8 @@ and the resources guide as the copy/configuration procedure.
 
 Parallel maintenance does not add instruction scopes. The root owns the
 branch-selection, backport, review and publication boundaries; the automation
-map explains `base-branch`, unique `managed-branch`, ancestral concrete tags and
+map explains `base-branch`, unique `managed-branch`, committed stable history,
+ancestral concrete tags and
 separate optional `v1`/`v2` publication channels. Read root → automation map →
 reusable lifecycle/operation contract. The package's own `main` caller does not
 limit the public reusable's configurable maintenance lines. The repository's
@@ -77,6 +79,15 @@ internal channel operation has a same-basename companion in
 `.github/update-release-channels.md`; read root → self-changelog guide →
 operation contract for an authorized recovery. This adds an operational
 entrypoint, not a child instruction scope or a consumer installation.
+
+The lifecycle defaults to publication after an approved version-PR merge; explicit
+`publish: false` consolidates without creating a tag or GitHub Release. Future
+preparation uses the greatest stable source-history or ancestral-tag version,
+independently of earlier publication. Read root → lifecycle guide → workflow
+reference for the complete defaults. Keep these instructions, the canonical
+skill and the copyable caller consistent; this adds no child contract. Rollback
+restores these texts together with the corresponding runtime and workflow rule,
+without modifying published history, tags or consumer installations.
 
 ## Migration, validation and rollback
 

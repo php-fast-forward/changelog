@@ -3,8 +3,12 @@
 Start with [one reusable lifecycle](reusable-lifecycle.md) for the normal
 contribution, Dependabot, version and approved-merge flow, including PR feedback
 and exact-head status. The individual workflows below remain available for
-advanced composition. Publication is disabled by default in the lifecycle while
-consumer validation is in progress.
+advanced composition. The lifecycle publishes approved version merges by
+default; use explicit `publish: false` while validating an integration.
+
+The **[workflow and Action reference](workflow-reference.md)** lists every
+input, type, default, required value, secret, output and permission. This page
+focuses on complete event callers and the behavior of each operation.
 
 Choose only the operations your custom workflow needs. Do not add these callers
 alongside the lifecycle for the same events: that would run the operation twice.
@@ -14,18 +18,13 @@ See [runtime paths and identity](docker.md) for the Action implementation contra
 
 ## Shared configuration
 
-| Input | Default | Meaning |
-| --- | --- | --- |
-| `working-directory` | `.` | Directory below the consumer checkout. PR operations require exactly `.`. |
-| `fragment-directory` | `.changelog` | Pending fragments, relative to the working directory. |
-| `changelog-file` | `CHANGELOG.md` | The single central history, relative to the working directory. |
-| `locale` | `en` | Structural presentation: `en` or `pt-BR`. |
-| `template` | `keep-a-changelog` | Built-in template or an explicit trusted PHP template path. Checks accept only the built-in template. |
-| `base-ref` | `HEAD` | Local planning revision; keep `HEAD` for automation. |
-| `tag-prefix` | `v` | Exact prefix for stable SemVer tags. |
-| `repository` | Caller repository | GitHub `owner/name`; normally omit this override. |
-| `source` | `auto` | Backfill source: `auto`, `github` or `tags`. |
-| `resolve-pull-requests` | `true` | Version/publish reference discovery; check/feedback use the same value for transaction ownership. |
+Shared defaults and applicability differ between the lifecycle, individual
+workflows and step-level Docker Actions. Check the
+[shared workflow inputs](workflow-reference.md) or
+[Action inputs](workflow-reference.md) for your selected
+entrypoint. In particular, the lifecycle uses `version-pr-title`, the Version
+workflow/Action uses `title`, and the History workflow defaults to a preview
+while the History Action applies locally by default.
 
 The trusted write/feedback workflows also accept optional `app-client-id` and
 `secrets.app-private-key`. Each job can generate a separate scoped installation
@@ -214,8 +213,11 @@ It creates or updates one same-repository managed PR. Updates require the
 configured Bot's verified signed head, transaction trailers and exact allowed file scope;
 human edits are refused. It serializes with publication for the same repository
 and base branch. Repeated unchanged plans produce no extra commits, empty plans
-produce no new PR, and a merged consolidation awaiting publication blocks a second
-version transaction. A maintenance-only PR has no next public version. See
+produce no new PR. The baseline is the highest stable version in the selected
+base's central history and ancestral tags: an earlier merged consolidation
+without a tag/release does not block a new version PR. Previous history remains
+intact; only the current plan's fragments are consumed.
+A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
 The version workflow's `title` accepts a literal title or the placeholders

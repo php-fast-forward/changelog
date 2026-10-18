@@ -7,8 +7,10 @@ PR itself. Defaults are base `main`, branch `changelog/version` and Bot
 
 1. Review the planned version, notes and consumed fragment deletions.
 2. If the base advances, run preparation again and review the refreshed head.
-3. Merge only after required checks and review pass. Publication then follows
-   the consumer's configured [publication workflow](publication.md).
+3. Merge only after required checks and review pass. The lifecycle defaults to
+   `publish: true`: it verifies that approved merge, creates its exact version
+   tag and publishes a GitHub Release. An explicit `publish: false` skips both.
+   See [publication](publication.md).
 
 ## Fresh source base
 
@@ -23,29 +25,26 @@ The generated tree starts from the fresh base tree. It updates only
 file to `.changelog/` or elsewhere. Maintenance updates only the central file.
 Local recovery journals are outside the versioned tree.
 
-Before calculating another version, the planner checks every maintained stable
-section against the latest reachable stable Git tag. Any section above that
-baseline blocks a new transaction, even when a new fragment requests a different
-impact. A pending `1.0.1` cannot be skipped by a minor fragment that would otherwise
-calculate `1.1.0` from tag `v1.0.0`. Section order and custom presentation do not
-change the check. Prerelease sections and build metadata do not change stable
-numeric precedence. Preexisting untagged stable history is subject to the same
-rule; Markdown is not proof of publication. When no reachable stable tag exists,
-every maintained stable section blocks consumption, including `0.0.0`; the
-initial calculation baseline `0.0.0` does not itself prove a published tag.
+The planner takes the greatest stable version from committed source
+`CHANGELOG.md` sections and stable Git tags ancestral to that source base.
+Section order does not determine the baseline; prereleases and pending headings
+do not establish a stable version. With neither source, the initial baseline is
+`0.0.0`. The complete committed fragment inventory then establishes the next
+version's effective impact.
 
-The check survives fresh checkouts and successful journal cleanup. Completing the
-approved stable tag unblocks the next transaction. History-only maintenance and
-an empty fragment inventory do not invent another version. This service never
-publishes tags or releases.
+For example, tag `v1.7.0`, committed history through `1.7.1` and a new patch
+fragment produce a `1.7.2` PR. The planner preserves the earlier history bytes;
+it does not reuse `1.7.1`, require its tag or publish it retroactively. This also
+works when history exists without any stable tag. History-only maintenance and
+an empty fragment inventory do not invent another version. Preparation itself
+never publishes tags or releases.
 
-If a version PR was merged with `publish: false`, its history can therefore block
-the next preparation. The workflow reports the consolidated version and latest
-reachable stable version. Complete that exact approved publication or make a
-reviewed recovery of its notes before preparing another version. Changing the
-publication setting does not publish an older merged PR automatically, and
-rerunning preparation cannot repair the missing tag. Unrelated API and transport
-errors remain redacted.
+An explicit `publish: false` therefore does not block later version PRs. It
+means that merging the prepared PR changes central history without creating
+either the version tag or GitHub Release. Enabling publication later applies to
+the next approved version merge; it does not publish older consolidated versions
+automatically. Committed history establishes version progression, not proof that
+an earlier version was published.
 
 ## Ownership and repeatability
 
@@ -64,7 +63,9 @@ See [the policy contract](policies.md).
 
 An unchanged plan produces no additional commit. An uncertain PR creation is
 recovered by querying the exclusive branch. Empty plans create no empty commit
-or PR. Dry runs make no GitHub writes.
+or PR. Transient ref and PR writes have bounded retries only after fresh reads
+show that repeating the same operation is safe. Concurrent human changes or
+conflicting remote state stop synchronization. Dry runs make no GitHub writes.
 
 ## Title customization
 
@@ -99,9 +100,9 @@ outcomes return a conflict with known safe identifiers.
 The immutable result exposes status, PR number/URL, head SHA, plan ID, version,
 maintenance flag and diagnostics. Statuses distinguish created, updated,
 unchanged, dry-run, none, refused and conflict. With no new fragments, a completed
-consolidation returns none. New fragments cannot prepare the same version again
-while any later stable section remains in the maintained history without a
-reachable stable tag.
+consolidation returns none. New fragments advance from the greatest committed
+history or ancestral-tag baseline, including when the previous consolidation was
+not published.
 
 The PHP entrypoint is `VersionPullRequestServiceInterface::synchronize(ReleaseOptions,
 VersionPullRequestInput)`. It needs contents/PR write permissions and the

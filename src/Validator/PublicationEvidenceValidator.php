@@ -38,6 +38,8 @@ use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
+use FastForward\Changelog\Version\VersionBaselineResolver;
+use FastForward\Changelog\Version\VersionBaselineResolverInterface;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -75,6 +77,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
      * @param ?ReleaseMetadataParser                $metadata     Optional strict commit-trailer parser or contextual metadata proven by
      *                                                            the approved PR head.
      * @param HistoryReferenceBuilder               $references   Pure concrete-release link completion shared with release planning.
+     * @param VersionBaselineResolverInterface      $baselines    Shared stable maintained-version selection that does not imply prior publication.
      */
     public function __construct(
         private GitRepositoryInterface $git,
@@ -92,6 +95,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         private ?GitHubClientInterface $github = null,
         ?ReleaseMetadataParser $metadata = null,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
+        private VersionBaselineResolverInterface $baselines = new VersionBaselineResolver(),
     ) {
         $this->metadata = $metadata ?? new ReleaseMetadataParser();
     }
@@ -246,6 +250,7 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         $template = $this->templates->resolve($options);
         $approved = $this->history->parse($central, $template);
         $source = $this->history->parse($baseCentral ?? '', $template);
+        $current = $this->baselines->resolve($source, $current);
         $document = $this->backfilledHistory($source, $approved, $options, $template, $reachable);
 
         if ([] !== $remaining || [] === $selected) {
@@ -264,13 +269,6 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
                 'The approved release is missing a historical section for a reachable stable Git tag.',
             );
         }
-        $this->assertPublishedHistory(
-            $source,
-            $current,
-            $options->tagPrefix,
-            $base,
-            in_array($options->tagPrefix . $current, array_column($reachable, 'name'), true),
-        );
         $changesets = $this->consumedChangesets($options, $base, $approvedSha, $selected);
         if ($options->resolvePullRequests) {
             $changesets = $this->pullRequests->resolve($options, $base, $changesets);
@@ -428,51 +426,6 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         }
 
         return $changesets;
-    }
-
-    /**
-     * Requires an observed stable tag before treating any maintained stable core, including 0.0.0, as published.
-     *
-     * @param  HistoryDocument          $source       Parsed source-base history whose published sections must retain their exact
-     *                                                presentation.
-     * @param  string                   $current      Latest reachable stable semantic version used as the source release baseline.
-     * @param  string                   $prefix       Exact stable-version Git tag prefix selected by the consumer.
-     * @param  string                   $base         Immutable source-base commit used for ancestry, inventory and freshness comparisons.
-     * @param  bool                     $publishedTag Whether a reachable stable tag actually establishes the current maintained release as
-     *                                                published.
-     * @return void                     No value; every maintained stable section must already have its reachable published tag.
-     * @throws InvalidArgumentException When committed history, scope, settings, ancestry or transaction evidence
-     *                                  violates the publication contract.
-     */
-    private function assertPublishedHistory(
-        HistoryDocument $source,
-        string $current,
-        string $prefix,
-        string $base,
-        bool $publishedTag,
-    ): void {
-        $published = explode('+', $current, 2)[0];
-
-        foreach ($source->getReleases() as $release) {
-            if (1 !== preg_match(
-                '/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
-                $release->getVersion(),
-                $matches,
-            )) {
-                continue;
-            }
-
-            if (! $publishedTag || $this->higher(
-                implode('.', array_slice($matches, 1, 3)),
-                $published,
-                $prefix,
-                $base,
-            )) {
-                throw new InvalidArgumentException(
-                    'The source-base history already contains a maintained release awaiting its reachable stable Git tag: ' . $release->getVersion(),
-                );
-            }
-        }
     }
 
     /**

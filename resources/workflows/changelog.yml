@@ -33,4 +33,4 @@ jobs:
       source: tags
       comment-mode: always
       prepare-release: true
-      publish: false
+      publish: true

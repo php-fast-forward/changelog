@@ -7,6 +7,8 @@ namespace FastForward\Changelog\Tests\Publication;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubRetryPolicy;
+use FastForward\Changelog\GitHub\GitHubTransientException;
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Publication\PublicationResult;
 use FastForward\Changelog\Publication\PublicationService;
@@ -16,6 +18,7 @@ use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -28,6 +31,8 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(\FastForward\Changelog\Automation\Policy\GitHubEvidence::class)]
 #[UsesClass(GitHubClient::class)]
+#[UsesClass(GitHubRetryPolicy::class)]
+#[UsesClass(GitHubTransientException::class)]
 final class PublicationServiceTest extends TestCase
 {
     /** The real client keeps REST 2026 while GraphQL proves the merge identity removed from that payload. */
@@ -581,6 +586,99 @@ final class PublicationServiceTest extends TestCase
         yield [true, true, 2, 'changed during publication'];
     }
 
+    /**
+     * Recovers only transient absent creates and caps each independent mutation at three attempts.
+     *
+     * @param  string $operation Tag or release mutation whose first attempts fail without persisted state.
+     * @param  int    $failures  Number of classified transient failures before the fixture can persist a result.
+     * @return void   Exact write and delay counts prove recovery or safe exhaustion.
+     */
+    #[TestWith(['tag', 1])]
+    #[TestWith(['tag', 2])]
+    #[TestWith(['tag', 3])]
+    #[TestWith(['release', 1])]
+    #[TestWith(['release', 2])]
+    #[TestWith(['release', 3])]
+    public function testTransientCreatesRecoverOrExhaustWithoutDuplicateObjects(string $operation, int $failures): void
+    {
+        $state = $this->state(['transient_' . $operation => $failures]);
+        $service = $this->service($state);
+
+        if ($failures >= 3) {
+            $this->failure(
+                $state,
+                'tag' === $operation ? 'Tag creation outcome' : 'matching tag is retained',
+                $service,
+            );
+        } else {
+            self::assertSame(
+                'published',
+                $service->publish(new ReleaseOptions('/consumer'), str_repeat('b', 40))->state,
+            );
+            self::assertNotNull($state['tag']);
+            self::assertNotNull($state['release']);
+        }
+        $path = 'tag' === $operation ? '/git/refs' : '/releases';
+        self::assertCount(
+            min(3, $failures + 1),
+            array_filter($this->writes($state), static fn(array $call): bool => str_ends_with($call[1], $path)),
+        );
+        self::assertSame(array_slice([1_000_000, 2_000_000], 0, min(2, $failures)), $state['delays']);
+    }
+
+    /**
+     * Reconciles matching persisted objects even when their successful HTTP response was lost.
+     *
+     * @return void One tag and one release write are enough; no delay or duplicate write is permitted.
+     */
+    public function testLostTransientResponsesUseMatchingStateWithoutRetryingWrites(): void
+    {
+        $state = $this->state(['lost_tag_response' => true, 'lost_release_response' => true, 'typed_lost' => true]);
+        self::assertSame(
+            'published',
+            $this->service($state)->publish(new ReleaseOptions('/consumer'), str_repeat('b', 40))->state,
+        );
+        self::assertCount(2, $this->writes($state));
+        self::assertSame([], $state['delays']);
+    }
+
+    /**
+     * Preserves state that appears during the delay instead of blindly replaying a create request.
+     *
+     * @param  string $operation Mutation whose missing result becomes visible during the injected delay.
+     * @param  bool   $matching  Whether the late tag/release exactly matches the approved transaction.
+     * @return void   A changed or matching late object is never overwritten or recreated.
+     */
+    #[TestWith(['tag', true])]
+    #[TestWith(['tag', false])]
+    #[TestWith(['release', true])]
+    #[TestWith(['release', false])]
+    public function testStateAppearingDuringDelayIsReconciledBeforeAnotherWrite(string $operation, bool $matching): void
+    {
+        $state = $this->state(
+            ['transient_' . $operation => 1, 'during_delay' => $operation, 'late_matching' => $matching],
+        );
+        $service = $this->service($state);
+
+        if ($matching) {
+            self::assertSame(
+                'published',
+                $service->publish(new ReleaseOptions('/consumer'), str_repeat('b', 40))->state,
+            );
+        } else {
+            $this->failure(
+                $state,
+                'tag' === $operation ? 'tag changed before retry' : 'differs from the exact approved',
+                $service,
+            );
+        }
+        $path = 'tag' === $operation ? '/git/refs' : '/releases';
+        self::assertCount(
+            1,
+            array_filter($this->writes($state), static fn(array $call): bool => str_ends_with($call[1], $path)),
+        );
+    }
+
     /** Returns an isolated recording remote state; no real token, filesystem or network is consulted. */
     private function state(array $changes = []): array
     {
@@ -588,6 +686,7 @@ final class PublicationServiceTest extends TestCase
             'tag' => null, 'release' => null, 'annotated' => [], 'calls' => [], 'tag_reads' => 0, 'move_at' => null,
             'maintenance' => false, 'invalid_evidence' => false, 'fail_tag' => false, 'fail_release' => false,
             'lost_tag_response' => false, 'lost_release_response' => false,
+            'transient_tag' => 0, 'transient_release' => 0, 'delays' => [],
             'policy_calls' => 0, 'evidence_calls' => 0],
             $changes,
         );
@@ -692,22 +791,40 @@ final class PublicationServiceTest extends TestCase
                 return $state['release'];
             }
             if ('POST' === $method && str_ends_with($path, '/git/refs')) {
+                if ($state['transient_tag'] > 0) {
+                    --$state['transient_tag'];
+
+                    throw new GitHubTransientException('controlled transient tag failure');
+                }
                 if ($state['fail_tag']) {
                     throw new RuntimeException('tag HTTP failure');
                 }
                 $state['tag'] = $this->tag($body['sha']);
                 if ($state['lost_tag_response']) {
+                    if ($state['typed_lost'] ?? false) {
+                        throw new GitHubTransientException('controlled lost tag response');
+                    }
+
                     throw new RuntimeException('lost tag response');
                 }
 
                 return $state['tag'];
             }
             if ('POST' === $method && str_ends_with($path, '/releases')) {
+                if ($state['transient_release'] > 0) {
+                    --$state['transient_release'];
+
+                    throw new GitHubTransientException('controlled transient release failure');
+                }
                 if ($state['fail_release']) {
                     throw new RuntimeException('release HTTP failure');
                 }
                 $state['release'] = $this->release();
                 if ($state['lost_release_response']) {
+                    if ($state['typed_lost'] ?? false) {
+                        throw new GitHubTransientException('controlled lost release response');
+                    }
+
                     throw new RuntimeException('lost release response');
                 }
 
@@ -758,7 +875,21 @@ final class PublicationServiceTest extends TestCase
             );
         }
 
-        return new PublicationService($evidence, $github, $policy);
+        $retries = new GitHubRetryPolicy(function (int $delay) use (&$state): void {
+            $state['delays'][] = $delay;
+
+            if ('tag' === ($state['during_delay'] ?? null)) {
+                $state['tag'] = $this->tag($state['late_matching'] ? null : str_repeat('c', 40));
+            } elseif ('release' === ($state['during_delay'] ?? null)) {
+                $state['release'] = $this->release();
+
+                if (! $state['late_matching']) {
+                    $state['release']['body'] = 'foreign notes';
+                }
+            }
+        });
+
+        return new PublicationService($evidence, $github, $policy, $retries);
     }
 
     /** Provides immutable authority metadata without treating mutable branch or PR prose as evidence. */

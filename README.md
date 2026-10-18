@@ -19,7 +19,8 @@ review release notes and integration contracts before upgrading.
 
 ## 🤖 GitHub Actions
 
-Create `.github/workflows/changelog.yml` in your repository:
+Create `.github/workflows/changelog.yml` in your repository. This enables checks,
+comments, Dependabot notes, a reviewable version PR and publication after its merge:
 
 ```yaml
 name: Changelog
@@ -55,25 +56,50 @@ jobs:
       source: tags
       comment-mode: always
       prepare-release: true
-      publish: false
+      publish: true
 ```
 
 The `v0` branch follows published `0.x` releases, including potentially breaking
 minor updates. Select a full release tag or SHA when you need a fixed revision.
+The example states publication intent explicitly so it also works with releases
+whose default was disabled. The defaults below describe this source revision;
+verify the documentation at your selected ref before adoption.
 
 Each contribution PR adds a fragment. This workflow checks it, updates one PR
 comment and creates notes for Dependabot updates. After contributions merge,
 it prepares `changelog/version`: review that PR to update the central history
 and remove the consumed fragments. The workflow never merges it for you.
 
-Leave `publish: false` while trying the flow. Jobs run on Ubuntu with Docker,
-Bash and Git; your project needs no PHP or Composer installation for automation.
-For another release branch, adjust both event filters and `base-branch`.
-See [setup](resources/workflows/README.md) and [optional settings](docs/reusable-lifecycle.md#optional-settings-and-composition).
-Use an optional [GitHub App](docs/github-app.md) when generated PRs need CI
-without the approval required by the default token.
-When ready to publish, set `publish: true`: merging the approved version PR
-then publishes its tag and GitHub release. See [publication](docs/publication.md).
+### Main settings
+
+All lifecycle inputs are optional. These are the main defaults:
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `base-branch` | Repository default branch | Release line; match the caller's event filters. |
+| `fragment-directory` | `.changelog` | Pending Markdown fragments. |
+| `changelog-file` | `CHANGELOG.md` | Consolidated version history. |
+| `comment-mode` | `always` | Sticky PR feedback: `always`, `on-failure` or `never`. |
+| `prepare-release` | `true` | Create or refresh the version PR after base pushes. |
+| `publish` | `true` | Publish the approved version PR's tag/release after merge. Set `false` for a pilot. |
+| `version-pr-title` | `chore: update changelog` | Supports `{current_version}` and `{next_version}`. |
+| `runs-on` | `'["ubuntu-latest"]'` | Linux runner labels as JSON; Docker, Bash and Git are required. |
+
+See the **[complete workflow and Action reference](docs/workflow-reference.md)**
+for every input, type, default, secret, output and permission. The
+[lifecycle guide](docs/reusable-lifecycle.md) explains event handling and
+[individual recipes](docs/github-actions.md) cover custom composition.
+
+Your project needs no PHP or Composer installation for automation. The default
+token needs the repository's Actions PR-creation permission; use an optional
+[GitHub App](docs/github-app.md) when generated PRs need automatic downstream CI.
+Review the [approved-merge publication contract](docs/publication.md) before
+merging the generated version PR.
+
+For an optional validation-only trial, add `publish: false` to `with`. Merging
+the version PR then updates history without creating a tag or GitHub release;
+later version PRs continue from that recorded version. Remove the override when
+you want normal automatic publication.
 
 ## 🛠️ CLI
 
@@ -102,7 +128,8 @@ npx skills add php-fast-forward/changelog --skill fast-forward-changelog
 
 NPX Skills copies instructions; CPX runs the CLI. The
 [fast-forward-changelog skill](resources/skills/fast-forward-changelog/SKILL.md)
-supports `fast-forward/changelog ^0.1`. See [requirements, scope and updates](docs/skills.md)
+guides agents through the selected runtime's commands and workflow contracts.
+See [requirements, scope and updates](docs/skills.md)
 for installation and agent activation, or [optional Composer synchronization](docs/composer-skills.md).
 
 ## 🔌 Further integration

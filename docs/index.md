@@ -15,8 +15,9 @@ workflow consolidates them into `CHANGELOG.md`.
 
 ## Automation and releases
 
-- [Lifecycle inputs and defaults](reusable-lifecycle.md),
-  [individual Actions](github-actions.md) and [workflow map](automation-map.md)
+- [Reusable lifecycle](reusable-lifecycle.md), the complete
+  [workflow and Action parameter reference](workflow-reference.md),
+  [individual recipes](github-actions.md) and [workflow map](automation-map.md)
 - [GitHub App credentials](github-app.md) and [validation policies](policies.md)
 - [Version PRs and title customization](version-pull-request.md),
   [approved publication](publication.md) and [local transaction recovery](release-receipts.md)

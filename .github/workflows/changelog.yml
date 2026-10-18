@@ -77,9 +77,9 @@ on:
         default: true
 
       publish:
-        description: Enable publication after the managed PR is merged. Keep false during validation.
+        description: Publish the approved merged version PR; false consolidates history without creating its tag or GitHub Release.
         type: boolean
-        default: false
+        default: true
 
       dry-run:
         description: Preview version and publication without remote content writes.
@@ -293,3 +293,98 @@ jobs:
     secrets:
       token: ${{ secrets.token }}
       app-private-key: ${{ secrets.app-private-key }}
+
+  report:
+    name: Explain Version And Publication Results
+    needs: [version, publish]
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+        github.ref == format('refs/heads/{0}', inputs.base-branch || github.event.repository.default_branch)) ||
+       (github.event_name == 'pull_request_target' && github.event.action == 'closed' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.head.ref == inputs.managed-branch &&
+        github.event.pull_request.base.ref == (inputs.base-branch || github.event.repository.default_branch)))
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Summarize The Lifecycle Without Changing Its Outcome
+        shell: bash
+        env:
+          FF_PREPARATION: ${{ needs.version.result }}
+          FF_PUBLICATION: ${{ needs.publish.result }}
+          FF_VERSION_STATUS: ${{ needs.version.outputs.status }}
+          FF_PUBLICATION_STATE: ${{ needs.publish.outputs.state }}
+          FF_PUBLICATION_ENABLED: ${{ inputs.publish }}
+          FF_DRY_RUN: ${{ inputs.dry-run }}
+          FF_PULL_REQUEST: ${{ needs.version.outputs.pull-request }}
+          FF_VERSION: ${{ needs.version.outputs.version }}
+          FF_TAG: ${{ needs.publish.outputs.tag }}
+          FF_SHA: ${{ needs.publish.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          for outcome in "$FF_PREPARATION" "$FF_PUBLICATION"; do
+            case "$outcome" in
+              success|failure|skipped|cancelled) ;;
+              *) echo '::error::The lifecycle outcome is unavailable.'; exit 1 ;;
+            esac
+          done
+
+          case "$FF_PUBLICATION_ENABLED:$FF_DRY_RUN" in
+            true:true|true:false|false:true|false:false) ;;
+            *) echo '::error::The lifecycle publication settings are invalid.'; exit 1 ;;
+          esac
+
+          # Markdown backticks are literal formatting, never command substitutions.
+          # shellcheck disable=SC2016
+          {
+            printf '## Fast Forward Changelog\n\n'
+            printf '| Stage | Result |\n| --- | --- |\n'
+            printf '| Prepare version PR | %s |\n' "$FF_PREPARATION"
+            printf '| Publish approved tag and GitHub Release | %s |\n\n' "$FF_PUBLICATION"
+
+            case "$FF_VERSION_STATUS" in
+              none|unchanged|created|updated|dry-run)
+                printf 'Preparation result: `%s`.\n\n' "$FF_VERSION_STATUS" ;;
+            esac
+
+            case "$FF_PUBLICATION_STATE" in
+              maintenance|dry-run|published|unchanged)
+                printf 'Publication result: `%s`.\n\n' "$FF_PUBLICATION_STATE" ;;
+            esac
+
+            if [[ "$FF_DRY_RUN" == true ]]; then
+              printf '**Preview only:** no version PR, tag or release is created by dry-run operations.\n\n'
+            elif [[ "$FF_PUBLICATION_ENABLED" == false ]]; then
+              printf '> **Publication is disabled (`publish: false`).** Merging a version PR updates `CHANGELOG.md` and consumes its fragments, but creates neither its tag nor its GitHub Release. New version PRs continue from the consolidated version. Remove the override to publish future approved merges; older versions require explicit recovery.\n\n'
+            else
+              printf '**Automatic publication is enabled.** Preparation creates a reviewable PR. Its approved merge runs the separate tag and GitHub Release stage; preparation alone does not publish. Older consolidated versions are not published retroactively.\n\n'
+            fi
+
+            if [[ "$FF_PULL_REQUEST" =~ ^[1-9][0-9]*$ ]]; then
+              printf 'Reported version PR: #%s. Confirm the preparation result and review its version transition, history and fragment deletions before merging.\n\n' "$FF_PULL_REQUEST"
+            fi
+
+            if [[ "$FF_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              printf 'Planned version: `%s`. A plan is not proof of consolidation or publication.\n\n' "$FF_VERSION"
+            fi
+
+            if [[ "$FF_TAG" =~ ^[A-Za-z0-9._/-]+$ && "$FF_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              printf 'Reported publication target: `%s` at `%s`. Confirm the stage result; previews also report targets.\n\n' "$FF_TAG" "$FF_SHA"
+            fi
+
+            if [[ "$FF_PREPARATION" == failure || "$FF_PUBLICATION" == failure ]]; then
+              printf '### Action required\n\nOpen the failed stage for its diagnostic. A failed publication can leave a matching tag without a release; inspect the exact approved commit before recovery. Version preparation does not depend on the previous publication succeeding.\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$FF_PUBLICATION_ENABLED" == false && "$FF_DRY_RUN" == false ]]; then
+            echo '::warning::Publication is explicitly disabled. The version PR updates history without creating a tag or GitHub Release.'
+          fi
+
+          if [[ "$FF_PREPARATION" == failure || "$FF_PUBLICATION" == failure ]]; then
+            echo '::error::A changelog stage failed. Open the job summary and failed stage before retrying the exact approved operation.'
+          fi

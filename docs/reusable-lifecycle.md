@@ -2,7 +2,9 @@
 
 Use `.github/workflows/changelog.yml` as the consumer entrypoint. It composes the
 existing operations, infers the PR revisions and default branch from the event,
-validates generated heads and updates one PR comment. No initialization file,
+validates generated heads and updates one PR comment. See the
+**[complete parameter reference](workflow-reference.md)** for every input,
+default, secret, output and permission. No initialization file,
 Composer install, Node runtime or consumer shell script is required.
 
 The [automation map](automation-map.md) identifies this public entrypoint, its
@@ -10,7 +12,7 @@ optional individual operations and this package's own event workflows. Copy
 the [consumer caller](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml); keep reusable
 implementations in `.github/workflows`, as required by GitHub.
 
-## Start with validation
+## Install the workflow
 
 Copy the [caller example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml) into the consumer's
 `.github/workflows/changelog.yml`. The example follows the `v0` branch, which
@@ -19,22 +21,54 @@ full tag or SHA for a fixed revision. The
 [example's setup notes](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) describe branch filters,
 runner selection and the optional token.
 
-The example enables `prepare-release: true` to validate the reviewable version
-PR and keeps `publish: false`. Set `prepare-release: false` when initially
-testing only contributions and comments.
+The caller enables version preparation and explicitly sets `publish: true`,
+which is also this revision's default:
+contributions prepare a reviewable version PR, and merging that approved PR
+publishes its tag and GitHub release. The workflow never merges it for you.
+
+For an optional validation-only trial, explicitly add `publish: false` to
+`with`. Set `prepare-release: false` as well when testing only contribution
+checks and comments. Remove those overrides for the normal lifecycle.
 
 The caller grants the maximum required permissions; each internal job reduces
 them. PR-head checks use the ordinary read-only token. Feedback executes the
 pinned runtime against data, including fork data, without running consumer
-Composer scripts or PHP templates. Publication remains disabled by default.
-Dependabot fragment generation remains active; use a disposable pilot PR to
+Composer scripts or PHP templates.
+Dependabot fragment generation remains active during a trial; use a disposable PR to
 validate its writes before adopting the workflow broadly.
 
-Only enable `publish: true` after the pilot
-has validated the approved-merge publication contract and publication is
-authorized. The workflow never merges its own version PR. `dry-run: true`
+Review the approved-merge publication contract before merging the version PR.
+The workflow never merges its own version PR. `dry-run: true`
 previews version/publication operations without their remote content writes;
 contribution status and comments remain feedback operations.
+
+Version preparation and publication are separate. With `publish: false`, a
+merged version PR still records its version in `CHANGELOG.md`. The next plan
+uses the highest stable version from the selected base's central history and
+ancestral tags, preserving prior sections and consuming only new fragments.
+For example, a recorded `1.7.1` followed by a patch prepares `1.7.2` even when
+`1.7.1` has no tag or GitHub release. Enabling publication does not retroactively
+publish older consolidations; review any recovery separately.
+
+## Retries and visible results
+
+Transient transport failures, HTTP 429 and HTTP 5xx receive at most three
+attempts: the original request plus two retries. Delays are one and two seconds,
+respecting a numeric `Retry-After` up to 30 seconds. An unsupported date or a
+longer requested delay stops automatic recovery. HTTP 403, other permanent
+errors, malformed responses and validation failures are not retried.
+
+Safe API reads retry directly. Tag/release creation and managed PR/ref updates
+first reconcile exact remote state, then retry only when absence or the unchanged
+owned state proves replay safe. Matching persisted results are reused. Human
+edits, a closed PR or divergent identities stop recovery. An uncertain Git tree
+or commit creation is not blindly replayed. These limits belong to the CLI
+runtime; whole jobs and completed business operations are not restarted.
+
+The workflow summary separates preparation from publication and explains an
+explicit `publish: false`, previews and failed stages. The generated PR body also
+explains the publication setting. Existing failed jobs remain failed; reporting
+does not convert a partial operation into success.
 
 ## Operation coverage
 
@@ -103,28 +137,10 @@ elsewhere remains supported through `secrets.token`.
 ## Optional settings and composition
 
 All lifecycle inputs are optional. The copyable caller makes several choices
-explicit; omitted values use these reusable defaults:
-
-| Input | Default | Purpose |
-| --- | --- | --- |
-| `runs-on` | `'["ubuntu-latest"]'` | JSON array of Linux runner labels, propagated to every nested job. |
-| `base-branch` | `''` (repository default branch) | Release branch; adjust the caller's event filters to match. |
-| `fragment-directory` | `.changelog` | Repository-relative pending fragment directory. |
-| `changelog-file` | `CHANGELOG.md` | Repository-relative central history. |
-| `locale` | `en` | Language for generated headings and messages. |
-| `tag-prefix` | `v` | Prefix for version tags. |
-| `source` | `auto` | Historical release notes source: `auto`, `github` or `tags`. |
-| `resolve-pull-requests` | `true` | Resolve missing fragment PR references during versioning and recompute them before publication; ownership checks use the same setting without doing origin lookup. |
-| `managed-branch` | `changelog/version` | Branch for the single version PR. |
-| `version-pr-title` | `chore: update changelog` | PR title, optionally containing `{current_version}` and `{next_version}`. |
-| `automation-actor` | `github-actions[bot]` | Expected Bot identity for managed transactions. |
-| `app-client-id` | `''` | Optional GitHub App Client ID; pair with `secrets.app-private-key` and the App's Bot identity. |
-| `waiver-label` | `changelog-not-required` | Label used by the verified maintainer waiver policy. |
-| `maintenance-label` | `changelog-maintenance` | Label used by the verified history-maintenance policy. |
-| `comment-mode` | `always` | Sticky feedback: `always`, `on-failure` or `never`. |
-| `prepare-release` | `true` | Prepare/update the version PR on base pushes or manual dispatch. |
-| `publish` | `false` | Enable publication from an approved, merged managed PR. |
-| `dry-run` | `false` | Preview version/publication without remote content writes. |
+explicit; the [reference](workflow-reference.md) lists the complete contract,
+including shared settings and operation-specific differences.
+The defaults prepare a version PR and publish its approved merge; explicit
+`publish: false` is the validation-only override.
 
 The optional secrets are `token` and `app-private-key`. With no custom
 authentication, jobs use `github.token`. Supply either an already issued Bot
