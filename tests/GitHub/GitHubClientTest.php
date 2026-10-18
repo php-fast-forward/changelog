@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\GitHub;
 
 use FastForward\Changelog\GitHub\GitHubClient;
-use FastForward\Changelog\GitHub\GitHubRetryPolicy;
-use FastForward\Changelog\GitHub\GitHubTransientException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpClient\Exception\JsonException;
@@ -19,8 +16,6 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 #[CoversClass(GitHubClient::class)]
-#[UsesClass(GitHubRetryPolicy::class)]
-#[UsesClass(GitHubTransientException::class)]
 final class GitHubClientTest extends TestCase
 {
     #[Test]
@@ -271,166 +266,6 @@ final class GitHubClientTest extends TestCase
         );
         $this->expectException(RuntimeException::class);
         $this->client($http, '', 'https://api.github.com', $limit)->paginate('/releases');
-    }
-
-    /**
-     * Exercises second/third-attempt recovery and exhaustion without real delays or hidden extra transport calls.
-     *
-     * @param  int  $successAttempt Intended successful attempt within the fixed three-request budget.
-     * @param  bool $exhaust        Whether every connection attempt fails instead of returning data.
-     * @return void Request and recorded wait counts prove the bounded retry contract.
-     */
-    #[TestWith([2, false])]
-    #[TestWith([3, false])]
-    #[TestWith([3, true])]
-    public function testReadTransportRecoveryIsBounded(int $successAttempt, bool $exhaust): void
-    {
-        $count = 0;
-        $waits = [];
-        $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::exactly($successAttempt))->method('request')->willReturnCallback(
-            function () use (&$count, $successAttempt, $exhaust): ResponseInterface {
-                ++$count;
-
-                if ($exhaust || $count < $successAttempt) {
-                    throw new TransportException('synthetic secret that must not escape');
-                }
-
-                return $this->response(200, ['verified' => true]);
-            },
-        );
-        $client = new GitHubClient($http, retries: new GitHubRetryPolicy(static function (int $delay) use (
-            &$waits
-        ): void {
-            $waits[] = $delay;
-        }));
-
-        try {
-            self::assertSame(['verified' => true], $client->request('GET', '/resource'));
-            self::assertFalse($exhaust);
-        } catch (GitHubTransientException $error) {
-            self::assertTrue($exhaust);
-            self::assertStringNotContainsString('synthetic secret', $error->getMessage());
-            self::assertNull($error->getPrevious());
-        }
-        self::assertSame(array_slice([1_000_000, 2_000_000], 0, $successAttempt - 1), $waits);
-    }
-
-    /**
-     * Retries only explicitly transient HTTP statuses, retaining a bounded numeric server delay.
-     *
-     * @param  int  $status Simulated transient HTTP status from the first response.
-     * @return void The successful second read and recorded delay prove classification and timing.
-     */
-    #[TestWith([429])]
-    #[TestWith([500])]
-    #[TestWith([503])]
-    #[TestWith([599])]
-    public function testReadHttpRecoveryHonorsRetryAfter(int $status): void
-    {
-        $waits = [];
-        $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::exactly(2))->method('request')->willReturn(
-            $this->response($status, headers: ['retry-after' => ['3']]), $this->response(200, []),
-        );
-        $client = new GitHubClient($http, retries: new GitHubRetryPolicy(static function (int $delay) use (
-            &$waits
-        ): void {
-            $waits[] = $delay;
-        }));
-        self::assertSame([], $client->request('GET', '/resource'));
-        self::assertSame([3_000_000], $waits);
-    }
-
-    /**
-     * Never shortens a long server delay or guesses a wall-clock value for an unsupported date.
-     *
-     * @param  string $after Server Retry-After header that cannot fit the bounded delta-second policy.
-     * @return void   A single transport call and absent sleep prove safe refusal.
-     */
-    #[TestWith(['31'])]
-    #[TestWith(['999999999999999999999999'])]
-    #[TestWith(['Wed, 21 Oct 2026 07:28:00 GMT'])]
-    #[TestWith(['invalid'])]
-    public function testUnsupportedRetryAfterStopsWithoutWaiting(string $after): void
-    {
-        $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->willReturn(
-            $this->response(429, headers: ['retry-after' => [$after]]),
-        );
-        $client = new GitHubClient($http, retries: new GitHubRetryPolicy(static function (): void {
-            self::fail('An unsupported server delay must not sleep.');
-        }));
-        $this->expectException(GitHubTransientException::class);
-        $client->request('GET', '/resource');
-    }
-
-    /**
-     * Requires a positively identified query document before replaying any GraphQL POST.
-     *
-     * @param  mixed $query Explicit query payload; shorthand, malformed and mutating documents remain non-retryable.
-     * @param  bool  $safe  Whether the conservative query-only recognition permits another attempt.
-     * @return void  Request counts distinguish read recovery from forbidden mutation replay.
-     */
-    #[TestWith(['query Example { viewer { login } }', true])]
-    #[TestWith(['query { viewer { login } }', true])]
-    #[TestWith(['mutation Example { createRef { clientMutationId } }', false])]
-    #[TestWith(['query Example { viewer { login } } mutation Other { createRef { clientMutationId } }', false])]
-    #[TestWith(['{ viewer { login } }', false])]
-    #[TestWith([null, false])]
-    public function testGraphqlRetriesOnlyPositiveReadDocuments(mixed $query, bool $safe): void
-    {
-        $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::exactly($safe ? 2 : 1))->method('request')->willReturn(
-            $this->response(503), $this->response(200, ['data' => []]),
-        );
-        $client = new GitHubClient($http, retries: new GitHubRetryPolicy(static function (): void {}));
-
-        if (! $safe) {
-            $this->expectException(GitHubTransientException::class);
-        }
-        self::assertSame(['data' => []], $client->request('POST', '/graphql', ['query' => $query]));
-    }
-
-    /**
-     * Keeps authorization, validation and JSON failures outside automatic recovery even when a policy is installed.
-     *
-     * @param  int  $status Permanent HTTP response or a success response with invalid JSON.
-     * @return void The response is inspected once and no sleeper or second request is invoked.
-     */
-    #[TestWith([401])]
-    #[TestWith([403])]
-    #[TestWith([409])]
-    #[TestWith([422])]
-    #[TestWith([200])]
-    public function testPermanentAndJsonErrorsNeverRetry(int $status): void
-    {
-        $response = $this->createStub(ResponseInterface::class);
-        $response->method('getStatusCode')->willReturn($status);
-        $response->method('toArray')->willThrowException(new JsonException('private invalid JSON'));
-        $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->willReturn($response);
-        $client = new GitHubClient($http, retries: new GitHubRetryPolicy(static function (): void {
-            self::fail('A permanent or JSON error must not sleep.');
-        }));
-        $this->expectException(RuntimeException::class);
-        $client->request('GET', '/resource');
-    }
-
-    /**
-     * Leaves mutation replay exclusively to the owning service after exact reconciliation.
-     *
-     * @return void An ordinary REST write is attempted once despite an installed read retry policy.
-     */
-    public function testRestMutationIsNeverReplayedByTheTransport(): void
-    {
-        $http = $this->createMock(HttpClientInterface::class);
-        $http->expects(self::once())->method('request')->willReturn($this->response(503));
-        $client = new GitHubClient($http, retries: new GitHubRetryPolicy(static function (): void {
-            self::fail('The HTTP adapter cannot authorize another write.');
-        }));
-        $this->expectException(GitHubTransientException::class);
-        $client->request('POST', '/repos/owner/project/pulls', ['title' => 'Example']);
     }
 
     private function client(

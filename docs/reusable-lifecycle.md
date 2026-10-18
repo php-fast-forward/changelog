@@ -50,25 +50,15 @@ For example, a recorded `1.7.1` followed by a patch prepares `1.7.2` even when
 `1.7.1` has no tag or GitHub release. Enabling publication does not retroactively
 publish older consolidations; review any recovery separately.
 
-## Retries and visible results
-
-Transient transport failures, HTTP 429 and HTTP 5xx receive at most three
-attempts: the original request plus two retries. Delays are one and two seconds,
-respecting a numeric `Retry-After` up to 30 seconds. An unsupported date or a
-longer requested delay stops automatic recovery. HTTP 403, other permanent
-errors, malformed responses and validation failures are not retried.
-
-Safe API reads retry directly. Tag/release creation and managed PR/ref updates
-first reconcile exact remote state, then retry only when absence or the unchanged
-owned state proves replay safe. Matching persisted results are reused. Human
-edits, a closed PR or divergent identities stop recovery. An uncertain Git tree
-or commit creation is not blindly replayed. These limits belong to the CLI
-runtime; whole jobs and completed business operations are not restarted.
+## Visible lifecycle results
 
 The workflow summary separates preparation from publication and explains an
 explicit `publish: false`, previews and failed stages. The generated PR body also
 explains the publication setting. Existing failed jobs remain failed; reporting
 does not convert a partial operation into success.
+
+With `prepare-release: false`, the summary reports preparation as disabled instead
+of implying that this run creates a version PR. Publication remains a separate setting.
 
 ## Operation coverage
 

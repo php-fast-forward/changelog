@@ -148,12 +148,6 @@ A matching tag without its release is completed on retry. Uncertain responses
 are reconciled by authoritative reads; absent or conflicting results fail with
 a recoverable diagnostic. Repeating a complete publication returns unchanged.
 
-Classified transient failures receive bounded retries. A tag or Release write
-is retried only after fresh reads establish that the first attempt did not
-complete and that the same approved target remains safe. A matching remote result
-counts as completion; a conflicting target or notes stop the operation. Retries
-do not regenerate the plan, change the approved SHA or rewrite an earlier tag.
-
 Dry-run performs proof and remote reads without mutations. Contextual evidence
 uses fixed GraphQL queries sent by POST; no GraphQL mutation, tag or Release
 write is permitted during that preview.

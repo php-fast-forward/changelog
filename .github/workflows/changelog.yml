@@ -314,6 +314,7 @@ jobs:
         shell: bash
         env:
           FF_PREPARATION: ${{ needs.version.result }}
+          FF_PREPARATION_ENABLED: ${{ inputs.prepare-release }}
           FF_PUBLICATION: ${{ needs.publish.result }}
           FF_VERSION_STATUS: ${{ needs.version.outputs.status }}
           FF_PUBLICATION_STATE: ${{ needs.publish.outputs.state }}
@@ -338,6 +339,11 @@ jobs:
             *) echo '::error::The lifecycle publication settings are invalid.'; exit 1 ;;
           esac
 
+          case "$FF_PREPARATION_ENABLED" in
+            true|false) ;;
+            *) echo '::error::The lifecycle preparation setting is invalid.'; exit 1 ;;
+          esac
+
           # Markdown backticks are literal formatting, never command substitutions.
           # shellcheck disable=SC2016
           {
@@ -358,6 +364,14 @@ jobs:
 
             if [[ "$FF_DRY_RUN" == true ]]; then
               printf '**Preview only:** no version PR, tag or release is created by dry-run operations.\n\n'
+            elif [[ "$FF_PREPARATION_ENABLED" == false ]]; then
+              printf '**Version preparation is disabled (`prepare-release: false`).** This run does not create or update a version PR.\n\n'
+
+              if [[ "$FF_PUBLICATION_ENABLED" == true ]]; then
+                printf 'Publication remains enabled for approved merges of the configured managed version PR.\n\n'
+              else
+                printf 'Publication is also disabled (`publish: false`); no tag or GitHub Release is created.\n\n'
+              fi
             elif [[ "$FF_PUBLICATION_ENABLED" == false ]]; then
               printf '> **Publication is disabled (`publish: false`).** Merging a version PR updates `CHANGELOG.md` and consumes its fragments, but creates neither its tag nor its GitHub Release. New version PRs continue from the consolidated version. Remove the override to publish future approved merges; older versions require explicit recovery.\n\n'
             else
@@ -381,7 +395,7 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ "$FF_PUBLICATION_ENABLED" == false && "$FF_DRY_RUN" == false ]]; then
+          if [[ "$FF_PREPARATION_ENABLED" == true && "$FF_PUBLICATION_ENABLED" == false && "$FF_DRY_RUN" == false ]]; then
             echo '::warning::Publication is explicitly disabled. The version PR updates history without creating a tag or GitHub Release.'
           fi
 

@@ -73,9 +73,3 @@ creates neither tag nor GitHub Release, but does not block subsequent version
 PRs. Enabling publication for a later merge does not publish older consolidated
 versions retroactively. Do not remove history or manufacture a missing tag merely
 to make another PR possible.
-
-For intermittent failures, inspect the operation's result before rerunning it.
-Version preparation and publication reconcile uncertain remote writes and retry
-only classified transient failures when the exact operation remains safe.
-Conflicting refs, notes or ownership require inspection; retries do not grant
-permission to overwrite them.

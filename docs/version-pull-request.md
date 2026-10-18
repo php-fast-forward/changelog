@@ -63,9 +63,7 @@ See [the policy contract](policies.md).
 
 An unchanged plan produces no additional commit. An uncertain PR creation is
 recovered by querying the exclusive branch. Empty plans create no empty commit
-or PR. Transient ref and PR writes have bounded retries only after fresh reads
-show that repeating the same operation is safe. Concurrent human changes or
-conflicting remote state stop synchronization. Dry runs make no GitHub writes.
+or PR. Dry runs make no GitHub writes.
 
 ## Title customization
 

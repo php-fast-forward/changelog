@@ -21,7 +21,6 @@ use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullReque
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\GitHub\GitHubRetryPolicy;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
@@ -62,7 +61,6 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
      *                                                               provenance and endings.
      * @param ReleasePlanFactoryInterface             $plans         Constructor that binds transaction inputs, output bytes and receipt
      *                                                               identity.
-     * @param ?GitHubRetryPolicy                      $retries       Optional bounded retry policy, consulted only after exact live mutation reconciliation.
      */
     public function __construct(
         private GitHubClientInterface $github,
@@ -77,7 +75,6 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         private TemplateResolverInterface $templates,
         private HistoryReleaseFactoryInterface $releases,
         private ReleasePlanFactoryInterface $plans,
-        private ?GitHubRetryPolicy $retries = null,
     ) {}
 
     /**
@@ -165,9 +162,8 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 $this->preflight($options, $input, $base, $head);
                 $writing = true;
                 $pr = $this->writePullRequest(
-                    $options,
+                    $repo,
                     $input,
-                    $base,
                     $pr,
                     $head,
                     null === $pr ? $this->body($options, $plan, $data) : null,
@@ -196,13 +192,14 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 );
             }
             $newHead = $this->createOwnedCommit($options, $input, $plan, $newTree, $head, $base);
-            $this->updateRef($options, $input, $base, $head, $newHead);
+            $this->preflight($options, $input, $base, $head);
+            $this->updateRef($repo, $input->managedBranch, $head, $newHead);
             $head = $newHead;
             $this->require(
                 $this->ref($repo, $input->baseBranch) === $base && $this->ref($repo, $input->managedBranch) === $head,
                 'The base or managed head changed after ref update; inspect the branch before retrying.',
             );
-            $pr = $this->writePullRequest($options, $input, $base, $pr, $head, $this->body($options, $plan, $data));
+            $pr = $this->writePullRequest($repo, $input, $pr, $head, $this->body($options, $plan, $data));
 
             return $this->result($hadPr ? 'updated' : 'created', $plan, $pr, $head);
         } catch (VersionPullRequestException|PendingPublicationException $error) {
@@ -771,13 +768,12 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     }
 
     /**
-     * Reconciles exact branch state and revalidates both tips before every bounded transient ref retry.
+     * Uses a non-forced descendant ref update; after a lost response only an exact GET confirmation counts.
      *
-     * @param  ReleaseOptions              $options Trusted project and repository settings for local/remote freshness checks.
-     * @param  VersionPullRequestInput     $input   Validated branch and Bot identity selecting this managed transaction.
-     * @param  string                      $base    Exact planned base that must remain current before every write attempt.
-     * @param  ?string                     $old     Previous branch tip, or null when the managed reference must be created rather than advanced.
-     * @param  string                      $head    Immutable managed or contribution head selected for the current operation.
+     * @param  string                      $repository Explicit GitHub owner/name used to construct repository-scoped API endpoints.
+     * @param  string                      $branch     Validated branch name used for the exact remote reference or release line.
+     * @param  ?string                     $old        Previous branch tip, or null when the managed reference must be created rather than advanced.
+     * @param  string                      $head       Immutable managed or contribution head selected for the current operation.
      * @return void                        No value; only a confirmed create or non-forced descendant branch update is accepted.
      * @throws VersionPullRequestException When a controlled ownership, freshness or transaction invariant is not
      *                                     satisfied.
@@ -785,146 +781,87 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
      *                                     refusal or conflict.
      */
     private function updateRef(
-        ReleaseOptions $options,
-        VersionPullRequestInput $input,
-        string $base,
+        string $repository,
+        string $branch,
         ?string $old,
         string $head,
     ): void {
-        for ($attempt = 1; ; ++$attempt) {
-            $this->preflight($options, $input, $base, $old);
-            $error = null;
-
-            try {
-                if (null === $old) {
-                    $this->github->request(
-                        'POST',
-                        '/repos/' . $options->repository . '/git/refs',
-                        ['ref' => 'refs/heads/' . $input->managedBranch, 'sha' => $head],
-                    );
-                } else {
-                    $this->github->request(
-                        'PATCH',
-                        '/repos/' . $options->repository . '/git/refs/heads/' . rawurlencode($input->managedBranch),
-                        ['sha' => $head, 'force' => false],
-                    );
-                }
-            } catch (Throwable $failure) {
-                $error = $failure;
+        try {
+            if (null === $old) {
+                $this->github->request(
+                    'POST',
+                    '/repos/' . $repository . '/git/refs',
+                    ['ref' => 'refs/heads/' . $branch, 'sha' => $head],
+                );
+            } else {
+                $this->github->request(
+                    'PATCH',
+                    '/repos/' . $repository . '/git/refs/heads/' . rawurlencode($branch),
+                    ['sha' => $head, 'force' => false],
+                );
             }
-            $actual = $this->ref($options->repository, $input->managedBranch);
-
-            if ($actual === $head) {
-                return;
-            }
+        } catch (Throwable) {
             $this->require(
-                $actual === $old && null !== $this->retries && $this->retries->retry($error, $attempt),
+                $this->ref($repository, $branch) === $head,
                 'Ref update outcome was not confirmed; existing remote history was preserved.',
             );
+
+            return;
         }
+        $this->require($this->ref($repository, $branch) === $head, 'GitHub did not confirm the intended managed head.');
     }
 
     /**
-     * Reconciles one PR and retries only a classified transient write that left its exact prior state intact.
+     * Creates or refreshes the one PR without retrying a mutation. Existing PR writes are confirmed.
      *
      * through their trusted number because a successful PATCH may still return the previous head;
      * an uncertain create is recovered by its exclusive branch query. Unconfirmed identities or titles fail closed.
      * A null body preserves existing human PR text during a title-only refresh; new PRs receive generated text.
      *
-     * @param  ReleaseOptions              $options Trusted project/repository settings used to revalidate current branch tips.
-     * @param  VersionPullRequestInput     $input   Validated operation settings and the immutable remote snapshot selected by
-     *                                              the caller.
-     * @param  string                      $base    Exact planned base required before every PR write attempt.
-     * @param  ?array                      $pr      GitHub pull-request snapshot whose repository, branch and creator evidence is checked.
-     * @param  string                      $head    Immutable managed or contribution head selected for the current operation.
-     * @param  ?string                     $body    Generated PR body, or null to preserve existing human prose during a title-only refresh.
-     * @return array                       Verified owned PR at the intended head, title and requested body without duplicate creation.
+     * @param  string                      $repository Explicit GitHub owner/name used to construct repository-scoped API endpoints.
+     * @param  VersionPullRequestInput     $input      Validated operation settings and the immutable remote snapshot selected by
+     *                                                 the caller.
+     * @param  ?array                      $pr         GitHub pull-request snapshot whose repository, branch and creator evidence is checked.
+     * @param  string                      $head       Immutable managed or contribution head selected for the current operation.
+     * @param  ?string                     $body       Generated PR body, or null to preserve existing human prose during a title-only refresh.
+     * @return array                       Fresh verified PR response at the intended head and title after a single write attempt.
      * @throws VersionPullRequestException When a controlled ownership, freshness or transaction invariant is not
      *                                     satisfied.
      * @throws RuntimeException            When an injected API, Git or guarded template boundary fails; synchronization reports
      *                                     refusal or conflict.
      */
     private function writePullRequest(
-        ReleaseOptions $options,
-        VersionPullRequestInput $input,
-        string $base,
-        ?array $pr,
-        string $head,
-        ?string $body,
-    ): array {
-        $repository = $options->repository;
-
-        for ($attempt = 1; ; ++$attempt) {
-            $this->preflight($options, $input, $base, $head);
-
-            if ($attempt > 1) {
-                $current = null === $pr ? $this->pullRequest($repository, $input)
-                    : $this->github->request('GET', '/repos/' . $repository . '/pulls/' . $pr['number']);
-
-                if ($this->confirmedPullRequest($current, $repository, $input, $pr, $head)
-                    && (null === $body || ($current['body'] ?? null) === $body)) {
-                    return $current;
-                }
-                $this->require($this->unchangedPullRequest($current, $repository, $input, $pr, $head),
-                    'The version PR changed before retry; existing human or remote changes were preserved.');
-            }
-            $error = null;
-
-            try {
-                $response = null === $pr
-                    ? $this->github->request(
-                        'POST',
-                        '/repos/' . $repository . '/pulls',
-                        ['title' => $input->title, 'body' => $body, 'head' => $input->managedBranch, 'base' => $input->baseBranch],
-                    )
-                    : $this->github->request(
-                        'PATCH',
-                        '/repos/' . $repository . '/pulls/' . $pr['number'],
-                        ['title' => $input->title] + (null === $body ? [] : ['body' => $body]),
-                    );
-            } catch (Throwable $failure) {
-                $error = $failure;
-                $response = null === $pr ? $this->pullRequest($repository, $input) : null;
-            }
-
-            if (null !== $pr) {
-                $response = $this->github->request('GET', '/repos/' . $repository . '/pulls/' . $pr['number']);
-            }
-
-            if ($this->confirmedPullRequest($response, $repository, $input, $pr, $head)
-                && (null === $body || ($response['body'] ?? null) === $body)) {
-                return $response;
-            }
-            $this->require(
-                $this->unchangedPullRequest($response, $repository, $input, $pr, $head)
-                && null !== $this->retries && $this->retries->retry($error, $attempt),
-                'The version PR write was not confirmed as an owned PR at the intended head.',
-            );
-        }
-    }
-
-    /**
-     * Tests immutable PR ownership and the intended presentation without granting authority from PR prose.
-     *
-     * @param  ?array                  $response   Current remote PR evidence, or null when authoritative reads confirmed absence.
-     * @param  string                  $repository Exact consumer owner/name whose repository identities must match.
-     * @param  VersionPullRequestInput $input      Validated Bot, branch and intended title settings.
-     * @param  ?array                  $pr         Original owned PR snapshot; null restricts recovery to the exclusive create branch.
-     * @param  string                  $head       Exact intended generated head that the current PR must expose.
-     * @return bool                    Whether current PR identity and title match the requested owned transaction.
-     */
-    private function confirmedPullRequest(
-        ?array $response,
         string $repository,
         VersionPullRequestInput $input,
         ?array $pr,
         string $head,
-    ): bool {
-        return null !== $response && GitHubEvidence::pullRequest(
-            $response,
-            $repository,
-            $response['number'] ?? 0,
-        )
+        ?string $body,
+    ): array {
+        try {
+            $response = null === $pr
+                ? $this->github->request(
+                    'POST',
+                    '/repos/' . $repository . '/pulls',
+                    ['title' => $input->title, 'body' => $body, 'head' => $input->managedBranch, 'base' => $input->baseBranch],
+                )
+                : $this->github->request(
+                    'PATCH',
+                    '/repos/' . $repository . '/pulls/' . $pr['number'],
+                    ['title' => $input->title] + (null === $body ? [] : ['body' => $body]),
+                );
+        } catch (Throwable) {
+            $response = null === $pr ? $this->pullRequest($repository, $input) : null;
+        }
+
+        if (null !== $pr) {
+            $response = $this->github->request('GET', '/repos/' . $repository . '/pulls/' . $pr['number']);
+        }
+        $this->require(
+            null !== $response && GitHubEvidence::pullRequest(
+                $response,
+                $repository,
+                $response['number'] ?? 0,
+            )
             && (null === $pr || $response['number'] === $pr['number'])
             && $response['head']['sha'] === $head && $response['head']['ref'] === $input->managedBranch
             && ($response['base']['ref'] ?? null) === $input->baseBranch
@@ -935,56 +872,11 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 'Bot',
                 $pr['user']['id'] ?? null,
             )
-            && is_string($response['html_url'] ?? null) && str_starts_with($response['html_url'], 'https://');
-    }
+            && is_string($response['html_url'] ?? null) && str_starts_with($response['html_url'], 'https://'),
+            'The version PR write was not confirmed as an owned PR at the intended head.',
+        );
 
-    /**
-     * Permits a retry only when creation is still absent or an owned PR retains its original editable fields.
-     *
-     * @param  ?array                  $response   Fresh authoritative PR state after the failed attempt or delay.
-     * @param  string                  $repository Exact consumer repository required by the shared ownership check.
-     * @param  VersionPullRequestInput $input      Intended settings; only the title is replaced temporarily for comparison.
-     * @param  ?array                  $pr         Original snapshot whose title/body must remain unchanged; null means creation-only recovery.
-     * @param  string                  $head       Intended generated head that must remain current during a title/body update.
-     * @return bool                    Whether unchanged verified state makes one further classified transient write safe.
-     */
-    private function unchangedPullRequest(
-        ?array $response,
-        string $repository,
-        VersionPullRequestInput $input,
-        ?array $pr,
-        string $head,
-    ): bool {
-        if (null === $pr) {
-            if (null !== $response) {
-                return false;
-            }
-            $owner = explode('/', $repository)[0];
-            $closed = $this->github->paginate('/repos/' . $repository . '/pulls?state=closed&head='
-                . rawurlencode($owner . ':' . $input->managedBranch));
-
-            foreach ($closed as $previous) {
-                $this->require(($previous['state'] ?? null) === 'closed'
-                    && GitHubEvidence::pullRequest(
-                        array_replace($previous, ['state' => 'open']),
-                        $repository,
-                        $previous['number'] ?? 0,
-                    )
-                    && $previous['head']['ref'] === $input->managedBranch,
-                    'Closed PR recovery evidence is incomplete or belongs to another branch.');
-
-                if ($previous['head']['sha'] === $head) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-        $original = $this->inputs->create($input->baseBranch, $input->managedBranch, $input->automationActor,
-            $pr['title'] ?? '', $input->dryRun);
-
-        return $this->confirmedPullRequest($response, $repository, $original, $pr, $head)
-            && ($response['body'] ?? null) === ($pr['body'] ?? null);
+        return $response;
     }
 
     /**
