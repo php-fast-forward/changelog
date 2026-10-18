@@ -18,6 +18,7 @@ use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\PendingPublicationException;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlan;
@@ -40,6 +41,7 @@ use RuntimeException;
 #[UsesClass(VersionPullRequestInputFactory::class)]
 #[UsesClass(VersionPullRequestResult::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[UsesClass(PendingPublicationException::class)]
 #[UsesClass(ReleasePlan::class)]
 #[UsesClass(ReleaseReceipt::class)]
 final class VersionPullRequestServiceTest extends TestCase
@@ -51,6 +53,29 @@ final class VersionPullRequestServiceTest extends TestCase
     private array $plannerCalls = [];
     private array $pullRequestSnapshots = [];
     private array $referencePolicies = [];
+
+    /** Pending publication explains the recovery boundary; unrelated planner failures remain redacted before writes. */
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testPlanningFailurePreservesOnlyTheControlledPendingPublicationDiagnosis(bool $pending): void
+    {
+        $message = 'Maintained release 1.7.1 is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: 1.7.0.';
+        $result = $this->synchronizeFixture([
+            'planning_failure' => $pending
+                ? new PendingPublicationException($message)
+                : new RuntimeException('synthetic-super-secret'),
+        ]);
+
+        self::assertSame('refused', $result->status);
+        self::assertNull($result->version);
+        self::assertSame([], $this->writes());
+        self::assertSame(
+            [
+                $pending ? $message : 'Version PR synchronization could not be verified; inspect remote state before retrying. Response details were withheld.',
+            ],
+            $result->diagnostics,
+        );
+    }
 
     /** Changing discovery replaces only a provably owned transaction and proves its replacement under the selected policy. */
     #[TestWith([true])]
@@ -776,9 +801,14 @@ final class VersionPullRequestServiceTest extends TestCase
         );
         $planner = $this->createStub(ReleasePlannerInterface::class);
         $planner->method('plan')->willReturnCallback(function (ReleaseOptions $received, string $operation) use (
-            $plan
+            $plan,
+            $settings
         ): ReleasePlan {
             $this->plannerCalls[] = $operation;
+
+            if (isset($settings['planning_failure'])) {
+                throw $settings['planning_failure'];
+            }
 
             return $plan;
         });
