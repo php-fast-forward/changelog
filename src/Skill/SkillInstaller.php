@@ -465,7 +465,7 @@ final readonly class SkillInstaller implements SkillInstallerInterface
      */
     private function temporaryPaths(string $destination, string $relative): array
     {
-        $scopeRoot = rtrim(dirname($destination, substr_count($relative, '/') + 1), '/');
+        $scopeRoot = rtrim(Path::normalize(dirname($destination, substr_count($relative, '/') + 1)), '/');
         $prefix = $scopeRoot . '/.fast-forward-changelog-' . substr(hash('sha256', $relative), 0, 16);
 
         return [$prefix . '.stage', $prefix . '.backup'];
