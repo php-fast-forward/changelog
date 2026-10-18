@@ -37,6 +37,11 @@ release deletions, guide assets, source mixed with history, renames, symlinks,
 executable modes, unknown inputs and incomplete comparisons. Matrix contexts fail
 if their upstream classification failed or omitted its decision. Trigger-level path
 filters never hide a required context. Coverage uploads run only when coverage did.
+The full harness also supplies the actual workflow loader to an adversarial fixture:
+a forged PR helper never executes, first adoption runs all gates, unsupported
+protected modes use full validation, and malformed/missing commit identities fail
+without producing outputs. This protected-base loader scenario requires
+`composer test:workflows`; the direct Node command tests classifier behavior alone.
 
 Ubuntu owns the common quality gates and the unchanged 100% source-line coverage
 threshold. ARM and Windows retain unit and real integration tests without repeating

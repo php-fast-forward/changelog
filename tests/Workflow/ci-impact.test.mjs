@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,3 +111,80 @@ test('real immutable Git history preserves deletes, additions and rename origins
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('the actual workflow guard never executes a contributor-controlled classifier',
+  { skip: !process.env.FF_IMPACT_GUARD }, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'changelog-trusted-impact-'));
+    const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+      !/^(GIT_|GH_|GITHUB_|FF_CHANGELOG_|BASH_ENV$)/i.test(name)));
+    Object.assign(environment, { HOME: directory, GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: join(directory, 'empty-config'), GIT_TERMINAL_PROMPT: '0' });
+    const git = (...args) => execFileSync('git', args,
+      { cwd: directory, env: environment, encoding: 'utf8' }).trim();
+    let index = 0;
+    try {
+      writeFileSync(environment.GIT_CONFIG_GLOBAL, '');
+      git('init', '--initial-branch=main');
+      git('config', 'user.name', 'Synthetic fixture');
+      git('config', 'user.email', 'fixture@example.invalid');
+      writeFileSync(join(directory, 'README.md'), 'Fixture base without an installed classifier.');
+      git('add', '.');
+      git('commit', '-m', 'Before classifier adoption');
+      const beforeAdoption = git('rev-parse', 'HEAD');
+      const helper = '.github/scripts/ci-impact.mjs';
+      mkdirSync(join(directory, '.github/scripts'), { recursive: true });
+      writeFileSync(join(directory, helper), readFileSync(
+        fileURLToPath(new URL('../../.github/scripts/ci-impact.mjs', import.meta.url))));
+      git('add', helper);
+      git('commit', '-m', 'Protected classifier');
+      const trusted = git('rev-parse', 'HEAD');
+      const marker = join(directory, 'untrusted-code-executed');
+      writeFileSync(join(directory, helper),
+        `import {writeFileSync,appendFileSync} from 'node:fs';\n`
+        + `writeFileSync(${JSON.stringify(marker)}, 'executed');\n`
+        + `appendFileSync(process.env.GITHUB_OUTPUT, 'runtime=false\\ndocumentation=false\\n');\n`);
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(join(directory, 'src/Changed.php'), '<?php return 1;\n');
+      git('add', helper, 'src/Changed.php');
+      git('commit', '-m', 'Untrusted code and forged classifier');
+      const head = git('rev-parse', 'HEAD');
+      const runGuard = (classifier, base = classifier, successful = true) => {
+        const output = join(directory, `output-${++index}`);
+        const summary = join(directory, `summary-${index}`);
+        const options = { cwd: directory, env: { ...environment, RUNNER_TEMP: directory,
+          FF_EVENT: 'pull_request', FF_BASE_SHA: base, FF_HEAD_SHA: head,
+          FF_CLASSIFIER_SHA: classifier, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
+          stdio: ['ignore', 'pipe', 'pipe'] };
+        if (successful) {
+          execFileSync('bash', ['-c', process.env.FF_IMPACT_GUARD], options);
+          assert.equal(readFileSync(output, 'utf8'), 'runtime=true\ndocumentation=true\n');
+        } else {
+          assert.throws(() => execFileSync('bash', ['-c', process.env.FF_IMPACT_GUARD], options));
+          assert.equal(existsSync(output), false);
+        }
+        assert.equal(existsSync(marker), false, 'The PR helper must never execute.');
+        assert.deepEqual(readdirSync(directory).filter((name) => name.startsWith('changelog-impact.')), []);
+      };
+
+      runGuard(trusted); // A protected classifier sees both runtime and helper modifications.
+      runGuard(beforeAdoption); // No base helper: static full validation, never the PR helper.
+      runGuard('main', 'main', false);
+      runGuard('f'.repeat(40), 'f'.repeat(40), false);
+      runGuard(head, trusted, false); // A valid head SHA cannot replace the protected base.
+
+      git('update-index', '--chmod=+x', helper);
+      git('commit', '-m', 'Unsupported executable classifier');
+      runGuard(git('rev-parse', 'HEAD'));
+      const blob = execFileSync('git', ['hash-object', '-w', '--stdin'],
+        { cwd: directory, env: environment, input: '../outside', encoding: 'utf8' }).trim();
+      git('update-index', '--cacheinfo', `120000,${blob},${helper}`);
+      git('commit', '-m', 'Unsupported linked classifier');
+      runGuard(git('rev-parse', 'HEAD'));
+      writeFileSync(join(directory, helper), "throw new Error('Synthetic protected helper failure');\n");
+      git('add', helper);
+      git('commit', '-m', 'Failing protected classifier');
+      runGuard(git('rev-parse', 'HEAD'), undefined, false);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });

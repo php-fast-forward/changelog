@@ -1015,8 +1015,11 @@ echo $channelFixtures->getOutput();
 $assertions += 2;
 
 $impact = Yaml::parseFile($root . '/.github/workflows/repository-impact.yml');
+$impactGuard = workflowStep($impact['jobs']['impact'], 'Select Validation From Immutable PR Changes');
 verifyWorkflow(
     ['contents' => 'read'] === $impact['permissions']
+        && '${{ github.event.pull_request.base.sha || github.sha }}' === $impactGuard['env']['FF_CLASSIFIER_SHA']
+        && str_contains($impactGuard['run'], 'git --no-replace-objects cat-file blob')
         && 0 === workflowStep($impact['jobs']['impact'], 'Check Out The Comparison History')['with']['fetch-depth']
         && false === workflowStep(
             $impact['jobs']['impact'],
@@ -1086,6 +1089,7 @@ foreach (array_slice($documentationJob['steps'], 2) as $step) {
 }
 $impactFixtures = new Process(['node', '--test', $root . '/tests/Workflow/ci-impact.test.mjs'], $root, [
     'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'GH_HOST' => false,
+    'FF_IMPACT_GUARD' => $impactGuard['run'],
 ]);
 $impactFixtures->setTimeout(30);
 $impactFixtures->mustRun();

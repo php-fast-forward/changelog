@@ -5,7 +5,17 @@ the tests and documentation workflows. It requires Node.js and Git on the Linux
 runner; it is excluded from the Composer archive and packaged CLI.
 
 The workflow checks out complete history with read-only permissions and no
-persisted credentials. For a PR the helper reads these environment inputs:
+persisted credentials. It reads the helper's regular blob from the immutable PR
+base, never the contributor's merge-ref copy. On a main push or manual run, the
+selected event commit is used. The workflow's `FF_CLASSIFIER_SHA` must be a full
+commit identity and match the PR base. If the protected revision has no helper
+(first adoption), or its mode/type is unsupported, static Bash selects full
+validation without executing any helper. Git failures fail the decision job.
+The verified blob runs from a temporary `.mjs` file removed on exit; no dependency
+from the PR is installed in this job. Changes to the helper itself still select
+full validation through the existing protected policy.
+
+For a PR the helper reads these environment inputs:
 
 | Input | Meaning |
 | --- | --- |
