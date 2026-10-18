@@ -9,3 +9,7 @@
 !bin/changelog
 !src/
 !src/**
+!resources/
+!resources/skills/
+!resources/skills/fast-forward-changelog/
+!resources/skills/fast-forward-changelog/**

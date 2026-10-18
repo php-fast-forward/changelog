@@ -1,102 +1,40 @@
-# Injected PHP services
+# Optional PHP integration
 
-Load when the application needs programmatic access beyond the CLI or workflows.
-Supports `fast-forward/changelog ^0.1` (minimum `0.1.0`), PHP `^8.5` and its
-Composer-resolved runtime dependencies. This route imports classes into the
-application and therefore requires its own Composer installation; CPX executes
-the CLI separately and does not provide an application autoloader. Inspect
-`composer show fast-forward/changelog` first.
-Keep the application's existing command-loader arrangement; use domain services
-without replacing it. The application does not need another loader or framework
-to access these services.
+Load only when the application needs injected services instead of the CLI or
+GitHub lifecycle. CPX executes a separate tool; it does not provide an application
+autoloader. Inspect the application's Composer installation with
+`composer show fast-forward/changelog`, then read the PHP integration/API guide,
+manifest requirements and migration notes from that exact release tag.
 
-## Minimal application route
+Use the installed namespaces and method signatures. Keep the application's
+existing command loader, container precedence and secret mechanism. Expose only
+the needed domain services and inject external boundaries in application tests.
+Resolving a service or writing a fragment does not authorize commits or releases.
 
-The package autoloads `FastForward\Changelog\` through the consumer's
-`vendor/autoload.php`. Register
-`FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider`
-by class name with `FastForward\Container\container()`. It has no constructor
-arguments. The provider supplies injected filesystem/Git/network/clock boundaries;
-resolving a writer does not publish or commit anything.
+## Bundled contribution example
 
-Run the complete [contribution program](../examples/contribution.php) from the
-consumer project, supplying its autoloader and an existing target directory:
+The complete [contribution program](../examples/contribution.php) illustrates the
+`0.1.0` PHP API: explicit consumer autoloader and target directory, provider
+composition, fragment creation and validation. It is an optional example, not
+the contract for every later release. Before using it with another version,
+compare its imports/signatures with that release's documented API or use the
+example shipped with the selected release.
+
+For a matching API, run it first in a disposable target:
 
 ```sh
 php .agents/skills/fast-forward-changelog/examples/contribution.php ./vendor/autoload.php /absolute/project
 vendor/bin/changelog check --no-interaction
 ```
 
-The program imports the provider, `ReleaseOptionsFactoryInterface`,
-`FragmentWriterInterface` and `CheckServiceInterface`. It composes the container,
-creates explicit options, writes `.changelog/php-api-example.md`, checks its exact
-bytes and validates pending notes. Success prints `Contribution example PASS`.
-It never commits or changes central history. Run it in a disposable project
-first; a second run deliberately fails on the existing filename without
-replacing its bytes. An invalid/missing target or autoloader exits `2`; service
-or validation failures remain nonzero with diagnostics.
+Success prints `Contribution example PASS`; exactly one
+`.changelog/php-api-example.md` is created, with no commit or central-history
+change. A repeated run must expose the filename collision rather than overwrite
+the file. Missing inputs and runtime failures remain nonzero. Do not report
+success after a failed write or ignore the validation report.
 
-The complete example omits PR metadata because its disposable contribution has
-no actual PR. When the contribution's origin is already known, optionally pass
-its positive number through `FragmentWriterInterface::add()`'s named
-`pullRequest` argument. Verify repository, head branch and exact head SHA before
-copying the number from the PR's canonical URL or trusted metadata. Unknown
-metadata stays absent. Contribution checks do not require a PR number, and
-opening a PR does not require a follow-up fragment edit or commit.
-
-For an existing application, expose only the needed domain services through its
-existing factories. The provider also declares Symfony `CommandLoaderInterface`:
-when the application already owns that binding, keep the changelog composition
-standalone as in the example. If integrating the provider directly, preserve the
-application's existing binding deliberately. The caller supplies the working
-directory to the options factory; explicit values override its
-built-in defaults. Unknown keys, unsafe managed paths and malformed values throw
-`InvalidArgumentException`. Writer schema errors throw `InvalidArgumentException`;
-I/O and filename collisions throw `RuntimeException`. Do not catch a failed write
-and report success. `CheckServiceInterface::check()` returns a
-`ValidationReport` whose `isValid()` must be checked.
-
-## Optional application configuration
-
-The provider accepts `FastForward\Config\config()` initializers in either
-order with the provider. For example:
-
-```php
-use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
-use function FastForward\Config\config;
-use function FastForward\Container\container;
-
-$container = container(
-    config(['changelog' => ['working_directory' => '/absolute/project']]),
-    ChangelogServiceProvider::class,
-);
-```
-
-Raw `changelog.*` values are exposed as `config.changelog.*`; the provider
-captures them lazily in shared `changelog.config`. Explicit entries, including
-empty tokens or nullable values, override defaults. Compose the complete settings
-before resolving services; creating another wrapper does not promise a fresh
-service graph. Preserve the application's existing container precedence policy.
-
-| Raw key | Default/use |
-| --- | --- |
-| `working_directory` | Process cwd for CLI composition and package paths. |
-| `temporary_directory` | System temp for private recovery journals. |
-| `installed_version` | `null`, development fallback. |
-| `token` | Empty; application explicitly injects authorized credentials. |
-| `api_url` | `https://api.github.com`. |
-| `github_output_file` | `null`; no runner output file. |
-
-Provider defaults do not inspect environment credentials or execute project PHP
-configuration files. Resolving an unavailable process cwd raises a diagnostic.
-Do not use the provider's cwd setting as an implicit options override: pass
-`workingDirectory` to `ReleaseOptionsFactoryInterface::create()` as the example
-does. Optional templates are executable PHP and require explicit trust.
-
-Additional services include `ReleasePlannerInterface::plan()` for read-only
-plans, `ReleaseApplierInterface::apply()` for an authorized exact transaction,
-`HistoryCodecInterface` for Markdown parsing/rendering and
-`PublicationServiceInterface::publish()` for an approved full SHA. Use their
-installed namespaces/signatures and the CLI reference's release invariants;
-service access does not grant release authority. Keep external boundaries
-injected in application tests and use disposable data for actual adapters.
+Keep PR/issue/author fields absent unless verified. Service access follows the
+same fragment, version-transaction and publication boundaries as the selected
+release's CLI. Learn optional configuration, planner/history services and
+approved-commit publication from that version's documentation when the task
+requires them; do not load an API inventory for an ordinary fragment task.

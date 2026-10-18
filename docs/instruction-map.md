@@ -19,7 +19,7 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Decision | Path | Responsibility and boundary |
 | --- | --- | --- |
 | Retain/update | `AGENTS.md` | Development, quality, isolation, internal use of the canonical resource skill, publication authority and Child DOX Index. |
-| Relocate/rename | `resources/skills/fast-forward-changelog/{SKILL.md,LICENSE}` | Sole distributed skill, with an unambiguous public identifier. |
+| Retain/update | `resources/skills/fast-forward-changelog/` | Sole distributed skill, license, references and example, with an unambiguous public identifier. |
 | Reserve | `.agents/skills` | Skills consumed by the project; no generated copies or aliases of the published resource. |
 | Retire | `CLAUDE.md`, `.github/copilot-instructions.md`, old Codex/Claude skill links | Remove unused host-specific distribution adapters; no automatic native-host support claim. |
 | Retire | `scripts/skills-sync.mjs`, its test and guide | Link synchronization is no longer a repository responsibility; no replacement generator is needed. |
@@ -35,6 +35,13 @@ automatic native-agent discovery; agents follow the explicit root link.
 
 The root index points to these durable guides and the canonical package.
 No extra child contract is created for resources, scripts or the skill itself.
+Native skill installation remains source behavior under the same root. Read
+root → skill distribution guide → the selected runtime's actual help. The
+canonical resource procedure discovers release-specific contracts instead of
+freezing an API inventory; it does not authorize installation or incidental
+upgrades. Native receipts belong to installed copies, never the donor source
+or another installer's lockfile. Copy, ownership and integrity checks do not
+establish native host activation.
 The [source map](source-layout.md) and
 [integration assessment](integration-dependencies.md) retain responsibility for
 namespaces and transport boundaries.

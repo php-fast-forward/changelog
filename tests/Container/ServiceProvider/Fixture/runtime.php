@@ -33,3 +33,19 @@ function realpath(string $path): string|false
 
     return RuntimeDefaults::$resolvedTemporaryDirectory;
 }
+
+/** Keeps warning/home composition independent of real host environment and terminal streams. */
+function getenv(string $name): string|false
+{
+    ++RuntimeDefaults::$calls;
+
+    return RuntimeDefaults::$environment[$name] ?? false;
+}
+
+/** Supplies deterministic terminal eligibility without observing an actual terminal. */
+function stream_isatty(mixed $stream): bool
+{
+    ++RuntimeDefaults::$calls;
+
+    return RuntimeDefaults::$terminal;
+}

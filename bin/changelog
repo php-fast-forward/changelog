@@ -46,6 +46,8 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
             ) ? InstalledVersions::getPrettyVersion(
                 'fast-forward/changelog',
             ) : null,
+            'installed_reference' => InstalledVersions::isInstalled('fast-forward/changelog')
+                ? InstalledVersions::getReference('fast-forward/changelog') : null,
             'token' => false === $automationToken ? (getenv('GITHUB_TOKEN') ?: '') : $automationToken,
             'api_url' => getenv('GITHUB_API_URL') ?: 'https://api.github.com',
             'github_output_file' => getenv('GITHUB_OUTPUT') ?: null,

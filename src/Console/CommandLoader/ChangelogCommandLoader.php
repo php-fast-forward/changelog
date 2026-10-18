@@ -21,6 +21,7 @@ use FastForward\Changelog\Console\Command\FormatCommand;
 use FastForward\Changelog\Console\Command\GitHubCommand;
 use FastForward\Changelog\Console\Command\NotesCommand;
 use FastForward\Changelog\Console\Command\PublishCommand;
+use FastForward\Changelog\Console\Command\SkillInstallCommand;
 use FastForward\Changelog\Console\Command\StatusCommand;
 use FastForward\Changelog\Console\Command\VersionCommand;
 use LogicException;
@@ -36,7 +37,7 @@ use Symfony\Component\Console\Exception\CommandNotFoundException;
 final class ChangelogCommandLoader implements CommandLoaderInterface
 {
     private const array SERVICES = [AddCommand::class, CheckCommand::class, StatusCommand::class, VersionCommand::class,
-        NotesCommand::class, PublishCommand::class, BackfillCommand::class, FormatCommand::class, GitHubCommand::class];
+        NotesCommand::class, PublishCommand::class, BackfillCommand::class, FormatCommand::class, GitHubCommand::class, SkillInstallCommand::class];
     /** @var array<string,array{service:string,metadata:AsCommand}> Public metadata derived solely from attributes. */
     private array $definitions = [];
     /** @var array<string,Command> Cached lazy wrappers, never eagerly resolved services. */

@@ -1,14 +1,21 @@
 # Optional Composer skill synchronization
 
-Use this route when Composer already manages your project's skills. For a direct
-installation from GitHub, use [Skills CLI](skills.md) instead.
+Use this route when Composer already manages your project's skills. For native
+Changelog CLI management without an application dependency, or installation
+through NPX Skills, use the [skill installation guide](skills.md) instead.
 
-`fast-forward/changelog ^0.1` ships the complete
+`fast-forward/changelog` ships the complete
 `resources/skills/fast-forward-changelog` package. It declares
 `extra.skills.source: resources/skills` and suggests `llm/skills` while retaining
 its `library` type, normal vendor path and CLI binary. The suggestion does not
 install or approve a plugin. The optional consumer tool is `llm/skills ^1.15`;
 keep it out of production runtime requirements.
+
+Keep each copy under one installer's ownership. `skills.json`, NPX
+`skills-lock.json` and Changelog's native receipt have different formats and
+update behavior; native management does not read or rewrite the other tools'
+state. Changing owners requires an explicit migration, not a second sync over
+the same directory.
 
 ## Prepare narrow project trust before first sync
 

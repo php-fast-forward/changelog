@@ -24,6 +24,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
@@ -35,6 +36,96 @@ use Symfony\Component\Console\Output\ConsoleOutputInterface;
 #[UsesClass(LineAnswerNormalizer::class)]
 final class ChangelogTest extends TestCase
 {
+    /** Only an eligible human command resolves the callback, once, on its separate error stream. */
+    public function testSkillWarningIsLazyAndKeepsCommandOutputAndStatus(): void
+    {
+        $version = $this->createStub(PackageVersionResolverInterface::class);
+        $version->method('resolve')->willReturn('test');
+        $error = new BufferedOutput();
+        $output = $this->createStub(ConsoleOutputInterface::class);
+        $output->method('getErrorOutput')->willReturn($error);
+        $calls = 0;
+        $app = new Changelog($this->createStub(CommandLoaderInterface::class), $version, static function (
+            $input,
+            $stderr,
+        ) use (
+            &$calls,
+            $error
+        ): void {
+            ++$calls;
+            self::assertSame($error, $stderr);
+            $stderr->writeln('Local skill hint');
+        });
+        $app->addCommand(new Command('check')->setCode(static fn(): int => 0));
+        self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check']), $output));
+        self::assertSame(1, $calls);
+        self::assertSame('Local skill hint' . PHP_EOL, $error->fetch());
+    }
+
+    /** Machine or unattended paths never resolve skill dependencies, even when an optional callback is broken. */
+    #[DataProvider('silentSkillPaths')]
+    public function testSkillWarningExcludesMachineQuietAndUnattendedConsumers(
+        string $name,
+        array $flags,
+        bool $interactive,
+        bool $console,
+        bool $quiet,
+    ): void {
+        $version = $this->createStub(PackageVersionResolverInterface::class);
+        $version->method('resolve')->willReturn('test');
+        $app = new Changelog($this->createStub(
+            CommandLoaderInterface::class,
+        ), $version, static function (): void {
+            self::fail(
+                'Excluded path resolved skill inspection.',
+            );
+        });
+        $command = new Command($name)->setCode(static fn(): int => 0);
+        foreach (['json', 'raw'] as $option) {
+            $command->addOption($option, null, InputOption::VALUE_NONE);
+        }
+        $app->addCommand($command);
+        $input = new ArgvInput(['changelog', $name, ...$flags]);
+        $input->setInteractive($interactive);
+        $output = $console ? $this->createStub(ConsoleOutputInterface::class) : new BufferedOutput();
+        if ($console) {
+            $output->method('isQuiet')->willReturn($quiet);
+        }
+        self::assertSame(0, $app->doRun($input, $output));
+    }
+
+    public static function silentSkillPaths(): array
+    {
+        return [['github', [], true, true, false], ['status', [], true, true, false], ['notes', [], true, true, false],
+            ['version', [], true, true, false], ['publish', [], true, true, false], [
+                'completion',
+                [],
+                true,
+                true,
+                false,
+            ],
+            ['check', ['--json'], true, true, false], ['list', ['--raw'], true, true, false],
+            ['check', [], false, true, false], ['check', [], true, false, false], ['check', [], true, true, true]];
+    }
+
+    /** Auxiliary failures cannot alter an otherwise successful human command. */
+    public function testBrokenSkillWarningIsNonfatal(): void
+    {
+        $version = $this->createStub(PackageVersionResolverInterface::class);
+        $version->method('resolve')->willReturn('test');
+        $app = new Changelog($this->createStub(
+            CommandLoaderInterface::class,
+        ), $version, static function (): void {
+            throw new \RuntimeException(
+                'Auxiliary inspection failed',
+            );
+        });
+        $app->addCommand(new Command('check')->setCode(static fn(): int => 0));
+        $output = $this->createStub(ConsoleOutputInterface::class);
+        $output->method('getErrorOutput')->willReturn(new BufferedOutput());
+        self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check']), $output));
+    }
+
     #[Test]
     public function applicationMetadataUsesOnlyInjectedPackageVersion(): void
     {
