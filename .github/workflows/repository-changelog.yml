@@ -75,6 +75,8 @@ jobs:
     with:
       tag: ${{ needs.changelog.outputs.published-tag }}
       expected-sha: ${{ needs.changelog.outputs.published-sha }}
+    secrets:
+      token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
 
   image:
     name: Publish Docker CLI

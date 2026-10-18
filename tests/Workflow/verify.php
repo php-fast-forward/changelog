@@ -958,6 +958,16 @@ verifyWorkflow(
         )['with']['persist-credentials'],
     'Channels must use the PHP entrypoint without persistent Git credentials.',
 );
+verifyWorkflow(
+    false === $channels['on']['workflow_call']['secrets']['token']['required']
+        && false === $channels['on']['workflow_call']['secrets']['CHANGELOG_TOKEN']['required']
+        && $repository['jobs']['changelog']['secrets']['token'] === $channelCall['secrets']['token']
+        && '${{ secrets.CHANGELOG_TOKEN || github.token }}' === $channelCall['secrets']['token']
+        && '${{ secrets.token || secrets.CHANGELOG_TOKEN || github.token }}'
+            === workflowStep($channelJob, 'Advance The Verified Released Major Branch')['env']['GH_TOKEN'],
+    'Channels must forward the lifecycle token and support the configured token during direct manual recovery.',
+);
+++$assertions;
 $channelGuard = workflowStep($channelJob, 'Require A Trusted Repository Workflow')['run'];
 $channelDirectory = sys_get_temp_dir() . '/changelog-channel-guard-' . bin2hex(random_bytes(6));
 $filesystem->mkdir($channelDirectory);
