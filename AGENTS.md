@@ -7,6 +7,7 @@ used across Fast Forward PHP packages.
 
 - CLI entrypoint: [`bin/changelog`](bin/changelog)
 - Console wiring and invokable commands: [`src/Console/`](src/Console/)
+- Native skill payload installation and integrity: [`src/Skill/`](src/Skill/)
 - Independent fragments and effective impact: [`src/Changeset/`](src/Changeset/), [`src/Fragment/`](src/Fragment/), [`src/Version/`](src/Version/)
 - Contribution validation: [`src/Validation/`](src/Validation/)
 - Historical Markdown and presentation: [`src/History/`](src/History/), [`src/Template/`](src/Template/)
@@ -52,9 +53,12 @@ used across Fast Forward PHP packages.
   source. Reserve `.agents/skills` for skills consumed by this project; do not
   generate host aliases or copies there. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
-  remain explicit operations, separate from package distribution. Keep the skill's
-  `^0.1` consumer contract, references and executable examples aligned when changing
-  consumer integration; this source reference needs no installed copy or host alias.
+  remain explicit operations, separate from package distribution. Keep the skill
+  focused on the durable lifecycle: preserve an existing reviewed integration;
+  discover and verify the selected published release for adoption or requested
+  updates, then inspect its documentation and actual CLI help. Do not freeze the
+  procedure to one release line or silently upgrade an ordinary contribution.
+  This source reference needs no installed copy or host alias.
 
 ## This Repository's Changelog
 
@@ -117,6 +121,12 @@ used across Fast Forward PHP packages.
   with runtime inputs. Create pure values and standard exceptions directly; do not
   introduce wrapper factories merely to mock construction in tests.
 - Preserve deterministic rendering and exact historical Markdown.
+- The native skill installer manages only this runtime's canonical payload through
+  explicit install/check/update operations. Preserve local edits, foreign installer
+  ownership and recovery evidence. Its receipt records local provenance, not trust
+  or native host activation. Automatic warnings are local, read-only and limited to
+  proven outdated copies on human terminal paths; never query a registry, update
+  files or change machine/CI output as an incidental command effect.
 - Ordinary contributions add unique fragments. Approved consolidation consumes
   only its validated set and updates the single central history through services.
 - Release PRs update the central history and delete consumed fragments; they
@@ -136,7 +146,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Development scripts](scripts/README.md): maps the four used PHP quality helpers; production CLI and images do not invoke them.
 - [Published changelog skill](resources/skills/fast-forward-changelog/SKILL.md): uniquely named portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
-- [Skill distribution guide](docs/skills.md): records discovery/copy validation and distinguishes those checks from native host activation.
+- [Skill distribution guide](docs/skills.md): owns native install/check/update, independent installer ownership and discovery validation; distinguishes copies from native host activation.
 - [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.

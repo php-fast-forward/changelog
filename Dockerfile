@@ -11,6 +11,7 @@ ARG COMPOSER_ROOT_VERSION=dev-main
 COPY composer.json composer.lock LICENSE ./
 COPY bin/ bin/
 COPY src/ src/
+COPY resources/skills/fast-forward-changelog/ resources/skills/fast-forward-changelog/
 
 RUN composer install \
         --no-dev \
@@ -30,6 +31,7 @@ RUN apk add --no-cache git \
 
 COPY --from=dependencies /usr/local/bin/changelog /usr/local/bin/changelog
 COPY --from=dependencies /usr/local/src/ /usr/local/src/
+COPY --from=dependencies /usr/local/resources/skills/fast-forward-changelog/ /usr/local/resources/skills/fast-forward-changelog/
 COPY --from=dependencies /usr/local/vendor/ /usr/local/vendor/
 COPY --from=dependencies \
     /usr/local/composer.json \

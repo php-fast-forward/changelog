@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Console;
 
+use Closure;
 use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
@@ -27,6 +28,7 @@ use Symfony\Component\Console\Exception\ExceptionInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 /**
  * Provides the standalone Symfony Console application for changelog commands.
@@ -39,12 +41,14 @@ final class Changelog extends Application
     /**
      * Initializes application metadata and installs the lazy command loader.
      *
-     * @param CommandLoaderInterface          $commandLoader   exposes command metadata lazily
-     * @param PackageVersionResolverInterface $versionResolver resolves package metadata
+     * @param CommandLoaderInterface                            $commandLoader   exposes command metadata lazily
+     * @param PackageVersionResolverInterface                   $versionResolver resolves package metadata
+     * @param Closure(InputInterface,OutputInterface):void|null $skillWarning    Optional lazy local warning; excluded commands never resolve it.
      */
     public function __construct(
         CommandLoaderInterface $commandLoader,
         PackageVersionResolverInterface $versionResolver,
+        private readonly ?Closure $skillWarning = null,
     ) {
         parent::__construct('Fast Forward Changelog', $versionResolver->resolve());
 
@@ -64,6 +68,7 @@ final class Changelog extends Application
      */
     protected function doRunCommand(Command $command, InputInterface $input, OutputInterface $output): int
     {
+        $this->warnAboutSkill($command, $input, $output);
         try {
             return parent::doRunCommand($command, $input, $output);
         } catch (ExceptionInterface $exception) {
@@ -87,6 +92,33 @@ final class Changelog extends Application
             );
 
             return Command::INVALID;
+        }
+    }
+
+    /**
+     * Invokes one optional warning only on selected human command paths with a separate error stream.
+     *
+     * @param  Command         $command Selected top-level command whose ordinary result remains unchanged.
+     * @param  InputInterface  $input   Raw flags/interactivity used to exclude machine and unattended consumers.
+     * @param  OutputInterface $output  Human console output that must provide separate stderr.
+     * @return void            Excluded paths perform no skill lookup; auxiliary warning failures remain nonfatal.
+     */
+    private function warnAboutSkill(Command $command, InputInterface $input, OutputInterface $output): void
+    {
+        if (null === $this->skillWarning || ! $output instanceof ConsoleOutputInterface) {
+            return;
+        }
+        if ($output->isQuiet() || ! $input->isInteractive()) {
+            return;
+        }
+        if (! in_array($command->getName(), ['add', 'check', 'help', 'list'], true)
+            || $input->hasParameterOption(['--raw', '--json', '-j'], true)) {
+            return;
+        }
+        try {
+            ($this->skillWarning)($input, $output->getErrorOutput());
+        } catch (Throwable) {
+            // An optional local hint cannot prevent command binding, validation or ordinary execution.
         }
     }
 }

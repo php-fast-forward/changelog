@@ -204,6 +204,15 @@ function summary(array $result): array
     return $value;
 }
 
+/** Parses only the native skill command's separate local-state contract. */
+function skillResult(array $result): array
+{
+    $value = json_decode($result['stdout'], true, flags: JSON_THROW_ON_ERROR);
+    verify(is_array($value) && isset($value['state']), 'Native skill result must be one JSON state object.');
+
+    return $value;
+}
+
 /** Preserves the exact result of one installed executable invoked from its consumer cwd. */
 function cli(string $binary, string $consumer, array $environment, array $arguments, int $expected = 0): array
 {
@@ -781,6 +790,43 @@ function exerciseSkill(string $installation, string $consumer, array $environmen
     $failure = execute([PHP_BINARY, $example, $autoload, $blocked], $installation, $environment, 255);
     verify(str_contains($failure['stderr'], 'Cannot create fragment'), 'Example I/O failure lost its diagnostic.');
     verify($blockedBefore === snapshot($blocked), 'Example I/O failure modified the existing application file.');
+    $beforeInstall = snapshot($consumer);
+    $preview = skillResult(cli($binary, $consumer, $environment, ['skill:install', '--dry-run', '--json']));
+    verify(
+        'install' === $preview['action'] && $beforeInstall === snapshot($consumer),
+        'Native skill preview must remain read-only.',
+    );
+    verify(
+        'installed' === skillResult(cli($binary, $consumer, $environment, ['skill:install', '--json']))['state'],
+        'Installed package cannot install its bundled skill.',
+    );
+    $native = $consumer . '/.agents/skills/fast-forward-changelog';
+    $receipt = json_decode(
+        file_get_contents($native . '/.fast-forward-install.json'),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    foreach ($receipt['files'] as $path => $hash) {
+        verify(
+            $hash === hash_file('sha256', $native . '/' . $path),
+            'Native installation changed bundled payload bytes: ' . $path,
+        );
+    }
+    $installed = snapshot($consumer);
+    verify(
+        'current' === skillResult(
+            cli($binary, $consumer, $environment, ['skill:install', '--check', '--json']),
+        )['state'],
+        'Native copy does not pass its own check.',
+    );
+    verify(
+        'current' === skillResult(
+            cli($binary, $consumer, $environment, ['skill:install', '--json']),
+        )['state'] && $installed === snapshot(
+            $consumer,
+        ),
+        'Native installation is not idempotent.',
+    );
     fwrite(STDOUT, "Installed skill PHP example and installed runtime contribution arguments PASS.\n");
 }
 

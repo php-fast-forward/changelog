@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Adds explicit installation, integrity checks and guarded updates for the bundled Fast Forward Changelog skill through the CLI, including CPX usage. Local terminal warnings identify proven outdated native copies without network requests or automatic updates. The skill discovers the selected release's documentation and help so its core contribution instructions remain useful across releases. ([#50](https://github.com/php-fast-forward/changelog/pull/50))
 - Maintains GitHub workflow channels as `v<major>` branches pointing to verified published stable releases. Channel updates preserve complete release tags, reject regressions and conflicting references, and support manual recovery with an exact release tag and commit SHA without adding apparent stable versions to Composer. ([#48](https://github.com/php-fast-forward/changelog/pull/48))
 
 ### Changed

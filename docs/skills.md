@@ -1,13 +1,65 @@
 # Install the Fast Forward Changelog skill
 
-Use this guide to give an agent the `fast-forward-changelog` instructions for
-`fast-forward/changelog ^0.1` (minimum `0.1.0`). Installing the instructions does
-not install the runtime: [CPX executes the local CLI](adoption.md), while PHP
-service integration uses Composer.
+Use this guide to install and maintain the `fast-forward-changelog` instructions.
+The skill teaches the contribution flow and consults the selected release's help
+and documentation for command and workflow details. Installing instructions does
+not activate an agent session. [CPX executes the CLI](adoption.md); PHP service
+integration uses the application's Composer installation.
+
+## Install with the Changelog CLI
+
+Select a published release whose command list contains `skill:install` and set
+`CHANGELOG_VERSION` to that exact numeric version. Release `0.1.0` does not
+include this command; use the GitHub route below when your selected release does
+not offer it. Verify that release's PHP requirements and inspect its help:
+
+```sh
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install
+```
+
+This route needs no Node.js or dependency in the application. It copies the
+complete skill bundled with that CLI into
+`.agents/skills/fast-forward-changelog`. The copy includes a native
+`.fast-forward-install.json` receipt with package provenance and file hashes;
+its relative target remains portable when the project is cloned elsewhere.
+It creates no host aliases and executes no bundled example.
+
+Use the same command for deliberate management; help owns the full option contract:
+
+| Mode | Behavior |
+| --- | --- |
+| Default | Install an absent target; an identical native copy needs no write. |
+| `--check` | Compare local ownership and bytes with this CLI's bundled payload, without writes or network. |
+| `--update` | Replace an intact native copy explicitly. Local edits, extra files, unknown owners and known downgrades are refused. |
+
+`--check` and `--update` are exclusive. `--dry-run` previews without writes.
+Project scope is the default; `--cwd` selects the project, `--target` selects a
+relative discovery root and `--global` explicitly selects the configured home.
+A later CLI release carrying identical skill bytes does not require reinstalling.
+
+On human command paths, the CLI can warn when an intact native copy at the default
+project target is provably older than its bundled instructions. This is a local comparison, not a registry
+lookup. Missing, foreign, modified or ambiguous copies do not generate that
+automatic warning; inspect them with `--check`. JSON, pipelines and CI retain
+their ordinary output. No warning installs or updates anything.
+Check custom or global targets explicitly with their original scope options.
+
+Interrupted updates retain `.fast-forward-changelog-*.stage` or
+`.fast-forward-changelog-*.backup` directories in the selected project or home
+root, outside skill discovery. Inspect and preserve the retained copies; another
+replacement is refused until recovery is completed. Do not delete recovery data
+merely to force a retry.
+
+Choose one owner for the installed copy. This receipt is not the NPX Skills
+lock or `llm/skills` configuration, and the command does not adopt their copies.
+Use their own update/removal route, or explicitly archive a selected copy before
+migrating installers. After installation inspect the files, refresh the host
+session and verify discovery separately.
 
 ## Install directly from GitHub
 
-The main installation route needs Node.js `22.20.0+`, npm and Git. It does not
+This alternative needs Node.js `22.20.0+`, npm and Git. It does not
 require PHP, Composer or a prior installation of the Changelog library. From
 the consumer project, install only this skill for the host you use:
 
@@ -119,7 +171,7 @@ restore the complete saved directory to its original target and refresh the
 session. Preserve unrelated skill directories. Plugin-managed copies may return
 on the next sync until the donor/trust policy changes.
 
-## Update and remove a CLI-installed copy
+## Update and remove a Skills CLI copy
 
 Record the product revision and installer version. Review the new donor, archive
 local changes outside discovery and repeat the selected installation route.

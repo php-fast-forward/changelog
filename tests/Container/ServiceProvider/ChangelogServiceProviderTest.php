@@ -11,9 +11,12 @@ use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestServiceInterface;
+use FastForward\Changelog\Console\Changelog;
 use FastForward\Changelog\Console\Command\StatusCommand;
 use FastForward\Changelog\Console\CommandLoader\ChangelogCommandLoader;
+use FastForward\Changelog\Console\SkillInstallationWarning;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
+use FastForward\Changelog\Filesystem\Factory\FinderFactoryInterface;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
@@ -35,6 +38,8 @@ use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Release\ReleaseJournalPathResolver;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use FastForward\Changelog\Skill\SkillInstaller;
+use FastForward\Changelog\Skill\SkillInstallerInterface;
 use FastForward\Changelog\Template\TemplateResolver;
 use FastForward\Changelog\Tests\Container\ServiceProvider\Fixture\RuntimeDefaults;
 use FastForward\Changelog\Validator\MergedPublicationEvidenceValidatorInterface;
@@ -43,6 +48,7 @@ use FastForward\Changelog\Validator\PublicationEvidenceValidatorInterface;
 use FastForward\Changelog\Validator\ReleaseDateValidatorInterface;
 use FastForward\Changelog\Version\ComposerPackageVersionResolver;
 use FastForward\Changelog\Version\NextVersionResolver;
+use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use FastForward\Clock\SystemClock;
 use FastForward\Config\ArrayConfig;
 use FastForward\Container\Factory\AliasFactory;
@@ -57,8 +63,14 @@ use Random\Engine;
 use Random\Engine\Secure;
 use Random\Randomizer;
 use RuntimeException;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Lock\LockFactory;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
@@ -87,6 +99,9 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(TemplateResolver::class)]
 #[UsesClass(NextVersionResolver::class)]
 #[UsesClass(PullRequestReferenceResolver::class)]
+#[UsesClass(SkillInstaller::class)]
+#[UsesClass(SkillInstallationWarning::class)]
+#[UsesClass(Changelog::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     /** Resets synthetic defaults before each test; unit tests never observe the real host. */
@@ -96,6 +111,105 @@ final class ChangelogServiceProviderTest extends TestCase
         RuntimeDefaults::$temporaryDirectory = '/temporary-link';
         RuntimeDefaults::$resolvedTemporaryDirectory = '/synthetic-temp';
         RuntimeDefaults::$calls = 0;
+        RuntimeDefaults::$environment = ['HOME' => '/synthetic-home'];
+        RuntimeDefaults::$terminal = false;
+    }
+
+    /** Scalar skill settings compose lazily while injected boundaries remain unobserved until a mode runs. */
+    public function testNativeSkillCompositionIsLazyWithExplicitAndDefaultSettings(): void
+    {
+        $factories = new ChangelogServiceProvider()->getFactories();
+        $filesystem = $this->createMock(Filesystem::class);
+        $filesystem->expects(self::never())->method('readlink');
+        $finders = $this->createMock(FinderFactoryInterface::class);
+        $finders->expects(self::never())->method('create');
+        $version = $this->createStub(PackageVersionResolverInterface::class);
+        $version->method('resolve')->willReturn('1.0.0');
+        foreach ([true, false] as $explicit) {
+            $values = [Filesystem::class => $filesystem, ManagedFileStoreInterface::class => $this->createStub(
+                ManagedFileStoreInterface::class,
+            ),
+                FinderFactoryInterface::class => $finders, PackagePathResolverInterface::class => new PackagePathResolver(
+                    '/consumer',
+                ),
+                LockFactory::class => $this->createStub(
+                    LockFactory::class,
+                ), PackageVersionResolverInterface::class => $version];
+            if ($explicit) {
+                $values += ['config.changelog.skill_source_directory' => '/donor', 'config.changelog.skill_home_directory' => '/home-fixture',
+                    'config.changelog.installed_reference' => null];
+            }
+            $container = $this->createStub(ContainerInterface::class);
+            $container->method('has')->willReturnCallback(
+                static fn(string $id): bool => array_key_exists($id, $values),
+            );
+            $container->method('get')->willReturnCallback(static fn(string $id): mixed => $values[$id]);
+            self::assertInstanceOf(SkillInstaller::class, $factories[SkillInstaller::class]($container));
+            self::assertSame($explicit ? 0 : 1, RuntimeDefaults::$calls);
+        }
+    }
+
+    /** Human callback reads raw cwd only when selected and retains the configured inspector instance. */
+    public function testWarningFactoryDefersInstallerUntilAnEligibleHumanInvocation(): void
+    {
+        $factories = new ChangelogServiceProvider()->getFactories();
+        $installer = $this->createMock(SkillInstallerInterface::class);
+        $installer->expects(self::once())->method('run')->with(
+            '/chosen',
+            '.agents/skills',
+            false,
+            'check',
+            false,
+        )->willReturn(
+            ['state' => 'outdated'],
+        );
+        $version = $this->createStub(PackageVersionResolverInterface::class);
+        $version->method('resolve')->willReturn('test');
+        $values = [SkillInstallerInterface::class => $installer, PackageVersionResolverInterface::class => $version,
+            CommandLoaderInterface::class => $this->createStub(
+                CommandLoaderInterface::class,
+            ), 'config.changelog.skill_warning_enabled' => true];
+        $lookups = [];
+        $container = $this->createStub(ContainerInterface::class);
+        $container->method('has')->willReturnCallback(static function (string $id) use (
+            &$values
+        ): bool {
+            return array_key_exists(
+                $id,
+                $values,
+            );
+        });
+        $container->method('get')->willReturnCallback(static function (string $id) use (
+            &$values,
+            &$lookups,
+        ): mixed {
+            $lookups[] = $id;
+
+            return $values[$id];
+        });
+        $values[SkillInstallationWarning::class] = $factories[SkillInstallationWarning::class]($container);
+        self::assertNotContains(SkillInstallerInterface::class, $lookups);
+        $app = $factories[Changelog::class]($container);
+        $app->addCommand(
+            new Command('check')->addOption('cwd', 'C', InputOption::VALUE_REQUIRED)->setCode(static fn(): int => 0),
+        );
+        $error = new BufferedOutput();
+        $output = $this->createStub(ConsoleOutputInterface::class);
+        $output->method('getErrorOutput')->willReturn($error);
+        self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check', '--cwd=/chosen']), $output));
+        self::assertStringContainsString('older than', $error->fetch());
+        self::assertSame(
+            1,
+            count(array_filter($lookups, static fn(string $id): bool => SkillInstallerInterface::class === $id)),
+        );
+        self::assertSame(0, RuntimeDefaults::$calls);
+        unset($values['config.changelog.skill_warning_enabled']);
+        $lookups = [];
+        $warning = $factories[SkillInstallationWarning::class]($container);
+        $warning->warn('/unobserved', $error);
+        self::assertSame('', $error->fetch());
+        self::assertNotContains(SkillInstallerInterface::class, $lookups);
+        self::assertGreaterThan(0, RuntimeDefaults::$calls);
     }
 
     #[Test]
@@ -216,7 +330,7 @@ final class ChangelogServiceProviderTest extends TestCase
         $loader = $container->get(CommandLoaderInterface::class);
         self::assertSame($loader, $container->get(ChangelogCommandLoader::class));
         self::assertSame(
-            ['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'],
+            ['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github', 'skill:install'],
             $loader->getNames(),
         );
         $command = $loader->get('status');

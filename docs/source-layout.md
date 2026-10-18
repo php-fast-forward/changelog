@@ -30,6 +30,7 @@ verify that structural contract.
 | `Process` | Structured process construction and credential isolation, independent of Git command semantics. |
 | `Publication` | Approved-commit publication evidence and create-only tag/release reconciliation. |
 | `Release` | Exact plans, receipts, journals, consolidation and application; `Renderer` owns release-note presentation. |
+| `Skill` | Local installation, integrity checks and explicit updates of the one canonical bundled skill; native ownership and recovery evidence, without remote discovery. |
 | `Template` | Validated localized headings and explicit custom presentation. |
 | `Validation` | Contribution-check orchestration and its aggregate report. |
 | `Validator` | Changelog-specific date, fragment and committed-evidence rules. |

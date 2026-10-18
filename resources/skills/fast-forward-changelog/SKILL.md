@@ -1,110 +1,74 @@
 ---
 name: fast-forward-changelog
-description: Adopt Fast Forward Changelog GitHub automation, write and validate independent fragments, preview releases, and use its CLI or PHP services. Use for application changelog integration and approved release maintenance.
+description: Adopt Fast Forward Changelog's GitHub lifecycle, write and check independent fragments, review version PRs, and perform authorized release maintenance. Discover the selected release's documentation and CLI capabilities before choosing integration details.
 license: MIT
-compatibility: Supports fast-forward/changelog ^0.1 (minimum 0.1.0). GitHub automation requires Linux with Docker, Bash and Git; no consumer PHP installation. Local CLI requires PHP ^8.5, Git and CPX; PHP integration requires Composer. GitHub credentials are needed only for authorized remote operations.
+compatibility: Requires access to the application repository and the selected release's documentation. Verify that release's runner or PHP requirements before execution. Local CLI examples use CPX; PHP integration uses the application's Composer installation. GitHub credentials are needed only for authorized remote operations.
 metadata:
   author: php-fast-forward
   source: original
   repository: https://github.com/php-fast-forward/changelog
-  api-baseline: fast-forward/changelog ^0.1 (minimum 0.1.0)
+  api-baseline: Verify the selected published release; commands and integration details are release-specific.
 ---
 
 # Fast Forward Changelog
 
-Adopt one GitHub lifecycle that checks contributions, maintains a PR comment,
-authors verified Dependabot fragments and prepares one `changelog/version` PR.
-Ordinary contributions add independent `.changelog/*.md` files. The version PR
-consolidates them into the single `CHANGELOG.md` and deletes only the consumed
-fragments. With a known GitHub repository, concrete version consolidation also
-completes missing footer links: the oldest version's release/tag and comparisons
-for subsequent versions. Existing references remain intact; unknown repositories
-produce no invented destinations. Keep real release publication disabled during adoption.
+Ordinary contributions add independent `.changelog/*.md` fragments. GitHub
+automation checks each contribution, maintains PR feedback and prepares a
+reviewable version PR. That PR consolidates the accepted fragments into
+`CHANGELOG.md` and deletes only the consumed files. Publication follows a
+separate approval for the exact result; a green check or prepared PR is not that
+approval.
 
-Version automation also resolves missing fragment PR references from verified
-Git history and merged-PR evidence by default. It enriches the rendered notes in
-memory without adding metadata to the fragment or inventing an author or commit
-link. Explicit metadata stays intact. No qualifying PR leaves the description
-alone; failed or ambiguous evidence blocks preparation before writes.
+## Select the real contract
 
-Read applicable application instructions and Git status first. Preserve existing
-work, repository policies, workflows, plugin choices and secrets. This skill
-supports the `fast-forward/changelog ^0.1` product contract from `0.1.0`; earlier
-versions are outside it. For local CLI use, select the supported runtime with
-`cpx --skip-local fast-forward/changelog:^0.1 list --raw`; inspect the relevant
-`help <command>` before choosing flags. PHP API integration instead uses the
-application's Composer installation; inspect `composer show fast-forward/changelog`.
-A mismatch calls for compatible documentation or a separately authorized upgrade.
-Installing this skill copies instructions; it does not install the runtime or
-activate a host session.
+1. Read application instructions, Git status and its existing changelog setup.
+   Use its reviewed version for an ordinary task; do not upgrade it incidentally.
+   If its ref is a moving channel, resolve the current commit and corresponding
+   published full tag before selecting a local runtime. `v0` is not Composer `0`.
+2. For new adoption or a requested update, discover the latest published stable
+   release in the [official repository](https://github.com/php-fast-forward/changelog/releases).
+   Confirm the complete release tag and its commit, exclude drafts/prereleases,
+   and respect any explicitly selected maintenance line. For CPX or PHP use,
+   confirm the same version is available on
+   [Packagist](https://packagist.org/packages/fast-forward/changelog).
+3. Read that tag's README and relevant documentation, not `main` or an old copy
+   of this skill. Before adding a workflow, inspect its
+   `resources/workflows/changelog.yml`, companion README and the reusable workflow
+   they reference. Copy the release's caller, review inputs/permissions and set
+   its product references to that verified full tag or immutable release commit;
+   do not retain an obsolete embedded pin blindly. After setting the final ref,
+   inspect the reusable workflow at that exact ref and confirm its inputs,
+   permissions and runner requirements before saving the application caller.
+   Keep publication
+   disabled for adoption. Change existing integration only within task scope.
+4. For local CLI work, set `CHANGELOG_VERSION` to the verified exact numeric
+   release, without the tag's `v`. Discover commands and inspect their arguments:
 
-## Start with GitHub automation
+   ```sh
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help check
+   ```
 
-Create `.github/workflows/changelog.yml` in the application, using this caller.
-Its `uses` selects the published `v0.1.0` implementation. Review the
-selected revision and update the pin deliberately when adopting another version.
-GitHub requires reusable implementations directly in `.github/workflows`;
-`resources/workflows/changelog.yml` in the library is a copyable caller.
+   Use [CPX's official setup](https://github.com/laravel/cpx) when installation is
+   authorized; do not pin the executor in these commands. `--skip-local` selects
+   its separate tool installation. CPX may handle `--help` or `--version` itself,
+   so use `help <command>` for changelog help. An existing reviewed project binary
+   may be used directly instead. Confirm prerequisites from the chosen release.
 
-```yaml
-name: Changelog
-on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
-  pull_request_target:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, closed]
-  push:
-    branches: [main]
-  workflow_dispatch:
-permissions: {}
-jobs:
-  changelog:
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: read
-      statuses: write
-    uses: php-fast-forward/changelog/.github/workflows/changelog.yml@v0.1.0
-    with:
-      base-branch: main
-      source: tags
-      comment-mode: always
-      prepare-release: true
-      publish: false
-```
+Installing this skill installs instructions, independently of the runtime. If
+the selected CLI offers skill installation/check/update operations, inspect
+their help and use only the supported operation and requested scope. Otherwise
+follow that release's skill-installation guide; do not invent a command.
 
-Adjust both branch filters and `base-branch` to the release branch. Linux runners
-need Docker, Bash and Git; the caller needs no PHP, Composer, Node installation or
-custom shell script. Jobs use `ubuntu-latest` by default; optional `runs-on`
-accepts JSON Linux runner labels. Validate runner-group access before selecting
-an existing self-hosted runner. See the settings reference for all optional inputs.
+This procedure avoids a frozen API inventory. A breaking release can still
+change the lifecycle or these entrypoints: when documentation and capabilities
+disagree, resolve the mismatch before writes rather than guessing compatibility.
 
-Allow Actions to create PRs according to application policy. The default token
-uses each job's narrowed permissions; PR-head checks remain read-only and trusted
-base code handles privileged operations. `GITHUB_TOKEN` requires approval for
-generated PR workflows. For automatic downstream CI, pair `app-client-id` with
-`secrets.app-private-key` and set `automation-actor` to the App's Bot login.
-Each trusted job creates its own scoped token; do not combine this pair with
-the alternative `secrets.token`. Use existing secret storage, never embed keys
-or tokens in YAML. Read the automation reference before changing Bot identity.
-No checkout of untrusted PR code belongs in a privileged custom job.
+## Write and check a contribution
 
-Open a small pilot PR containing a fragment like the next example. Verify the
-exact head's `Fast Forward Changelog` status, its sticky comment and independent
-application checks. Exercise missing/malformed notes and a Dependabot PR, then
-inspect the managed version PR: only central history and consumed deletions,
-without technical plan files, generated comments or a new `Unreleased` section.
-`prepare-release: false` limits an initial pilot to contribution feedback.
-Require the exact status in branch protection with current-head checks.
-The workflow never merges its version PR; `publish: false` remains in place until
-publication is separately authorized for the approved consolidation.
-
-## Record and check an ordinary contribution
-
-Choose a unique lowercase dash-separated filename and create, for example,
-`.changelog/preserve-markdown-spaces.md`:
+Read the change and describe its observable effect. For example, create one
+unique `.changelog/preserve-markdown-spaces.md`:
 
 ```markdown
 ---
@@ -115,110 +79,64 @@ type: patch
 Preserves meaningful Markdown spaces when parsing fragments.
 ```
 
-Read the actual change before choosing its observable description. Preserve
-Markdown bytes and existing notes. Do not invent a release date, issue/PR number,
-author or security outcome. Optional `issue` and `pull_request` are positive
-integers; `author` is an actual GitHub login. Omit unknown identities.
+Keep existing notes and Markdown intact. Use the selected release's fragment
+schema. For the established category scheme, `added`, `changed` and `deprecated`
+default to `minor`, `removed` to `major`, and `fixed`/`security` to `patch`.
+Persist the effective type explicitly; a justified override may express a
+compatible dependency change as `changed`/`patch`. Apply the application's
+versioning policy deliberately, especially during `0.x` development.
 
-| Category | Default SemVer impact |
-| --- | --- |
-| `added`, `changed`, `deprecated` | `minor` |
-| `removed` | `major` |
-| `fixed`, `security` | `patch` |
-
-Persist both `category` and effective `type`. Explicit `major`, `minor` or `patch`
-can override the category default when justified, such as a compatible dependency
-update using `changed`/`patch`. Unknown metadata, conflicting legacy fields,
-nested/hidden fragments and symlinks fail. `.changelog/AGENTS.md` is reserved.
-
-For local authoring, use [CPX](https://github.com/laravel/cpx) with PHP `^8.5`
-and Git available. Obtain the executor through its official installation guide
-when installation is authorized. `--skip-local` selects a separate tool
-installation instead of a project binary; the package constraint keeps this
-skill on its supported `0.1.x` line. It does not add the changelog package to the
-application's Composer dependencies. Installing these instructions with NPX
-Skills is independent of installing or executing CPX.
-
-Run from the application directory:
+After help confirms these arguments, the CLI can create and validate that note
+from the application directory instead of writing the example manually:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
-cpx --skip-local fast-forward/changelog:^0.1 status --json --source=tags --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
 ```
 
-Inspect the generated path: creation adds exactly one fragment without changing
-central history. Empty local inventory is valid; inherited notes do not satisfy
-a new contribution.
-
-When the contribution's origin is already known, optionally record its verified number
-with `add --pull-request=<number>` or `pull_request: <number>` in frontmatter.
-Read the actual PR through the application's existing GitHub tooling, API or
-browser. Confirm its repository, head branch and complete head SHA correspond
-to this contribution, then take the positive number from that PR's canonical
-URL or trusted metadata. An issue number, branch suffix or commit message is
-not sufficient evidence.
-
-With `PULL_REQUEST` set to that verified number, author the same contribution
-with its link:
+Verify that exactly one intended fragment was created and central history stayed
+unchanged. Do not run both authoring routes for the same note. Fix diagnostics
+and rerun the check. Before a committed PR comparison, inspect `help check`,
+fetch the intended baseline under existing authority, then use its supported
+comparison option, for example:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --pull-request="$PULL_REQUEST" --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --since=origin/main --no-interaction
 ```
 
-If the PR number is unknown, keep the field absent. Contribution checks do not
-require it, and opening a PR does not require a follow-up fragment edit or
-commit. Unknown metadata must never block authoring or be filled with an
-invented number.
+That comparison requires committed contribution changes. A local uncommitted
+fragment can pass local validation without satisfying the PR comparison.
 
-The version workflow discovers eligible missing PR references after the
-contribution is merged; ordinary fragments need no later edit. Its optional
-`resolve-pull-requests` input defaults to `true` and must match across preparation,
-ownership checks and publication. Set it to `false` consistently to keep only
-explicit references. Local CLI commands keep discovery disabled unless
-`--resolve-pull-requests` is selected. This is independent of `source: tags`:
-tag-based historical imports do not suppress enabled PR-origin API reads.
+Optional PR/issue/author metadata must come from verified evidence. When the
+origin PR is already known and supported, use `--pull-request=<number>` or
+`pull_request: <number>` after confirming its repository and exact head. Leave
+unknown fields absent; do not invent a number or require a second fragment
+commit after opening a PR. If the selected release resolves PR origins during
+compilation, follow its documented policy consistently across preparation and
+publication. No qualifying PR should become an invented commit or author link.
 
-Ordinary PRs cannot modify/delete inherited fragments or edit/rename central
-history. Explicit human editorial maintenance can replace pending notes only
-through the verified maintenance policy and committed summary proofs described
-in the CLI reference; it grants no release or publication authority.
-`status` is read-only. Successful commands exit `0`; invalid arguments
-exit `2`, validation/operational failures exit `1`. Fix all diagnostics and rerun
-the same check. Do not use an editable label as waiver authority.
+Ordinary work preserves inherited fragments and published history. Do not add a
+new `Unreleased` section. Editorial replacement, history maintenance and release
+consolidation require their own task scope.
 
-After the intended contribution is committed under existing task authority,
-compare its committed PR changes with a fetched, explicit baseline:
+## Verify the lifecycle
 
-```sh
-cpx --skip-local fast-forward/changelog:^0.1 check --since=origin/main --no-interaction
-```
+For adoption, open a small pilot PR and inspect the exact head's required status,
+sticky comment and independent application checks. Exercise a missing or
+malformed note and any enabled bot route. Inspect the generated version PR:
+planned version/impact, exact notes, central-history changes and only the accepted
+fragment deletions. Review again after its head changes. The workflow does not
+merge its own version PR.
 
-This comparison reads the committed baseline-to-`HEAD` diff. An untracked or
-uncommitted fragment is checked by local `check` but cannot satisfy this committed
-contribution check. Without commit authority, leave the reviewed local fragment
-and report that the PR comparison awaits its authorized commit.
+Load only the reference needed for the task:
 
-## Select additional operations
+- [Automation](references/automation.md): selected caller, optional settings,
+  credentials, maintenance lines and pilot verification.
+- [CLI maintenance](references/cli.md): previews, consolidation, history,
+  interrupted transactions and separately authorized publication.
+- [PHP integration](references/php-api.md): release-specific application
+  services and the bundled example, only when programmatic integration is needed.
 
-- Load [the CLI procedure](references/cli.md) for all local commands, explicit
-  fragment commits, release previews, history/templates, recovery or approved
-  publication. `version --check` uses exit `1` for drift as well as failure;
-  inspect its output. Dry runs establish no publication authority.
-- Load [automation settings](references/automation.md) for monorepos, optional
-  individual workflows, credentials, generated-head checks and pilot acceptance.
-- Load [PHP integration](references/php-api.md) when an application needs injected
-  services. It includes the complete [contribution program](examples/contribution.php)
-  with an explicit consumer autoloader and working directory. PHP services are
-  additional entrypoints. Keep the application's existing command-loader
-  arrangement; use domain services without replacing it.
-
-Do not treat an ordinary fragment task as authority to consolidate, commit, push,
-merge, install elsewhere, publish tags/releases or change host configuration.
-Retain authority already given in the current task. Publication uses the exact
-approved merge SHA and verified committed transaction evidence; never infer
-release facts from a moving branch, PR text or commit message alone.
-
-Report changed paths, executed checks and exact observed Git/PR/release identities.
-Keep file distribution, installation, native discovery, session activation and
-successful model task execution as distinct observations.
+Retain authority already given, but do not infer commit, push, merge, installation
+elsewhere or publication authority from an ordinary fragment task. Report changed
+paths, executed checks and the verified version/PR/SHA relevant to the result.

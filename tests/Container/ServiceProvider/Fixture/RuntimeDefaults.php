@@ -11,4 +11,6 @@ final class RuntimeDefaults
     public static string $temporaryDirectory = '/temporary-link';
     public static string|false $resolvedTemporaryDirectory = '/synthetic-temp';
     public static int $calls = 0;
+    public static array $environment = ['HOME' => '/synthetic-home'];
+    public static bool $terminal = false;
 }
