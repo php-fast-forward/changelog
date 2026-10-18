@@ -33,6 +33,7 @@ use FastForward\Changelog\Process;
 use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication;
 use FastForward\Changelog\Release;
+use FastForward\Changelog\Skill;
 use FastForward\Changelog\Template;
 use FastForward\Changelog\Validation;
 use FastForward\Changelog\Validator;
@@ -324,6 +325,51 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function consoleFactories(): array
     {
         return [
+            Skill\SkillInstallerInterface::class => new AliasFactory(Skill\SkillInstaller::class),
+            Skill\SkillInstaller::class => static fn(ContainerInterface $container): Skill\SkillInstaller => new Skill\SkillInstaller(
+                $container->get(\Symfony\Component\Filesystem\Filesystem::class),
+                $container->get(Filesystem\ManagedFileStoreInterface::class),
+                $container->get(Filesystem\Factory\FinderFactoryInterface::class),
+                $container->get(Filesystem\PackagePathResolverInterface::class),
+                $container->get(\Symfony\Component\Lock\LockFactory::class),
+                $container->get(Version\PackageVersionResolverInterface::class),
+                self::configuration(
+                    $container,
+                    'skill_source_directory',
+                    static fn(): string => dirname(__DIR__, 3) . '/resources/skills/' . Skill\SkillInstaller::NAME,
+                ),
+                self::configuration(
+                    $container,
+                    'skill_home_directory',
+                    static fn(): ?string => getenv('HOME') ?: (getenv('USERPROFILE') ?: null),
+                ),
+                self::configuration($container, 'installed_reference', static fn(): ?string => null),
+            ),
+            Console\SkillInstallationWarning::class => static fn(ContainerInterface $container): Console\SkillInstallationWarning => new Console\SkillInstallationWarning(
+                $container->get(Skill\SkillInstallerInterface::class),
+                self::configuration(
+                    $container,
+                    'skill_warning_enabled',
+                    static fn(): bool => defined('STDOUT') && defined('STDERR')
+                    && stream_isatty(STDOUT) && stream_isatty(STDERR) && ! getenv('CI') && ! getenv('GITHUB_ACTIONS'),
+                ),
+            ),
+            Console\Changelog::class => static fn(ContainerInterface $container): Console\Changelog => new Console\Changelog(
+                $container->get(CommandLoaderInterface::class),
+                $container->get(Version\PackageVersionResolverInterface::class),
+                static function (
+                    \Symfony\Component\Console\Input\InputInterface $input,
+                    \Symfony\Component\Console\Output\OutputInterface $error,
+                ) use (
+                    $container
+                ): void {
+                    $cwd = $input->getParameterOption(['--cwd', '-C'], '.');
+                    $container->get(Console\SkillInstallationWarning::class)->warn(
+                        is_string($cwd) ? $cwd : '.',
+                        $error,
+                    );
+                },
+            ),
             Console\PlanCommandRunnerInterface::class => new AliasFactory(
                 Console\PlanCommandRunner::class,
             ),

@@ -148,8 +148,10 @@ The generated API reference supplies exact signatures; the domain guides explain
 [publication](publication.md). [Source namespaces and migration tables](source-layout.md)
 help applications adopting earlier commit snapshots.
 
-Installing the [agent skill](skills.md) copies instructions. It does not install
-the runtime; CPX executes the CLI, and Composer integration exposes PHP classes.
+The [skill installation guide](skills.md) offers native CLI management when the
+selected release provides it, or installation through NPX Skills. It owns the
+installation/check/update procedure and scope choices. Installing instructions
+is separate from executing the CLI or exposing PHP classes through Composer.
 
 ---
 

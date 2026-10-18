@@ -56,7 +56,7 @@ final class ChangelogCommandLoaderTest extends TestCase
         $container->expects(self::never())->method('get');
         $loader = new ChangelogCommandLoader($container);
         self::assertSame([
-            'add','check','status','version','notes','publish','backfill','format','github'],
+            'add','check','status','version','notes','publish','backfill','format','github','skill:install'],
             $loader->getNames(),
         );
         self::assertTrue($loader->has('add'));

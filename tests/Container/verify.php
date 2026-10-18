@@ -142,7 +142,18 @@ try {
         'The image must contain installed production dependencies without test tools, Composer or an action script.',
     );
     $listing = $cli(['list', '--raw'])['stdout'];
-    foreach (['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github'] as $name) {
+    foreach ([
+        'add',
+        'check',
+        'status',
+        'version',
+        'notes',
+        'publish',
+        'backfill',
+        'format',
+        'github',
+        'skill:install',
+    ] as $name) {
         verify(
             1 === preg_match('/^' . preg_quote($name, '/') . '\\s+/m', $listing),
             'Missing packaged CLI command: ' . $name,
@@ -163,6 +174,41 @@ try {
     verify(
         $beforeMissingMessage === snapshot($fixtureRoot . '/project'),
         'Missing add input must not create consumer files.',
+    );
+    $skillPreview = json_decode(
+        $cli(['skill:install', '--cwd=project', '--dry-run', '--json'])['stdout'],
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    verify(
+        'install' === $skillPreview['action'] && !is_dir($fixtureRoot . '/project/.agents'),
+        'Image skill preview must not write.',
+    );
+    $skillInstall = json_decode(
+        $cli(['skill:install', '--cwd=project', '--json'])['stdout'],
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    verify('installed' === $skillInstall['state'], 'Image must contain and install the complete canonical skill.');
+    $nativeSkill = $fixtureRoot . '/project/.agents/skills/fast-forward-changelog';
+    $receipt = json_decode(
+        file_get_contents($nativeSkill . '/.fast-forward-install.json'),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    foreach ($receipt['files'] as $path => $hash) {
+        verify(
+            $hash === hash_file('sha256', dirname(__DIR__, 2) . '/resources/skills/fast-forward-changelog/' . $path),
+            'Image skill payload differs from the build source: ' . $path,
+        );
+    }
+    verify(
+        'current' === json_decode(
+            $cli(['skill:install', '--cwd=project', '--check', '--json'])['stdout'],
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        )['state'],
+        'Image native skill must pass its own read-only check.',
     );
 
     $git(['init', '--initial-branch=main']);
