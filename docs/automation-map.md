@@ -11,7 +11,7 @@ All seven public reusable paths remain stable:
 
 | Reusable workflow | Responsibility |
 | --- | --- |
-| [`changelog.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog.yml) | Recommended entrypoint: routes contribution checks, PR feedback, Dependabot fragments, version preparation and optional publication. |
+| [`changelog.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog.yml) | Recommended entrypoint: routes contribution checks, PR feedback, Dependabot fragments, version preparation and approved-merge publication by default. |
 | [`changelog-check.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-check.yml) | Read-only contribution validation at the exact PR head and base. |
 | [`changelog-pr-status.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-pr-status.yml) | Trusted exact-head status and one sticky PR comment. |
 | [`changelog-dependabot.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-dependabot.yml) | Verified dependency metadata and a deterministic dependency-update fragment. |
@@ -23,6 +23,12 @@ The six individual operations are available for advanced composition; ordinary
 adoption needs only the entrypoint. The lifecycle does not schedule historical
 backfill or formatting automatically. See [the lifecycle guide](reusable-lifecycle.md)
 and [operation contracts](github-actions.md).
+
+The lifecycle defaults to `publish: true`: a reviewed managed version PR's merge
+creates its version tag and GitHub Release after verification. Use explicit
+`publish: false` for validation without either write. Later preparations continue
+from committed history even when its previous version has no tag; the workflow
+does not publish those earlier consolidated versions retroactively.
 
 GitHub requires reusable workflow files directly in `.github/workflows` and
 does not support a subdirectory there. Moving their implementation into
@@ -104,10 +110,12 @@ A shared managed branch is refused when another base already owns it. Version
 and publication serialize per repository/base; distinct locks do not make a
 shared managed branch safe. Conflicting ref writes require inspection before retry.
 
-Only tags ancestral to the selected base establish its baseline. Branch names
-do not enforce a major range: merging complete 2.x history into 1.x, even with
-the `ours` strategy, can make the 2.x tag reachable there. Backport selected
-commits and verify the planned major; there is no `expected-major` guard.
+The greatest stable version in the selected base's committed central history or
+ancestral stable tags establishes its baseline. Branch names do not enforce a
+major range: merging complete 2.x history into 1.x, even with the `ours` strategy,
+can make a 2.x tag reachable there. Importing later-major central history can
+also advance that baseline. Backport selected commits and verify the planned
+major; there is no `expected-major` guard.
 Local recovery journals remain scoped to their consumer working tree. Two
 lines can share an options fingerprint while their exact base SHA and consumed
 hashes still identify different transactions.

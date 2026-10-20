@@ -96,8 +96,11 @@ used across Fast Forward PHP packages.
   `base-branch` and a different `managed-branch` for each line. Backport selected
   fixes rather than merging a later major's complete history into an older line.
   Confirm the planned current and next major during review: branch names do not
-  impose a SemVer range; only stable tags ancestral to the selected base establish
-  its baseline. See [parallel maintenance](docs/automation-map.md#parallel-maintenance-lines).
+  impose a SemVer range. The greatest stable version in committed source history
+  or stable tags ancestral to the selected base establishes its baseline. History
+  records consolidated version state; tags establish publication. Missing publication
+  never blocks a later version PR or authorizes retroactive publication. See
+  [parallel maintenance](docs/automation-map.md#parallel-maintenance-lines).
 - Keep concrete release tags immutable. Optional `v1`/`v2` channel refs identify
   already published commits; they are not maintenance branches and cannot replace
   concrete tags as version evidence. Configuring or moving channels is a separate
@@ -160,5 +163,6 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
 - [Release-channel operation](.github/update-release-channels.md): maintains published major branches with exact tag/commit evidence and conditional ref updates; never creates releases or moves concrete tags.
-- [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; publication starts disabled.
+- [Workflow reference](docs/workflow-reference.md): lists public inputs, defaults, secrets, outputs and permissions; publication defaults to enabled after an approved version-PR merge, while `publish: false` is an explicit validation choice.
+- [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; copying a workflow does not grant merge or publication authority.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

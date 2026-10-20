@@ -29,8 +29,11 @@ use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Template\TemplateResolverInterface;
 use FastForward\Changelog\Validator\PublicationEvidenceValidator;
+use FastForward\Changelog\Version\NextVersionResolver;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
+use FastForward\Changelog\Version\VersionBaselineResolver;
 use FastForward\Changelog\Version\VersionImpact;
+use FastForward\Changelog\Version\VersionImpactResolver;
 use FastForward\Changelog\Version\VersionResolution;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -45,6 +48,9 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ChangesetParseResult::class)]
 #[UsesClass(Category::class)]
 #[UsesClass(VersionImpact::class)]
+#[UsesClass(VersionBaselineResolver::class)]
+#[UsesClass(NextVersionResolver::class)]
+#[UsesClass(VersionImpactResolver::class)]
 #[UsesClass(VersionResolution::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryReferenceBuilder::class)]
@@ -615,43 +621,138 @@ final class PublicationEvidenceValidatorTest extends TestCase
         self::assertSame(0, $state['parser_calls']);
     }
 
-    /** Consuming fresh fragments cannot skip a maintained release that still lacks its reachable stable Git tag. */
+    /** Committed maintained version state remains the source baseline even when previous publication was delayed. */
     #[DataProvider('pendingSourceVersions')]
-    public function testPublicationCannotSkipPendingStableRelease(string $pending): void
-    {
+    public function testPublicationReconstructsTheVersionAfterAnUnpublishedConsolidation(
+        string $pending,
+        string $next,
+    ): void {
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
         $state = $this->state($options);
-        $state['next'] = '1.1.0';
+        $state['current'] = preg_replace('/^[vV](?=\d)/', '', $pending);
+        $state['next'] = $next;
         $state['impact'] = VersionImpact::Minor;
         $section = new HistoryRelease($pending, body: 'Prepared previously without publication');
         $state['base_doc'] = $state['base_doc']->withReleases([$section, ...$state['base_doc']->getReleases()]);
         $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
         $state['approved_doc'] = $state['base_doc']->withReleases(
-            [new HistoryRelease('1.1.0', '2026-10-03', null, "Exact  notes\n"), ...$state['base_doc']->getReleases()],
+            [new HistoryRelease($next, '2026-10-03', null, "Exact  notes\n"), ...$state['base_doc']->getReleases()],
         );
         $this->refreshApproved($state);
-        $this->failure($options, $state, 'awaiting its reachable stable Git tag');
-        self::assertSame(0, $state['parser_calls']);
-        self::assertSame([], $state['resolved_ids']);
+        $evidence = $this->validator($state)->validate($options, self::APPROVED);
+
+        self::assertSame($next, $evidence->version);
+        self::assertSame('v' . $next, $evidence->tag);
+        self::assertSame(['a.md', 'b.md'], $state['resolved_ids']);
+        self::assertContains($pending, $state['rendered_versions']);
     }
 
     /** Supplies ordinary, prefixed and arbitrary-width stable pending identities independently of resolved next impact. */
     public static function pendingSourceVersions(): iterable
     {
-        yield ['1.0.1'];
-        yield ['v1.0.1'];
-        yield ['1000000000000000000000000000000000000000.0.0+prepared'];
+        yield ['1.0.1', '1.1.0'];
+        yield ['v1.0.1', '1.1.0'];
+        yield ['1000000000000000000000000000000000000000.0.0+prepared', '1000000000000000000000000000000000000000.1.0'];
     }
 
-    /** The no-tag sentinel cannot prove that an existing maintained zero release was published. */
+    /** The actual numeric resolver reconstructs a patch after delayed publication and still rejects rewritten prior notes. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRealVersionCalculationUsesCommittedHistoryAndRequiresItsExactPreservation(
+        bool $rewritePrior,
+    ): void {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $state['real_versions'] = true;
+        $state['tags'] = [['name' => 'v1.7.0', 'sha' => str_repeat('c', 40), 'date' => null, 'date_source' => null]];
+        $prior = new HistoryRelease('1.7.1', '2026-10-01', null, "Previously consolidated.  \n");
+        $state['base_doc'] = $state['base_doc']->withReleases([
+            $prior,
+            new HistoryRelease('1.7.0', '2026-09-01', null, 'Earlier published notes'),
+        ]);
+        $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
+        $approvedPrior = $rewritePrior ? new HistoryRelease('1.7.1', '2026-10-01', null, 'Silently rewritten') : $prior;
+        $state['approved_doc'] = $state['base_doc']->withReleases([
+            new HistoryRelease('1.7.2', '2026-10-03', null, "Exact  notes\n"),
+            $approvedPrior,
+            $state['base_doc']->getReleases()[1],
+        ]);
+        $this->refreshApproved($state);
+
+        if ($rewritePrior) {
+            $this->failure($options, $state, 'canonical consolidation');
+
+            return;
+        }
+        $evidence = $this->validator($state)->validate($options, self::APPROVED);
+
+        self::assertSame('1.7.2', $evidence->version);
+        self::assertSame('v1.7.2', $evidence->tag);
+        self::assertSame(self::APPROVED, $evidence->sha);
+        self::assertSame("Exact  notes\n", $evidence->notes);
+        self::assertSame(2, $state['parser_calls']);
+        self::assertSame(['1.7.2', '1.7.1', '1.7.0'], $state['rendered_versions']);
+    }
+
+    /** Reconstruction uses reachable tags while preserving custom links and accepting the exact legacy completion form. */
+    #[TestWith([false, false, false])]
+    #[TestWith([false, true, false])]
+    #[TestWith([true, false, false])]
+    #[TestWith([false, false, true])]
+    public function testPublicationReferencePoliciesRequireExactApprovedForms(
+        bool $wrongBase,
+        bool $existingLink,
+        bool $legacy,
+    ): void {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $state['real_versions'] = true;
+        $state['tags'] = [['name' => 'v1.7.0', 'sha' => str_repeat('c', 40), 'date' => null, 'date_source' => null]];
+        $footer = $existingLink ? "[1.7.1]: https://custom.test/retained\r\n" : '';
+        $state['base_doc'] = new HistoryDocument([
+            new HistoryRelease('1.7.1', body: 'Maintained without publication'),
+            new HistoryRelease('1.7.0', body: 'Published earlier'),
+        ], 'Original introduction', $footer);
+        $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
+        $state['approved_doc'] = $state['base_doc']->withReleases([
+            new HistoryRelease('1.7.2', '2026-10-03', null, "Exact  notes\n"),
+            ...$state['base_doc']->getReleases(),
+        ]);
+        $newline = $existingLink ? "\r\n" : "\n";
+        $state['approved_doc'] = $state['approved_doc']->withReferences(
+            ($existingLink ? '' : "\n")
+            . "[1.7.2]: https://github.com/owner/repo/compare/v1.7." . ($wrongBase ? '1' : '0') . "...v1.7.2" . $newline
+            . $footer . '[1.7.0]: https://github.com/owner/repo/releases/tag/v1.7.0' . $newline,
+        );
+        if ($legacy) {
+            $state['approved_doc'] = new HistoryReferenceBuilder()->complete(
+                $state['approved_doc']->withReferences($footer),
+                'owner/repo',
+            );
+        }
+        $this->refreshApproved($state);
+
+        if ($wrongBase) {
+            $this->failure($options, $state, 'canonical consolidation');
+
+            return;
+        }
+
+        $evidence = $this->validator($state)->validate($options, self::APPROVED);
+
+        self::assertSame('1.7.2', $evidence->version);
+        self::assertSame($state['approved_doc']->getReferences(), $state['rendered_references']);
+        self::assertSame(0, $state['live_reads']);
+    }
+
+    /** An existing zero release supplies a baseline without requiring absent or unrelated tags to prove publication. */
     #[DataProvider('unpublishedZeroTagSets')]
-    public function testZeroSourceReleaseRequiresAnActualReachableStableTag(array $tags): void
+    public function testZeroSourceReleaseDoesNotRequireAReachableStableTag(array $tags): void
     {
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
         $state = $this->zeroBaselineState($options, true, $tags);
-        $this->failure($options, $state, 'awaiting its reachable stable Git tag: 0.0.0');
-        self::assertSame(0, $state['parser_calls']);
-        self::assertSame([], $state['resolved_ids']);
+        self::assertSame('0.0.1', $this->validator($state)->validate($options, self::APPROVED)->version);
+        self::assertSame(['a.md', 'b.md'], $state['resolved_ids']);
         self::assertSame(1, $state['tags_calls']);
     }
 
@@ -694,6 +795,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
         $state = $this->state($options);
         $section = new HistoryRelease('1.0.0+prepared', body: 'Preserved same-core build history');
+        $state['current'] = '1.0.0+prepared';
         $state['base_doc'] = $state['base_doc']->withReleases([...$state['base_doc']->getReleases(), $section]);
         $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
         $state['approved_doc'] = $state['approved_doc']->withReleases(
@@ -880,6 +982,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
 
                 break;
             case 'existing-next': $state['base_doc'] = $state['approved_doc'];
+                $state['current'] = '1.0.1';
                 $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
 
                 break;
@@ -935,7 +1038,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
         yield ['fragment-pending', 'still exists at the approved'];
         yield ['next-version', 'no section for the computed'];
         yield ['resolution', 'does not resolve a valid'];
-        yield ['existing-next', 'awaiting its reachable stable Git tag'];
+        yield ['existing-next', 'already exists in the source-base'];
         yield ['non-incrementing-next', 'already exists in the source-base'];
         foreach ([
             'extra-base-fragment',
@@ -1286,6 +1389,9 @@ final class PublicationEvidenceValidatorTest extends TestCase
 
             return new VersionResolution($state['next'], $state['impact'], $state['resolution_errors']);
         });
+        if ($state['real_versions'] ?? false) {
+            $versions = new NextVersionResolver(new VersionImpactResolver());
+        }
         $github = $this->createMock(GitHubClientInterface::class);
         $github->expects(self::never())->method('request');
         $github->expects(self::never())->method('paginate')->willReturn($state['remote_history'] ?? []);

@@ -25,7 +25,6 @@ use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
-use FastForward\Changelog\Release\PendingPublicationException;
 use FastForward\Changelog\Release\ReceiptCodec;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
@@ -46,6 +45,7 @@ use FastForward\Changelog\Validator\ReleaseDateValidator;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use FastForward\Changelog\Version\NextVersionResolver;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
+use FastForward\Changelog\Version\VersionBaselineResolver;
 use FastForward\Changelog\Version\VersionImpact;
 use FastForward\Changelog\Version\VersionImpactResolver;
 use FastForward\Changelog\Version\VersionResolution;
@@ -59,7 +59,7 @@ use RuntimeException;
 
 #[CoversClass(ReleasePlanner::class)]
 #[UsesClass(ReleaseOptions::class)]
-#[UsesClass(PendingPublicationException::class)]
+#[UsesClass(VersionBaselineResolver::class)]
 #[UsesClass(ReleasePlan::class)]
 #[UsesClass(ReleaseHistoryConsolidator::class)]
 #[UsesClass(ReleaseReceipt::class)]
@@ -197,26 +197,78 @@ final class ReleasePlannerTest extends TestCase
         self::assertStringNotContainsString('Unreleased', $plan->changelogContents);
     }
 
-    /** Without tags, maintained stable history is preserved on no-op and blocks a new release for every source. */
+    /** Maintained history establishes version state even while its tag/release publication remains absent. */
     #[TestWith(['tags'])]
     #[TestWith(['github'])]
     #[TestWith(['auto'])]
-    public function testExistingStableHistoryWithoutTagsIsPreservedButCannotBeIncremented(string $source): void
+    public function testExistingStableHistoryWithoutTagsCanBeIncrementedWithoutChangingPriorNotes(string $source): void
     {
         $original = "# Existing history\r\n\r\n## [1.0.0] - 2026-09-01\r\n\r\nOld notes.  \r\n\r\n"
             . "[1.0.0]: https://custom.test/first \"Title\"\r\n";
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: $source);
         $plan = $this->markdownPlanner($original, [], false)->plan($options);
 
-        self::assertSame('0.0.0', $plan->currentVersion);
+        self::assertSame('1.0.0', $plan->currentVersion);
         self::assertNull($plan->nextVersion);
         self::assertSame($original, $plan->changelogContents);
         self::assertSame([], $plan->consumed);
         self::assertSame([], $plan->historicalVersions);
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Maintained release 1.0.0 is awaiting its reachable stable Git tag');
+        $next = $this->markdownPlanner($original, [])->plan($options);
 
-        $this->markdownPlanner($original, [])->plan($options);
+        self::assertSame('1.0.0', $next->currentVersion);
+        self::assertSame('1.0.1', $next->nextVersion);
+        self::assertStringContainsString(
+            "## [1.0.0] - 2026-09-01\r\n\r\nOld notes.  \r\n\r\n",
+            $next->changelogContents,
+        );
+        self::assertStringContainsString('[1.0.0]: https://custom.test/first "Title"', $next->changelogContents);
+        self::assertStringContainsString(
+            '[1.0.1]: https://github.com/owner/repo/releases/tag/v1.0.1',
+            $next->changelogContents,
+        );
+    }
+
+    /** Delayed publication never duplicates a consolidated version or consumes its prior notes as new fragments. */
+    #[TestWith([VersionImpact::Patch, '1.7.2'])]
+    #[TestWith([VersionImpact::Minor, '1.8.0'])]
+    #[TestWith([VersionImpact::Major, '2.0.0'])]
+    public function testNewFragmentsAdvanceBeyondCommittedHistoryWhileTheLastTagLags(
+        VersionImpact $impact,
+        string $expected,
+    ): void {
+        $prior = "## [1.7.1] - 2026-10-01\r\n\r\n### Fixed\r\n\r\n- Previously consolidated.  \r\n\r\n"
+            . "## [1.7.0] - 2026-09-01\r\n\r\nEarlier published notes.\r\n\r\n";
+        $original = "# Maintained history\r\n\r\n" . $prior;
+        $tags = [['name' => 'v1.7.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null]];
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo', source: 'tags');
+        $plan = $this->markdownPlanner($original, $tags, impact: $impact)->plan($options);
+
+        self::assertSame('1.7.1', $plan->currentVersion);
+        self::assertSame($expected, $plan->nextVersion);
+        self::assertStringContainsString($prior, $plan->changelogContents);
+        self::assertSame(1, substr_count($plan->changelogContents, '- Previously consolidated.'));
+        self::assertSame(1, substr_count($plan->changelogContents, '- Fresh fix.'));
+        self::assertCount(1, $plan->consumed);
+        self::assertSame([], $plan->historicalVersions);
+
+        self::assertStringContainsString(
+            '[' . $expected . ']: https://github.com/owner/repo/compare/v1.7.0...v' . $expected,
+            $plan->changelogContents,
+        );
+        self::assertStringNotContainsString('[1.7.1]:', $plan->changelogContents);
+
+        $following = $this->markdownPlanner($plan->changelogContents, $tags)->plan($options);
+        $next = new NextVersionResolver(new VersionImpactResolver())->resolve($expected, [
+            new Changeset('next.md', Category::Fixed, null, null, null, 'Fresh fix.'),
+        ])->nextVersion;
+
+        self::assertSame($expected, $following->currentVersion);
+        self::assertSame($next, $following->nextVersion);
+        self::assertStringContainsString($prior, $following->changelogContents);
+        self::assertStringContainsString(
+            '[' . $next . ']: https://github.com/owner/repo/compare/v1.7.0...v' . $next,
+            $following->changelogContents,
+        );
     }
 
     /** A legacy pending section is not a published release and can become the first concrete version without any tag. */
@@ -534,28 +586,36 @@ final class ReleasePlannerTest extends TestCase
         $planner->plan(new ReleaseOptions('/consumer'));
     }
 
-    /** A fresh checkout cannot skip an unpublished patch simply because the next fragment requests a minor or major. */
+    /** A fresh checkout uses the committed stable section before applying the next explicit fragment impact. */
     #[TestWith(['1.1.0', 'minor'])]
     #[TestWith(['2.0.0', 'major'])]
-    public function testFreshCheckoutBlocksAnotherImpactWhileMaintainedReleaseAwaitsTag(
+    public function testFreshCheckoutUsesMaintainedVersionWhilePublicationIsPending(
         string $next,
         string $impact,
     ): void {
         $document = new HistoryDocument([new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0')]);
         [$planner, $parts] = $this->planner(['document' => $document, 'fragments' => true, 'nextVersion' => $next,
             'impact' => VersionImpact::from($impact), 'versionsMock' => true, 'clockMock' => true]);
-        $parts['versions']->expects(self::never())->method('resolve');
-        $parts['clock']->expects(self::never())->method('now');
-        $parts['plans']->expects(self::never())->method('create');
-        $this->expectException(PendingPublicationException::class);
-        $this->expectExceptionMessage('Maintained release 1.0.1 is awaiting its reachable stable Git tag');
-        $planner->plan(new ReleaseOptions('/consumer'));
+        $parts['versions']->expects(self::once())->method('resolve')->with('1.0.1', self::isArray())
+            ->willReturn(new VersionResolution($next, VersionImpact::from($impact), []));
+        $parts['clock']->expects(self::once())->method('now')->willReturn(new DateTimeImmutable('2026-10-04'));
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(static function (...$arguments) use (
+            $parts,
+            $next,
+        ): ReleasePlan {
+            self::assertSame('1.0.1', $arguments[2]);
+            self::assertSame($next, $arguments[3]);
+
+            return $parts['plan'];
+        });
+
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
-    /** Every maintained stable section is checked despite custom presentation order, a v prefix or imported history. */
+    /** All stable sections participate regardless of presentation order, a conventional prefix or import position. */
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testPendingSectionOutsideFirstPositionAlsoBlocksAnIndependentVersion(bool $imported): void
+    public function testMaintainedSectionOutsideFirstPositionEstablishesTheBaseline(bool $imported): void
     {
         $document = new HistoryDocument([
             new HistoryRelease('unreleased'),
@@ -570,27 +630,29 @@ final class ReleasePlannerTest extends TestCase
         ]);
         [$planner, $parts] = $this->planner(['document' => $imported ? $document : $maintained,
             'importedDocument' => $maintained, 'fragments' => true, 'versionsMock' => true]);
-        $parts['versions']->expects(self::never())->method('resolve');
-        $parts['plans']->expects(self::never())->method('create');
-        $this->expectExceptionMessage('Maintained release v1.0.1+build.5 is awaiting');
-        $planner->plan(new ReleaseOptions('/consumer', template: 'custom.php'));
+        $parts['versions']->expects(self::once())->method('resolve')->with('1.0.1+build.5', self::isArray())
+            ->willReturn(new VersionResolution('1.0.2', VersionImpact::Patch, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer', template: 'custom.php')));
     }
 
-    /** Preexisting history cannot substitute for a real stable tag when adopting an untagged repository. */
+    /** A maintained stable identity supplies version state without claiming publication or creating a tag. */
     public function testPreexistingStableHistoryWithNoPublishedBaselineIsNotImplicitlyPublished(): void
     {
         [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('0.1.0')]),
             'currentVersion' => '0.0.0', 'tags' => [], 'fragments' => true, 'versionsMock' => true]);
-        $parts['versions']->expects(self::never())->method('resolve');
-        $parts['plans']->expects(self::never())->method('create');
-        $this->expectExceptionMessage('Maintained release 0.1.0 is awaiting');
-        $planner->plan(new ReleaseOptions('/consumer'));
+        $parts['versions']->expects(self::once())->method('resolve')->with('0.1.0', self::isArray())
+            ->willReturn(new VersionResolution('0.1.1', VersionImpact::Patch, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
-    /** The empty-tag 0.0.0 sentinel cannot unlock an untagged maintained 0.0.0 section. */
+    /** An untagged zero section remains valid version state while unrelated tags stay excluded. */
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testZeroMaintainedReleaseRequiresAnActualReachableStableTag(bool $unrelatedTag): void
+    public function testZeroMaintainedReleaseDoesNotRequirePublication(bool $unrelatedTag): void
     {
         $tags = $unrelatedTag ? [['name' => 'v0.0.0', 'sha' => str_repeat(
             '9',
@@ -599,11 +661,12 @@ final class ReleasePlannerTest extends TestCase
         [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease('0.0.0')]),
             'currentVersion' => '0.0.0', 'tags' => $tags, 'fragments' => true, 'nextVersion' => '0.0.1',
             'versionsMock' => true, 'clockMock' => true]);
-        $parts['versions']->expects(self::never())->method('resolve');
-        $parts['clock']->expects(self::never())->method('now');
-        $parts['plans']->expects(self::never())->method('create');
-        $this->expectExceptionMessage('Maintained release 0.0.0 is awaiting its reachable stable Git tag');
-        $planner->plan(new ReleaseOptions('/consumer'));
+        $parts['versions']->expects(self::once())->method('resolve')->with('0.0.0', self::isArray())
+            ->willReturn(new VersionResolution('0.0.1', VersionImpact::Patch, []));
+        $parts['clock']->expects(self::once())->method('now')->willReturn(new DateTimeImmutable('2026-10-04'));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
     /** An actual published zero tag and genuinely empty initial history both permit the first patch. */
@@ -638,10 +701,11 @@ final class ReleasePlannerTest extends TestCase
         $pending = '1000000000000000000000000000000.0.0';
         [$planner, $parts] = $this->planner(['document' => new HistoryDocument([new HistoryRelease($pending)]),
             'currentVersion' => $current, 'fragments' => true, 'versionsMock' => true]);
-        $parts['versions']->expects(self::never())->method('resolve');
-        $parts['plans']->expects(self::never())->method('create');
-        $this->expectExceptionMessage('Maintained release ' . $pending . ' is awaiting');
-        $planner->plan(new ReleaseOptions('/consumer'));
+        $parts['versions']->expects(self::once())->method('resolve')->with($pending, self::isArray())
+            ->willReturn(new VersionResolution('1000000000000000000000000000000.0.1', VersionImpact::Patch, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
     /** Tagged baseline, older releases, build precedence and prerelease/unreleased sections do not block a new version. */
@@ -677,8 +741,8 @@ final class ReleasePlannerTest extends TestCase
         self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
-    /** A same-named stable tag on another branch cannot unlock the maintained pending version. */
-    public function testUnrelatedMatchingTagCannotUnlockMaintainedPendingRelease(): void
+    /** An unrelated tag is excluded even when approved history independently establishes the same baseline. */
+    public function testUnrelatedMatchingTagCannotEstablishTheMaintainedBaseline(): void
     {
         $reachable = ['name' => 'v1.0.0', 'sha' => self::SHA, 'date' => null, 'date_source' => null];
         $unrelated = ['name' => 'v1.0.1', 'sha' => str_repeat('9', 40), 'date' => null, 'date_source' => null];
@@ -688,10 +752,11 @@ final class ReleasePlannerTest extends TestCase
         $parts['importer']->expects(self::once())->method('currentVersion')->with([$reachable], 'v')->willReturn(
             '1.0.0',
         );
-        $parts['versions']->expects(self::never())->method('resolve');
-        $parts['plans']->expects(self::never())->method('create');
-        $this->expectExceptionMessage('Maintained release 1.0.1 is awaiting');
-        $planner->plan(new ReleaseOptions('/consumer'));
+        $parts['versions']->expects(self::once())->method('resolve')->with('1.0.1', self::isArray())
+            ->willReturn(new VersionResolution('1.0.2', VersionImpact::Patch, []));
+        $parts['plans']->expects(self::once())->method('create')->willReturn($parts['plan']);
+
+        self::assertSame($parts['plan'], $planner->plan(new ReleaseOptions('/consumer')));
     }
 
     /** Pending publication never blocks history maintenance or invents a new version when there are no fragments. */
@@ -819,8 +884,12 @@ final class ReleasePlannerTest extends TestCase
     }
 
     /** Exercises the real pure Markdown/version pipeline with synthetic Git, filesystem, network and clock boundaries. */
-    private function markdownPlanner(?string $original, array $tags, bool $pending = true): ReleasePlanner
-    {
+    private function markdownPlanner(
+        ?string $original,
+        array $tags,
+        bool $pending = true,
+        VersionImpact $impact = VersionImpact::Patch,
+    ): ReleasePlanner {
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturnCallback(static fn(string $path): string => '/consumer/' . $path);
         $files = $this->createMock(ManagedFileStoreInterface::class);
@@ -845,7 +914,7 @@ final class ReleasePlannerTest extends TestCase
         $templates->method('resolve')->willReturn($template);
         $validator = $this->createStub(ChangesetValidatorInterface::class);
         $validator->method('validate')->willReturn(new ValidationReport(
-            $pending ? [new Changeset('fix.md', Category::Fixed, null, null, null, 'Fresh fix.')] : [],
+            $pending ? [new Changeset('fix.md', Category::Fixed, null, null, null, 'Fresh fix.', $impact)] : [],
             [],
             false,
             $pending ? ['/consumer/.changelog/fix.md' => hash('sha256', 'accepted fragment')] : [],
@@ -996,15 +1065,17 @@ final class ReleasePlannerTest extends TestCase
         ) : $this->createStub(
             NextVersionResolverInterface::class,
         );
-        $versions->method('resolve')->willReturn(
-            'semver' === ($settings['failure'] ?? '') ? new VersionResolution(null, null, [
-                'invalid tag',
-            ]) : new VersionResolution(
-                $settings['nextVersion'] ?? '1.0.1',
-                $settings['impact'] ?? VersionImpact::Patch,
-                [],
-            ),
-        );
+        if (!($settings['versionsMock'] ?? false)) {
+            $versions->method('resolve')->willReturn(
+                'semver' === ($settings['failure'] ?? '') ? new VersionResolution(null, null, [
+                    'invalid tag',
+                ]) : new VersionResolution(
+                    $settings['nextVersion'] ?? '1.0.1',
+                    $settings['impact'] ?? VersionImpact::Patch,
+                    [],
+                ),
+            );
+        }
         $renderer = $settings['renderer'] ?? $this->createStub(ReleaseNotesRendererInterface::class);
         if (!isset($settings['renderer'])) {
             $renderer->method('render')->willReturn('Rendered fragments');

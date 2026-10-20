@@ -88,6 +88,7 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(GitHubOutputWriter::class)]
 #[UsesClass(GitHubClient::class)]
+#[UsesClass(\FastForward\Changelog\Version\VersionBaselineResolver::class)]
 #[UsesClass(PublicationService::class)]
 #[UsesClass(PublicationEvidenceValidator::class)]
 #[UsesClass(RandomIdentifierGenerator::class)]

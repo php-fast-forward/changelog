@@ -452,8 +452,8 @@ foreach ($feedback['jobs']['status']['steps'] as $step) {
 }
 
 verifyWorkflow(
-    false === $lifecycle['on']['workflow_call']['inputs']['publish']['default'],
-    'Publication must remain opt-in during adoption.',
+    true === $lifecycle['on']['workflow_call']['inputs']['publish']['default'],
+    'The normal lifecycle must publish approved merges unless the consumer explicitly disables publication.',
 );
 verifyWorkflow(
     'always' === $lifecycle['on']['workflow_call']['inputs']['comment-mode']['default'],
@@ -527,7 +527,7 @@ foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-p
     );
     foreach ($workflow['jobs'] as $name => $job) {
         if ('changelog' === $entrypoint) {
-            if ('check' !== $name) {
+            if ('check' !== $name && isset($job['uses'])) {
                 verifyWorkflow(
                     '${{ inputs.app-client-id }}' === $job['with']['app-client-id']
                         && '${{ secrets.app-private-key }}' === $job['secrets']['app-private-key']
@@ -1013,6 +1013,97 @@ $channelFixtures->setTimeout(120);
 $channelFixtures->mustRun();
 echo $channelFixtures->getOutput();
 $assertions += 2;
+
+$report = $lifecycle['jobs']['report'];
+verifyWorkflow(
+    ['version', 'publish'] === $report['needs']
+        && str_contains($report['if'], '!cancelled()')
+        && [] === $report['permissions']
+        && '${{ fromJSON(inputs.runs-on) }}' === $report['runs-on'],
+    'The lifecycle report must observe both stages even after failure or skips without requesting API permissions.',
+);
+++$assertions;
+$summaryStep = workflowStep($report, 'Summarize The Lifecycle Without Changing Its Outcome');
+verifyWorkflow(
+    '${{ inputs.prepare-release }}' === $summaryStep['env']['FF_PREPARATION_ENABLED'],
+    'The visible summary must receive the configured preparation setting.',
+);
+++$assertions;
+$summaryDirectory = sys_get_temp_dir() . '/changelog-summary-' . bin2hex(random_bytes(6));
+$filesystem->mkdir($summaryDirectory);
+try {
+    foreach ([
+        ['success', 'skipped', 'true', 'true', 'false', 'created', '', 'Automatic publication is enabled.', ''],
+        ['success', 'skipped', 'true', 'false', 'false', 'created', '', 'Publication is disabled', '::warning::'],
+        ['skipped', 'success', 'true', 'true', 'false', '', 'published', 'Publication result: `published`.', ''],
+        ['skipped', 'failure', 'true', 'true', 'false', '', '', 'Action required', '::error::'],
+        ['failure', 'skipped', 'true', 'true', 'false', '', '', 'Action required', '::error::'],
+        ['success', 'skipped', 'true', 'true', 'true', 'dry-run', '', 'Preview only', ''],
+        ['success', 'skipped', 'true', 'false', 'true', 'dry-run', '', 'Preview only', ''],
+        ['skipped', 'skipped', 'false', 'true', 'false', '', '', 'Version preparation is disabled', ''],
+        ['skipped', 'skipped', 'false', 'false', 'false', '', '', 'Publication is also disabled', ''],
+        ['skipped', 'success', 'false', 'true', 'false', '', 'published', 'Publication remains enabled', ''],
+        ['skipped', 'skipped', 'false', 'false', 'true', '', '', 'Preview only', ''],
+    ] as $index => [$preparation, $publication, $prepareEnabled, $enabled, $dryRun, $versionStatus, $publicationState, $expectedText, $annotation]) {
+        $summaryFile = $summaryDirectory . '/summary-' . $index;
+        $process = new Process(['bash', '-c', $summaryStep['run']], $summaryDirectory, [
+            'GITHUB_STEP_SUMMARY' => $summaryFile, 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'BASH_ENV' => false,
+            'FF_PREPARATION' => $preparation, 'FF_PUBLICATION' => $publication,
+            'FF_PREPARATION_ENABLED' => $prepareEnabled,
+            'FF_VERSION_STATUS' => $versionStatus, 'FF_PUBLICATION_STATE' => $publicationState,
+            'FF_PUBLICATION_ENABLED' => $enabled, 'FF_DRY_RUN' => $dryRun,
+            'FF_PULL_REQUEST' => 'false' === $prepareEnabled ? '' : '7',
+            'FF_VERSION' => 'false' === $prepareEnabled ? '' : '1.7.2',
+            'FF_TAG' => 'v1.7.2', 'FF_SHA' => str_repeat('a', 40),
+        ]);
+        $process->setTimeout(10);
+        $process->mustRun();
+        $summary = file_get_contents($summaryFile);
+        verifyWorkflow(
+            str_contains($summary, $expectedText),
+            'The visible summary lost its explicit lifecycle explanation.',
+        );
+        verifyWorkflow(
+            str_contains($summary, '| Prepare version PR | ' . $preparation),
+            'Preparation and publication must be reported separately.',
+        );
+        verifyWorkflow(
+            '' === $annotation || str_contains($process->getOutput(), $annotation),
+            'Explicitly disabled or failed publication needs a visible annotation.',
+        );
+        verifyWorkflow(
+            'true' !== $dryRun || ! str_contains($process->getOutput(), '::warning::'),
+            'Preview mode must not claim publication was missed.',
+        );
+        verifyWorkflow(
+            'false' !== $prepareEnabled || (! str_contains($summary, 'Preparation creates a reviewable PR')
+                && ! str_contains($summary, 'Merging a version PR updates')
+                && ! str_contains($summary, 'Reported version PR:')
+                && ! str_contains($process->getOutput(), '::warning::')),
+            'Disabled preparation must not imply a version PR was created or warn about its missing publication.',
+        );
+        $assertions += 5;
+    }
+    foreach ([['FF_PREPARATION' => 'unrecognized'], ['FF_PUBLICATION_ENABLED' => 'unrecognized'],
+        ['FF_PREPARATION_ENABLED' => 'unrecognized']] as $index => $override) {
+        $invalidSummary = $summaryDirectory . '/invalid-' . $index;
+        $process = new Process(['bash', '-c', $summaryStep['run']], $summaryDirectory, [
+            'GITHUB_STEP_SUMMARY' => $invalidSummary, 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'BASH_ENV' => false,
+            'FF_PREPARATION' => 'success', 'FF_PUBLICATION' => 'skipped', 'FF_PUBLICATION_ENABLED' => 'true',
+            'FF_PREPARATION_ENABLED' => 'true',
+            'FF_DRY_RUN' => 'false', 'FF_VERSION_STATUS' => '', 'FF_PUBLICATION_STATE' => '',
+            'FF_PULL_REQUEST' => '', 'FF_VERSION' => '', 'FF_TAG' => '', 'FF_SHA' => '', ...$override,
+        ]);
+        $process->setTimeout(10);
+        verifyWorkflow(
+            1 === $process->run() && ! is_file($invalidSummary),
+            'Invalid context must not render an invented lifecycle outcome.',
+        );
+        ++$assertions;
+    }
+} finally {
+    $filesystem->remove($summaryDirectory);
+}
 
 $impact = Yaml::parseFile($root . '/.github/workflows/repository-impact.yml');
 $impactGuard = workflowStep($impact['jobs']['impact'], 'Select Validation From Immutable PR Changes');

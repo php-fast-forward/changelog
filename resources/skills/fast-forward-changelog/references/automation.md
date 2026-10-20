@@ -36,11 +36,15 @@ GitHub `uses` references the executable reusable
 workflow under `.github/workflows`; the resource caller is a copyable asset.
 Internal `repository-*` workflows belong to the library, not the consumer.
 
-For normal automatic publication, explain that merging the reviewed version PR
-creates its approved tag and GitHub Release; setup does not merge or publish it.
-Choose disabled publication only for an explicitly requested validation-only
-pilot, after reviewing that release's recovery contract. Choose base and managed
-branches, fragment/history paths, historical sources and PR-reference policy consistently
+Explain the selected reusable's publication default before installing its caller.
+The lifecycle defaults to `publish: true`; verify this at the final selected ref.
+The automatic route publishes the exact version tag and GitHub Release after a
+reviewed managed version PR is merged. The workflow does not merge the PR.
+Setup itself does not publish anything.
+Choose `publish: false` explicitly when the task is a validation-only trial;
+do not silently carry that override into an installation meant to publish.
+Choose base and managed branches,
+fragment/history paths, historical sources and PR-reference policy consistently
 across enabled operations. For parallel maintenance, select a separate managed
 branch per release line and verify its actual planned version; a branch's name
 does not enforce a SemVer range. Use individual workflows or Docker actions only
@@ -60,8 +64,8 @@ permissions. Never check out untrusted PR code in a privileged custom job.
 Token-generated events may behave differently from human/App events; consult
 the selected release and GitHub's current rules before promising downstream CI.
 
-When a validation-only pilot is requested, keep publication disabled. Verify a
-valid fragment, missing or malformed notes, the exact PR head's required status and sticky-comment recovery,
+For an explicitly validation-only pilot, use `publish: false`. Verify a valid
+fragment, missing or malformed notes, the exact PR head's required status and sticky-comment recovery,
 any enabled bot operation, and the generated version PR. Check the actual runner
 requirements and access when changing Linux/self-hosted selection. Test custom
 policy changes relevant to the application rather than assuming a default-branch
@@ -70,5 +74,16 @@ green run proves its generated head.
 The version PR must preserve exact notes and consume only its accepted fragment
 set, with no technical plan files or new `Unreleased` section. Head changes need
 fresh review and checks. Successful preparation does not authorize merging or
-publication. Enable publication only under existing authority for the verified
-result, using the selected release's committed evidence and recovery procedure.
+publication. Retain existing publication authority for the verified result,
+using the selected release's committed evidence and recovery procedure.
+
+## Consolidation without publication
+
+Confirm the selected release's version-baseline rule. The current lifecycle uses
+the greatest stable version in committed source history or ancestral stable
+tags. With tag `v1.7.0` and committed history through `1.7.1`, a new patch prepares
+`1.7.2` while preserving the earlier history. An explicit `publish: false`
+creates neither tag nor GitHub Release, but does not block subsequent version
+PRs. Enabling publication for a later merge does not publish older consolidated
+versions retroactively. Do not remove history or manufacture a missing tag merely
+to make another PR possible.

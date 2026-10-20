@@ -309,6 +309,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
             Version\NextVersionResolverInterface::class => new AliasFactory(
                 Version\NextVersionResolver::class,
             ),
+            Version\VersionBaselineResolverInterface::class => new AliasFactory(
+                Version\VersionBaselineResolver::class,
+            ),
             Version\PackageVersionResolverInterface::class => new AliasFactory(
                 Version\ComposerPackageVersionResolver::class,
             ),

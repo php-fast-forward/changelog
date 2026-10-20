@@ -33,6 +33,8 @@ use FastForward\Changelog\Validation\ValidationReport;
 use FastForward\Changelog\Validator\ChangesetValidatorInterface;
 use FastForward\Changelog\Validator\ReleaseInputEvidenceValidatorInterface;
 use FastForward\Changelog\Version\NextVersionResolverInterface;
+use FastForward\Changelog\Version\VersionBaselineResolver;
+use FastForward\Changelog\Version\VersionBaselineResolverInterface;
 use InvalidArgumentException;
 use Psr\Clock\ClockInterface;
 use RuntimeException;
@@ -61,6 +63,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param ReleaseJournalPathResolverInterface    $journals      Selects private recovery storage scoped to the consumer project and managed paths.
      * @param PullRequestReferenceResolverInterface  $pullRequests  Proves optional PR references against immutable fragment origins without modifying authored files.
      * @param HistoryReferenceBuilder                $references    Completes missing concrete release links without altering historical Markdown or observing external state.
+     * @param VersionBaselineResolverInterface       $baselines     Selects maintained stable version state independently of whether publication succeeded.
      */
     public function __construct(
         private PackagePathResolverInterface $paths,
@@ -81,6 +84,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private ReleaseJournalPathResolverInterface $journals,
         private PullRequestReferenceResolverInterface $pullRequests,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
+        private VersionBaselineResolverInterface $baselines = new VersionBaselineResolver(),
     ) {}
 
     /**
@@ -92,9 +96,8 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      *
      * @return ReleasePlan Immutable release or maintenance transaction with exact accepted inputs and resulting bytes.
      *
-     * @throws \InvalidArgumentException   When the operation, pending fragment schema or next-version inputs are invalid.
-     * @throws \RuntimeException           When approved source bytes, publication baseline or recovery evidence cannot be reconciled.
-     * @throws PendingPublicationException When maintained stable history still awaits its reachable published tag.
+     * @throws \InvalidArgumentException When the operation, pending fragment schema or next-version inputs are invalid.
+     * @throws \RuntimeException         When approved source bytes, maintained version state or recovery evidence cannot be reconciled.
      */
     public function plan(ReleaseOptions $options, string $operation = 'version'): ReleasePlan
     {
@@ -131,6 +134,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $currentVersion = $imported->currentVersion;
             $missing = $imported->missingVersions;
         }
+        $currentVersion = $this->baselines->resolve($document, $currentVersion);
         $next = null;
         $impact = null;
         $consumed = [];
@@ -141,9 +145,9 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                 $document,
                 $inventory,
                 $currentVersion,
-                $tags,
                 $template,
                 $baseSha,
+                array_column($tags, 'name'),
             );
         }
 
@@ -202,13 +206,13 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
     /**
      * Calculates one release and promotes only the validated pending fragment set.
      *
-     * @param ReleaseOptions            $options        Repository links, tag prefix and release settings.
-     * @param HistoryDocument           $document       Imported maintained history before promotion.
-     * @param ValidationReport          $inventory      Accepted fragment records and exact content hashes.
-     * @param string                    $currentVersion Latest observed stable release baseline.
-     * @param list<array<string,mixed>> $tags           Reachable tags used to prove the published baseline.
-     * @param TemplateInterface         $template       Presentation used for notes and structural headings.
-     * @param ?string                   $baseSha        Complete selected source commit, or null outside a Git repository.
+     * @param ReleaseOptions    $options        Repository links, tag prefix and release settings.
+     * @param HistoryDocument   $document       Imported maintained history before promotion.
+     * @param ValidationReport  $inventory      Accepted fragment records and exact content hashes.
+     * @param string            $currentVersion Greatest stable maintained or ancestrally tagged version.
+     * @param TemplateInterface $template       Presentation used for notes and structural headings.
+     * @param ?string           $baseSha        Complete selected source commit, or null outside a Git repository.
+     * @param list<string>      $reachableTags  Exact tag names already proven ancestral to the selected source commit.
      *
      * @return array{0:HistoryDocument,1:string,2:string,3:array<string,string>,4:string} Promoted history, next version, impact, consumed hashes and notes.
      */
@@ -217,15 +221,10 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         HistoryDocument $document,
         ValidationReport $inventory,
         string $currentVersion,
-        array $tags,
         TemplateInterface $template,
         ?string $baseSha,
+        array $reachableTags,
     ): array {
-        $this->assertPublishedHistory(
-            $document,
-            $currentVersion,
-            in_array($options->tagPrefix . $currentVersion, array_column($tags, 'name'), true),
-        );
         $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
         if (! $resolved->isValid()) {
             throw new InvalidArgumentException(
@@ -234,9 +233,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         }
         $next = $resolved->nextVersion;
         if (null !== $document->getRelease($next)) {
-            throw new RuntimeException(
-                'The next version already has a local section without a matching published tag: ' . $next,
-            );
+            throw new RuntimeException('The next version already has a maintained history section: ' . $next);
         }
         $impact = $resolved->impact->value;
         $consumed = $inventory->hashes;
@@ -251,49 +248,15 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $notes,
             $template,
         );
-        $document = $this->references->complete($document, $options->repository, $options->tagPrefix);
+        $document = $this->references->complete(
+            $document,
+            $options->repository,
+            $options->tagPrefix,
+            $reachableTags,
+            $next,
+        );
 
         return [$document, $next, $impact, $consumed, $notes];
-    }
-
-    /**
-     * Requires an observed stable tag baseline; the empty-history 0.0.0 sentinel cannot prove a maintained release.
-     *
-     * @param HistoryDocument $document       Maintained history whose release bodies, introduction and references must be preserved.
-     * @param string          $currentVersion Validated current stable version used as the numeric release baseline.
-     * @param bool            $publishedTag   Whether the current baseline is established by an actual reachable stable Git tag.
-     *
-     * @return void Completion only when maintained stable sections do not exceed an actual reachable published tag baseline.
-     *
-     * @throws PendingPublicationException When maintained stable history lacks its reachable published tag or exceeds the observed stable baseline.
-     */
-    private function assertPublishedHistory(HistoryDocument $document, string $currentVersion, bool $publishedTag): void
-    {
-        $published = explode('.', explode('+', $currentVersion, 2)[0]);
-        foreach ($document->getReleases() as $release) {
-            $version = $release->getVersion();
-            if (1 !== preg_match(
-                '/\A[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
-                $version,
-                $matches,
-            )) {
-                continue;
-            }
-            foreach (array_slice($matches, 1, 3) as $index => $component) {
-                $comparison = strlen($component) <=> strlen($published[$index]);
-                if (0 === $comparison) {
-                    $comparison = strcmp($component, $published[$index]);
-                }
-                if (! $publishedTag || 0 < $comparison) {
-                    throw new PendingPublicationException(
-                        'Maintained release ' . $version . ' is awaiting its reachable stable Git tag; complete its approved publication or reviewed recovery before planning another version. Latest reachable stable version: ' . $currentVersion . '.',
-                    );
-                }
-                if (0 > $comparison) {
-                    break;
-                }
-            }
-        }
     }
 
     /**

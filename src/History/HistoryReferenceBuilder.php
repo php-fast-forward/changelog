@@ -23,21 +23,31 @@ final readonly class HistoryReferenceBuilder
      * Semantic precedence selects predecessors independently of section order. Distinct build
      * identities with equal precedence use lexical identity order. Existing definitions remain
      * authoritative, including definitions outside the terminal footer; fenced examples do not.
+     * Supplied tag evidence limits additions and predecessors to reachable stable releases,
+     * plus the explicitly planned release. Null retains history-only completion for existing
+     * callers; an empty list never treats a maintained section as publication evidence.
      *
-     * @param HistoryDocument $document   Maintained sections and raw presentation to retain unchanged.
-     * @param string|null     $repository Known GitHub owner/name, or null when no destination can be established.
-     * @param string          $tagPrefix  Validated prefix prepended to each complete semantic version in Git tag URLs.
+     * @param HistoryDocument   $document       Maintained sections and raw presentation to retain unchanged.
+     * @param string|null       $repository     Known GitHub owner/name, or null when no destination can be established.
+     * @param string            $tagPrefix      Validated prefix prepended to each complete semantic version in Git tag URLs.
+     * @param list<string>|null $reachableTags  Exact tag names already proven ancestral to the source base, or null for history-only completion.
+     * @param string|null       $plannedVersion Canonical prospective release present in the document; its tag is not asserted to exist yet.
      *
      * @return HistoryDocument Independent document with missing links, or the original when no additions are possible.
      */
-    public function complete(HistoryDocument $document, ?string $repository, string $tagPrefix = 'v'): HistoryDocument
-    {
+    public function complete(
+        HistoryDocument $document,
+        ?string $repository,
+        string $tagPrefix = 'v',
+        ?array $reachableTags = null,
+        ?string $plannedVersion = null,
+    ): HistoryDocument {
         if (null === $repository || 1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)) {
             return $document;
         }
 
         $versions = $this->versions($document);
-        $ordered = array_keys($versions);
+        $ordered = $this->linkedVersions($versions, $tagPrefix, $reachableTags, $plannedVersion);
         usort($ordered, $this->compare(...));
         $defined = $this->definedLabels($document);
         $destinations = [];
@@ -55,7 +65,7 @@ final readonly class HistoryReferenceBuilder
         $additions = [];
         foreach ($versions as $version => $label) {
             $normalized = strtolower($label);
-            if (isset($defined[$normalized])) {
+            if (!isset($destinations[$version]) || isset($defined[$normalized])) {
                 continue;
             }
 
@@ -68,6 +78,49 @@ final readonly class HistoryReferenceBuilder
         }
 
         return $document->withReferences($this->insertReferences($document, $versions, $additions));
+    }
+
+    /**
+     * Selects reference targets without inferring tags from untagged historical sections.
+     *
+     * Reachable tags may supply predecessors even when no matching section is maintained.
+     * Existing definitions are preserved separately, including definitions for untagged sections.
+     *
+     * @param array<string,string> $versions       Validated document identities and their original heading labels.
+     * @param string               $tagPrefix      Exact configured prefix removed from reachable tag names.
+     * @param list<string>|null    $reachableTags  Caller-proven ancestral tag names, or null for the original history-only contract.
+     * @param string|null          $plannedVersion Explicit prospective identity; ignored when absent from the validated document.
+     *
+     * @return list<string> Unique stable tag identities and the requested prospective release.
+     */
+    private function linkedVersions(
+        array $versions,
+        string $tagPrefix,
+        ?array $reachableTags,
+        ?string $plannedVersion,
+    ): array {
+        if (null === $reachableTags) {
+            return array_keys($versions);
+        }
+
+        $linked = [];
+        foreach ($reachableTags as $tag) {
+            if (!str_starts_with($tag, $tagPrefix)) {
+                continue;
+            }
+            $version = substr($tag, strlen($tagPrefix));
+            if (1 === preg_match(
+                '/\A(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/',
+                $version,
+            )) {
+                $linked[$version] = true;
+            }
+        }
+        if (null !== $plannedVersion && isset($versions[$plannedVersion])) {
+            $linked[$plannedVersion] = true;
+        }
+
+        return array_keys($linked);
     }
 
     /**

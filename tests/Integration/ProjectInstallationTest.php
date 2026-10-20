@@ -34,11 +34,12 @@ final class ProjectInstallationTest extends TestCase
         $git = new Process(['git', 'init', '--initial-branch=main', $root], $root, $environment);
         $git->mustRun();
         $runtime = dirname(__DIR__, 2);
+        $inputs = Yaml::parseFile($runtime . '/.github/workflows/changelog.yml')['on']['workflow_call']['inputs'];
         $resolver = $this->createStub(WorkflowReleaseResolverInterface::class);
         $resolver->method('resolve')->willReturn([
             'ref' => 'v9.9.9', 'sha' => str_repeat('a', 40),
             'caller' => file_get_contents($runtime . '/resources/workflows/changelog.yml'),
-            'inputs' => Yaml::parseFile($runtime . '/.github/workflows/changelog.yml')['on']['workflow_call']['inputs'],
+            'inputs' => $inputs,
         ]);
         $services = container(config(['changelog' => ['working_directory' => $root,
             'skill_home_directory' => $root . '/fake-home', 'installed_version' => '9.9.9',
@@ -71,7 +72,8 @@ final class ProjectInstallationTest extends TestCase
                 $parsed['jobs']['changelog']['uses'],
             );
             self::assertStringContainsString('# v9.9.9', $payload);
-            self::assertTrue($parsed['jobs']['changelog']['with']['publish']);
+            self::assertTrue($inputs['publish']['default']);
+            self::assertArrayNotHasKey('publish', $parsed['jobs']['changelog']['with']);
             self::assertSame(['main'], $parsed['on']['push']['branches']);
             self::assertStringContainsString("\non:\n", $payload);
             self::assertStringNotContainsString('---', $payload);
