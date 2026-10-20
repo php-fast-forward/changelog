@@ -163,10 +163,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Recognizes a protected body's closing delimiter at its permitted boundary.
      *
-     * @param string                                  $line        Current source line, including its original newline.
-     * @param int                                     $offset      Byte offset at which the current line begins.
-     * @param int|null                                $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
-     * @param array{character:string,length:int}|null $fence       Mutable active fence state, updated by reference as source lines open or close code blocks.
+     * @param string                                              $line        Current source line, including its original newline.
+     * @param int                                                 $offset      Byte offset at which the current line begins.
+     * @param int|null                                            $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
+     * @param array{character:string,length:int,padding:int}|null $fence       Mutable active fence state, including list-container padding.
      *
      * @return bool Whether this line closes the current protected body.
      */
@@ -393,15 +393,15 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Determines whether a line is outside a CommonMark-style fenced block.
      *
-     * @param string                                  $line  Current source Markdown line, including its original line ending.
-     * @param array{character:string,length:int}|null $fence Mutable active fence state, updated by reference as source lines open or close code blocks.
+     * @param string                                              $line  Current source Markdown line, including its original line ending.
+     * @param array{character:string,length:int,padding:int}|null $fence Mutable active fence state, including list-container padding.
      *
      * @return bool Whether the current line is ordinary content outside a fence; delimiter lines return false and update the supplied state.
      */
     private function outsideFence(string $line, ?array &$fence): bool
     {
         if (null !== $fence) {
-            $pattern = '/^ {0,3}' . preg_quote(
+            $pattern = '/^ {0,' . (3 + $fence['padding']) . '}' . preg_quote(
                 $fence['character'],
                 '/',
             ) . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/';
@@ -413,9 +413,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             return false;
         }
 
-        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-            && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
-            $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
+        if (1 === preg_match('/^ {0,3}((?:(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})(.*)/', $line, $matches)
+            && ('~' === $matches[2][0] || ! str_contains($matches[3], '`'))) {
+            $fence = ['character' => $matches[2][0], 'length' => strlen($matches[2]), 'padding' => strlen($matches[1])];
 
             return false;
         }

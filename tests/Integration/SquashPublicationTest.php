@@ -8,6 +8,7 @@ use Closure;
 use FastForward\Changelog\Automation\AutomationRunnerInterface;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
@@ -40,6 +41,7 @@ final class SquashPublicationTest extends TestCase
         bool $staleTrailers,
         bool $customTemplate,
         bool $hostileGitEnvironment = false,
+        ?string $authoredList = null,
     ): void {
         $root = realpath(sys_get_temp_dir()) . '/changelog-squash-' . bin2hex(random_bytes(8));
         if ($hostileGitEnvironment) {
@@ -96,9 +98,14 @@ final class SquashPublicationTest extends TestCase
             $git($producer, ['commit', '-m', 'Original published fixture']);
             $git($producer, ['tag', 'v1.0.0']);
             mkdir($producer . '/.changelog');
+            $listDescription = 'fenced' === $authoredList
+                ? "- ```md\n  ## [9.9.9]\n  ```\n- Second improvement."
+                : "- First improvement.\n- Second improvement.";
             file_put_contents(
                 $producer . '/.changelog/squash.md',
-                "---\ncategory: fixed\ntype: patch\n---\n\nPreserves publication after a squash merge.\n",
+                null !== $authoredList
+                    ? "---\ncategory: fixed\ntype: patch\npull_request: 7\n---\n\n" . $listDescription . "\n"
+                    : "---\ncategory: fixed\ntype: patch\n---\n\nPreserves publication after a squash merge.\n",
             );
             $git($producer, ['add', '.']);
             $git($producer, ['commit', '-m', 'Pending fixture fragment']);
@@ -112,6 +119,21 @@ final class SquashPublicationTest extends TestCase
                 'workingDirectory' => $producer, 'repository' => 'owner/fixture', 'source' => 'tags', 'template' => $template,
             ]);
             $plan = $configured->get(ReleasePlannerInterface::class)->plan($options, 'version');
+
+            if (null !== $authoredList) {
+                $first = 'fenced' === $authoredList
+                    ? "- ```md\n  ## [9.9.9]\n  ```\n\n  ([#7](https://github.com/owner/fixture/pull/7))"
+                    : '- First improvement. ([#7](https://github.com/owner/fixture/pull/7))';
+                $expected = "\n### Fixed\n\n" . $first . "\n"
+                    . "- Second improvement. ([#7](https://github.com/owner/fixture/pull/7))\n\n";
+                $history = $configured->get(HistoryCodecInterface::class);
+                self::assertSame($expected, $plan->notes);
+                self::assertSame($expected, $history->notes($history->parse($plan->changelogContents), '1.0.1'));
+                self::assertStringContainsString(
+                    "## [1.0.0] - 2026-10-01\n\nOriginal release.\n",
+                    $plan->changelogContents,
+                );
+            }
             $git($producer, ['checkout', '-b', 'changelog/version']);
             file_put_contents($producer . '/CHANGELOG.md', $plan->changelogContents);
             foreach ($plan->consumed as $path => $hash) {
@@ -343,6 +365,13 @@ final class SquashPublicationTest extends TestCase
         yield 'stale metadata' => [true, false];
         yield 'committed custom template' => [false, true];
         yield 'hostile mixed-case inherited Git environment' => [false, false, true];
+        yield 'authored list notes survive planning and exact publication reconstruction' => [
+            false,
+            false,
+            false,
+            'prose',
+        ];
+        yield 'list-item code fences survive exact publication reconstruction' => [false, false, false, 'fenced'];
     }
 
     /** Restores write access within the exact temporary tree without following symbolic links, then removes it. */

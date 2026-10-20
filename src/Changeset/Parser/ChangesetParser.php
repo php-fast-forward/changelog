@@ -286,9 +286,9 @@ final readonly class ChangesetParser implements ChangesetParserInterface
 
     /**
      * Rejects fences that would hide following release structure after list wrapping.
-     * Multiline descriptions receive two spaces per line in release notes. Match
-     * the history codec's fence rules at that indentation without changing bytes
-     * or rejecting deeper indented examples and ordinary inline backtick text.
+     * Prose receives two spaces per line; an authored list retains its own container padding.
+     * Match the history codec at the effective rendering indentation without changing bytes,
+     * rejecting deeper indented examples or treating ordinary inline backticks as fences.
      *
      * @param string $description Validated Markdown description whose meaningful whitespace is retained.
      *
@@ -300,11 +300,18 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             return false;
         }
         $fence = null;
+        $first = explode("\n", $description, 2)[0];
+        $listed = 1 === preg_match('/\A {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/', $first)
+            && 1 !== preg_match('/\A {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?\z/', $first);
+
         foreach (explode("\n", $description) as $line) {
-            $line = '  ' . $line;
+            $line = ($listed ? '' : '  ') . $line;
             if (null !== $fence) {
                 if (1 === preg_match(
-                    '/^ {0,3}' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',}[ \\t]*\\z/',
+                    '/^ {0,' . (3 + $fence['padding']) . '}' . preg_quote(
+                        $fence['character'],
+                        '/',
+                    ) . '{' . $fence['length'] . ',}[ \\t]*\\z/',
                     $line,
                 )) {
                     $fence = null;
@@ -312,9 +319,11 @@ final readonly class ChangesetParser implements ChangesetParserInterface
 
                 continue;
             }
-            if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-                && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
-                $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
+            if (1 === preg_match('/^ {0,3}((?:(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})(.*)/', $line, $matches)
+                && ('~' === $matches[2][0] || ! str_contains($matches[3], '`'))) {
+                $fence = ['character' => $matches[2][0], 'length' => strlen($matches[2]), 'padding' => strlen(
+                    $matches[1],
+                )];
             }
         }
 

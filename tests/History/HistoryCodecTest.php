@@ -68,6 +68,39 @@ final class HistoryCodecTest extends TestCase
         self::assertSame($markdown, $codec->render($parsed, $template, true));
     }
 
+    /** List-container fences preserve literal release-looking headings through new rendering and later parsing. */
+    #[Test]
+    #[TestWith(['- ', '  ', '```'])]
+    #[TestWith(['1. ', '   ', '~~~'])]
+    #[TestWith(['12345) ', '       ', '```'])]
+    public function authoredListFencesRemainSafeAcrossNewReleaseRendering(
+        string $marker,
+        string $padding,
+        string $fence,
+    ): void {
+        $template = $this->template('en');
+        $description = $marker . $fence . "md\n" . $padding . '## [9.9.9]' . "\n" . $padding . $fence;
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('example.md', Category::Fixed, null, 7, null, $description),
+        ], $template, 'example/project');
+        $codec = $this->codec();
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0', null, null, $notes),
+            new HistoryRelease('1.0.0', null, null, "### Fixed\n\n- Published history.\n"),
+        ]);
+
+        $markdown = $codec->render($document, $template, true);
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['1.1.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertNull($parsed->getRelease('9.9.9'));
+        self::assertStringContainsString($description, $parsed->getRelease('1.1.0')->getBody());
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */
     #[Test]
     #[TestWith(['```foo``` bar'])]

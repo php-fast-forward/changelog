@@ -27,6 +27,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * Renders descriptions and references without leaking technical fragment metadata.
      * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
      * Prose starts beside its list marker; an opening fence keeps its existing block wrapper for history parsing.
+     * A description beginning with a Markdown list retains its own markers and nesting instead of gaining a wrapper.
      *
      * @param list<Changeset>   $changesets independent author records
      * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
@@ -44,12 +45,19 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                 if ($change->category !== $category) {
                     continue;
                 }
+                $references = $this->references($change, $repository);
+                $list = $this->listItem(explode("\n", $change->description, 2)[0]);
+
+                if (null !== $list) {
+                    $entries[] = $this->authoredList($change->description, $references, $list['indent']);
+
+                    continue;
+                }
                 $multiline = str_contains($change->description, "\n");
                 $fenced = $multiline
                     && 1 === preg_match('/\A {0,3}(`{3,}|~{3,})([^\n]*)/', $change->description, $fence)
                     && ('~' === $fence[1][0] || ! str_contains($fence[2], '`'));
                 $body = ($fenced ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $change->description);
-                $references = $this->references($change, $repository);
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = $body . $suffix;
             }
@@ -59,6 +67,93 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         }
 
         return [] === $sections ? '' : implode("\n\n", $sections) . "\n";
+    }
+
+    /**
+     * Keeps authored list structure, attaching references only to its principal items outside fenced code.
+     *
+     * Prose references precede original trailing whitespace so Markdown hard breaks survive. An item opening
+     * directly with a fence receives an indented reference paragraph after its block, never in the info string.
+     * This bounded block scan is not a general Markdown parser; it never rewrites authored marker/content bytes.
+     *
+     * @param  string $description Validated authored description beginning with a recognized list marker.
+     * @param  string $references  Optional already rendered references, shared by this fragment's principal items.
+     * @param  int    $indent      Original principal-item indentation; deeper markers remain nested content.
+     * @return string Original list bytes with optional references, without an additional list wrapper.
+     */
+    private function authoredList(string $description, string $references, int $indent): string
+    {
+        if ('' === $references) {
+            return $description;
+        }
+        $lines = explode("\n", $description);
+        $output = [];
+        $fence = null;
+        $pendingIndent = null;
+
+        foreach ($lines as $line) {
+            if (null !== $fence) {
+                $output[] = $line;
+
+                if (1 === preg_match(
+                    '/\A {0,' . (3 + $fence[2]) . '}' . preg_quote($fence[0], '/') . '{' . $fence[1] . ',}[ \t\r]*\z/',
+                    $line,
+                )) {
+                    $fence = null;
+
+                    if (null !== $pendingIndent) {
+                        $output[] = "\n" . str_repeat(' ', $pendingIndent) . '(' . $references . ')';
+                        $pendingIndent = null;
+                    }
+                }
+
+                continue;
+            }
+            $item = $this->listItem($line);
+            $principal = null !== $item && $item['indent'] === $indent;
+
+            $opening = 1 === preg_match(
+                '/\A {0,3}((?:(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})([^\r\n]*)/',
+                $line,
+                $matches,
+            )
+                && ('~' === $matches[2][0] || ! str_contains($matches[3], '`'));
+
+            if ($opening) {
+                $fence = [$matches[2][0], strlen($matches[2]), strlen($matches[1])];
+            }
+
+            if ($principal) {
+                if ($opening) {
+                    $pendingIndent = $item['contentIndent'];
+                } else {
+                    $text = rtrim($line, " \t\r");
+                    $line = $text . ' (' . $references . ')' . substr($line, strlen($text));
+                }
+            }
+            $output[] = $line;
+        }
+
+        return implode("\n", $output);
+    }
+
+    /**
+     * Recognizes a Markdown list marker with at most three leading spaces, excluding thematic breaks.
+     *
+     * @param  string                                   $line Authored single line without its LF separator; original spaces and optional CR are retained.
+     * @return array{indent:int,contentIndent:int}|null Marker context, or null for ordinary Markdown.
+     */
+    private function listItem(string $line): ?array
+    {
+        if (1 === preg_match('/\A {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?\z/', $line)
+            || 1 !== preg_match('/\A( {0,3})([-+*]|[0-9]{1,9}[.)])([ \t]+).*\z/', $line, $matches)) {
+            return null;
+        }
+
+        return [
+            'indent' => strlen($matches[1]),
+            'contentIndent' => strlen($matches[1] . $matches[2] . $matches[3]),
+        ];
     }
 
     /**

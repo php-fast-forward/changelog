@@ -46,6 +46,14 @@ version heading is not part of this import grammar. Multiline fragment paragraph
 remain indented within their list item without adding spaces to empty separators;
 authored Markdown hard breaks remain unchanged.
 
+Descriptions that begin with a Markdown list keep their own `-`, `*`, `+` or
+ordered markers, indentation and nested content. The renderer does not add a
+second outer bullet. With a PR or issue reference, each principal prose item
+receives the same inline reference; nested items and fenced examples remain
+untouched. An item opening directly with a fenced block keeps the reference in
+an indented paragraph after that block, outside its code. Descriptions without
+references preserve their authored list bytes exactly.
+
 ## Release reference links
 
 When `version` promotes pending fragments into a concrete release and the
@@ -113,7 +121,13 @@ the complete URL. When no PR or explicitly supplied issue is known, retain only
 the description. Do not infer a commit reference or generate commit links in the
 footer. Existing historical links remain preserved during consolidation.
 Multiline descriptions retain their paragraphs, with references on the final
-indented paragraph of the same list item.
+indented paragraph of the same list item. Authored lists instead follow the
+per-item reference placement described above.
+
+After changing the selected runtime, regenerate an open version PR before
+publication if its notes still use an older rendering format. Publication
+reconstructs the exact approved output; it does not silently rewrite an approved
+changelog or loosen that comparison. Published history remains unchanged.
 
 Ordinary fragments omit `author`. The renderer adds an author only when that
 optional metadata was explicitly supplied; there is no separate global author
