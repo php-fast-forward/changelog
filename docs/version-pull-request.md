@@ -69,11 +69,19 @@ or PR. Dry runs make no GitHub writes.
 
 ## Title customization
 
+The default title is `chore(release): {repository} v{current_version} → v{next_version}`.
+For GitHub repository `acme/example`, a `1.2.0` → `1.3.0` plan produces
+`chore(release): acme/example v1.2.0 → v1.3.0`.
+
 The lifecycle's `version-pr-title` and the individual workflow/Action's `title`
-accept `{current_version}` and `{next_version}`. A `1.2.0` → `1.3.0` plan can
-render `chore(release): 1.2.0 → 1.3.0`; the first baseline is `0.0.0`.
-Maintenance has no next release, so both values are the current version.
-Only these two placeholders expand. Templates allow at most 1024 bytes;
+accept `{repository}` (GitHub owner/name), `{repository_name}` (name only),
+`{current_version}` and `{next_version}`. Repository values come from the
+validated release plan; they do not read Composer metadata or the directory name.
+To show a Composer package name instead, supply it literally, for example
+`chore(release): fast-forward/container v{current_version} → v{next_version}`.
+Existing custom titles remain authoritative. The first baseline is `0.0.0`;
+maintenance has no next release, so both version placeholders use the current version.
+Only these four placeholders expand, in one pass. Templates allow at most 1024 bytes;
 literal/resolved titles must be a single line of at most 256 bytes.
 A title-only update preserves the signed head, body and plan; `dry-run` previews it.
 The internal CLI entrypoint accepts `github version --title=<template>`.

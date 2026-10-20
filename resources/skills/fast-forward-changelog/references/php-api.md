@@ -24,7 +24,7 @@ For a matching API, run it first in a disposable target:
 
 ```sh
 php .agents/skills/fast-forward-changelog/examples/contribution.php ./vendor/autoload.php /absolute/project
-vendor/bin/changelog check --no-interaction
+vendor/bin/changelog check --cwd=/absolute/project --no-interaction
 ```
 
 Success prints `Contribution example PASS`; exactly one

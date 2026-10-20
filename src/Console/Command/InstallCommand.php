@@ -235,8 +235,8 @@ final readonly class InstallCommand
                     ],
                     'comment-mode' => ['PR comments: always, on-failure or never', 'always'],
                     'version-pr-title' => [
-                        'Version PR title; placeholders: {current_version}, {next_version}',
-                        'chore: update changelog',
+                        'Version PR title; placeholders: {repository}, {repository_name}, {current_version}, {next_version}',
+                        'chore(release): {repository} v{current_version} → v{next_version}',
                     ],
                 ] as $name => [$question, $example]) {
                     $answer = $io->ask(

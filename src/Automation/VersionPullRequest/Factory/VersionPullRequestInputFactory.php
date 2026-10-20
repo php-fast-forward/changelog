@@ -24,12 +24,12 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
     /**
      * Rejects unsafe branches, identities and presentation controls before planning.
      *
-     * Literal titles retain the 256-byte bound; known placeholder templates may use 1024 bytes before resolution.
+     * Literal titles retain the 256-byte bound; repository/version templates may use 1024 bytes before resolution.
      *
      * @param  string                      $baseBranch      Trusted release-line branch that supplies the fresh source base.
      * @param  string                      $managedBranch   Exclusive automation branch reserved for the generated version PR.
      * @param  string                      $automationActor Canonical GitHub Bot login required to own and sign generated commits.
-     * @param  string                      $title           Single-line PR title or supported version-placeholder template; never publication authority.
+     * @param  string                      $title           Single-line PR title or supported repository/version template; never publication authority.
      * @param  bool                        $dryRun          Whether to return the proposed transaction without creating or updating remote content.
      * @return VersionPullRequestInput     Validated immutable branch, Bot, title and preview settings.
      * @throws VersionPullRequestException When branch, Bot identity or bounded single-line title settings are invalid.
@@ -38,10 +38,12 @@ final readonly class VersionPullRequestInputFactory implements VersionPullReques
         string $baseBranch = 'main',
         string $managedBranch = 'changelog/version',
         string $automationActor = 'github-actions[bot]',
-        string $title = 'chore: update changelog',
+        string $title = 'chore(release): {repository} v{current_version} → v{next_version}',
         bool $dryRun = false,
     ): VersionPullRequestInput {
-        $template = str_contains($title, '{current_version}') || str_contains($title, '{next_version}');
+        $template = str_contains($title, '{repository}') || str_contains($title, '{repository_name}')
+            || str_contains($title, '{current_version}')
+            || str_contains($title, '{next_version}');
         $maximum = $template ? VersionPullRequestInput::MAX_TEMPLATE_BYTES : VersionPullRequestInput::MAX_TITLE_BYTES;
 
         if (! $this->branch($baseBranch) || ! $this->branch($managedBranch) || $baseBranch === $managedBranch

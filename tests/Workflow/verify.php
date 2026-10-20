@@ -513,9 +513,9 @@ verifyWorkflow(
 $versionWorkflow = Yaml::parseFile($root . '/.github/workflows/changelog-version.yml');
 $versionAction = Yaml::parseFile($root . '/.github/actions/version/action.yml');
 verifyWorkflow(
-    'chore: update changelog' === $lifecycle['on']['workflow_call']['inputs']['version-pr-title']['default']
+    'chore(release): {repository} v{current_version} → v{next_version}' === $lifecycle['on']['workflow_call']['inputs']['version-pr-title']['default']
         && '${{ inputs.version-pr-title }}' === $lifecycle['jobs']['version']['with']['title']
-        && 'chore: update changelog' === $versionWorkflow['on']['workflow_call']['inputs']['title']['default']
+        && 'chore(release): {repository} v{current_version} → v{next_version}' === $versionWorkflow['on']['workflow_call']['inputs']['title']['default']
         && '${{ inputs.title }}' === workflowStep(
             $versionWorkflow['jobs']['changelog'],
             'Run The Shared Version Action',

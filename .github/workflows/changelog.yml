@@ -50,9 +50,9 @@ on:
         default: 'changelog/version'
 
       version-pr-title:
-        description: 'Version PR title; accepts {current_version} and {next_version}.'
+        description: 'Version PR title; accepts {repository}, {repository_name}, {current_version} and {next_version}.'
         type: string
-        default: 'chore: update changelog'
+        default: 'chore(release): {repository} v{current_version} → v{next_version}'
 
       automation-actor:
         type: string
