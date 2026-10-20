@@ -55,10 +55,14 @@ used across Fast Forward PHP packages.
   generate host aliases or copies there. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
   remain explicit operations, separate from package distribution. Keep the skill
-  focused on the durable lifecycle: preserve an existing reviewed integration;
+  focused on the durable lifecycle: preserve an existing reviewed workflow integration;
   discover and verify the selected published release for adoption or requested
   updates, then inspect its documentation and actual CLI help. Do not freeze the
-  procedure to one release line or silently upgrade an ordinary contribution.
+  procedure to one release line or silently upgrade a workflow during an ordinary contribution.
+  Consumer CLI recipes use `cpx --skip-local fast-forward/changelog` without a
+  package constraint, independently of the reviewed workflow pin. Inspect the
+  executing CLI's help; keep workflow adoption and upgrades explicit. An existing
+  project binary remains an optional route when that application selects it.
   This source reference needs no installed copy or host alias.
 
 ## This Repository's Changelog
