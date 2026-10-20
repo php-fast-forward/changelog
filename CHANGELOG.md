@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-20
+
+### Added
+
+- Configure GitHub automation through a guided install command with a reviewed workflow preview and optional project skill, preserving existing integrations and installer ownership while showing installed and bundled skill versions separately. ([#58](https://github.com/php-fast-forward/changelog/pull/58))
+
+### Changed
+
+- Calculate the next version from the greatest stable committed changelog or ancestral tag, allowing later version PRs after an unpublished consolidation while preserving prior history and independent publication proofs. Generate new comparison links from reachable stable tags instead of untagged historical versions, preserving existing footer links. ([#54](https://github.com/php-fast-forward/changelog/pull/54))
+- Enable publication after an approved version-PR merge by default, with explicit validation-only overrides, visible lifecycle summaries and a complete workflow and Action parameter reference. ([#54](https://github.com/php-fast-forward/changelog/pull/54))
+- Runs package and documentation validation only when their inputs change, preserves required check contexts for release PRs, and records Windows integration timings. ([#57](https://github.com/php-fast-forward/changelog/pull/57))
+
+### Fixed
+
+- Confirm the requested version PR body before reporting a successful update after an uncertain API response, preventing an unchanged or missing body from being accepted as updated. ([#54](https://github.com/php-fast-forward/changelog/pull/54))
+- Explains GitHub's public-repository event restriction and how administrators can review a narrowly scoped policy for changelog feedback and publication, distinguishing evaluated restrictions from failed jobs. ([#56](https://github.com/php-fast-forward/changelog/pull/56))
+
 ## [0.2.1] - 2026-10-18
 
 ### Fixed
@@ -43,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable fast-forward-changelog agent skill, consumer examples, focused guides and browsable phpDocumentor API documentation. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 - One managed version PR with configurable titles, deterministic consolidation and recoverable transactions, updating readable history and removing consumed fragments without adding tracked plan files. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 
+[0.3.0]: https://github.com/php-fast-forward/changelog/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/php-fast-forward/changelog/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/php-fast-forward/changelog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/php-fast-forward/changelog/releases/tag/v0.1.0
