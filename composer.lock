@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "208d15075e7013378781c3f8e6423665",
+    "content-hash": "b698d0a577b6fa8f94807a52adae1522",
     "packages": [
         {
             "name": "brick/varexporter",
@@ -2725,6 +2725,144 @@
                 }
             ],
             "time": "2026-10-09T23:34:19+00:00"
+        },
+        {
+            "name": "internal/path",
+            "version": "1.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-internal/path.git",
+                "reference": "e59fc0d530891483b5f47417ccfecb3d02b2218c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-internal/path/zipball/e59fc0d530891483b5f47417ccfecb3d02b2218c",
+                "reference": "e59fc0d530891483b5f47417ccfecb3d02b2218c",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "buggregator/trap": "^1.15",
+                "infection/infection": "^0.33.2",
+                "llm/skills": "^1.7",
+                "roxblnfk/unpoly": "^1.8.1",
+                "spiral/code-style": "^2.3.1",
+                "testo/bridge-infection": "^0.1.6",
+                "testo/testo": "^0.10.21",
+                "vimeo/psalm": "^7"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Internal\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Aleksei Gagarin",
+                    "homepage": "https://github.com/roxblnfk"
+                }
+            ],
+            "description": "Type-safe, immutable file path library with cross-platform support and automatic normalization.",
+            "keywords": [
+                "cross-platform",
+                "file",
+                "filepath",
+                "filesystem",
+                "helper",
+                "path",
+                "unix",
+                "windows"
+            ],
+            "support": {
+                "issues": "https://github.com/php-internal/path/issues",
+                "source": "https://github.com/php-internal/path/tree/1.4.0"
+            },
+            "funding": [
+                {
+                    "url": "https://boosty.to/roxblnfk",
+                    "type": "boosty"
+                }
+            ],
+            "time": "2026-09-08T10:51:37+00:00"
+        },
+        {
+            "name": "llm/skills",
+            "version": "1.15.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/roxblnfk/skills.git",
+                "reference": "3ee0a545bf3ab77591fd9c35f0317191d78203c5"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/roxblnfk/skills/zipball/3ee0a545bf3ab77591fd9c35f0317191d78203c5",
+                "reference": "3ee0a545bf3ab77591fd9c35f0317191d78203c5",
+                "shasum": ""
+            },
+            "require": {
+                "composer-plugin-api": "^2.0",
+                "internal/path": "^1.4",
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "buggregator/trap": "^1.16",
+                "composer/composer": "^2.10.3",
+                "infection/infection": "dev-testo-bridge-82 as 0.32.6",
+                "roxblnfk/unpoly": "^1.8",
+                "spiral/code-style": "^2.3",
+                "testo/bridge-infection": "0.1 - 1",
+                "testo/testo": "0.10 - 1",
+                "vimeo/psalm": "^7"
+            },
+            "type": "composer-plugin",
+            "extra": {
+                "class": "LLM\\Skills\\Composer\\SkillsPlugin"
+            },
+            "autoload": {
+                "psr-4": {
+                    "LLM\\Skills\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Aleksei Gagarin",
+                    "email": "roxblnfk@gmail.com"
+                }
+            ],
+            "description": "AI skills discovery and management system for LLM agents",
+            "keywords": [
+                "agents",
+                "ai",
+                "ai-agents",
+                "ai-skills",
+                "claude-code",
+                "dev",
+                "llm",
+                "llm-agents",
+                "skills"
+            ],
+            "support": {
+                "issues": "https://github.com/roxblnfk/skills/issues",
+                "source": "https://github.com/roxblnfk/skills"
+            },
+            "funding": [
+                {
+                    "url": "https://boosty.to/roxblnfk",
+                    "type": "boosty"
+                }
+            ],
+            "time": "2026-10-15T12:10:05+00:00"
         },
         {
             "name": "myclabs/deep-copy",
