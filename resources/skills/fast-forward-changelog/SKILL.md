@@ -41,9 +41,11 @@ approval.
    permissions and runner requirements before saving the application caller.
    If that release offers a project `install` command, inspect its help and prefer
    its guided preview for a missing integration. Explain the release branch,
-   publication choice and optional skill before accepting writes. Normal
-   automatic publication follows review and merge of the version PR; disable it
-   only for an explicitly chosen validation-only flow. Installation itself must
+   publication default and optional skill before accepting writes.
+   The lifecycle defaults to `publish: true`; confirm this at the selected ref.
+   Its automatic route publishes a version tag and GitHub Release
+   after the reviewed managed PR is merged; it does not merge the PR. A
+   validation-only trial must choose `publish: false` explicitly. Installation must
    not publish anything. Preserve an existing caller, its pin and settings;
    migration or upgrades need their own task scope.
 4. For local CLI work, set `CHANGELOG_VERSION` to the verified exact numeric
@@ -138,6 +140,13 @@ malformed note and any enabled bot route. Inspect the generated version PR:
 planned version/impact, exact notes, central-history changes and only the accepted
 fragment deletions. Review again after its head changes. The workflow does not
 merge its own version PR.
+
+For the selected release, verify how committed history and ancestral tags define
+the version baseline. The current lifecycle advances from the greatest stable
+version in either source: tag `v1.7.0`, committed history through `1.7.1` and a
+new patch produce `1.7.2`. Skipping publication does not block the next PR or
+authorize retroactive publication of `1.7.1`. Preserve earlier history and review
+the proposed next version; do not create missing tags as an incidental repair.
 
 Load only the reference needed for the task:
 

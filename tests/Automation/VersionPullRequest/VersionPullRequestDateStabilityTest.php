@@ -56,6 +56,7 @@ use Psr\Clock\ClockInterface;
 use RuntimeException;
 
 #[CoversClass(VersionPullRequestService::class)]
+#[UsesClass(\FastForward\Changelog\Version\VersionBaselineResolver::class)]
 #[UsesClass(GitHubEvidence::class)]
 #[UsesClass(VersionPullRequestInputFactory::class)]
 #[UsesClass(VersionPullRequestInput::class)]
@@ -479,6 +480,7 @@ final class VersionPullRequestDateStabilityTest extends TestCase
                     $pr['base']['sha'] = $this->state['base'];
                     $pr['html_url'] = 'https://github.com/owner/project/pull/7';
                     $pr['title'] = $body['title'];
+                    $pr['body'] = $body['body'] ?? ($this->state['pr']['body'] ?? null);
                     $this->state['pr'] = $pr;
 
                     return $pr;

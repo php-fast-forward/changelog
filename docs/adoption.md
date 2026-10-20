@@ -25,17 +25,17 @@ explain its event filters and credentials. The jobs need Linux, Docker, Bash and
 Git. Read those files at the selected published tag before copying them. The jobs
 do not install consumer PHP, Composer dependencies or Node.js.
 
-Choose `publish: true` for normal automatic publication after the reviewed
-version PR is merged. Use `publish: false` explicitly for a validation-only pilot,
-and inspect that release's publication/recovery contract before merging a version
-PR without publication. Installation itself publishes nothing.
+Publication defaults to enabled after the reviewed version PR is merged.
+Installation itself publishes nothing.
 
 Open a contribution PR and verify its check and
 sticky comment, then inspect the generated `changelog/version` PR. It should
 update central history and delete the consumed fragments, without plan files,
 generated metadata comments or a new `Unreleased` section. The workflow does
 not merge that PR. Review the [approved-commit publication contract](publication.md)
-before enabling or using publication.
+before merging it. For an explicit validation-only trial, set `publish: false`:
+history still advances, but tags and GitHub Releases are not created. Later PRs
+use the recorded version even when its publication remains pending.
 
 Jobs default to `ubuntu-latest`; `runs-on` accepts other Linux runner labels.
 Optional [GitHub App credentials](github-app.md) allow generated PR workflows

@@ -53,6 +53,175 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryReferenceBuilder()->complete($document, 'owner/project', 'pkg/')->getReferences());
     }
 
+    /** A consolidated but unpublished version cannot become a new definition or the next release's comparison base. */
+    public function testPlannedReleaseComparesAgainstTheLastReachableTag(): void
+    {
+        $releases = [new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1'), new HistoryRelease('1.7.0')];
+        $document = new HistoryDocument($releases, '# Maintained introduction');
+        $builder = new HistoryReferenceBuilder();
+        $completed = $builder->complete($document, 'owner/project', 'v', ['v1.7.0'], '1.7.2');
+
+        self::assertSame("\n[1.7.2]: https://github.com/owner/project/compare/v1.7.0...v1.7.2\n"
+            . "[1.7.0]: https://github.com/owner/project/releases/tag/v1.7.0\n", $completed->getReferences());
+        self::assertStringNotContainsString('[1.7.1]:', $completed->getReferences());
+        self::assertSame($releases, $completed->getReleases());
+        self::assertSame($document->getPrefix(), $completed->getPrefix());
+        self::assertSame('', $document->getReferences());
+        self::assertSame($completed, $builder->complete($completed, 'owner/project', 'v', ['v1.7.0'], '1.7.2'));
+    }
+
+    /** Existing custom definitions remain exact bytes even when their maintained version has no reachable tag. */
+    public function testPublishedEvidencePreservesExistingCustomLinksWithoutUsingThemAsTags(): void
+    {
+        $footer = "[issue]: https://custom.test/42 \r\n"
+            . "[1.7.1]: https://custom.test/unpublished \"Retained title\"\r\n"
+            . '[1.7.0]: https://custom.test/published';
+        $document = new HistoryDocument([
+            new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1'), new HistoryRelease('1.7.0'),
+        ], references: $footer);
+        $builder = new HistoryReferenceBuilder();
+        $completed = $builder->complete($document, 'owner/project', 'v', ['v1.7.0'], '1.7.2');
+
+        self::assertSame("[issue]: https://custom.test/42 \r\n"
+            . "[1.7.2]: https://github.com/owner/project/compare/v1.7.0...v1.7.2\r\n"
+            . "[1.7.1]: https://custom.test/unpublished \"Retained title\"\r\n"
+            . '[1.7.0]: https://custom.test/published', $completed->getReferences());
+        self::assertSame($footer, $document->getReferences());
+        self::assertSame($completed, $builder->complete($completed, 'owner/project', 'v', ['v1.7.0'], '1.7.2'));
+    }
+
+    /** The nearest lower reachable tag is a valid predecessor even when its version has no maintained section. */
+    public function testComparisonCanUseATagAbsentFromTheDocument(): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1')]);
+        $completed = new HistoryReferenceBuilder()->complete(
+            $document,
+            'owner/project',
+            'v',
+            ['v2.0.0', 'v1.6.9', 'v1.7.0'],
+            '1.7.2',
+        );
+
+        self::assertSame("\n[1.7.2]: https://github.com/owner/project/compare/v1.7.0...v1.7.2\n",
+            $completed->getReferences());
+        self::assertStringNotContainsString('[1.7.0]:', $completed->getReferences());
+        self::assertSame($document->getReleases(), $completed->getReleases());
+    }
+
+    /** Tag evidence requires the exact configured prefix and retains complete build identities in encoded destinations. */
+    public function testReachableTagsRespectPrefixAndBuildMetadata(): void
+    {
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0+build.2'), new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0+linux'),
+        ]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'pkg/', [
+            'v1.0.1', 'Pkg/1.0.1', 'pkg/1.0.0+linux', 'pkg/1.0.1-rc.1', 'pkg/1.0.1+broken..',
+        ], '1.1.0+build.2');
+
+        self::assertSame("\n[1.1.0+build.2]: https://github.com/owner/project/compare/"
+            . "pkg%2F1.0.0%2Blinux...pkg%2F1.1.0%2Bbuild.2\n"
+            . "[1.0.0+linux]: https://github.com/owner/project/releases/tag/pkg%2F1.0.0%2Blinux\n",
+            $completed->getReferences());
+        self::assertStringNotContainsString('[1.0.1]:', $completed->getReferences());
+    }
+
+    /** An empty configured prefix authorizes bare stable tags, without treating conventionally prefixed tags as equivalent. */
+    public function testEmptyPrefixMatchesOnlyBareStableTags(): void
+    {
+        $document = new HistoryDocument([
+            new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1'), new HistoryRelease('1.7.0'),
+        ]);
+        $references = new HistoryReferenceBuilder()->complete(
+            $document,
+            'owner/project',
+            '',
+            ['1.7.0', 'v1.7.1'],
+            '1.7.2',
+        )->getReferences();
+
+        self::assertSame("\n[1.7.2]: https://github.com/owner/project/compare/1.7.0...1.7.2\n"
+            . "[1.7.0]: https://github.com/owner/project/releases/tag/1.7.0\n", $references);
+    }
+
+    /** Equal-precedence reachable build identities keep the deterministic lexical ordering used by the legacy renderer. */
+    #[TestWith([['v1.0.0+a', 'v1.0.0+b']])]
+    #[TestWith([['v1.0.0+b', 'v1.0.0+a']])]
+    public function testReachableBuildTagsHaveDeterministicPrecedence(array $tags): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('1.0.1')]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', $tags, '1.0.1');
+
+        self::assertSame("\n[1.0.1]: https://github.com/owner/project/compare/v1.0.0%2Bb...v1.0.1\n",
+            $completed->getReferences());
+    }
+
+    /** A reachable prerelease, malformed identity or foreign prefix does not authorize a stable-version definition. */
+    public function testOnlyStableReachableTagsAuthorizeHistoricalDefinitions(): void
+    {
+        $document = new HistoryDocument([
+            new HistoryRelease('2.0.0-rc.1'), new HistoryRelease('1.7.2'), new HistoryRelease('1.7.0'),
+        ]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', [
+            'v2.0.0-rc.1', 'v1.7.2-rc.1', 'v01.7.2', 'v1.7.2+broken..', 'v1.7.2junk', 'other/1.7.2', 'v1.7.0',
+        ]);
+
+        self::assertSame("\n[1.7.0]: https://github.com/owner/project/releases/tag/v1.7.0\n",
+            $completed->getReferences());
+        self::assertStringNotContainsString('[2.0.0-rc.1]:', $completed->getReferences());
+        self::assertStringNotContainsString('[1.7.2]:', $completed->getReferences());
+    }
+
+    /** An explicitly empty or unusable tag inventory cannot invent links when there is no planned release. */
+    #[TestWith([[]])]
+    #[TestWith([['v1.7.1-rc.1', 'v01.7.1', 'v1.7.1+bad..', 'other/1.7.1', 'v']])]
+    public function testAbsentStableTagEvidenceLeavesHistoryUnchanged(array $tags): void
+    {
+        $document = new HistoryDocument([
+            new HistoryRelease('1.7.1'), new HistoryRelease('1.7.1-rc.1'), new HistoryRelease('0.0.0'),
+        ], references: "[support]: https://custom.test/help\n");
+
+        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', $tags));
+    }
+
+    /** Tag evidence and a prospective identity cannot add orphaned definitions when no corresponding section exists. */
+    #[TestWith([[]])]
+    #[TestWith([['v0.0.0', 'v1.0.0']])]
+    public function testEmptyHistoryDoesNotGainVersionDefinitions(array $tags): void
+    {
+        $document = new HistoryDocument(prefix: '# Maintained introduction', references: '[help]: https://custom.test');
+
+        self::assertSame($document, new HistoryReferenceBuilder()->complete(
+            $document,
+            'owner/project',
+            'v',
+            $tags,
+            '1.0.1',
+        ));
+    }
+
+    /** The 0.0.0 sentinel becomes a predecessor only when that exact stable tag is actually reachable. */
+    #[TestWith([[], '/releases/tag/v0.0.1', false])]
+    #[TestWith([['v0.0.0'], '/compare/v0.0.0...v0.0.1', true])]
+    public function testInitialPlannedVersionDoesNotInventAZeroTag(array $tags, string $target, bool $zeroTagged): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('0.0.1'), new HistoryRelease('0.0.0')]);
+        $references = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', $tags, '0.0.1')
+            ->getReferences();
+
+        self::assertStringContainsString('[0.0.1]: https://github.com/owner/project' . $target, $references);
+        self::assertSame($zeroTagged, str_contains($references, '[0.0.0]:'));
+    }
+
+    /** A null inventory preserves the direct API's legacy behavior, independently of optional planned-version metadata. */
+    public function testNullTagInventoryPreservesLegacyCompletion(): void
+    {
+        $document = new HistoryDocument([new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1')]);
+        $builder = new HistoryReferenceBuilder();
+
+        self::assertSame($builder->complete($document, 'owner/project')->getReferences(),
+            $builder->complete($document, 'owner/project', 'v', null, '1.7.2')->getReferences());
+    }
+
     /** References use the actual bracketed labels retained in historical headings. */
     public function testPreservesPrefixedHeadingLabelsAndCaseInsensitiveExistingDefinitions(): void
     {
