@@ -52,7 +52,7 @@ function verify(bool $condition, string $message): void
     }
 }
 
-/** Overrides one explicit factory without depending on the provider's private map grouping. */
+/** Fails one selected command and exhausts native fallback without depending on private map grouping. */
 function failSelectedFactory(string $source): string
 {
     $offset = 0;
@@ -82,7 +82,8 @@ function failSelectedFactory(string $source): string
                 return substr_replace(
                     $source,
                     ' array_replace(' . trim($expression)
-                    . ", [\\FastForward\\Changelog\\Console\\Command\\StatusCommand::class"
+                    . ", [\\FastForward\\Changelog\\Release\\ReleasePlannerInterface::class => static fn(): null => null,"
+                    . " \\FastForward\\Changelog\\Console\\Command\\StatusCommand::class"
                     . " => static fn(): never => throw new \\RuntimeException('fixture selected graph')])",
                     $start,
                     $offset - $start,
