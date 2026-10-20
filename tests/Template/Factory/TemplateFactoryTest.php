@@ -11,6 +11,9 @@ use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
 use InvalidArgumentException;
@@ -21,6 +24,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
 #[CoversClass(TemplateFactory::class)]
 #[UsesClass(KeepAChangelogTemplate::class)]
 #[UsesClass(Category::class)]

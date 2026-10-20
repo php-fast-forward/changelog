@@ -12,6 +12,9 @@ use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
@@ -24,6 +27,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
 #[CoversClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
@@ -34,6 +40,52 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ReleaseNotesRenderer::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** A newly imported prose tail leaves a real block boundary before the separately owned reference footer. */
+    public function testImportedProseCannotConsumeTheDocumentFooter(): void
+    {
+        $footer = "[guide]: https://example.test/maintained\r\n";
+        $document = new HistoryDocument([new HistoryRelease('1.0.0', body: 'Imported prose.')], references: $footer);
+        $codec = $this->codec();
+
+        foreach ([false, true] as $preserve) {
+            $rendered = $codec->render($document, $this->template('en'), $preserve);
+            $roundTrip = $codec->parse($rendered);
+
+            self::assertSame($footer, $roundTrip->getReferences());
+            self::assertSame("\nImported prose.\n\n", $roundTrip->getRelease('1.0.0')->getBody());
+            self::assertSame('Imported prose.', $document->getRelease('1.0.0')->getBody());
+        }
+    }
+
+    /** A later active duplicate is still a terminal footer even when the same label already occurs in the body. */
+    public function testDuplicateActiveReferenceKeepsItsTerminalFooterBoundary(): void
+    {
+        $body = "\n[guide]: https://example.test/body\n\nFollowing prose.\n\n";
+        $footer = "[guide]: https://example.test/footer\n";
+        $codec = $this->codec();
+        $source = "## [1.0.0]\n" . $body . $footer;
+        $document = $codec->parse($source);
+
+        self::assertSame($body, $document->getRelease('1.0.0')->getBody());
+        self::assertSame($footer, $document->getReferences());
+        self::assertSame($source, $codec->render($document, $this->template('en'), true));
+    }
+
+    /** Literal definition syntax inside an inline code span stays in the release instead of becoming its footer. */
+    public function testInactiveInlineReferenceCannotTruncateTheReleaseBody(): void
+    {
+        $body = "\nLiteral `text\n[guide]: https://example.test/code`\n";
+        $source = "## [1.0.0]\n" . $body;
+        $codec = $this->codec();
+        $document = $codec->parse($source);
+
+        self::assertSame($body, $document->getRelease('1.0.0')->getBody());
+        self::assertSame('', $document->getReferences());
+        self::assertSame($source, $codec->render($document, $this->template('en'), true));
+        self::assertSame($body, $codec->parse($codec->render($document, $this->template('en'), false))
+            ->getRelease('1.0.0')->getBody());
+    }
+
     /** Rendered prose and block-first fences must preserve later real releases without importing code examples. */
     #[Test]
     #[TestWith(['```'])]

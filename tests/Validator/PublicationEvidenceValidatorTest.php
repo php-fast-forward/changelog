@@ -24,6 +24,9 @@ use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Publication\PublicationEvidence;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRendererInterface;
@@ -44,6 +47,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
 #[CoversClass(PublicationEvidenceValidator::class)]
 #[UsesClass(\FastForward\Changelog\Release\ReleaseHistoryConsolidator::class)]
 #[UsesClass(Changeset::class)]

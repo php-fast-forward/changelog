@@ -9,6 +9,9 @@ use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\ChangesetParseResult;
 use FastForward\Changelog\Changeset\Parser\ChangesetParser;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -17,6 +20,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
 #[CoversClass(ChangesetParser::class)]
 #[UsesClass(Category::class)]
 #[UsesClass(Changeset::class)]
@@ -160,6 +166,8 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["> ~~~html\n>example\n>~~~"])]
     #[TestWith(["- Parent.\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~"])]
     #[TestWith(["- See [guide].\n\n[guide]: https://example.test"])]
+    #[TestWith(["- <pre>\n  ```\n  </pre>"])]
+    #[TestWith(["- Use `foo\n- <!-- hidden\n  ~~~\n  -->\n- bar`"])]
     #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible improvement."])]
     #[TestWith(["- <!-- hidden\n  ```\n  --> Visible improvement."])]
     #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~"])]

@@ -19,6 +19,7 @@ namespace FastForward\Changelog\Release\Renderer;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
 
@@ -97,32 +98,19 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         if ('' === $references) {
             return $description;
         }
+        $document = SourceDocument::analyze($description);
+        $items = $document->principalItems();
+        $lines = explode("\n", $description);
         $output = [];
-        $itemLines = [];
-        $context = null;
-        $fence = null;
-        $containers = [];
-        $comment = null;
 
-        foreach (explode("\n", $description) as $line) {
-            $active = $fence;
-            $insideComment = null !== $comment;
-            BlockStructure::structuralLine($line, $fence, $containers, $comment);
-            $item = BlockStructure::listItem($line);
-            $principal = ! $insideComment && null !== $item
-                && (null === $context || $item['indent'] < $context['contentIndent'])
-                && (null === $active || $item['indent'] < $active['padding']);
-
-            if ($principal) {
-                if ([] !== $itemLines) {
-                    $output[] = $this->listReference($itemLines, $context['contentIndent'], $references);
-                }
-                $itemLines = [];
-                $context = $item;
-            }
-            $itemLines[] = $line;
+        foreach ($items as $index => $item) {
+            $end = isset($items[$index + 1]) ? $items[$index + 1]['start'] - 1 : count($lines);
+            $output[] = $this->listReference(
+                array_slice($lines, $item['start'] - 1, $end - $item['start'] + 1),
+                $item['padding'],
+                $references,
+            );
         }
-        $output[] = $this->listReference($itemLines, $context['contentIndent'], $references);
 
         return implode("\n", $output);
     }

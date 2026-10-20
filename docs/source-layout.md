@@ -28,7 +28,7 @@ verify that structural contract.
 | `GitHub` | Authenticated GitHub API adaptation with bounded complete evidence and controlled diagnostics. |
 | `History` | Maintained Markdown, release values and historical import. |
 | `Installation` | Explicit project setup, verified published workflow contracts and create-only caller writes; manages the default llm/skills GitHub setup while preserving existing integrations and skill owners. |
-| `Markdown` | Pure shared list/quote containers, fences and comment precedence used by fragment validation, historical parsing/formatting, reference discovery, pending-note consolidation and release rendering. |
+| `Markdown` | Source-backed CommonMark classification and release-entry projections shared by validation, history, references, pending-note consolidation and rendering. The parser decorators record explicit fence closure while delegating its grammar. |
 | `Process` | Structured process construction and credential isolation, independent of Git command semantics. |
 | `Publication` | Approved-commit publication evidence and create-only tag/release reconciliation. |
 | `Release` | Exact plans, receipts, journals, consolidation and application; `Renderer` owns release-note presentation. |

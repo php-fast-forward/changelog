@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\History;
 
-use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\SourceDocument;
 
 /** Completes concrete release links without rewriting maintained Markdown or observing external state. */
 final readonly class HistoryReferenceBuilder
@@ -272,14 +272,13 @@ final readonly class HistoryReferenceBuilder
      */
     private function definedLabels(HistoryDocument $document): array
     {
-        $markdown = $document->getPrefix();
+        $defined = $this->referenceOffsets($document->getPrefix());
         foreach ($document->getReleases() as $release) {
-            // Rendered sections have structural line boundaries; this scan never closes fences or rewrites the source.
-            $markdown .= "\n" . ($release->getHeading() ?? '') . $release->getBody() . $release->getEnding();
+            // Domain sections are independent Markdown regions, including sections without stored headings.
+            $defined += $this->referenceOffsets($release->getBody());
         }
-        $markdown .= $document->getReferences();
 
-        return $this->referenceOffsets($markdown);
+        return $defined + $this->referenceOffsets($document->getReferences());
     }
 
     /**
@@ -294,20 +293,7 @@ final readonly class HistoryReferenceBuilder
      */
     private function referenceOffsets(string $markdown): array
     {
-        $defined = [];
-        $fence = null;
-        $containers = [];
-        $comment = null;
-        foreach (preg_split('/\r\n|\n|\r/', $markdown, flags: PREG_SPLIT_OFFSET_CAPTURE) as [$line, $offset]) {
-            if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
-                continue;
-            }
-            if (1 === preg_match('/^ {0,3}\[([^\]\r\n]+)\]:/', $line, $matches)) {
-                $defined[strtolower(trim($matches[1]))] ??= $offset;
-            }
-        }
-
-        return $defined;
+        return SourceDocument::analyze($markdown)->referenceOffsets();
     }
 
     /**

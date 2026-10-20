@@ -48,8 +48,9 @@ authored Markdown hard breaks remain unchanged.
 
 Descriptions that begin with a Markdown list keep their own `-`, `*`, `+` or
 ordered markers and relative nesting. Up to three leading spaces that indent
-the whole authored list are removed when rendering, so its entries cannot become
-children of an unrelated fragment. Stored fragment descriptions stay unchanged.
+the first authored item are removed independently from each item's available outer
+indent, so entries cannot become children of an unrelated fragment. Stored fragment
+descriptions stay unchanged.
 Only structural indentation tabs are expanded before list padding is added.
 Literal tabs inside indented and fenced code, including Makefile recipes,
 remain unchanged; a tab crossing the structural boundary retains equivalent
@@ -86,6 +87,9 @@ A fence can interrupt paragraph text. An earlier inline comment or backtick does
 not hide that fence from validation; the fenced block must still close explicitly.
 Leading indentation and continuation paragraphs retain the same list-content
 boundary during validation, rendering and historical parsing.
+CommonMark classifies the complete source before presentation. Raw HTML owns its
+literal fence examples, and inline code spans cannot cross sibling items. The
+library edits source slices rather than converting Markdown through an HTML renderer.
 
 ## Release reference links
 

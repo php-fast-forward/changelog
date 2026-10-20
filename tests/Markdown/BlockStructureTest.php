@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\Markdown;
 
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlockStructure::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
 final class BlockStructureTest extends TestCase
 {
     /** Visual container columns include leading indentation and tab stops without changing authored bytes. */
@@ -69,142 +76,6 @@ final class BlockStructureTest extends TestCase
         self::assertSame($expected, BlockStructure::wrapDescription($description));
     }
 
-    /** A continuation fence retains the complete list context through blanks and ends on a real dedent. */
-    public function testContinuationFenceEndsWithItsContainer(): void
-    {
-        $fence = null;
-        $containers = [];
-        self::assertTrue(BlockStructure::outsideFence('- Parent.', $fence, $containers));
-        self::assertTrue(BlockStructure::outsideFence('', $fence, $containers));
-        self::assertFalse(BlockStructure::outsideFence('  ```md', $fence, $containers));
-        self::assertSame(2, $fence['padding']);
-        self::assertFalse(BlockStructure::outsideFence('', $fence, $containers));
-        self::assertFalse(BlockStructure::outsideFence('  ## [9.9.9]', $fence, $containers));
-        self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers));
-        self::assertNull($fence);
-        self::assertSame([], $containers);
-    }
-
-    /** Nested list context and leading indent participate in explicit closing-fence limits. */
-    public function testNestedListFenceUsesItsOwnContentColumn(): void
-    {
-        $fence = null;
-        $containers = [];
-        BlockStructure::outsideFence('- Parent.', $fence, $containers);
-        BlockStructure::outsideFence('  - Child.', $fence, $containers);
-        self::assertFalse(BlockStructure::outsideFence('    ```php', $fence, $containers));
-        self::assertSame(4, $fence['padding']);
-        self::assertFalse(BlockStructure::outsideFence('        ```', $fence, $containers));
-        self::assertNotNull($fence);
-        self::assertFalse(BlockStructure::outsideFence('      ```', $fence, $containers));
-        self::assertNull($fence);
-        self::assertTrue(BlockStructure::outsideFence('  Parent continuation.', $fence, $containers));
-        self::assertSame([2], $containers);
-    }
-
-    /** Same-line list containers contribute every content column before recognizing their nested fence. */
-    public function testConsecutiveListMarkersCanOpenAFence(): void
-    {
-        $fence = null;
-        $containers = [];
-        self::assertFalse(BlockStructure::outsideFence('- - ```php', $fence, $containers));
-        self::assertSame([2, 4], $containers);
-        self::assertSame(4, $fence['padding']);
-        self::assertFalse(BlockStructure::outsideFence('    code();', $fence, $containers));
-        self::assertFalse(BlockStructure::outsideFence('    ```', $fence, $containers));
-        self::assertNull($fence);
-    }
-
-    /** Only the fence's existing quote depth is structural; greater-than text inside its code stays literal. */
-    public function testQuotedFenceRetainsItsOwnContainerDepth(): void
-    {
-        $fence = null;
-        $containers = [];
-        self::assertFalse(BlockStructure::outsideFence('> ~~~html', $fence, $containers));
-        self::assertSame(1, $fence['quotes']);
-        self::assertSame(2, $fence['padding']);
-        self::assertFalse(BlockStructure::outsideFence('> > ~~~', $fence, $containers));
-        self::assertNotNull($fence);
-        self::assertFalse(BlockStructure::outsideFence('> <!-- literal', $fence, $containers));
-        self::assertFalse(BlockStructure::outsideFence('> ~~~', $fence, $containers));
-        self::assertNull($fence);
-        self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers));
-    }
-
-    /** Historical quote termination stays readable; fragment validation separately requires an explicit closer. */
-    public function testHistoricalQuotedFenceEndsWithItsQuoteContainer(): void
-    {
-        $fence = null;
-        $containers = [];
-        $implicit = false;
-        BlockStructure::outsideFence('> ~~~md', $fence, $containers, $implicit);
-        self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers, $implicit));
-        self::assertNull($fence);
-        self::assertTrue($implicit);
-    }
-
-    /** Optional quote spacing may vary while the same list/quote containers still own a fenced block. */
-    public function testQuoteOptionalSpaceDoesNotDedentAFence(): void
-    {
-        $fence = null;
-        $containers = [];
-        $implicit = false;
-        BlockStructure::outsideFence('- > ~~~html', $fence, $containers, $implicit);
-        self::assertFalse(BlockStructure::outsideFence('  >example', $fence, $containers, $implicit));
-        self::assertFalse(BlockStructure::outsideFence('  >~~~', $fence, $containers, $implicit));
-        self::assertNull($fence);
-        self::assertFalse($implicit);
-    }
-
-    /** Historical consumers keep multiline comments opaque while still seeing legacy single-line metadata. */
-    public function testStructuralLinesRespectCommentsAndLegacyMarkers(): void
-    {
-        $fence = null;
-        $containers = [];
-        $comment = null;
-        self::assertTrue(BlockStructure::structuralLine('- <!-- hidden', $fence, $containers, $comment));
-        self::assertNotNull($comment);
-        self::assertFalse(BlockStructure::structuralLine('  ~~~', $fence, $containers, $comment));
-        self::assertNull($fence);
-        self::assertFalse(BlockStructure::structuralLine('  --> Visible.', $fence, $containers, $comment));
-        self::assertNull($comment);
-        self::assertTrue(
-            BlockStructure::structuralLine(
-                '<!-- fast-forward-changelog:category fixed -->',
-                $fence,
-                $containers,
-                $comment,
-            ),
-        );
-    }
-
-    /** Contained comments end with their item or quote while root HTML blocks still require their closing token. */
-    #[TestWith(['- <!-- hidden'])]
-    #[TestWith(['> <!-- hidden'])]
-    public function testContainedHistoricalCommentEndsAtAReleaseBoundary(string $opening): void
-    {
-        $fence = null;
-        $containers = [];
-        $comment = null;
-        BlockStructure::structuralLine($opening, $fence, $containers, $comment);
-        self::assertNotNull($comment);
-        self::assertTrue(BlockStructure::structuralLine('## [1.0.0]', $fence, $containers, $comment));
-        self::assertNull($comment);
-    }
-
-    /** Ending a root comment still depends on its explicit delimiter because no list or quote boundary exists. */
-    public function testRootCommentCannotInventAReleaseBoundary(): void
-    {
-        $fence = null;
-        $containers = [];
-        $comment = null;
-        BlockStructure::structuralLine('<!-- hidden', $fence, $containers, $comment);
-        self::assertFalse(BlockStructure::structuralLine('## [9.9.9]', $fence, $containers, $comment));
-        self::assertNotNull($comment);
-        self::assertFalse(BlockStructure::structuralLine('-->', $fence, $containers, $comment));
-        self::assertNull($comment);
-    }
-
     /** New fragments need explicit closers even when historical Markdown permits an implicit item boundary. */
     #[TestWith(["- ```text\n  example\n- Next.", true])]
     #[TestWith(["- ```text\n  example\n  ```\n- Next.", false])]
@@ -221,17 +92,6 @@ final class BlockStructureTest extends TestCase
     public function testNewFragmentFenceRequiresExplicitClosure(string $description, bool $expected): void
     {
         self::assertSame($expected, BlockStructure::hasUnclosedFence($description));
-    }
-
-    /** A root-level fence remains active across unindented headings until its actual closing delimiter. */
-    public function testRootFenceDoesNotEndOnAnOrdinaryDedent(): void
-    {
-        $fence = null;
-        $containers = [];
-        self::assertFalse(BlockStructure::outsideFence('~~~md', $fence, $containers));
-        self::assertFalse(BlockStructure::outsideFence('## [9.9.9]', $fence, $containers));
-        self::assertFalse(BlockStructure::outsideFence('~~~', $fence, $containers));
-        self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers));
     }
 
     /** Literal comment markers in code stay data; a real unclosed comment cannot hide appended references. */
@@ -264,14 +124,4 @@ final class BlockStructureTest extends TestCase
         self::assertSame($expected, BlockStructure::hasUnclosedComment($description));
     }
 
-    /** Comment starts use content columns instead of confusing list/quote markers with code payload. */
-    #[TestWith(['<!-- comment', [], true])]
-    #[TestWith(['- <!-- comment', [2], true])]
-    #[TestWith(['> <!-- comment', [], true])]
-    #[TestWith(['      <!-- code', [2], false])]
-    #[TestWith(['- \\<!-- literal', [2], false])]
-    public function testCommentBlockStart(string $line, array $containers, bool $expected): void
-    {
-        self::assertSame($expected, BlockStructure::opensComment($line, $containers));
-    }
 }

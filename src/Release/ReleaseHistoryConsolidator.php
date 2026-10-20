@@ -19,7 +19,7 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
-use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
 
@@ -131,13 +131,12 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $sections = ['' => ''];
         $active = '';
         $unknown = false;
-        $fence = null;
-        $containers = [];
-        $comment = null;
+        $document = SourceDocument::analyze($body);
+        $structural = $document->structuralLines();
         $markedCategory = null;
-        foreach (preg_split('/(?<=\n)/', $body) as $line) {
+        foreach ($document->lines() as $number => $line) {
             $heading = rtrim($line, " \t\r\n");
-            $outside = BlockStructure::structuralLine($line, $fence, $containers, $comment);
+            $outside = isset($structural[$number]);
             $peer = $outside && 1 === preg_match('/^###(?:[ \t]|\r?\n|\z)/', $line);
             if (null !== $markedCategory && '' !== trim($line) && ! $peer) {
                 throw new InvalidArgumentException(

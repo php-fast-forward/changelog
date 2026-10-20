@@ -7,6 +7,9 @@ namespace FastForward\Changelog\Tests\Release\Renderer;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Version\VersionImpact;
@@ -16,6 +19,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
 #[CoversClass(ReleaseNotesRenderer::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(Category::class)]
@@ -438,6 +444,17 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertSame("### Added\n\n- First.\n- Second.\n- Third.\n", new ReleaseNotesRenderer()->render([
             new Changeset('a.md', Category::Added, null, null, null, 'First.'),
             new Changeset('b.md', Category::Added, null, null, null, "  - Second.\n  - Third."),
+        ], $template));
+    }
+
+    /** Each principal item's optional indent is independent of the continuation columns owned by later siblings. */
+    public function testDecreasingPrincipalIndentKeepsLaterContinuationInsideItsItem(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- First.\n- Second.\n\n  Continued.\n", new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, null, null, "  - First.\n- Second.\n\n  Continued."),
         ], $template));
     }
 

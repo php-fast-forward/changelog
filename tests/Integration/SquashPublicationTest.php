@@ -101,6 +101,9 @@ final class SquashPublicationTest extends TestCase
             $git($producer, ['tag', 'v1.0.0']);
             mkdir($producer . '/.changelog');
             $listDescription = match ($authoredList) {
+                'mixed-indent' => "  - First improvement.\n- Second improvement.\n\n  Continued.",
+                'raw-html' => "- <pre>\n  ```\n  </pre>\n- Second improvement.",
+                'sibling-inline' => "- Use `foo\n- <!-- hidden\n  ~~~\n  -->\n- bar`",
                 'fenced' => "- ```md\n  ## [9.9.9]\n  ```\n- Second improvement.",
                 'indented' => "  - ```md\n    example\n      ```\n  - Second improvement.",
                 'nested' => "- - ```md\n    ## [9.9.9]\n    ```\n- Second improvement.",
@@ -179,6 +182,15 @@ final class SquashPublicationTest extends TestCase
                     $expected = "\n### Fixed\n\n- See [guide].\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~\n\n  [guide]: https://example.test\n\n";
                 } elseif ('presentation-boundaries' === $authoredList) {
                     $expected = "\n### Fixed\n\n- Description.\n\n      all:\n      \tprintf 'hello'\n - Second.\n\n<div>Detail.</div>\n\n- Next.\n\n";
+                } elseif ('mixed-indent' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- First improvement. " . $reference
+                        . "\n- Second improvement.\n\n  Continued.\n\n  " . $reference . "\n\n";
+                } elseif ('raw-html' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- <pre>\n  ```\n  </pre>\n\n  " . $reference
+                        . "\n- Second improvement. " . $reference . "\n\n";
+                } elseif ('sibling-inline' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- Use `foo " . $reference
+                        . "\n- <!-- hidden\n  ~~~\n  -->\n\n  " . $reference . "\n- bar` " . $reference . "\n\n";
                 }
                 $history = $configured->get(HistoryCodecInterface::class);
                 self::assertSame($expected, $plan->notes);
@@ -192,7 +204,9 @@ final class SquashPublicationTest extends TestCase
                     $plan->changelogContents,
                 );
 
-                if (in_array($authoredList, ['tab-fenced', 'nested-definition', 'presentation-boundaries'], true)) {
+                if (in_array($authoredList, [
+                    'tab-fenced', 'nested-definition', 'presentation-boundaries', 'mixed-indent', 'raw-html', 'sibling-inline',
+                ], true)) {
                     $presentation = $configured->get(TemplateFactoryInterface::class)->create();
                     $parsed = $history->parse($plan->changelogContents, $presentation);
 
@@ -441,6 +455,9 @@ final class SquashPublicationTest extends TestCase
     /** Exercises ordinary and stale squash messages with built-in and explicit committed templates. */
     public static function squashModes(): iterable
     {
+        foreach (['mixed-indent', 'raw-html', 'sibling-inline'] as $description) {
+            yield $description => [false, false, false, $description];
+        }
         yield 'missing metadata' => [false, false];
         yield 'stale metadata' => [true, false];
         yield 'committed custom template' => [false, true];

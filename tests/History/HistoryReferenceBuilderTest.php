@@ -11,6 +11,9 @@ use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -18,6 +21,9 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
 #[CoversClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
@@ -294,7 +300,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     /** Invalid fence info cannot hide an active definition, while an HTML comment cannot define a link. */
     public function testDefinitionScanningMatchesInvalidBacktickFencesAndHtmlComments(): void
     {
-        $body = "```invalid`info\n[v1.0.0]: https://custom.test/active\n\nFollowing prose.\n"
+        $body = "```invalid`info\n\n[v1.0.0]: https://custom.test/active\n\nFollowing prose.\n"
             . "<!-- Hidden reference example\n[1.1.0]: https://example.test/hidden\n-->\n"
             . "<!-- [1.2.0]: https://example.test/hidden-inline -->\n";
         $original = "## [v1.0.0] - 2026-09-01\n\n" . $body;
@@ -312,6 +318,20 @@ final class HistoryReferenceBuilderTest extends TestCase
         );
         self::assertStringContainsString(
             '[1.2.0]: https://github.com/owner/project/compare/v1.1.0...v1.2.0',
+            $completed->getReferences(),
+        );
+    }
+
+    /** A reference-looking paragraph continuation remains literal and cannot suppress the real version footer. */
+    public function testInactiveParagraphDefinitionCannotSuppressTheVersionFooter(): void
+    {
+        $body = "```invalid`info\n[1.0.0]: https://example.test/literal\n\nFollowing prose.\n";
+        $document = new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+
+        self::assertSame($body, $completed->getRelease('1.0.0')->getBody());
+        self::assertStringContainsString(
+            '[1.0.0]: https://github.com/owner/project/releases/tag/v1.0.0',
             $completed->getReferences(),
         );
     }
