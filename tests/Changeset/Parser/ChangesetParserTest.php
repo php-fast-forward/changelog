@@ -154,6 +154,9 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["- - ```php\n    code();\n    ```"])]
     #[TestWith(["Description.\n\n    <!-- literal HTML example"])]
     #[TestWith(["- Description.\n\n      <!-- literal HTML example"])]
+    #[TestWith(["> ~~~html\n> <!-- literal\n> ~~~"])]
+    #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible improvement."])]
+    #[TestWith(["- <!-- hidden\n  ```\n  --> Visible improvement."])]
     public function retainsReleaseCompatibleMarkdownExactly(string $body): void
     {
         $expected = new Changeset('entry.md', Category::Fixed, null, null, null, $body, VersionImpact::Patch);

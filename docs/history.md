@@ -50,6 +50,8 @@ Descriptions that begin with a Markdown list keep their own `-`, `*`, `+` or
 ordered markers and relative nesting. Up to three leading spaces that indent
 the whole authored list are removed when rendering, so its entries cannot become
 children of an unrelated fragment. Stored fragment descriptions stay unchanged.
+Leading indentation tabs are expanded before list padding is added, retaining
+their visual code indentation; tabs inside the payload remain unchanged.
 The renderer does not add a
 second outer bullet. With a PR or issue reference, each single-line principal
 item receives the same inline reference. A multiline item keeps its reference
@@ -64,6 +66,8 @@ Validation also rejects HTML comments left open outside code blocks or complete
 inline code spans. Direct rendering refuses to add references to unclosed
 fences or comments. In existing history, a list-contained fence
 ends when its container ends, so a dedented release heading remains visible.
+Quoted code uses the same container rules. Fence-looking text inside a closed
+HTML comment remains comment content instead of opening a code block.
 Leading indentation and continuation paragraphs retain the same list-content
 boundary during validation, rendering and historical parsing.
 
@@ -79,6 +83,8 @@ New definitions follow the maintained section order: a new latest release goes
 before the older version links, and a missing intermediate version goes before
 its next retained footer reference. Existing definitions and unrelated links keep
 their relative order; their destinations are never rewritten.
+Definitions shown inside fenced list or quote examples cannot replace a real
+release footer link.
 For `owner/repo` with the default `v` tag prefix:
 
 ```markdown

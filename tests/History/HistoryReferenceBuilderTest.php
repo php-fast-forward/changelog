@@ -45,6 +45,40 @@ final class HistoryReferenceBuilderTest extends TestCase
         self::assertStringNotContainsString('[Unreleased]:', $completed->getReferences());
     }
 
+    /** A reference-shaped literal in an authored-list fence cannot replace the real release footer link. */
+    public function testListContainedFenceCannotDefineTheReleaseReference(): void
+    {
+        $body = "\n### Added\n\n- ```md\n  [1.1.0]: https://example.test/literal\n  ```\n";
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0', body: $body),
+            new HistoryRelease('1.0.0', body: "\nEarlier release.\n"),
+        ]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+
+        self::assertSame($body, $completed->getReleases()[0]->getBody());
+        self::assertStringContainsString(
+            '[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0',
+            $completed->getReferences(),
+        );
+    }
+
+    /** Hidden fence delimiters cannot stop comment state or hide a later maintained active reference. */
+    #[TestWith(['- <!-- hidden', '  '])]
+    #[TestWith(['> <!-- hidden', '> '])]
+    public function testContainerCommentsKeepPrecedenceOverFenceLookingContent(string $opening, string $prefix): void
+    {
+        $body = $opening . "\n" . $prefix . "~~~\n" . $prefix . "[1.2.0]: https://example.test/hidden\n"
+            . $prefix . "--> Visible improvement.\n[1.1.0]: https://example.test/maintained\n";
+        $document = new HistoryDocument([
+            new HistoryRelease('1.2.0', body: $body), new HistoryRelease('1.1.0'),
+        ]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+
+        self::assertSame($body, $completed->getRelease('1.2.0')->getBody());
+        self::assertStringContainsString('[1.2.0]: https://github.com/', $completed->getReferences());
+        self::assertStringNotContainsString('[1.1.0]:', $completed->getReferences());
+    }
+
     /** The oldest concrete version points to its release; later identities encode full custom tag names. */
     public function testEncodesCustomPrefixAndBuildMetadataInTagDestinations(): void
     {

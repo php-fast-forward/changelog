@@ -293,6 +293,10 @@ final class ReleaseNotesRendererTest extends TestCase
     #[TestWith(["- Use `some\n  code` safely.", "- Use `some\n  code` safely.\n\n  (#7)"])]
     #[TestWith(["- <!-- hidden\n  --> Visible improvement.", "- <!-- hidden\n  --> Visible improvement.\n\n  (#7)"])]
     #[TestWith([
+        "- <!-- hidden\n  ~~~\n  --> Visible improvement.",
+        "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n\n  (#7)",
+    ])]
+    #[TestWith([
         "- First paragraph.\n\n  Continuation.\n\n- Second.",
         "- First paragraph.\n\n  Continuation.\n\n  (#7)\n\n- Second. (#7)",
     ])]
@@ -306,6 +310,21 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
             new Changeset('list.md', Category::Added, null, 7, null, $description),
         ], $template));
+    }
+
+    /** Presentation expands only indentation tabs before wrapping, keeping code literal and the reference visible. */
+    public function testIndentedTabCodeRetainsColumnsAndInternalPayloadTabs(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $description = "Description.\n\n\t<!-- literal\tpayload";
+        $change = new Changeset('code.md', Category::Added, null, 7, null, $description);
+
+        self::assertSame(
+            "### Added\n\n- Description.\n\n      <!-- literal\tpayload\n\n  (#7)\n",
+            new ReleaseNotesRenderer()->render([$change], $template),
+        );
+        self::assertSame($description, $change->description);
     }
 
     /** A non-one ordered list cannot interrupt an earlier bullet's paragraph without a block boundary. */

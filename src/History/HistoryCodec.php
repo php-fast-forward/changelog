@@ -165,10 +165,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Recognizes a protected body's closing delimiter at its permitted boundary.
      *
-     * @param string                                              $line        Current source line, including its original newline.
-     * @param int                                                 $offset      Byte offset at which the current line begins.
-     * @param int|null                                            $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
-     * @param array{character:string,length:int,padding:int}|null $fence       Mutable active fence state, including list-container padding.
+     * @param string                                                         $line        Current source line, including its original newline.
+     * @param int                                                            $offset      Byte offset at which the current line begins.
+     * @param int|null                                                       $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
+     * @param array{character:string,length:int,padding:int,quotes:int}|null $fence       Mutable active fence state, including list and quote containers.
      *
      * @param list<int> $containers Mutable list-content columns retained across continuation lines.
      *

@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\History;
 
+use FastForward\Changelog\Markdown\BlockStructure;
+
 /** Completes concrete release links without rewriting maintained Markdown or observing external state. */
 final readonly class HistoryReferenceBuilder
 {
@@ -283,6 +285,9 @@ final readonly class HistoryReferenceBuilder
     /**
      * Locates active reference definitions without interpreting examples or rewriting source Markdown.
      *
+     * List/quote-contained fences use the same recognition as rendering and historical parsing. HTML comments
+     * retain precedence over delimiter-looking content until they close; original byte offsets remain authoritative.
+     *
      * @param string $markdown Raw document or footer whose fenced, indented and commented examples are ignored.
      *
      * @return array<string,int> First byte offset for each ASCII-normalized active reference label.
@@ -291,26 +296,19 @@ final readonly class HistoryReferenceBuilder
     {
         $defined = [];
         $fence = null;
+        $containers = [];
         $comment = false;
         foreach (preg_split('/\r\n|\n|\r/', $markdown, flags: PREG_SPLIT_OFFSET_CAPTURE) as [$line, $offset]) {
-            if (null !== $fence) {
-                if (1 === preg_match(
-                    '/^ {0,3}' . preg_quote($fence[0], '/') . '{' . strlen($fence) . ',}[ \t]*\z/',
-                    $line,
-                )) {
-                    $fence = null;
-                }
-
-                continue;
-            }
-            if ($comment || 1 === preg_match('/^ {0,3}<!--/', $line)) {
+            if ($comment) {
                 $comment = !str_contains($line, '-->');
 
                 continue;
             }
-            if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-                && ('~' === $matches[1][0] || !str_contains($matches[2], '`'))) {
-                $fence = $matches[1];
+            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
+                continue;
+            }
+            if (BlockStructure::opensComment($line, $containers)) {
+                $comment = !str_contains($line, '-->');
 
                 continue;
             }

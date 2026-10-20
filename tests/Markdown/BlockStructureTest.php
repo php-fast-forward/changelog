@@ -31,6 +31,8 @@ final class BlockStructureTest extends TestCase
     #[TestWith(["  - Parent.  \n    - Child.\n\n    Continuation.", "- Parent.  \n  - Child.\n\n  Continuation."])]
     #[TestWith(['Text', '- Text'])]
     #[TestWith(["Text\n\nNext.", "- Text\n\n  Next."])]
+    #[TestWith(["Text\n\n\t<!-- literal", "- Text\n\n      <!-- literal"])]
+    #[TestWith(["- Text\n\n  \t  code\tpayload", "- Text\n\n      code\tpayload"])]
     #[TestWith(["```php\ncode();\n```", "-\n  ```php\n  code();\n  ```"])]
     #[TestWith(["~~~php\ncode();\n~~~", "-\n  ~~~php\n  code();\n  ~~~"])]
     #[TestWith(["```literal``` span\nNext.", "- ```literal``` span\n  Next."])]
@@ -85,12 +87,43 @@ final class BlockStructureTest extends TestCase
         self::assertNull($fence);
     }
 
+    /** Only the fence's existing quote depth is structural; greater-than text inside its code stays literal. */
+    public function testQuotedFenceRetainsItsOwnContainerDepth(): void
+    {
+        $fence = null;
+        $containers = [];
+        self::assertFalse(BlockStructure::outsideFence('> ~~~html', $fence, $containers));
+        self::assertSame(1, $fence['quotes']);
+        self::assertSame(2, $fence['padding']);
+        self::assertFalse(BlockStructure::outsideFence('> > ~~~', $fence, $containers));
+        self::assertNotNull($fence);
+        self::assertFalse(BlockStructure::outsideFence('> <!-- literal', $fence, $containers));
+        self::assertFalse(BlockStructure::outsideFence('> ~~~', $fence, $containers));
+        self::assertNull($fence);
+        self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers));
+    }
+
+    /** Historical quote termination stays readable; fragment validation separately requires an explicit closer. */
+    public function testHistoricalQuotedFenceEndsWithItsQuoteContainer(): void
+    {
+        $fence = null;
+        $containers = [];
+        $implicit = false;
+        BlockStructure::outsideFence('> ~~~md', $fence, $containers, $implicit);
+        self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers, $implicit));
+        self::assertNull($fence);
+        self::assertTrue($implicit);
+    }
+
     /** New fragments need explicit closers even when historical Markdown permits an implicit item boundary. */
     #[TestWith(["- ```text\n  example\n- Next.", true])]
     #[TestWith(["- ```text\n  example\n  ```\n- Next.", false])]
     #[TestWith(["- - ```text\n    example\n    ```", false])]
     #[TestWith(["```text\nexample", true])]
     #[TestWith(["Description.\n\n    ```literal", false])]
+    #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible.", false])]
+    #[TestWith(["> ~~~html\n> <!-- literal\n> ~~~", false])]
+    #[TestWith(["> ~~~html\n> example\nOther paragraph.", true])]
     public function testNewFragmentFenceRequiresExplicitClosure(string $description, bool $expected): void
     {
         self::assertSame($expected, BlockStructure::hasUnclosedFence($description));
@@ -113,6 +146,9 @@ final class BlockStructureTest extends TestCase
     #[TestWith(['Use `<!--` literally.', false])]
     #[TestWith(["Use `<!--\ncontinued` literally.", false])]
     #[TestWith(["~~~html\n<!-- literal\n~~~", false])]
+    #[TestWith(["> ~~~html\n> <!-- literal\n> ~~~", false])]
+    #[TestWith(["> > ~~~html\n> > <!-- literal\n> > ~~~", false])]
+    #[TestWith(["> ~~~html\n> > ~~~\n> <!-- literal\n> ~~~", false])]
     #[TestWith(["Description.\n\n    <!-- literal", false])]
     #[TestWith(["- Description.\n\n      <!-- literal", false])]
     #[TestWith(["-     <!-- literal", false])]
@@ -132,5 +168,16 @@ final class BlockStructureTest extends TestCase
     public function testCommentSafety(string $description, bool $expected): void
     {
         self::assertSame($expected, BlockStructure::hasUnclosedComment($description));
+    }
+
+    /** Comment starts use content columns instead of confusing list/quote markers with code payload. */
+    #[TestWith(['<!-- comment', [], true])]
+    #[TestWith(['- <!-- comment', [2], true])]
+    #[TestWith(['> <!-- comment', [], true])]
+    #[TestWith(['      <!-- code', [2], false])]
+    #[TestWith(['- \\<!-- literal', [2], false])]
+    public function testCommentBlockStart(string $line, array $containers, bool $expected): void
+    {
+        self::assertSame($expected, BlockStructure::opensComment($line, $containers));
     }
 }

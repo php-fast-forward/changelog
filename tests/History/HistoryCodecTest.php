@@ -147,6 +147,21 @@ final class HistoryCodecTest extends TestCase
         self::assertSame($markdown, $codec->render($parsed, $template, true));
     }
 
+    /** Quoted code is bounded by its quote container while published source bytes remain untouched. */
+    public function testHistoricalQuotedFenceCannotHideTheNextRelease(): void
+    {
+        $markdown = "## [2.0.0]\n\n> ~~~md\n> <!-- literal\n\n## [1.0.0]\n\n- Previous release.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */
     #[Test]
     #[TestWith(['```foo``` bar'])]

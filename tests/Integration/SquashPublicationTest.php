@@ -103,6 +103,10 @@ final class SquashPublicationTest extends TestCase
                 'indented' => "  - ```md\n    example\n      ```\n  - Second improvement.",
                 'nested' => "- - ```md\n    ## [9.9.9]\n    ```\n- Second improvement.",
                 'code-comment' => "- First improvement.\n\n      <!-- literal example\n- Second improvement.",
+                'reference-example' => "- ```md\n  [1.0.1]: https://example.test/literal\n  ```\n- Second improvement.",
+                'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n- Second improvement.",
+                'quoted' => "> ~~~html\n> <!-- literal\n> ~~~",
+                'tab-code' => "- First improvement.\n\n  \t  <!-- literal\tpayload\n- Second improvement.",
                 'inline' => "- Use `some\n  code` safely.\n- Second improvement.",
                 'comment' => "- <!-- hidden\n  --> Visible improvement.\n- Second improvement.",
                 'ordered' => "2. Second improvement.\n3. Third improvement.",
@@ -141,6 +145,9 @@ final class SquashPublicationTest extends TestCase
                     'indented' => "- ```md\n  example\n    ```\n\n  " . $reference,
                     'nested' => "- - ```md\n    ## [9.9.9]\n    ```\n\n  " . $reference,
                     'code-comment' => "- First improvement.\n\n      <!-- literal example\n\n  " . $reference,
+                    'reference-example' => "- ```md\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
+                    'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n\n  " . $reference,
+                    'tab-code' => "- First improvement.\n\n      <!-- literal\tpayload\n\n  " . $reference,
                     'inline' => "- Use `some\n  code` safely.\n\n  " . $reference,
                     'comment' => "- <!-- hidden\n  --> Visible improvement.\n\n  " . $reference,
                     default => '- First improvement. ' . $reference,
@@ -150,12 +157,18 @@ final class SquashPublicationTest extends TestCase
 
                 if ('ordered' === $authoredList) {
                     $expected = "\n### Fixed\n\n- First.\n\n2. Second improvement. " . $reference . "\n3. Third improvement. " . $reference . "\n\n";
+                } elseif ('quoted' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- > ~~~html\n  > <!-- literal\n  > ~~~\n\n  " . $reference . "\n\n";
                 }
                 $history = $configured->get(HistoryCodecInterface::class);
                 self::assertSame($expected, $plan->notes);
                 self::assertSame($expected, $history->notes($history->parse($plan->changelogContents), '1.0.1'));
                 self::assertStringContainsString(
                     "## [1.0.0] - 2026-10-01\n\nOriginal release.\n",
+                    $plan->changelogContents,
+                );
+                self::assertStringContainsString(
+                    '[1.0.1]: https://github.com/owner/fixture/compare/v1.0.0...v1.0.1',
                     $plan->changelogContents,
                 );
             }
@@ -400,6 +413,15 @@ final class SquashPublicationTest extends TestCase
         yield 'normalized list indent survives exact publication reconstruction' => [false, false, false, 'indented'];
         yield 'same-line nested fence survives exact publication reconstruction' => [false, false, false, 'nested'];
         yield 'indented literal HTML keeps references visible' => [false, false, false, 'code-comment'];
+        yield 'fenced literal definition cannot replace the release footer' => [
+            false,
+            false,
+            false,
+            'reference-example',
+        ];
+        yield 'closed comment keeps fence examples literal' => [false, false, false, 'comment-fence'];
+        yield 'quoted code keeps comment markers literal' => [false, false, false, 'quoted'];
+        yield 'indentation tabs preserve literal HTML and internal payload' => [false, false, false, 'tab-code'];
         yield 'multiline inline code keeps references visible' => [false, false, false, 'inline'];
         yield 'multiline HTML comment keeps references visible' => [false, false, false, 'comment'];
         yield 'ordered list has a block boundary after prose' => [false, false, false, 'ordered'];
