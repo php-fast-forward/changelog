@@ -19,6 +19,15 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 final class BlockStructureTest extends TestCase
 {
+    /** Effective release layout must expose the next root heading while still permitting contained HTML. */
+    #[TestWith(["- First.\n\n<pre>\nExample", true])]
+    #[TestWith(["- First.\n\n<pre>\nExample\n</pre>", false])]
+    #[TestWith(["- <pre>\n  Example", false])]
+    public function testHtmlTailContainmentUsesTheEffectiveReleaseLayout(string $description, bool $unsafe): void
+    {
+        self::assertSame($unsafe, BlockStructure::hasUncontainedHtmlTail($description));
+    }
+
     /** Visual container columns include leading indentation and tab stops without changing authored bytes. */
     #[TestWith(['- Text', ['indent' => 0, 'contentIndent' => 2, 'ordered' => false]])]
     #[TestWith(['  - Text', ['indent' => 2, 'contentIndent' => 4, 'ordered' => false]])]

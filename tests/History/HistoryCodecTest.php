@@ -40,6 +40,42 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ReleaseNotesRenderer::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** A list-contained HTML tail with no metadata ends at the next root heading and preserves both releases. */
+    public function testContainedHtmlWithoutMetadataPreservesTheFollowingRelease(): void
+    {
+        $template = $this->template('en');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, null, null, "- <pre>\n  Example"),
+        ], $template);
+        $codec = $this->codec();
+        $source = $codec->render(new HistoryDocument([
+            new HistoryRelease('1.1.0', body: $notes),
+            new HistoryRelease('1.0.0', body: "\nOld release.\n", heading: "## [1.0.0]\n"),
+        ]), $template, true);
+        $parsed = $codec->parse($source);
+
+        self::assertSame(['1.1.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases(),
+        ));
+        self::assertSame("\nOld release.\n", $parsed->getRelease('1.0.0')->getBody());
+        self::assertStringContainsString("- <pre>\n  Example", $parsed->getRelease('1.1.0')->getBody());
+    }
+
+    /** A new plain release cannot leave raw HTML open over following historical headings. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNewReleaseCannotHideOlderHistoryInsideAnHtmlTail(bool $preserve): void
+    {
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0', body: "- First.\n\n<pre>\nExample"),
+            new HistoryRelease('1.0.0', body: "\nOld release.\n", heading: "## [1.0.0]\n"),
+        ]);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTML block');
+
+        $this->codec()->render($document, $this->template('en'), $preserve);
+    }
+
     /** A newly imported prose tail leaves a real block boundary before the separately owned reference footer. */
     public function testImportedProseCannotConsumeTheDocumentFooter(): void
     {

@@ -38,7 +38,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * @param string|null       $repository Optional GitHub owner/name used for source selection and reference links.
      *
      * @return string                   Deterministically category-grouped release body preserving authored descriptions and optional references.
-     * @throws InvalidArgumentException When an unclosed fence or HTML comment would hide delivery references.
+     * @throws InvalidArgumentException When a literal block would hide delivery references or following release headings.
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
     {
@@ -53,6 +53,12 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                     continue;
                 }
                 $references = $this->references($change, $repository);
+
+                if (BlockStructure::hasUncontainedHtmlTail($change->description)) {
+                    throw new InvalidArgumentException(
+                        'An unfinished HTML block would hide following release headings.',
+                    );
+                }
 
                 if ('' !== $references && BlockStructure::hasUnclosedFence($change->description)) {
                     throw new InvalidArgumentException(
@@ -73,7 +79,13 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
 
                     continue;
                 }
-                $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
+                $presentation = SourceDocument::analyze($body);
+
+                if ('' !== $references && $presentation->hidesAppendedLine('  Fast Forward Reference')) {
+                    throw new InvalidArgumentException('An unfinished HTML block would hide the delivery reference.');
+                }
+                $blockReference = $multiline || isset($presentation->literalHtmlLines()[1]);
+                $suffix = '' === $references ? '' : ($blockReference ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = $boundary . $body . $suffix;
                 $previousOrdered = false;
             }
@@ -86,12 +98,12 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     }
 
     /**
-     * Keeps principal items whose markers stay below the current item's content column, retaining nested content.
+     * Inserts references at actual principal-item boundaries while retaining intervening root blocks separately.
      *
      * @param  string                   $description Authored description beginning with a list marker.
      * @param  string                   $references  Optional already rendered references shared by this fragment's principal items.
      * @return string                   Authored list with references attached only after the owning item's content.
-     * @throws InvalidArgumentException When an open HTML comment would hide delivery references.
+     * @throws InvalidArgumentException When an open HTML block or comment would hide delivery references.
      */
     private function authoredList(string $description, string $references): string
     {
@@ -101,18 +113,16 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         $document = SourceDocument::analyze($description);
         $items = $document->principalItems();
         $lines = explode("\n", $description);
-        $output = [];
 
-        foreach ($items as $index => $item) {
-            $end = isset($items[$index + 1]) ? $items[$index + 1]['start'] - 1 : count($lines);
-            $output[] = $this->listReference(
-                array_slice($lines, $item['start'] - 1, $end - $item['start'] + 1),
-                $item['padding'],
-                $references,
+        foreach (array_reverse($items) as $item) {
+            $length = $item['end'] - $item['start'] + 1;
+            $replacement = $this->listReference(
+                array_slice($lines, $item['start'] - 1, $length), $item['padding'], $references,
             );
+            array_splice($lines, $item['start'] - 1, $length, [$replacement]);
         }
 
-        return implode("\n", $output);
+        return implode("\n", $lines);
     }
 
     /**
@@ -122,7 +132,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * @param  int                      $padding    Content columns used to keep the reference paragraph within its list item.
      * @param  string                   $references Already rendered delivery metadata for this item's fragment.
      * @return string                   Aligned item content with visible references added outside its inline constructs.
-     * @throws InvalidArgumentException When an unclosed HTML comment would swallow the reference.
+     * @throws InvalidArgumentException When an HTML block or comment would swallow the reference paragraph.
      */
     private function listReference(array $lines, int $padding, string $references): string
     {
@@ -131,20 +141,20 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         if (BlockStructure::hasUnclosedComment($body)) {
             throw new InvalidArgumentException('An unclosed HTML comment would hide the list item delivery reference.');
         }
+        $document = SourceDocument::analyze($body);
 
-        if (1 === count($lines) && ! BlockStructure::startsIndentedItem($body)) {
+        if ($document->hidesAppendedLine(str_repeat(' ', $padding) . 'Fast Forward Reference')) {
+            throw new InvalidArgumentException('An unfinished HTML block would hide the list item delivery reference.');
+        }
+
+        if (1 === count($lines) && ! BlockStructure::startsIndentedItem($body)
+            && ! isset($document->literalHtmlLines()[1])) {
             $text = rtrim($body, " \t\r");
 
             return $text . ' (' . $references . ')' . substr($body, strlen($text));
         }
-        $trailing = [];
 
-        while ([] !== $lines && '' === trim(array_last($lines))) {
-            array_unshift($trailing, array_pop($lines));
-        }
-
-        return implode("\n", $lines) . "\n\n" . str_repeat(' ', $padding) . '(' . $references . ')'
-            . ([] === $trailing ? '' : "\n" . implode("\n", $trailing));
+        return $body . "\n\n" . str_repeat(' ', $padding) . '(' . $references . ')';
     }
 
     /**

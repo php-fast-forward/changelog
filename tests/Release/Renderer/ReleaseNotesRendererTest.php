@@ -13,6 +13,7 @@ use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Version\VersionImpact;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -386,6 +387,85 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
             new Changeset('list.md', Category::Added, null, 7, null, $description),
         ], $template));
+    }
+
+    /** References belong to the actual item; intervening root paragraphs remain independent authored blocks. */
+    public function testRootParagraphBetweenItemsDoesNotDetachTheirReferences(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n- First. (#7)\n\nAdditional context.\n\n- Second. (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset(
+                    'list.md',
+                    Category::Added,
+                    null,
+                    7,
+                    null,
+                    "- First.\n\nAdditional context.\n\n- Second.",
+                ),
+            ], $template),
+        );
+    }
+
+    /** Preformatted HTML payload whitespace remains literal when the fragment is wrapped and linked. */
+    public function testHtmlRecipeRetainsItsLiteralTab(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $source = "<pre>\nall:\n\tprintf 'hello'\n</pre>";
+
+        self::assertSame(
+            "### Added\n\n- <pre>\n  all:\n  \tprintf 'hello'\n  </pre>\n\n  (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('html.md', Category::Added, null, 7, null, $source),
+            ], $template),
+        );
+    }
+
+    /** A complete one-line raw HTML block receives a separate Markdown reference paragraph. */
+    #[TestWith(['<pre>Code.</pre>'])]
+    #[TestWith(['- <pre>Code.</pre>'])]
+    public function testClosedSingleLineHtmlKeepsTheReferenceOutsideRawMarkup(string $description): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- <pre>Code.</pre>\n\n  (#7)\n", new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, 7, null, $description),
+        ], $template));
+    }
+
+    /** Direct rendering refuses root HTML tails even when no delivery metadata was requested. */
+    #[TestWith([null])]
+    #[TestWith([7])]
+    public function testUncontainedHtmlCannotHideHistoricalReleaseHeadings(?int $pullRequest): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTML block');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, $pullRequest, null, "- First.\n\n<pre>\nExample"),
+        ], $template);
+    }
+
+    /** An HTML block inside a list item must not swallow its appended delivery paragraph. */
+    #[TestWith(["- <pre>\n  Example"])]
+    #[TestWith(["<pre>\nExample"])]
+    public function testContainedHtmlCannotHideItsDeliveryReference(string $description): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTML block');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, 7, null, $description),
+        ], $template);
     }
 
     /** A following fragment starts after a blank block boundary instead of becoming literal HTML content. */

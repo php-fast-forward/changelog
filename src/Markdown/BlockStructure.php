@@ -46,7 +46,7 @@ final class BlockStructure
     /**
      * Aligns each principal item independently, or wraps standalone prose/code in one release item.
      *
-     * Source ranges come from CommonMark. Only structural leading indentation is adjusted; fenced payloads,
+     * Source ranges come from CommonMark. Only structural leading indentation is adjusted; fenced and HTML payloads,
      * literal tabs beyond indented-code boundaries and authored trailing hard breaks retain their bytes.
      * Stored fragments and historical documents are never rewritten by this presentation operation.
      *
@@ -59,7 +59,7 @@ final class BlockStructure
         $lines = $document->lines();
 
         foreach ($lines as $number => &$line) {
-            if (! isset($document->fencedLines()[$number])) {
+            if (! isset($document->fencedLines()[$number]) && ! isset($document->literalHtmlLines()[$number])) {
                 $line = self::structuralIndentation($line, $document->indentationLimits()[$number] ?? 4);
             }
         }
@@ -105,6 +105,19 @@ final class BlockStructure
     public static function hasUnclosedComment(string $description): bool
     {
         return SourceDocument::analyze(self::wrapDescription($description))->hasUnclosedComment();
+    }
+
+    /**
+     * Requires an effective fragment tail to leave the next root release heading visible.
+     *
+     * @param  string $description Authored fragment whose actual list presentation determines HTML containment.
+     * @return bool   Whether raw HTML would swallow a subsequent root heading after a blank boundary.
+     */
+    public static function hasUncontainedHtmlTail(string $description): bool
+    {
+        return SourceDocument::analyze(self::wrapDescription($description))->hidesAppendedLine(
+            '## Fast Forward Boundary',
+        );
     }
 
     /**

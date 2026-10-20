@@ -90,6 +90,8 @@ boundary during validation, rendering and historical parsing.
 CommonMark classifies the complete source before presentation. Raw HTML owns its
 literal fence examples, and inline code spans cannot cross sibling items. The
 library edits source slices rather than converting Markdown through an HTML renderer.
+Raw HTML must leave the next release heading visible; delivery references are
+refused when HTML would consume their actual insertion position.
 
 ## Release reference links
 

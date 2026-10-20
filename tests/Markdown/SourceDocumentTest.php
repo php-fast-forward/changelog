@@ -72,6 +72,45 @@ final class SourceDocumentTest extends TestCase
         self::assertSame($source, implode('', $document->lines()));
     }
 
+    /** Raw HTML payload lines retain their literal tabs while ordinary indented code keeps its separate structural policy. */
+    public function testLiteralHtmlRangesKeepRootAndContainedPayloadCoordinates(): void
+    {
+        $source = "<pre>\n\troot recipe\n</pre>\n\n- <pre>\n  \tlist recipe\n  </pre>\n\n## Boundary\n\n    indented code\n";
+        $document = SourceDocument::analyze($source);
+
+        self::assertSame(
+            [1 => true, 2 => true, 3 => true, 5 => true, 6 => true, 7 => true],
+            $document->literalHtmlLines(),
+        );
+        self::assertArrayHasKey(11, $document->opaqueLines());
+        self::assertArrayNotHasKey(11, $document->literalHtmlLines());
+        self::assertSame("\troot recipe\n", $document->lines()[2]);
+        self::assertSame("  \tlist recipe\n", $document->lines()[6]);
+        self::assertSame($source, implode('', $document->lines()));
+    }
+
+    /** An unfinished root HTML block cannot consume a later release heading while a closed block leaves it visible. */
+    #[TestWith(["- First.\n\n<pre>unfinished", true])]
+    #[TestWith(["- First.\n\n<pre>complete</pre>", false])]
+    #[TestWith(["<pre>\n## Boundary\n</pre>", false])]
+    public function testRootHtmlCannotHideAnAppendedReleaseBoundary(string $source, bool $hidden): void
+    {
+        self::assertSame($hidden, SourceDocument::analyze($source)->hidesAppendedLine('## Boundary'));
+    }
+
+    /** A contained HTML block may end at a new root release yet still hide metadata appended inside its current item. */
+    public function testContainedHtmlDistinguishesReleaseAndDeliveryReferenceBoundaries(): void
+    {
+        $source = "- <pre>\n  unfinished";
+        $document = SourceDocument::analyze($source);
+
+        self::assertFalse($document->hidesAppendedLine('## Boundary'));
+        self::assertTrue($document->hidesAppendedLine('  Delivery reference.'));
+        self::assertFalse(SourceDocument::analyze("- <pre>\n  complete\n  </pre>")
+            ->hidesAppendedLine('  Delivery reference.'));
+        self::assertSame($source, implode('', $document->lines()));
+    }
+
     /** Delimiter-like text inside nested quoted code remains opaque at its original line positions. */
     public function testNestedQuotedCodeOwnsItsLiteralHtmlAndReferenceExamples(): void
     {

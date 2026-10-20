@@ -69,6 +69,9 @@ final class SourceDocument
      */
     private array $fenced = [];
 
+    /** @var array<int,true> Raw HTML source lines whose payload whitespace remains literal. */
+    private array $literalHtml = [];
+
     /**
      * Maximum structural indentation columns before literal indented-code payload.
      *
@@ -123,6 +126,9 @@ final class SourceDocument
 
                     if ($node instanceof FencedCode) {
                         $this->fenced[$number] = true;
+                    }
+                    if ($node instanceof HtmlBlock) {
+                        $this->literalHtml[$number] = true;
                     }
                 }
             }
@@ -224,6 +230,32 @@ final class SourceDocument
     public function fencedLines(): array
     {
         return $this->fenced;
+    }
+
+    /**
+     * Identifies raw HTML payload lines without conflating them with indented-code structural whitespace.
+     *
+     * @return array<int,true> Original source lines classified as HTML blocks, including their delimiters.
+     */
+    public function literalHtmlLines(): array
+    {
+        return $this->literalHtml;
+    }
+
+    /**
+     * Tests the exact intended continuation position through upstream HTML-block ownership.
+     *
+     * The source is analyzed with one additional line after a blank boundary. Root headings test historical
+     * containment; indented prose tests a delivery paragraph's actual list context. No HTML grammar is inferred.
+     *
+     * @param  string $line One synthetic source line whose prefix selects the intended continuation container.
+     * @return bool   Whether a raw HTML block would consume that appended line instead of exposing Markdown.
+     */
+    public function hidesAppendedLine(string $line): bool
+    {
+        $probe = self::analyze(implode('', $this->lines) . "\n\n" . $line . "\n");
+
+        return isset($probe->literalHtmlLines()[array_key_last($probe->lines())]);
     }
 
     /**

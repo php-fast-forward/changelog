@@ -181,6 +181,18 @@ final class ChangesetParserTest extends TestCase
         self::assertSame($body, $result->changeset->description);
     }
 
+    /** A root HTML tail cannot conceal older release headings when an authored list is consolidated. */
+    public function testRejectsAnUncontainedHtmlTail(): void
+    {
+        $result = new ChangesetParser()->parse(
+            'html.md',
+            "---\ncategory: added\ntype: minor\n---\n\n- First.\n\n<pre>\nExample\n",
+        );
+
+        self::assertFalse($result->isValid());
+        self::assertContains('Fragment HTML blocks must not hide following release headings.', $result->errors);
+    }
+
     /** A visible paragraph cannot make an unclosed HTML comment safe for later reference paragraphs. */
     public function testRejectsUnclosedCommentAfterVisibleProse(): void
     {

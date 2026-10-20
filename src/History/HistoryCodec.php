@@ -552,6 +552,9 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         if ($document->hasUnclosedTailFence()) {
             throw new InvalidArgumentException('An unclosed code fence prevents safe historical reformatting.');
         }
+        if ($document->hidesAppendedLine('## Fast Forward Boundary')) {
+            throw new InvalidArgumentException('An unfinished HTML block prevents safe historical reformatting.');
+        }
         if ($terminalReference) {
             throw new InvalidArgumentException(
                 'A plain changelog body cannot end with an unindented reference definition that is ambiguous with the global footer; place it before following prose or inside a nested example.',

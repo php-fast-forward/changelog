@@ -286,6 +286,10 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Fragment HTML comments must close before the end of their rendered release entry.';
         }
 
+        if ('' !== $visibleBody && BlockStructure::hasUncontainedHtmlTail($description)) {
+            $errors[] = 'Fragment HTML blocks must not hide following release headings.';
+        }
+
         return $description;
     }
 
