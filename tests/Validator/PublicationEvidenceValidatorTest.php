@@ -694,6 +694,57 @@ final class PublicationEvidenceValidatorTest extends TestCase
         self::assertSame(['1.7.2', '1.7.1', '1.7.0'], $state['rendered_versions']);
     }
 
+    /** Reconstruction uses reachable tags while preserving custom links and accepting the exact legacy completion form. */
+    #[TestWith([false, false, false])]
+    #[TestWith([false, true, false])]
+    #[TestWith([true, false, false])]
+    #[TestWith([false, false, true])]
+    public function testPublicationReferencePoliciesRequireExactApprovedForms(
+        bool $wrongBase,
+        bool $existingLink,
+        bool $legacy,
+    ): void {
+        $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
+        $state = $this->state($options);
+        $state['real_versions'] = true;
+        $state['tags'] = [['name' => 'v1.7.0', 'sha' => str_repeat('c', 40), 'date' => null, 'date_source' => null]];
+        $footer = $existingLink ? "[1.7.1]: https://custom.test/retained\r\n" : '';
+        $state['base_doc'] = new HistoryDocument([
+            new HistoryRelease('1.7.1', body: 'Maintained without publication'),
+            new HistoryRelease('1.7.0', body: 'Published earlier'),
+        ], 'Original introduction', $footer);
+        $state['blobs'][self::BASE]['CHANGELOG.md'] = $this->encode($state['base_doc']);
+        $state['approved_doc'] = $state['base_doc']->withReleases([
+            new HistoryRelease('1.7.2', '2026-10-03', null, "Exact  notes\n"),
+            ...$state['base_doc']->getReleases(),
+        ]);
+        $newline = $existingLink ? "\r\n" : "\n";
+        $state['approved_doc'] = $state['approved_doc']->withReferences(
+            ($existingLink ? '' : "\n")
+            . "[1.7.2]: https://github.com/owner/repo/compare/v1.7." . ($wrongBase ? '1' : '0') . "...v1.7.2" . $newline
+            . $footer . '[1.7.0]: https://github.com/owner/repo/releases/tag/v1.7.0' . $newline,
+        );
+        if ($legacy) {
+            $state['approved_doc'] = new HistoryReferenceBuilder()->complete(
+                $state['approved_doc']->withReferences($footer),
+                'owner/repo',
+            );
+        }
+        $this->refreshApproved($state);
+
+        if ($wrongBase) {
+            $this->failure($options, $state, 'canonical consolidation');
+
+            return;
+        }
+
+        $evidence = $this->validator($state)->validate($options, self::APPROVED);
+
+        self::assertSame('1.7.2', $evidence->version);
+        self::assertSame($state['approved_doc']->getReferences(), $state['rendered_references']);
+        self::assertSame(0, $state['live_reads']);
+    }
+
     /** An existing zero release supplies a baseline without requiring absent or unrelated tags to prove publication. */
     #[DataProvider('unpublishedZeroTagSets')]
     public function testZeroSourceReleaseDoesNotRequireAReachableStableTag(array $tags): void

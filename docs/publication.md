@@ -44,7 +44,10 @@ Before any remote mutation, publication verifies:
   canonical fragment rendering and supported history round trip. Existing
   source-base release bodies and existing reference definitions remain unchanged.
   Missing deterministic release-reference definitions are reconstructed by the
-  same [footer completion contract](history.md) used during version planning.
+  same [footer completion contract](history.md) used during version planning,
+  using stable tags ancestral to the original source base. Exact reconstructions
+  of the older completion formats remain valid for already approved commits;
+  arbitrary footer changes do not.
   With `resolvePullRequests` enabled, missing fragment PR references are
   recomputed from exact committed bytes, first-parent Git history and verified
   merged-PR API evidence before comparing the canonical notes.

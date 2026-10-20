@@ -172,7 +172,28 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame(['GET', '/repos/owner/project/pulls/7', null], array_last($this->calls));
     }
 
-    /** Fresh confirmation never authorizes a changed head, creator, PR identity, branch, repository or closed PR. */
+    /** A lost PATCH response cannot confirm a generated body that GitHub never applied to the current branch head. */
+    #[Test]
+    public function rejectsUnappliedBodyAfterAnUncertainPrUpdate(): void
+    {
+        $previousBody = 'Previous release checklist retained before the failed write.';
+        $result = $this->synchronizeFixture([
+            'existing' => true,
+            'pr_update_failed_before_apply' => true,
+            'pr_body' => $previousBody,
+        ]);
+
+        self::assertSame('conflict', $result->status);
+        self::assertSame(str_repeat('c', 40), $result->headSha);
+        self::assertNotEmpty($result->diagnostics);
+        self::assertStringNotContainsString('super-secret', implode(' ', $result->diagnostics));
+        self::assertCount(1, $this->writes('pulls'));
+        self::assertSame('PATCH', $this->writes('pulls')[0][0]);
+        self::assertSame($previousBody, array_last($this->pullRequestSnapshots)['body']);
+        self::assertSame(['GET', '/repos/owner/project/pulls/7', null], array_last($this->calls));
+    }
+
+    /** Fresh confirmation never authorizes changed PR identity, presentation, ownership, branches or closed state. */
     #[Test]
     #[TestWith(['stale_head'])]
     #[TestWith(['wrong_head'])]
@@ -184,6 +205,8 @@ final class VersionPullRequestServiceTest extends TestCase
     #[TestWith(['wrong_base_branch'])]
     #[TestWith(['closed'])]
     #[TestWith(['wrong_title'])]
+    #[TestWith(['wrong_body'])]
+    #[TestWith(['missing_body'])]
     #[TestWith(['missing'])]
     #[TestWith(['read_failure'])]
     public function invalidFreshPrConfirmationFailsWithoutRepeatingTheWrite(string $confirmation): void
@@ -751,6 +774,14 @@ final class VersionPullRequestServiceTest extends TestCase
                             $confirmation['title'] = 'Unconfirmed title';
 
                             break;
+                        case 'wrong_body':
+                            $confirmation['body'] = 'Unconfirmed generated body';
+
+                            break;
+                        case 'missing_body':
+                            unset($confirmation['body']);
+
+                            break;
                         case 'missing':
                             return null;
                         case 'read_failure':
@@ -760,6 +791,11 @@ final class VersionPullRequestServiceTest extends TestCase
                     $this->pullRequestSnapshots[] = $confirmation;
 
                     return $confirmation;
+                }
+                if ('PATCH' === $method && isset($settings['pr_update_failed_before_apply'])) {
+                    $pr['head']['sha'] = $head;
+
+                    throw new RuntimeException('synthetic-super-secret');
                 }
                 $previousBody = $pr['body'] ?? null;
                 $pr = $this->pr($input->automationActor, 'Bot', $input->managedBranch);

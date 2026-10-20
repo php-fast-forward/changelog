@@ -34,7 +34,9 @@ version's effective impact.
 
 For example, tag `v1.7.0`, committed history through `1.7.1` and a new patch
 fragment produce a `1.7.2` PR. The planner preserves the earlier history bytes;
-it does not reuse `1.7.1`, require its tag or publish it retroactively. This also
+it does not reuse `1.7.1`, require its tag or publish it retroactively. Its new
+comparison link starts at the reachable `v1.7.0` tag, and no link is invented
+for the untagged `1.7.1` section. This also
 works when history exists without any stable tag. History-only maintenance and
 an empty fragment inventory do not invent another version. Preparation itself
 never publishes tags or releases.
@@ -90,8 +92,10 @@ GraphQL proof that GitHub signed that same SHA.
 
 Remote branch tips and local HEAD are rechecked around writes. Ref updates use
 `force: false`; no rollback or force push discards another actor's history.
-Uncertain ref/PR responses are confirmed through fresh reads. Unconfirmed
-outcomes return a conflict with known safe identifiers.
+Uncertain ref/PR responses are confirmed through fresh reads. PR confirmation
+requires the intended head, title and any requested generated body; a title-only
+refresh preserves existing human prose. Unconfirmed outcomes return a conflict
+with known safe identifiers, without repeating the write.
 
 ## Result
 

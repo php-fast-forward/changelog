@@ -49,10 +49,11 @@ authored Markdown hard breaks remain unchanged.
 ## Release reference links
 
 When `version` promotes pending fragments into a concrete release and the
-effective GitHub repository is known, it also inserts missing Markdown reference
-definitions for every maintained SemVer section. The oldest semantic version
-links to its GitHub release/tag page; each subsequent version links to the
-comparison with its semantic predecessor, independently of section order.
+effective GitHub repository is known, it inserts missing Markdown reference
+definitions for reachable stable tags and the newly planned release. A version
+with no earlier reachable stable tag links to its GitHub release/tag page;
+otherwise it compares with the preceding reachable stable tag, independently
+of section order. Untagged historical sections do not gain new definitions.
 New definitions follow the maintained section order: a new latest release goes
 before the older version links, and a missing intermediate version goes before
 its next retained footer reference. Existing definitions and unrelated links keep
@@ -69,16 +70,26 @@ or HTML comments do not define links. Their URLs, optional titles, casing, white
 endings are preserved byte for byte. Retained headings using `[v1.0.0]` or
 `[V1.0.0]` keep that reference label; new headings use their canonical version.
 The complete configured tag is URL-encoded, including namespace slashes or build
-metadata. SemVer precedence includes existing prereleases; distinct build
-identities with equal precedence use lexical order for a deterministic predecessor.
+metadata. Prerelease tags do not establish a stable comparison base; distinct
+stable build identities with equal precedence use lexical order for a
+deterministic predecessor.
+
+For example, tag `v1.7.0`, untagged history `1.7.1` and a planned `1.7.2`
+produce a comparison from `v1.7.0` to `v1.7.2`. No new `[1.7.1]` definition
+is added. An existing definition for that section remains unchanged. The new
+release link is prospective: its target tag is created only during publication.
 
 Without a known repository, no links are added. `format`, `backfill` and plans
 without a new concrete release do not add definitions. No `Unreleased` link is
-created. Constructing these URLs does not query GitHub or prove that a tag or
-release has been published; publication remains a separate approved operation.
-The pure `HistoryReferenceBuilder` owns this completion, while the codec keeps
-parsing, rendering and exact note extraction. Publication reconstructs the same
-deterministic footer when checking the approved central bytes.
+created. Planning supplies tags already proven ancestral to the source base;
+constructing URLs does not query GitHub or publish a tag or release.
+
+The pure `HistoryReferenceBuilder` owns completion. Its optional tag context
+distinguishes a known empty tag inventory from an omitted context; callers that
+omit it retain the original history-only completion behavior. Planning and
+publication always supply the known inventory. Publication checks exact
+reconstructions, including the older completion formats for already approved
+commits; it does not accept arbitrary changes to footer destinations.
 
 ## Entry references and attribution
 

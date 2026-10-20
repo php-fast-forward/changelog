@@ -222,6 +222,10 @@ final class ReleasePlannerTest extends TestCase
             $next->changelogContents,
         );
         self::assertStringContainsString('[1.0.0]: https://custom.test/first "Title"', $next->changelogContents);
+        self::assertStringContainsString(
+            '[1.0.1]: https://github.com/owner/repo/releases/tag/v1.0.1',
+            $next->changelogContents,
+        );
     }
 
     /** Delayed publication never duplicates a consolidated version or consumes its prior notes as new fragments. */
@@ -247,6 +251,12 @@ final class ReleasePlannerTest extends TestCase
         self::assertCount(1, $plan->consumed);
         self::assertSame([], $plan->historicalVersions);
 
+        self::assertStringContainsString(
+            '[' . $expected . ']: https://github.com/owner/repo/compare/v1.7.0...v' . $expected,
+            $plan->changelogContents,
+        );
+        self::assertStringNotContainsString('[1.7.1]:', $plan->changelogContents);
+
         $following = $this->markdownPlanner($plan->changelogContents, $tags)->plan($options);
         $next = new NextVersionResolver(new VersionImpactResolver())->resolve($expected, [
             new Changeset('next.md', Category::Fixed, null, null, null, 'Fresh fix.'),
@@ -255,6 +265,10 @@ final class ReleasePlannerTest extends TestCase
         self::assertSame($expected, $following->currentVersion);
         self::assertSame($next, $following->nextVersion);
         self::assertStringContainsString($prior, $following->changelogContents);
+        self::assertStringContainsString(
+            '[' . $next . ']: https://github.com/owner/repo/compare/v1.7.0...v' . $next,
+            $following->changelogContents,
+        );
     }
 
     /** A legacy pending section is not a published release and can become the first concrete version without any tag. */

@@ -147,6 +147,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
                 $currentVersion,
                 $template,
                 $baseSha,
+                array_column($tags, 'name'),
             );
         }
 
@@ -211,6 +212,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param string            $currentVersion Greatest stable maintained or ancestrally tagged version.
      * @param TemplateInterface $template       Presentation used for notes and structural headings.
      * @param ?string           $baseSha        Complete selected source commit, or null outside a Git repository.
+     * @param list<string>      $reachableTags  Exact tag names already proven ancestral to the selected source commit.
      *
      * @return array{0:HistoryDocument,1:string,2:string,3:array<string,string>,4:string} Promoted history, next version, impact, consumed hashes and notes.
      */
@@ -221,6 +223,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         string $currentVersion,
         TemplateInterface $template,
         ?string $baseSha,
+        array $reachableTags,
     ): array {
         $resolved = $this->versions->resolve($currentVersion, $inventory->changesets);
         if (! $resolved->isValid()) {
@@ -245,7 +248,13 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $notes,
             $template,
         );
-        $document = $this->references->complete($document, $options->repository, $options->tagPrefix);
+        $document = $this->references->complete(
+            $document,
+            $options->repository,
+            $options->tagPrefix,
+            $reachableTags,
+            $next,
+        );
 
         return [$document, $next, $impact, $consumed, $notes];
     }

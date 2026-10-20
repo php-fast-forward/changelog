@@ -292,8 +292,18 @@ final readonly class PublicationEvidenceValidator implements MergedPublicationEv
         $promoted = $this->consolidator->promote($document, $version, $section->getDate(), $rendered, $template);
         $expected = $this->history->render($promoted, $template, true);
 
-        // Already approved releases can predate link completion; both accepted forms are reconstructed in full.
+        // Approved heads may predate either completion policy; every accepted form is reconstructed in full.
         if ($central !== $expected && $central !== $this->history->render(
+            $this->references->complete(
+                $promoted,
+                $options->repository,
+                $options->tagPrefix,
+                array_column($reachable, 'name'),
+                $version,
+            ),
+            $template,
+            true,
+        ) && $central !== $this->history->render(
             $this->references->complete($promoted, $options->repository, $options->tagPrefix),
             $template,
             true,

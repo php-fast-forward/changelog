@@ -812,10 +812,11 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     }
 
     /**
-     * Creates or refreshes the one PR without retrying a mutation. Existing PR writes are confirmed.
+     * Creates or refreshes the one PR without retrying a mutation.
      *
-     * through their trusted number because a successful PATCH may still return the previous head;
-     * an uncertain create is recovered by its exclusive branch query. Unconfirmed identities or titles fail closed.
+     * Existing PR writes are confirmed through their trusted number because a successful PATCH may still return
+     * the previous head; an uncertain create is recovered by its exclusive branch query. Unconfirmed identities,
+     * titles or requested generated bodies fail closed.
      * A null body preserves existing human PR text during a title-only refresh; new PRs receive generated text.
      *
      * @param  string                      $repository Explicit GitHub owner/name used to construct repository-scoped API endpoints.
@@ -824,7 +825,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
      * @param  ?array                      $pr         GitHub pull-request snapshot whose repository, branch and creator evidence is checked.
      * @param  string                      $head       Immutable managed or contribution head selected for the current operation.
      * @param  ?string                     $body       Generated PR body, or null to preserve existing human prose during a title-only refresh.
-     * @return array                       Fresh verified PR response at the intended head and title after a single write attempt.
+     * @return array                       Fresh verified PR response with the intended head, title and requested body after one write attempt.
      * @throws VersionPullRequestException When a controlled ownership, freshness or transaction invariant is not
      *                                     satisfied.
      * @throws RuntimeException            When an injected API, Git or guarded template boundary fails; synchronization reports
@@ -866,6 +867,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             && $response['head']['sha'] === $head && $response['head']['ref'] === $input->managedBranch
             && ($response['base']['ref'] ?? null) === $input->baseBranch
             && ($response['title'] ?? null) === $input->title
+            && (null === $body || ($response['body'] ?? null) === $body)
             && GitHubEvidence::identity(
                 $response['user'] ?? null,
                 $input->automationActor,
