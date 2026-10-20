@@ -16,6 +16,20 @@ separate [documentation build](docs/documentation.md) explicitly prepares the
 permitted phpDocumentor shim plugin; consumers need neither that tool nor its
 template dependency.
 
+The development-only `llm/skills` plugin can restore the Container consumer skill
+selected in `skills.json`. After the plugin-disabled installation above, use
+`composer skills:show` to inspect the donor and
+`composer skills:update --from=github` to restore it explicitly. Generated
+`.agents/skills` files are ignored and no host aliases are created. Ordinary
+plugin-enabled Composer installs also synchronize the configured skill.
+
+The skill source follows published `fast-forward/container ^1.10` instructions;
+the runtime here remains locked to `1.6.0` under `~1.6.0`. Installing instructions
+does not make that runtime compatible. Follow the skill's version check and
+report the mismatch before applying its APIs; any runtime upgrade requires a
+separate reviewed change. Continue using this repository's canonical Changelog
+skill directly from `resources/skills/fast-forward-changelog`.
+
 Run `composer test:unit` for a focused change. To select a test, use
 `vendor/bin/phpunit --testsuite unit --filter MethodOrClass`. Production tests
 mirror the source namespace under `FastForward\Changelog\Tests`. Every test

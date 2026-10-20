@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2026-10-20
 
+### Added
+
+- Restores the Container consumer skill through a narrowly configured development-only Composer skill manager, with explicit guidance to check its supported API version before using it against the unchanged runtime. ([#67](https://github.com/php-fast-forward/changelog/pull/67))
+
 ### Changed
 
 - Include the GitHub repository and current-to-next version transition in generated version-PR titles by default, with repository placeholders and preserved custom titles. ([#60](https://github.com/php-fast-forward/changelog/pull/60))
