@@ -141,7 +141,8 @@ refused rather than guessed. `includeActions: false` filters GitHub Actions.
 The deterministic filename is `<fragment-directory>/dependabot-<PR-number>.md`.
 The configured directory must be a validated repository-relative path; a monorepo
 can use `packages/lib/.changelog`, and a custom fragment directory is supported. A normal dependency update uses
-`category: changed` and explicit `type: patch`. The description contains sorted
+`category: changed` and explicit `type: patch` as a reviewable maintenance default,
+not as an inferred compatibility assessment. The description contains sorted
 package names and the fragment links to the PR/Dependabot author through the
 same core changeset factory and renderer used by consumer code. A usable live PR
 title precedes that package summary as an escaped literal paragraph, preserving
@@ -162,9 +163,41 @@ verify that association before supplying alert IDs. See the
 [official metadata action contract](https://github.com/dependabot/fetch-metadata/blob/main/action.yml)
 and [individual alert API](https://docs.github.com/en/rest/dependabot/alerts#get-a-dependabot-alert).
 
+### Choose the dependency update's impact
+
+Classify the effect on **your package's public contract**, not the dependency's
+version number. The collector does not analyze API usage, changed Composer
+constraints, lock-only updates or whether an old supported range was removed.
+Dependabot's `update-type` describes the dependency's version transition; the
+service does not use it to decide your release impact.
+
+| Change | Review decision |
+| --- | --- |
+| Development tooling, GitHub Actions or a lock-only update | Usually `patch` when the package's public contract stays compatible, even if the dependency crosses a major. |
+| Broaden a requirement, for example `^7` to `^7 || ^8`, while retaining old support | No automatic major; choose `patch` for compatible maintenance or `minor` when adding functionality. |
+| Upgrade a runtime dependency whose changed types or behavior are exposed in the public API | Choose `major` when the consumer must migrate. Describe the actual break. |
+| Remove a previously promised runtime or dependency compatibility range, for example `^7` to `^8` | Assess the supported contract explicitly; a breaking removal needs its corresponding breaking release policy. |
+| Initial `0.x` development | Apply the consumer repository's policy deliberately; do not infer its stability milestone from a dependency's major. |
+
+This follows [SemVer's dependency-update FAQ](https://semver.org/#what-should-i-do-if-i-update-my-own-dependencies-without-changing-the-public-api):
+compatible dependency maintenance does not automatically inherit the dependency's
+major. New public functionality and incompatible changes still need their own
+classification. The version planner takes the greatest explicit impact across
+the accepted fragments.
+
+For a different impact, edit **only** the `type` line in the existing
+`.changelog/dependabot-<PR-number>.md`, selecting `patch`, `minor` or `major`.
+Commit that change and rerun the workflow on the new head. Keep its category,
+PR, author, description and remaining bytes intact. A canonical note with that
+explicit selection returns `unchanged`; the bot does not rewrite it. This
+preserves a classification, without claiming to verify the editor's identity.
+When the actual break needs more explanation, add a separate unique fragment
+describing the consumer migration and selecting the appropriate impact.
+
 Only the missing deterministic path is created. Identical current bytes or the
-recognized legacy summary-only bytes return `unchanged` without a second commit.
-Any other differing, malformed or manual file returns `refused` and preserves
+recognized legacy summary-only bytes, with any explicit valid impact, return
+`unchanged` without a second commit. Any other differing or malformed file
+returns `refused` and preserves
 its contents. A generated marker or checksum is
 not sufficient authority to overwrite a later human edit. Changed titles, package
 or security metadata may therefore require a human update to an existing fragment.

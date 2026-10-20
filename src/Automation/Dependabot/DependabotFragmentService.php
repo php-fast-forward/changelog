@@ -45,7 +45,11 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
     ) {}
 
     /**
-     * Creates a missing fragment or reports exact-byte idempotency; any divergent file or stale head fails closed.
+     * Creates a missing patch fragment or retains canonical bytes with an explicitly selected valid impact.
+     *
+     * Existing output must match all verified metadata and presentation bytes except the impact. This comparison
+     * preserves a classification; it does not prove who selected it or infer the dependency's API compatibility.
+     * Other divergent files and stale heads fail closed without overwriting content.
      *
      * @param  ReleaseOptions           $options Trusted consumer paths, rendering settings and repository selection for this
      *                                           operation.
@@ -130,6 +134,13 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
                             $input,
                             $legacyDescription,
                         ))
+                    || $this->matchesExplicitImpact(
+                        $existingContents,
+                        $id,
+                        $category,
+                        $input,
+                        array_values(array_unique([$description, $legacyDescription])),
+                    )
                 ) {
                     return new DependabotFragmentResult('unchanged', $path, null, []);
                 }
@@ -265,7 +276,7 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
     }
 
     /**
-     * Renders the same validated identity and patch metadata for current output and exact legacy-byte comparison.
+     * Renders validated identity and the selected impact for current output and exact existing-byte comparisons.
      *
      * @param  string          $id          Deterministic direct fragment filename, including its Markdown extension.
      * @param  Category        $category    Change category, including security only after current matching alert proof.
@@ -273,13 +284,15 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
      *                                      caller.
      * @param  string          $description User-facing fragment prose already selected from verified metadata and escaped
      *                                      presentation.
-     * @return string          Canonical fragment Markdown with verified PR association and patch impact.
+     * @param  VersionImpact   $impact      Explicit comparison impact; new fragments use the reviewable patch default.
+     * @return string          Canonical fragment Markdown with verified PR association and the selected impact.
      */
     private function renderFragment(
         string $id,
         Category $category,
         DependabotInput $input,
         string $description,
+        VersionImpact $impact = VersionImpact::Patch,
     ): string {
         return $this->renderer->render(new Changeset(
             id: $id,
@@ -288,8 +301,39 @@ final readonly class DependabotFragmentService implements DependabotFragmentServ
             pullRequest: $input->pullRequest,
             author: 'dependabot[bot]',
             description: $description,
-            type: VersionImpact::Patch,
+            type: $impact,
         ));
+    }
+
+    /**
+     * Recognizes a valid explicit minor/major selection only when every other canonical byte still matches.
+     *
+     * This read-only comparison accepts current and recognized legacy descriptions. It never adopts arbitrary
+     * metadata, changes security classification, attributes the selection to an actor or writes an existing file.
+     *
+     * @param  ?string         $contents     Exact decoded existing file, or null when its representation is invalid.
+     * @param  string          $id           Deterministic direct fragment filename, including its Markdown extension.
+     * @param  Category        $category     Verified change/security category, unchanged by impact selection.
+     * @param  DependabotInput $input        Revalidated PR identity and dependency metadata bound to the supplied head.
+     * @param  list<string>    $descriptions Distinct current and recognized legacy literal descriptions.
+     * @return bool            Whether the existing bytes match a canonical rendering with only the impact selected explicitly.
+     */
+    private function matchesExplicitImpact(
+        ?string $contents,
+        string $id,
+        Category $category,
+        DependabotInput $input,
+        array $descriptions,
+    ): bool {
+        foreach ([VersionImpact::Minor, VersionImpact::Major] as $impact) {
+            foreach ($descriptions as $description) {
+                if ($contents === $this->renderFragment($id, $category, $input, $description, $impact)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
