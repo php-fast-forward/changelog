@@ -117,6 +117,10 @@ This workflow validates exact PR identities, sets `Fast Forward Changelog` and
 updates one sticky comment. `comment-mode` accepts `always`, `on-failure` or
 `never`. It uses the trusted runtime and reads PR data without executing PR PHP,
 templates or Composer scripts. A failed contribution can still receive feedback.
+The data checkout explicitly opts into Checkout v7's fork-head access. This opt-in
+is confined to that step: credentials are not persisted, submodules/LFS are off,
+and the Dockerfile, Actions and CLI come from the pinned trusted runtime. Never
+add an execution step from the checked-out consumer or load its dependencies.
 After an automated dependency commit, pass its verified new head; omitting
 `base-sha` resolves the live PR base before validation. Keep the comparison
 immutable within that validation. Do not add this caller alongside the lifecycle's
