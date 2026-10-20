@@ -196,12 +196,16 @@ jobs:
       - name: Check Out Consumer Data Without Executing It
         uses: actions/checkout@v7.0.1
         with:
+          # Fork heads are validation data; only the pinned runtime below executes.
+          allow-unsafe-pr-checkout: true
           repository: ${{ github.repository }}
           ref: ${{ inputs.head-sha }}
           token: ${{ steps.auth.outputs.token }}
           path: project
           fetch-depth: 0
           persist-credentials: false
+          submodules: false
+          lfs: false
 
       - name: Prepare The Trusted Runtime Base Image Cache
         uses: ./.changelog-runtime/.github/actions/setup-docker
