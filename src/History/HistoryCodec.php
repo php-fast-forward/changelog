@@ -86,7 +86,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $legacyClosed = false;
         $fence = null;
         $containers = [];
-        $comment = false;
+        $comment = null;
         $offset = 0;
 
         foreach ($this->lines($markdown) as $line) {
@@ -171,8 +171,8 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * @param int|null                                                                        $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
      * @param array{character:string,length:int,padding:int,quotes:int,quote_spaces:int}|null $fence       Mutable active fence, including list/quote containers and optional quote spacing.
      *
-     * @param list<int> $containers Mutable list-content columns retained across continuation lines.
-     * @param bool      $comment    Mutable multiline-comment state for legacy delimiter recognition.
+     * @param list<int>                                           $containers Mutable list-content columns retained across continuation lines.
+     * @param array{padding:int,quotes:int,quote_spaces:int}|null $comment    Mutable multiline-comment container context for legacy delimiter recognition.
      *
      * @return bool Whether this line closes the current protected body.
      */
@@ -182,7 +182,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         ?int $expectedEnd,
         ?array &$fence,
         array &$containers,
-        bool &$comment,
+        ?array &$comment,
     ): bool {
         if (null !== $expectedEnd) {
             if ($offset < $expectedEnd) {
@@ -498,7 +498,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $fence = null;
         $containers = [];
         $terminalReference = false;
-        $comment = false;
+        $comment = null;
 
         foreach ($this->lines($body) as $line) {
             if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
@@ -612,7 +612,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $containers = [];
         $pending = null;
         $output = '';
-        $comment = false;
+        $comment = null;
 
         foreach ($this->lines($body) as $line) {
             if (null !== $pending && '' !== trim($line) && ! str_starts_with($line, '### ')) {

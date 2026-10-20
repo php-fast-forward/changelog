@@ -46,6 +46,18 @@ final class BlockStructureTest extends TestCase
     #[TestWith(["Text\n\nNext.", "- Text\n\n  Next."])]
     #[TestWith(["Text\n\n\t<!-- literal", "- Text\n\n      <!-- literal"])]
     #[TestWith(["- Text\n\n  \t  code\tpayload", "- Text\n\n      code\tpayload"])]
+    #[TestWith([
+        "- See [guide].\n\n[guide]: https://example.test",
+        "- See [guide].\n\n  [guide]: https://example.test",
+    ])]
+    #[TestWith([
+        "1. See [guide].\n\n[guide]: https://example.test\n\n[other]: https://example.test/other\n",
+        "1. See [guide].\n\n   [guide]: https://example.test\n\n   [other]: https://example.test/other\n",
+    ])]
+    #[TestWith([
+        "- See [guide].\n\n[guide]: https://example.test\n\nFollowing prose.",
+        "- See [guide].\n\n[guide]: https://example.test\n\nFollowing prose.",
+    ])]
     #[TestWith(["```php\ncode();\n```", "-\n  ```php\n  code();\n  ```"])]
     #[TestWith(["~~~php\ncode();\n~~~", "-\n  ~~~php\n  code();\n  ~~~"])]
     #[TestWith(["```literal``` span\nNext.", "- ```literal``` span\n  Next."])]
@@ -147,13 +159,13 @@ final class BlockStructureTest extends TestCase
     {
         $fence = null;
         $containers = [];
-        $comment = false;
+        $comment = null;
         self::assertTrue(BlockStructure::structuralLine('- <!-- hidden', $fence, $containers, $comment));
-        self::assertTrue($comment);
+        self::assertNotNull($comment);
         self::assertFalse(BlockStructure::structuralLine('  ~~~', $fence, $containers, $comment));
         self::assertNull($fence);
         self::assertFalse(BlockStructure::structuralLine('  --> Visible.', $fence, $containers, $comment));
-        self::assertFalse($comment);
+        self::assertNull($comment);
         self::assertTrue(
             BlockStructure::structuralLine(
                 '<!-- fast-forward-changelog:category fixed -->',
@@ -162,6 +174,33 @@ final class BlockStructureTest extends TestCase
                 $comment,
             ),
         );
+    }
+
+    /** Contained comments end with their item or quote while root HTML blocks still require their closing token. */
+    #[TestWith(['- <!-- hidden'])]
+    #[TestWith(['> <!-- hidden'])]
+    public function testContainedHistoricalCommentEndsAtAReleaseBoundary(string $opening): void
+    {
+        $fence = null;
+        $containers = [];
+        $comment = null;
+        BlockStructure::structuralLine($opening, $fence, $containers, $comment);
+        self::assertNotNull($comment);
+        self::assertTrue(BlockStructure::structuralLine('## [1.0.0]', $fence, $containers, $comment));
+        self::assertNull($comment);
+    }
+
+    /** Ending a root comment still depends on its explicit delimiter because no list or quote boundary exists. */
+    public function testRootCommentCannotInventAReleaseBoundary(): void
+    {
+        $fence = null;
+        $containers = [];
+        $comment = null;
+        BlockStructure::structuralLine('<!-- hidden', $fence, $containers, $comment);
+        self::assertFalse(BlockStructure::structuralLine('## [9.9.9]', $fence, $containers, $comment));
+        self::assertNotNull($comment);
+        self::assertFalse(BlockStructure::structuralLine('-->', $fence, $containers, $comment));
+        self::assertNull($comment);
     }
 
     /** New fragments need explicit closers even when historical Markdown permits an implicit item boundary. */

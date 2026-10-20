@@ -133,7 +133,7 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $unknown = false;
         $fence = null;
         $containers = [];
-        $comment = false;
+        $comment = null;
         $markedCategory = null;
         foreach (preg_split('/(?<=\n)/', $body) as $line) {
             $heading = rtrim($line, " \t\r\n");

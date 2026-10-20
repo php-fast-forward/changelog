@@ -297,7 +297,7 @@ final readonly class HistoryReferenceBuilder
         $defined = [];
         $fence = null;
         $containers = [];
-        $comment = false;
+        $comment = null;
         foreach (preg_split('/\r\n|\n|\r/', $markdown, flags: PREG_SPLIT_OFFSET_CAPTURE) as [$line, $offset]) {
             if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
                 continue;

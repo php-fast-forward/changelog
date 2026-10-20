@@ -158,6 +158,8 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["- Description.\n\n      <!-- literal HTML example"])]
     #[TestWith(["> ~~~html\n> <!-- literal\n> ~~~"])]
     #[TestWith(["> ~~~html\n>example\n>~~~"])]
+    #[TestWith(["- Parent.\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~"])]
+    #[TestWith(["- See [guide].\n\n[guide]: https://example.test"])]
     #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible improvement."])]
     #[TestWith(["- <!-- hidden\n  ```\n  --> Visible improvement."])]
     #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~"])]

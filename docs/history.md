@@ -61,6 +61,9 @@ and fenced examples; nested content retains its authored bytes. Ordered lists
 are separated from surrounding fragments so their starting number stays a list.
 An item containing only indented code also receives a separate reference
 paragraph, keeping the published command unchanged.
+Terminal link definitions belonging to an authored list are nested within its
+entry, keeping them distinct from the changelog's version-reference footer even
+when the fragment has no PR or author metadata.
 The same outer-indentation adjustment applies to lists without references.
 
 New fragments require an explicit closing delimiter for every code fence,
@@ -74,6 +77,8 @@ HTML comment remains comment content instead of opening a code block.
 The optional space after `>` may vary between lines. Historical parsing,
 formatting, reference discovery and migration of older pending notes share these
 container and comment rules.
+In older history, a contained HTML comment also ends with its list or quote,
+preserving subsequent release headings without changing the original bytes.
 A fence can interrupt paragraph text. An earlier inline comment or backtick does
 not hide that fence from validation; the fenced block must still close explicitly.
 Leading indentation and continuation paragraphs retain the same list-content

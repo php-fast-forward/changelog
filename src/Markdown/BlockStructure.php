@@ -61,7 +61,7 @@ final class BlockStructure
         $fence = null;
         $containers = [];
         self::outsideFence($line, $fence, $containers);
-        [$line, , $quotePadding] = self::quoteColumns($line);
+        [$line, , $quotePadding] = self::quoteColumns($line, containers: $containers);
         $base = max($quotePadding, [] === $containers ? 0 : array_last($containers));
 
         return strspn(substr($line, min($base, strlen($line))), ' ') >= 4;
@@ -81,7 +81,7 @@ final class BlockStructure
     {
         $fence = null;
         $containers = [];
-        $comment = false;
+        $comment = null;
         $lines = explode("\n", $description);
 
         foreach ($lines as &$line) {
@@ -101,14 +101,59 @@ final class BlockStructure
         $item = self::listItem(explode("\n", $description, 2)[0]);
 
         if (null !== $item) {
-            return 0 === $item['indent'] ? $description
+            $description = 0 === $item['indent'] ? $description
                 : preg_replace('/^ {1,' . $item['indent'] . '}/m', '', $description);
+
+            return self::nestTrailingReferences($description);
         }
         $fenced = str_contains($description, "\n")
             && 1 === preg_match('/\A {0,3}(`{3,}|~{3,})([^\n]*)/', $description, $matches)
             && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'));
 
         return ($fenced ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $description);
+    }
+
+    /**
+     * Keeps trailing fragment-owned definitions inside their principal list entry rather than a global footer.
+     *
+     * Only a terminal run of root definitions and blank lines is adjusted. Code/comment examples, earlier
+     * prose and nonterminal definitions retain their bytes; stored fragment descriptions remain untouched.
+     *
+     * @param  string $description Authored list after outer-indent alignment, before references are appended.
+     * @return string Release-safe presentation with terminal definitions indented to their owning item.
+     */
+    private static function nestTrailingReferences(string $description): string
+    {
+        $lines = explode("\n", $description);
+        $fence = null;
+        $containers = [];
+        $comment = null;
+        $padding = 2;
+        $definitions = [];
+
+        foreach ($lines as $index => $line) {
+            if (! self::structuralLine($line, $fence, $containers, $comment)) {
+                continue;
+            }
+            $item = self::listItem($line);
+
+            if (null !== $item && 0 === $item['indent']) {
+                $padding = $item['contentIndent'];
+            }
+            if (1 === preg_match('/\A\[[^\]\r\n]+\]:[ \t]+\S/', $line)) {
+                $definitions[$index] = $padding;
+            }
+        }
+
+        for ($index = count($lines) - 1; $index >= 0; --$index) {
+            if (isset($definitions[$index])) {
+                $lines[$index] = str_repeat(' ', $definitions[$index]) . $lines[$index];
+            } elseif ('' !== trim($lines[$index])) {
+                break;
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -131,7 +176,11 @@ final class BlockStructure
         array &$containers,
         bool &$implicitEnd = false,
     ): bool {
-        [$line, $quotes, $quotePadding, $quoteSpaces] = self::quoteColumns($line, $fence['quotes'] ?? null);
+        [$line, $quotes, $quotePadding, $quoteSpaces] = self::quoteColumns(
+            $line,
+            $fence['quotes'] ?? null,
+            $containers,
+        );
         $indent = strspn($line, ' ');
         $blank = '' === trim($line);
 
@@ -152,7 +201,7 @@ final class BlockStructure
             }
             $fence = null;
             $implicitEnd = true;
-            [$line, $quotes, $quotePadding, $quoteSpaces] = self::quoteColumns($line);
+            [$line, $quotes, $quotePadding, $quoteSpaces] = self::quoteColumns($line, containers: $containers);
             $indent = strspn($line, ' ');
         }
 
@@ -189,26 +238,43 @@ final class BlockStructure
      *
      * A comment-opening line remains available to recognize single-line legacy metadata. Later comment lines,
      * including the closing line, are opaque. Fenced code takes precedence over apparent comment delimiters.
+     * A contained historical comment ends with its list or quote; that boundary line is examined again so
+     * a later release cannot disappear. New-fragment validation separately requires an explicit closing token.
      * Ordinary Markdown source bytes and legacy marker ownership remain with the caller.
      *
      * @param  string                                                                          $line       Original source line, optionally retaining its line ending.
      * @param  array{character:string,length:int,padding:int,quotes:int,quote_spaces:int}|null $fence      Mutable active fence.
      * @param  list<int>                                                                       $containers Mutable list-content column stack.
-     * @param  bool                                                                            $comment    Whether a comment block started on a prior line and remains open.
+     * @param  array{padding:int,quotes:int,quote_spaces:int}|null                             $comment    Opening comment's list/quote context, or null when outside a comment block.
      * @return bool                                                                            Whether this line may contain structural Markdown or a legacy single-line metadata marker.
      */
-    public static function structuralLine(string $line, ?array &$fence, array &$containers, bool &$comment): bool
+    public static function structuralLine(string $line, ?array &$fence, array &$containers, ?array &$comment): bool
     {
-        if ($comment) {
-            $comment = ! str_contains($line, '-->');
+        if (null !== $comment) {
+            [$recognized, $quotes, , $spaces] = self::quoteColumns($line, $comment['quotes'], $containers);
+            $padding = $comment['padding'] + $spaces - $comment['quote_spaces'];
+            $ended = $quotes < $comment['quotes']
+                || ($padding > 0 && '' !== trim($line) && strspn($recognized, ' ') < $padding);
 
-            return false;
+            if (! $ended) {
+                if (str_contains($line, '-->')) {
+                    $comment = null;
+                }
+
+                return false;
+            }
+            $comment = null;
         }
         if (! self::outsideFence($line, $fence, $containers)) {
             return false;
         }
-        if (self::opensComment($line, $containers)) {
-            $comment = ! str_contains($line, '-->');
+        if (self::opensComment($line, $containers) && ! str_contains($line, '-->')) {
+            [, $quotes, $quotePadding, $spaces] = self::quoteColumns($line, containers: $containers);
+            $comment = [
+                'padding' => max($quotePadding, [] === $containers ? 0 : array_last($containers)),
+                'quotes' => $quotes,
+                'quote_spaces' => $spaces,
+            ];
         }
 
         return true;
@@ -254,7 +320,7 @@ final class BlockStructure
      */
     public static function opensComment(string $line, array $containers): bool
     {
-        [$line, , $quotePadding] = self::quoteColumns($line);
+        [$line, , $quotePadding] = self::quoteColumns($line, containers: $containers);
         $base = max($quotePadding, [] === $containers ? 0 : array_last($containers));
 
         return 1 === preg_match('/\A {0,3}<!--/', substr($line, min($base, strlen($line))));
@@ -298,7 +364,7 @@ final class BlockStructure
                 }
             }
             if (! $comment && null === $span) {
-                [$expanded, , $quotePadding] = self::quoteColumns($line);
+                [$expanded, , $quotePadding] = self::quoteColumns($line, containers: $containers);
                 $base = max($quotePadding, [] === $containers ? 0 : array_last($containers));
                 $startsItem = strspn($expanded, ' ') < $base;
                 $content = substr($expanded, min($base, strlen($expanded)));
@@ -343,14 +409,22 @@ final class BlockStructure
      * List prefixes may precede or follow quotes. An active fence consumes only its existing quote depth;
      * additional greater-than characters inside its code remain literal. This never rewrites caller-owned bytes.
      *
-     * @param  string                    $line  Original line whose leading containers determine code ownership.
-     * @param  int|null                  $limit Maximum quote depth of an existing fence; null discovers a new block's full prefix.
+     * @param  string                    $line       Original line whose leading containers determine code ownership.
+     * @param  int|null                  $limit      Maximum quote depth of an existing fence; null discovers a new block's full prefix.
+     * @param  list<int>                 $containers Current list-content columns used to recognize continuation quotes relative to their item.
      * @return array{string,int,int,int} Recognition line, quote depth, final quote-content column and optional quote spaces.
      */
-    private static function quoteColumns(string $line, ?int $limit = null): array
+    private static function quoteColumns(string $line, ?int $limit = null, array $containers = []): array
     {
         $line = self::expandTabs($line);
         $offset = 0;
+        $indent = strspn($line, ' ');
+
+        foreach ($containers as $column) {
+            if ($column <= $indent) {
+                $offset = $column;
+            }
+        }
         $quotes = 0;
         $padding = 0;
         $spaces = 0;

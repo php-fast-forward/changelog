@@ -110,6 +110,7 @@ final class SquashPublicationTest extends TestCase
                 'quoted' => "> ~~~html\n> <!-- literal\n> ~~~",
                 'tab-code' => "- First improvement.\n\n  \t  <!-- literal\tpayload\n- Second improvement.",
                 'indented-single' => "-     printf hello\n- Second improvement.",
+                'nested-definition' => "- See [guide].\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~\n\n[guide]: https://example.test",
                 'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n- Second improvement.",
                 'inline' => "- Use `some\n  code` safely.\n- Second improvement.",
                 'comment' => "- <!-- hidden\n  --> Visible improvement.\n- Second improvement.",
@@ -123,10 +124,11 @@ final class SquashPublicationTest extends TestCase
                     "---\ncategory: fixed\ntype: patch\n---\n\nFirst.\n",
                 );
             }
+            $deliveryMetadata = 'nested-definition' === $authoredList ? '' : "pull_request: 7\n";
             file_put_contents(
                 $producer . '/.changelog/squash.md',
                 null !== $authoredList
-                    ? "---\ncategory: fixed\ntype: patch\npull_request: 7\n---\n\n" . $listDescription . "\n"
+                    ? "---\ncategory: fixed\ntype: patch\n" . $deliveryMetadata . "---\n\n" . $listDescription . "\n"
                     : "---\ncategory: fixed\ntype: patch\n---\n\nPreserves publication after a squash merge.\n",
             );
             $git($producer, ['add', '.']);
@@ -165,6 +167,8 @@ final class SquashPublicationTest extends TestCase
                     $expected = "\n### Fixed\n\n- First.\n\n2. Second improvement. " . $reference . "\n3. Third improvement. " . $reference . "\n\n";
                 } elseif ('quoted' === $authoredList) {
                     $expected = "\n### Fixed\n\n- > ~~~html\n  > <!-- literal\n  > ~~~\n\n  " . $reference . "\n\n";
+                } elseif ('nested-definition' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- See [guide].\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~\n\n  [guide]: https://example.test\n\n";
                 }
                 $history = $configured->get(HistoryCodecInterface::class);
                 self::assertSame($expected, $plan->notes);
@@ -178,7 +182,7 @@ final class SquashPublicationTest extends TestCase
                     $plan->changelogContents,
                 );
 
-                if ('tab-fenced' === $authoredList) {
+                if (in_array($authoredList, ['tab-fenced', 'nested-definition'], true)) {
                     $presentation = $configured->get(TemplateFactoryInterface::class)->create();
                     $parsed = $history->parse($plan->changelogContents, $presentation);
 
@@ -455,6 +459,12 @@ final class SquashPublicationTest extends TestCase
             false,
             false,
             'indented-single',
+        ];
+        yield 'nested quoted code and terminal definitions need no delivery metadata' => [
+            false,
+            false,
+            false,
+            'nested-definition',
         ];
         yield 'fenced payload tabs and literal references survive explicit and incremental formatting' => [
             false,

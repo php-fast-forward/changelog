@@ -193,6 +193,45 @@ final class HistoryCodecTest extends TestCase
         ], $template);
     }
 
+    /** Fragment-owned trailing definitions stay within the entry instead of becoming an ambiguous global footer. */
+    public function testAuthoredListDefinitionWithoutMetadataRemainsRenderable(): void
+    {
+        $template = $this->template('en');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset(
+                'guide.md',
+                Category::Fixed,
+                null,
+                null,
+                null,
+                "- See [guide].\n\n[guide]: https://example.test",
+            ),
+        ], $template);
+        $codec = $this->codec();
+
+        self::assertStringContainsString(
+            "- See [guide].\n\n  [guide]: https://example.test",
+            $codec->render(new HistoryDocument([new HistoryRelease('1.1.0', body: $notes)]), $template),
+        );
+    }
+
+    /** An older contained HTML block ends with its list/quote so it cannot swallow another published release. */
+    #[TestWith(["- Visible.\n\n  <!-- not closed"])]
+    #[TestWith(["> <!-- not closed"])]
+    public function testHistoricalContainedCommentCannotHideTheNextRelease(string $body): void
+    {
+        $markdown = "## [2.0.0]\n\n" . $body . "\n\n## [1.0.0]\n\n- Previous.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
     /** Every history scan leaves hidden fences, headings and references inside a multiline comment untouched. */
     public function testHistoricalCommentsCannotCreateReleaseOrCategoryStructure(): void
     {
