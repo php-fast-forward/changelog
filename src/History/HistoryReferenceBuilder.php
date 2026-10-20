@@ -299,17 +299,7 @@ final readonly class HistoryReferenceBuilder
         $containers = [];
         $comment = false;
         foreach (preg_split('/\r\n|\n|\r/', $markdown, flags: PREG_SPLIT_OFFSET_CAPTURE) as [$line, $offset]) {
-            if ($comment) {
-                $comment = !str_contains($line, '-->');
-
-                continue;
-            }
-            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
-                continue;
-            }
-            if (BlockStructure::opensComment($line, $containers)) {
-                $comment = !str_contains($line, '-->');
-
+            if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
                 continue;
             }
             if (1 === preg_match('/^ {0,3}\[([^\]\r\n]+)\]:/', $line, $matches)) {

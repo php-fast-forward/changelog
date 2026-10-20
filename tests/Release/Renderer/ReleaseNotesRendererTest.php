@@ -327,6 +327,20 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertSame($description, $change->description);
     }
 
+    /** A fenced Makefile recipe keeps its significant tab so the published example remains executable. */
+    public function testFencedRecipeRetainsItsLiteralLeadingTab(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n-\n  ```make\n  all:\n  \tprintf 'hello'\n  ```\n\n  (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('code.md', Category::Added, null, 7, null, "```make\nall:\n\tprintf 'hello'\n```"),
+            ], $template),
+        );
+    }
+
     /** A non-one ordered list cannot interrupt an earlier bullet's paragraph without a block boundary. */
     public function testOrderedListStartingAtTwoIsSeparatedFromThePrecedingFragment(): void
     {

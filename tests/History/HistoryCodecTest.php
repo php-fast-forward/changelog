@@ -162,6 +162,44 @@ final class HistoryCodecTest extends TestCase
         self::assertSame($markdown, $codec->render($parsed, $template, true));
     }
 
+    /** Ordinary formatting shares fragment comment precedence instead of opening a fence inside a closed comment. */
+    public function testAcceptedCommentFenceExampleCanBeFormatted(): void
+    {
+        $template = $this->template('en');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('comment.md', Category::Fixed, null, 7, null, "- <!-- hidden\n  ~~~\n  --> Visible."),
+        ], $template);
+        $document = new HistoryDocument([new HistoryRelease('1.1.0', body: $notes)]);
+        $codec = $this->codec();
+
+        $formatted = $codec->render($document, $template);
+
+        self::assertStringContainsString($notes, $formatted);
+        self::assertSame("\n" . $notes, $codec->parse($formatted, $template)->getRelease('1.1.0')->getBody());
+    }
+
+    /** Every history scan leaves hidden fences, headings and references inside a multiline comment untouched. */
+    public function testHistoricalCommentsCannotCreateReleaseOrCategoryStructure(): void
+    {
+        $hidden = "<!-- hidden\n~~~\n## [9.9.9]\n### Added\n[2.0.0]: https://example.test/literal\n-->\n";
+        $markdown = "## [2.0.0]\n\n" . $hidden . "\n### Fixed\n\n- Current.\n\n## [1.0.0]\n\n- Previous.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        foreach ([false, true] as $preserve) {
+            $rendered = $codec->render($parsed, $template, $preserve);
+            $roundTrip = $codec->parse($rendered, $template);
+            self::assertSame(['2.0.0', '1.0.0'], array_map(
+                static fn(HistoryRelease $release): string => $release->getVersion(),
+                $roundTrip->getReleases(),
+            ));
+            self::assertStringContainsString($hidden, $roundTrip->getRelease('2.0.0')->getBody());
+            self::assertSame($parsed->getRelease('1.0.0')->getBody(), $roundTrip->getRelease('1.0.0')->getBody());
+            self::assertSame('', $roundTrip->getReferences());
+        }
+    }
+
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */
     #[Test]
     #[TestWith(['```foo``` bar'])]

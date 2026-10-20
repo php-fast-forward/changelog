@@ -86,6 +86,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $legacyClosed = false;
         $fence = null;
         $containers = [];
+        $comment = false;
         $offset = 0;
 
         foreach ($this->lines($markdown) as $line) {
@@ -93,7 +94,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             $offset += strlen($line);
 
             if ($protected) {
-                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, $fence, $containers)) {
+                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, $fence, $containers, $comment)) {
                     $sections[array_key_last($sections)]['body_end'] = $lineOffset;
 
                     if (null === $protectedEnd) {
@@ -107,7 +108,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 continue;
             }
 
-            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
+            if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
                 continue;
             }
 
@@ -165,12 +166,13 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Recognizes a protected body's closing delimiter at its permitted boundary.
      *
-     * @param string                                                         $line        Current source line, including its original newline.
-     * @param int                                                            $offset      Byte offset at which the current line begins.
-     * @param int|null                                                       $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
-     * @param array{character:string,length:int,padding:int,quotes:int}|null $fence       Mutable active fence state, including list and quote containers.
+     * @param string                                                                          $line        Current source line, including its original newline.
+     * @param int                                                                             $offset      Byte offset at which the current line begins.
+     * @param int|null                                                                        $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
+     * @param array{character:string,length:int,padding:int,quotes:int,quote_spaces:int}|null $fence       Mutable active fence, including list/quote containers and optional quote spacing.
      *
      * @param list<int> $containers Mutable list-content columns retained across continuation lines.
+     * @param bool      $comment    Mutable multiline-comment state for legacy delimiter recognition.
      *
      * @return bool Whether this line closes the current protected body.
      */
@@ -180,6 +182,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         ?int $expectedEnd,
         ?array &$fence,
         array &$containers,
+        bool &$comment,
     ): bool {
         if (null !== $expectedEnd) {
             if ($offset < $expectedEnd) {
@@ -193,7 +196,8 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             return true;
         }
 
-        return BlockStructure::outsideFence($line, $fence, $containers) && self::END_RELEASE === rtrim($line, "\r\n");
+        return BlockStructure::structuralLine($line, $fence, $containers, $comment)
+            && self::END_RELEASE === rtrim($line, "\r\n");
     }
 
     /**
@@ -494,9 +498,10 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $fence = null;
         $containers = [];
         $terminalReference = false;
+        $comment = false;
 
         foreach ($this->lines($body) as $line) {
-            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
+            if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
                 $terminalReference = false;
 
                 continue;
@@ -607,13 +612,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $containers = [];
         $pending = null;
         $output = '';
+        $comment = false;
 
         foreach ($this->lines($body) as $line) {
             if (null !== $pending && '' !== trim($line) && ! str_starts_with($line, '### ')) {
                 throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
             }
 
-            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
+            if (! BlockStructure::structuralLine($line, $fence, $containers, $comment)) {
                 $output .= $line;
 
                 continue;

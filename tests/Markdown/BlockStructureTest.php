@@ -36,6 +36,7 @@ final class BlockStructureTest extends TestCase
     #[TestWith(["```php\ncode();\n```", "-\n  ```php\n  code();\n  ```"])]
     #[TestWith(["~~~php\ncode();\n~~~", "-\n  ~~~php\n  code();\n  ~~~"])]
     #[TestWith(["```literal``` span\nNext.", "- ```literal``` span\n  Next."])]
+    #[TestWith(["```make\nall:\n\tprintf 'hello'\n```", "-\n  ```make\n  all:\n  \tprintf 'hello'\n  ```"])]
     public function testEffectiveWrapper(string $description, string $expected): void
     {
         self::assertSame($expected, BlockStructure::wrapDescription($description));
@@ -113,6 +114,41 @@ final class BlockStructureTest extends TestCase
         self::assertTrue(BlockStructure::outsideFence('## [1.0.0]', $fence, $containers, $implicit));
         self::assertNull($fence);
         self::assertTrue($implicit);
+    }
+
+    /** Optional quote spacing may vary while the same list/quote containers still own a fenced block. */
+    public function testQuoteOptionalSpaceDoesNotDedentAFence(): void
+    {
+        $fence = null;
+        $containers = [];
+        $implicit = false;
+        BlockStructure::outsideFence('- > ~~~html', $fence, $containers, $implicit);
+        self::assertFalse(BlockStructure::outsideFence('  >example', $fence, $containers, $implicit));
+        self::assertFalse(BlockStructure::outsideFence('  >~~~', $fence, $containers, $implicit));
+        self::assertNull($fence);
+        self::assertFalse($implicit);
+    }
+
+    /** Historical consumers keep multiline comments opaque while still seeing legacy single-line metadata. */
+    public function testStructuralLinesRespectCommentsAndLegacyMarkers(): void
+    {
+        $fence = null;
+        $containers = [];
+        $comment = false;
+        self::assertTrue(BlockStructure::structuralLine('- <!-- hidden', $fence, $containers, $comment));
+        self::assertTrue($comment);
+        self::assertFalse(BlockStructure::structuralLine('  ~~~', $fence, $containers, $comment));
+        self::assertNull($fence);
+        self::assertFalse(BlockStructure::structuralLine('  --> Visible.', $fence, $containers, $comment));
+        self::assertFalse($comment);
+        self::assertTrue(
+            BlockStructure::structuralLine(
+                '<!-- fast-forward-changelog:category fixed -->',
+                $fence,
+                $containers,
+                $comment,
+            ),
+        );
     }
 
     /** New fragments need explicit closers even when historical Markdown permits an implicit item boundary. */

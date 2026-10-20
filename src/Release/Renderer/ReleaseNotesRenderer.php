@@ -98,12 +98,14 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         $context = null;
         $fence = null;
         $containers = [];
+        $comment = false;
 
         foreach (explode("\n", $description) as $line) {
             $active = $fence;
-            BlockStructure::outsideFence($line, $fence, $containers);
+            $insideComment = $comment;
+            BlockStructure::structuralLine($line, $fence, $containers, $comment);
             $item = BlockStructure::listItem($line);
-            $principal = null !== $item && $item['indent'] === $indent
+            $principal = ! $insideComment && null !== $item && $item['indent'] === $indent
                 && (null === $active || $item['indent'] < $active['padding']);
 
             if ($principal) {

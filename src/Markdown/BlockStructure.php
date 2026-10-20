@@ -56,11 +56,25 @@ final class BlockStructure
      */
     public static function wrapDescription(string $description): string
     {
-        $description = preg_replace_callback(
-            '/^[ \t]*\t[ \t]*/m',
-            static fn(array $matches): string => self::expandTabs($matches[0]),
-            $description,
-        );
+        $fence = null;
+        $containers = [];
+        $comment = false;
+        $lines = explode("\n", $description);
+
+        foreach ($lines as &$line) {
+            $active = $fence;
+            $outside = self::structuralLine($line, $fence, $containers, $comment);
+
+            if (null === $active || $outside) {
+                $line = preg_replace_callback(
+                    '/\A[ \t]*\t[ \t]*/',
+                    static fn(array $matches): string => self::expandTabs($matches[0]),
+                    $line,
+                );
+            }
+        }
+        unset($line);
+        $description = implode("\n", $lines);
         $item = self::listItem(explode("\n", $description, 2)[0]);
 
         if (null !== $item) {
@@ -82,11 +96,11 @@ final class BlockStructure
      * Explicit closing fences allow three columns beyond the complete content boundary, including initial indent.
      * Quote prefixes retain their depth and columns; quote termination also ends a historical contained fence.
      *
-     * @param  string                                                         $line        Original source line, optionally including its line ending.
-     * @param  array{character:string,length:int,padding:int,quotes:int}|null $fence       Mutable active fenced block.
-     * @param  list<int>                                                      $containers  Mutable outer-to-inner list-content column stack for continuation lines.
-     * @param  bool                                                           $implicitEnd Cumulative flag set when a container boundary ends an active fence without a delimiter.
-     * @return bool                                                           Whether this line is ordinary content outside a fence; delimiter/code lines return false.
+     * @param  string                                                                          $line        Original source line, optionally including its line ending.
+     * @param  array{character:string,length:int,padding:int,quotes:int,quote_spaces:int}|null $fence       Mutable active fenced block.
+     * @param  list<int>                                                                       $containers  Mutable outer-to-inner list-content column stack for continuation lines.
+     * @param  bool                                                                            $implicitEnd Cumulative flag set when a container boundary ends an active fence without a delimiter.
+     * @return bool                                                                            Whether this line is ordinary content outside a fence; delimiter/code lines return false.
      */
     public static function outsideFence(
         string $line,
@@ -94,16 +108,17 @@ final class BlockStructure
         array &$containers,
         bool &$implicitEnd = false,
     ): bool {
-        [$line, $quotes, $quotePadding] = self::quoteColumns($line, $fence['quotes'] ?? null);
+        [$line, $quotes, $quotePadding, $quoteSpaces] = self::quoteColumns($line, $fence['quotes'] ?? null);
         $indent = strspn($line, ' ');
         $blank = '' === trim($line);
 
         if (null !== $fence) {
+            $padding = $fence['padding'] + $quoteSpaces - $fence['quote_spaces'];
             $dedented = $quotes < $fence['quotes']
-                || ($fence['padding'] > 0 && ! $blank && $indent < $fence['padding']);
+                || ($padding > 0 && ! $blank && $indent < $padding);
 
             if (! $dedented) {
-                if ($indent <= 3 + $fence['padding'] && 1 === preg_match(
+                if ($indent <= 3 + $padding && 1 === preg_match(
                     '/\A *' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',} *(?:\r?\n|\z)/',
                     $line,
                 )) {
@@ -114,7 +129,7 @@ final class BlockStructure
             }
             $fence = null;
             $implicitEnd = true;
-            [$line, $quotes, $quotePadding] = self::quoteColumns($line);
+            [$line, $quotes, $quotePadding, $quoteSpaces] = self::quoteColumns($line);
             $indent = strspn($line, ' ');
         }
 
@@ -137,9 +152,40 @@ final class BlockStructure
                 'length' => strlen($matches[1]),
                 'padding' => $base,
                 'quotes' => $quotes,
+                'quote_spaces' => $quoteSpaces,
             ];
 
             return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Advances historical block state without treating comment content as fences or structural headings.
+     *
+     * A comment-opening line remains available to recognize single-line legacy metadata. Later comment lines,
+     * including the closing line, are opaque. Fenced code takes precedence over apparent comment delimiters.
+     * Ordinary Markdown source bytes and legacy marker ownership remain with the caller.
+     *
+     * @param  string                                                                          $line       Original source line, optionally retaining its line ending.
+     * @param  array{character:string,length:int,padding:int,quotes:int,quote_spaces:int}|null $fence      Mutable active fence.
+     * @param  list<int>                                                                       $containers Mutable list-content column stack.
+     * @param  bool                                                                            $comment    Whether a comment block started on a prior line and remains open.
+     * @return bool                                                                            Whether this line may contain structural Markdown or a legacy single-line metadata marker.
+     */
+    public static function structuralLine(string $line, ?array &$fence, array &$containers, bool &$comment): bool
+    {
+        if ($comment) {
+            $comment = ! str_contains($line, '-->');
+
+            return false;
+        }
+        if (! self::outsideFence($line, $fence, $containers)) {
+            return false;
+        }
+        if (self::opensComment($line, $containers)) {
+            $comment = ! str_contains($line, '-->');
         }
 
         return true;
@@ -266,9 +312,9 @@ final class BlockStructure
      * List prefixes may precede or follow quotes. An active fence consumes only its existing quote depth;
      * additional greater-than characters inside its code remain literal. This never rewrites caller-owned bytes.
      *
-     * @param  string                $line  Original line whose leading containers determine code ownership.
-     * @param  int|null              $limit Maximum quote depth of an existing fence; null discovers a new block's full prefix.
-     * @return array{string,int,int} Recognition line, consumed quote depth and final quote-content column.
+     * @param  string                    $line  Original line whose leading containers determine code ownership.
+     * @param  int|null                  $limit Maximum quote depth of an existing fence; null discovers a new block's full prefix.
+     * @return array{string,int,int,int} Recognition line, quote depth, final quote-content column and optional quote spaces.
      */
     private static function quoteColumns(string $line, ?int $limit = null): array
     {
@@ -276,16 +322,18 @@ final class BlockStructure
         $offset = 0;
         $quotes = 0;
         $padding = 0;
+        $spaces = 0;
 
         while (null === $limit || $quotes < $limit) {
             $content = substr($line, $offset);
 
-            if (1 === preg_match('/\A {0,3}> ?/', $content, $matches)) {
+            if (1 === preg_match('/\A {0,3}>( ?)/', $content, $matches)) {
                 $width = strlen($matches[0]);
                 $line = substr($line, 0, $offset) . str_repeat(' ', $width) . substr($line, $offset + $width);
                 $offset += $width;
                 $padding = $offset;
                 ++$quotes;
+                $spaces += strlen($matches[1]);
             } elseif (null !== ($item = self::listItem($content))) {
                 $offset += $item['contentIndent'];
             } else {
@@ -293,7 +341,7 @@ final class BlockStructure
             }
         }
 
-        return [$line, $quotes, $padding];
+        return [$line, $quotes, $padding, $spaces];
     }
 
     /**

@@ -9,9 +9,11 @@ use FastForward\Changelog\Automation\AutomationRunnerInterface;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use FastForward\Changelog\Template\Factory\TemplateFactoryInterface;
 use FastForward\Container\Factory\ServiceFactory;
 use Interop\Container\ServiceProviderInterface;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -107,6 +109,7 @@ final class SquashPublicationTest extends TestCase
                 'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n- Second improvement.",
                 'quoted' => "> ~~~html\n> <!-- literal\n> ~~~",
                 'tab-code' => "- First improvement.\n\n  \t  <!-- literal\tpayload\n- Second improvement.",
+                'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n- Second improvement.",
                 'inline' => "- Use `some\n  code` safely.\n- Second improvement.",
                 'comment' => "- <!-- hidden\n  --> Visible improvement.\n- Second improvement.",
                 'ordered' => "2. Second improvement.\n3. Third improvement.",
@@ -148,6 +151,7 @@ final class SquashPublicationTest extends TestCase
                     'reference-example' => "- ```md\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
                     'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n\n  " . $reference,
                     'tab-code' => "- First improvement.\n\n      <!-- literal\tpayload\n\n  " . $reference,
+                    'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
                     'inline' => "- Use `some\n  code` safely.\n\n  " . $reference,
                     'comment' => "- <!-- hidden\n  --> Visible improvement.\n\n  " . $reference,
                     default => '- First improvement. ' . $reference,
@@ -171,6 +175,28 @@ final class SquashPublicationTest extends TestCase
                     '[1.0.1]: https://github.com/owner/fixture/compare/v1.0.0...v1.0.1',
                     $plan->changelogContents,
                 );
+
+                if ('tab-fenced' === $authoredList) {
+                    $presentation = $configured->get(TemplateFactoryInterface::class)->create();
+                    $parsed = $history->parse($plan->changelogContents, $presentation);
+
+                    foreach ([false, true] as $preserve) {
+                        $roundTrip = $history->parse(
+                            $history->render($parsed, $presentation, $preserve),
+                            $presentation,
+                        );
+                        self::assertSame(['1.0.1', '1.0.0'], array_map(
+                            static fn(HistoryRelease $release): string => $release->getVersion(),
+                            $roundTrip->getReleases(),
+                        ));
+                        self::assertSame($expected, $history->notes($roundTrip, '1.0.1'));
+                        self::assertSame(
+                            $parsed->getRelease('1.0.0')->getBody(),
+                            $roundTrip->getRelease('1.0.0')->getBody(),
+                        );
+                        self::assertSame($parsed->getReferences(), $roundTrip->getReferences());
+                    }
+                }
             }
             $git($producer, ['checkout', '-b', 'changelog/version']);
             file_put_contents($producer . '/CHANGELOG.md', $plan->changelogContents);
@@ -422,6 +448,12 @@ final class SquashPublicationTest extends TestCase
         yield 'closed comment keeps fence examples literal' => [false, false, false, 'comment-fence'];
         yield 'quoted code keeps comment markers literal' => [false, false, false, 'quoted'];
         yield 'indentation tabs preserve literal HTML and internal payload' => [false, false, false, 'tab-code'];
+        yield 'fenced payload tabs and literal references survive explicit and incremental formatting' => [
+            false,
+            false,
+            false,
+            'tab-fenced',
+        ];
         yield 'multiline inline code keeps references visible' => [false, false, false, 'inline'];
         yield 'multiline HTML comment keeps references visible' => [false, false, false, 'comment'];
         yield 'ordered list has a block boundary after prose' => [false, false, false, 'ordered'];
