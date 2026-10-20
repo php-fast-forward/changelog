@@ -16,19 +16,21 @@ separate [documentation build](docs/documentation.md) explicitly prepares the
 permitted phpDocumentor shim plugin; consumers need neither that tool nor its
 template dependency.
 
-The development-only `llm/skills` plugin can restore the Container consumer skill
-selected in `skills.json`. After the plugin-disabled installation above, use
-`composer skills:show` to inspect the donor and
-`composer skills:update --from=github` to restore it explicitly. Generated
-`.agents/skills` files are ignored and no host aliases are created. Ordinary
-plugin-enabled Composer installs also synchronize the configured skill.
+The development-only `llm/skills` plugin synchronizes dependency skills through
+an explicit trusted Composer package list in `skills.json`: `fast-forward/config`
+and `fast-forward/container`. Payloads come from the installed packages rather
+than independent GitHub versions. After the plugin-disabled installation above,
+inspect donors with `composer skills:show` and synchronize with
+`composer skills:update --from=composer`. Generated `.agents/skills` files are
+ignored and no host aliases are created. Ordinary plugin-enabled installs also
+synchronize available dependency skills.
 
-The skill source follows published `fast-forward/container ^1.10` instructions;
-the runtime here remains locked to `1.6.0` under `~1.6.0`. Installing instructions
-does not make that runtime compatible. Follow the skill's version check and
-report the mismatch before applying its APIs; any runtime upgrade requires a
-separate reviewed change. Continue using this repository's canonical Changelog
-skill directly from `resources/skills/fast-forward-changelog`.
+The runtime currently selects Container `~1.6.0`, which does not bundle its
+consumer skill; that donor therefore contributes no instructions. Config skills
+are synchronized only when present in the resolved package. This setup does not
+upgrade dependencies or fetch newer instructions to substitute for missing ones.
+Continue using this repository's canonical Changelog skill directly from
+`resources/skills/fast-forward-changelog`.
 
 Run `composer test:unit` for a focused change. To select a test, use
 `vendor/bin/phpunit --testsuite unit --filter MethodOrClass`. Production tests
