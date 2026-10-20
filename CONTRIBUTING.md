@@ -25,11 +25,10 @@ inspect donors with `composer skills:show` and synchronize with
 ignored and no host aliases are created. Ordinary plugin-enabled installs also
 synchronize available dependency skills.
 
-The runtime currently selects Container `~1.6.0`, which does not bundle its
-consumer skill; that donor therefore contributes no instructions. Config skills
-are synchronized only when present in the resolved package. This setup does not
-upgrade dependencies or fetch newer instructions to substitute for missing ones.
-Continue using this repository's canonical Changelog skill directly from
+The runtime selects Container `^1.10`, which bundles its consumer skill. Config
+and Container instructions follow the resolved packages; check their installed
+versions and supported contracts before using them. Continue using this
+repository's canonical Changelog skill directly from
 `resources/skills/fast-forward-changelog`.
 
 Run `composer test:unit` for a focused change. To select a test, use
