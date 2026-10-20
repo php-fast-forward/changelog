@@ -45,6 +45,29 @@ final class BlockStructure
     }
 
     /**
+     * Distinguishes an item's indented code payload from prose before choosing inline reference placement.
+     *
+     * Same-line nested list or quote prefixes contribute their complete content boundary. Four remaining
+     * content columns start literal code, including the one-column padding rule after five or more spaces.
+     *
+     * @param  string $line Principal list-item source line in its aligned release presentation.
+     * @return bool   Whether an inline reference would become part of an indented code example.
+     */
+    public static function startsIndentedItem(string $line): bool
+    {
+        if (null === self::listItem($line)) {
+            return false;
+        }
+        $fence = null;
+        $containers = [];
+        self::outsideFence($line, $fence, $containers);
+        [$line, , $quotePadding] = self::quoteColumns($line);
+        $base = max($quotePadding, [] === $containers ? 0 : array_last($containers));
+
+        return strspn(substr($line, min($base, strlen($line))), ' ') >= 4;
+    }
+
+    /**
      * Aligns an authored list with sibling release entries or wraps prose and standalone fenced blocks.
      *
      * Only a principal list's optional outer indentation is removed; relative nesting and content remain intact.
@@ -241,6 +264,8 @@ final class BlockStructure
      * Inspects new fragment blocks with shared comment, inline-code and container precedence.
      *
      * Code suppresses comment recognition; an active comment suppresses fence recognition until it closes.
+     * Only an HTML block beginning at content start protects later fence-looking lines. A real fenced block
+     * interrupts an earlier paragraph's inline comment or backtick span, matching block-before-inline precedence.
      * Recognition uses the rendered wrapper, leaving the stored source untouched. Indented code starts only
      * at a block boundary or a new list item, never by silently reinterpreting a lazy paragraph continuation.
      *
@@ -257,17 +282,22 @@ final class BlockStructure
         $offset = 0;
         $paragraph = false;
         $implicitEnd = false;
+        $blockComment = false;
 
         foreach (explode("\n", $description) as $line) {
             $start = $offset;
             $offset += strlen($line) + 1;
 
-            if (! $comment && null === $span) {
+            if (! $comment || ! $blockComment) {
                 if (! self::outsideFence($line, $fence, $containers, $implicitEnd)) {
+                    $comment = false;
+                    $span = null;
                     $paragraph = false;
 
                     continue;
                 }
+            }
+            if (! $comment && null === $span) {
                 [$expanded, , $quotePadding] = self::quoteColumns($line);
                 $base = max($quotePadding, [] === $containers ? 0 : array_last($containers));
                 $startsItem = strspn($expanded, ' ') < $base;
@@ -292,6 +322,7 @@ final class BlockStructure
                 } elseif (! self::isEscaped($line, $position)) {
                     if ('<!--' === $delimiter) {
                         $comment = true;
+                        $blockComment = self::opensComment($line, $containers);
                     } elseif ('`' === $delimiter[0] && self::closesSpan(
                         $description,
                         $start + $position + strlen($delimiter),

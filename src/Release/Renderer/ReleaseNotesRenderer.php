@@ -123,7 +123,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     }
 
     /**
-     * Adds an inline reference to a single-line item or a separate paragraph after a multiline item's constructs.
+     * Adds inline references to single-line prose, or separate paragraphs after indented code and multiline items.
      *
      * @param  list<string>             $lines      Item lines after outer-indent alignment, retaining relative nesting and authored trailing whitespace.
      * @param  int                      $padding    Content columns used to keep the reference paragraph within its list item.
@@ -139,7 +139,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
             throw new InvalidArgumentException('An unclosed HTML comment would hide the list item delivery reference.');
         }
 
-        if (1 === count($lines)) {
+        if (1 === count($lines) && ! BlockStructure::startsIndentedItem($body)) {
             $text = rtrim($body, " \t\r");
 
             return $text . ' (' . $references . ')' . substr($body, strlen($text));

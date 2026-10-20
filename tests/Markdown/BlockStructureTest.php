@@ -26,6 +26,19 @@ final class BlockStructureTest extends TestCase
         self::assertSame($expected, BlockStructure::listItem($line));
     }
 
+    /** Only literal code after the complete same-line container prefix needs a detached reference paragraph. */
+    #[TestWith(['-     printf hello', true])]
+    #[TestWith(['1.     printf hello', true])]
+    #[TestWith(['- -     printf hello', true])]
+    #[TestWith(['- >     printf hello', true])]
+    #[TestWith(["-\t\tprintf hello", true])]
+    #[TestWith(['- Ordinary prose.', false])]
+    #[TestWith(['Ordinary prose.', false])]
+    public function testIndentedItemPayload(string $line, bool $expected): void
+    {
+        self::assertSame($expected, BlockStructure::startsIndentedItem($line));
+    }
+
     /** Validation examines exactly the wrapper used for real rendering, including single-line fence openers. */
     #[TestWith(['- Text', '- Text'])]
     #[TestWith(["  - Parent.  \n    - Child.\n\n    Continuation.", "- Parent.  \n  - Child.\n\n  Continuation."])]
@@ -160,6 +173,10 @@ final class BlockStructureTest extends TestCase
     #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible.", false])]
     #[TestWith(["> ~~~html\n> <!-- literal\n> ~~~", false])]
     #[TestWith(["> ~~~html\n> example\nOther paragraph.", true])]
+    #[TestWith(["- Visible <!-- hidden\n  ~~~\n  --> Visible.", true])]
+    #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~", false])]
+    #[TestWith(["- Use `some\n  ~~~\n  code` safely.", true])]
+    #[TestWith(["- Use `literal\n  ~~~\n  code` example.\n  ~~~", false])]
     public function testNewFragmentFenceRequiresExplicitClosure(string $description, bool $expected): void
     {
         self::assertSame($expected, BlockStructure::hasUnclosedFence($description));

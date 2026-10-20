@@ -126,6 +126,8 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(['  ```php'])]
     #[TestWith(['- ```php'])]
     #[TestWith(["- ```text\n  example\n- Next item."])]
+    #[TestWith(["- Visible <!-- hidden\n  ~~~\n  --> Visible."])]
+    #[TestWith(["- Use `some\n  ~~~\n  code` safely."])]
     public function rejectsFencesThatWouldPreventReleaseHistoryRendering(string $body): void
     {
         $result = new ChangesetParser()->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body);
@@ -158,6 +160,8 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["> ~~~html\n>example\n>~~~"])]
     #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible improvement."])]
     #[TestWith(["- <!-- hidden\n  ```\n  --> Visible improvement."])]
+    #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~"])]
+    #[TestWith(["- Use `literal\n  ~~~\n  code` example.\n  ~~~"])]
     public function retainsReleaseCompatibleMarkdownExactly(string $body): void
     {
         $expected = new Changeset('entry.md', Category::Fixed, null, null, null, $body, VersionImpact::Patch);

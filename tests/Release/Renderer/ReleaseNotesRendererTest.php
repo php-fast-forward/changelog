@@ -341,6 +341,24 @@ final class ReleaseNotesRendererTest extends TestCase
         );
     }
 
+    /** An item starting with indented code needs a separate visible reference paragraph, even on one source line. */
+    #[TestWith(['-     printf hello', 2])]
+    #[TestWith(['1.     printf hello', 3])]
+    #[TestWith(['- -     printf hello', 2])]
+    #[TestWith(['- >     printf hello', 2])]
+    public function testSingleLineIndentedCodeDoesNotConsumeTheReference(string $description, int $padding): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n" . $description . "\n\n" . str_repeat(' ', $padding) . "(#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('code.md', Category::Added, null, 7, null, $description),
+            ], $template),
+        );
+    }
+
     /** A non-one ordered list cannot interrupt an earlier bullet's paragraph without a block boundary. */
     public function testOrderedListStartingAtTwoIsSeparatedFromThePrecedingFragment(): void
     {

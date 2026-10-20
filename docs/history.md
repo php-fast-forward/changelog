@@ -59,6 +59,8 @@ item receives the same inline reference. A multiline item keeps its reference
 in an indented paragraph after its content, outside code spans, HTML comments
 and fenced examples; nested content retains its authored bytes. Ordered lists
 are separated from surrounding fragments so their starting number stays a list.
+An item containing only indented code also receives a separate reference
+paragraph, keeping the published command unchanged.
 The same outer-indentation adjustment applies to lists without references.
 
 New fragments require an explicit closing delimiter for every code fence,
@@ -72,6 +74,8 @@ HTML comment remains comment content instead of opening a code block.
 The optional space after `>` may vary between lines. Historical parsing,
 formatting, reference discovery and migration of older pending notes share these
 container and comment rules.
+A fence can interrupt paragraph text. An earlier inline comment or backtick does
+not hide that fence from validation; the fenced block must still close explicitly.
 Leading indentation and continuation paragraphs retain the same list-content
 boundary during validation, rendering and historical parsing.
 

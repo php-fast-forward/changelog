@@ -109,6 +109,7 @@ final class SquashPublicationTest extends TestCase
                 'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n- Second improvement.",
                 'quoted' => "> ~~~html\n> <!-- literal\n> ~~~",
                 'tab-code' => "- First improvement.\n\n  \t  <!-- literal\tpayload\n- Second improvement.",
+                'indented-single' => "-     printf hello\n- Second improvement.",
                 'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n- Second improvement.",
                 'inline' => "- Use `some\n  code` safely.\n- Second improvement.",
                 'comment' => "- <!-- hidden\n  --> Visible improvement.\n- Second improvement.",
@@ -151,6 +152,7 @@ final class SquashPublicationTest extends TestCase
                     'reference-example' => "- ```md\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
                     'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n\n  " . $reference,
                     'tab-code' => "- First improvement.\n\n      <!-- literal\tpayload\n\n  " . $reference,
+                    'indented-single' => "-     printf hello\n\n  " . $reference,
                     'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
                     'inline' => "- Use `some\n  code` safely.\n\n  " . $reference,
                     'comment' => "- <!-- hidden\n  --> Visible improvement.\n\n  " . $reference,
@@ -448,6 +450,12 @@ final class SquashPublicationTest extends TestCase
         yield 'closed comment keeps fence examples literal' => [false, false, false, 'comment-fence'];
         yield 'quoted code keeps comment markers literal' => [false, false, false, 'quoted'];
         yield 'indentation tabs preserve literal HTML and internal payload' => [false, false, false, 'tab-code'];
+        yield 'single-line indented code keeps its delivery reference outside literal content' => [
+            false,
+            false,
+            false,
+            'indented-single',
+        ];
         yield 'fenced payload tabs and literal references survive explicit and incremental formatting' => [
             false,
             false,

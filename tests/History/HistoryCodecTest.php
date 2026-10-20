@@ -163,11 +163,14 @@ final class HistoryCodecTest extends TestCase
     }
 
     /** Ordinary formatting shares fragment comment precedence instead of opening a fence inside a closed comment. */
-    public function testAcceptedCommentFenceExampleCanBeFormatted(): void
+    #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible."])]
+    #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~"])]
+    #[TestWith(["- Use `literal\n  ~~~\n  code` example.\n  ~~~"])]
+    public function testAcceptedCommentFenceExampleCanBeFormatted(string $description): void
     {
         $template = $this->template('en');
         $notes = new ReleaseNotesRenderer()->render([
-            new Changeset('comment.md', Category::Fixed, null, 7, null, "- <!-- hidden\n  ~~~\n  --> Visible."),
+            new Changeset('comment.md', Category::Fixed, null, 7, null, $description),
         ], $template);
         $document = new HistoryDocument([new HistoryRelease('1.1.0', body: $notes)]);
         $codec = $this->codec();
@@ -176,6 +179,18 @@ final class HistoryCodecTest extends TestCase
 
         self::assertStringContainsString($notes, $formatted);
         self::assertSame("\n" . $notes, $codec->parse($formatted, $template)->getRelease('1.1.0')->getBody());
+    }
+
+    /** Direct rendering also rejects an inline comment interrupted by a real unclosed fenced block. */
+    public function testInlineCommentCannotHideARealFenceFromDirectRendering(): void
+    {
+        $template = $this->template('en');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('explicit closing delimiter');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('comment.md', Category::Fixed, null, 7, null, "- Visible <!-- hidden\n  ~~~\n  --> Visible."),
+        ], $template);
     }
 
     /** Every history scan leaves hidden fences, headings and references inside a multiline comment untouched. */
