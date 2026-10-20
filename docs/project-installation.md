@@ -122,6 +122,12 @@ canonical public repository. These read-only public API requests use no consumer
 credentials, with a 10-second timeout and 30-second maximum duration per request;
 this is not an overall command deadline.
 
+For a caller following the published `v0` channel, use the
+[manual consumer example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md).
+Verify the channel's current published commit and supported inputs, then keep
+`@v0` in `uses` when that is the owner's chosen policy. The guided installer's
+fixed-commit output and its `--ref` validation do not change this manual option.
+
 ## Preserve existing integrations
 
 One recognized Fast Forward lifecycle caller is kept byte-for-byte, including

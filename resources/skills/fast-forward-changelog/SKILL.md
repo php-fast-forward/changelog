@@ -24,7 +24,7 @@ approval.
 1. Read application instructions, Git status and its existing changelog setup.
    Use its reviewed workflow version for an ordinary task; do not upgrade it incidentally.
    If its ref is a moving channel, resolve the current commit and corresponding
-   published full tag before selecting a local runtime. `v0` is not Composer `0`.
+   published full tag before inspecting the workflow contract. `v0` is not Composer `0`.
 2. For new adoption or a requested update, discover the latest published stable
    release in the [official repository](https://github.com/php-fast-forward/changelog/releases).
    Confirm the complete release tag and its commit, exclude drafts/prereleases,
@@ -36,7 +36,10 @@ approval.
    of this skill. Before adding a workflow, inspect its
    `resources/workflows/changelog.yml`, companion README and the reusable workflow
    they reference. Copy the release's caller, review inputs/permissions and set
-   its product references to that verified full tag or immutable release commit;
+   its product references to the explicitly selected verified channel, full tag
+   or immutable release commit. For a channel such as `v0`, verify its current
+   published commit and retain the chosen channel rather than silently replacing
+   it with a SHA. A channel can advance after verification;
    do not retain an obsolete embedded pin blindly. After setting the final ref,
    inspect the reusable workflow at that exact ref and confirm its inputs,
    permissions and runner requirements before saving the application caller.

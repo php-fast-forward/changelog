@@ -28,7 +28,10 @@ provenance: a workflow ref does not change the executing CLI's instructions.
 
 For manual setup, copy the caller into the application's `.github/workflows/`, review its events,
 inputs and effective permissions, then set its product references to the selected
-published complete tag or verified immutable release commit. Review older pins
+published complete tag, verified immutable release commit or explicitly selected
+verified channel, such as `v0`. Resolve a channel to its current commit and
+published full tag for contract inspection, while retaining the owner's selected
+channel in `uses`. Do not replace a requested channel with a SHA. Review older pins
 embedded in the copied caller. After replacing a pin, inspect the reusable
 workflow at the final selected ref and verify its actual inputs, permissions and
 runner requirements before saving the application caller.
