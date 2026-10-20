@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5507bc7070f6bfac759681cfc4b26f1e",
+    "content-hash": "8b7e2f2b571d456e6250a1573cdbbd3c",
     "packages": [
         {
             "name": "brick/varexporter",
@@ -92,29 +92,36 @@
         },
         {
             "name": "fast-forward/clock",
-            "version": "v1.0.0",
+            "version": "v1.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fast-forward/clock.git",
-                "reference": "b18ba851614d38b7600b1e6aa627ff7b4d4a851f"
+                "reference": "2cc7ce5ab07e0396f3265a3fa179ef42b53c0326"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fast-forward/clock/zipball/b18ba851614d38b7600b1e6aa627ff7b4d4a851f",
-                "reference": "b18ba851614d38b7600b1e6aa627ff7b4d4a851f",
+                "url": "https://api.github.com/repos/php-fast-forward/clock/zipball/2cc7ce5ab07e0396f3265a3fa179ef42b53c0326",
+                "reference": "2cc7ce5ab07e0396f3265a3fa179ef42b53c0326",
                 "shasum": ""
             },
             "require": {
                 "fast-forward/config": "^1.4",
-                "fast-forward/container": "^1.6",
+                "fast-forward/container": "^1.10",
                 "php": "^8.3",
                 "psr/clock": "^1.0"
             },
             "require-dev": {
-                "fast-forward/dev-tools": "dev-main"
+                "fast-forward/dev-tools": "dev-main",
+                "llm/skills": "^1.15"
+            },
+            "suggest": {
+                "llm/skills": "Optionally synchronize the bundled agent skill in consumer projects."
             },
             "type": "library",
             "extra": {
+                "skills": {
+                    "source": "resources/skills"
+                },
                 "grumphp": {
                     "config-default-path": "vendor/fast-forward/dev-tools/grumphp.yml"
                 },
@@ -138,7 +145,7 @@
                 }
             ],
             "description": "A PSR-20 compliant clock implementation for PHP, with support for time zones and a service provider for easy integration with Fast Forward Container.",
-            "homepage": "https://github.com/php-fast-forward",
+            "homepage": "https://php-fast-forward.github.io/clock/",
             "keywords": [
                 "clock",
                 "container",
@@ -151,7 +158,7 @@
                 "issues": "https://github.com/php-fast-forward/clock/issues",
                 "source": "https://github.com/php-fast-forward/clock"
             },
-            "time": "2026-04-07T16:05:42+00:00"
+            "time": "2026-10-20T19:05:55+00:00"
         },
         {
             "name": "fast-forward/config",
