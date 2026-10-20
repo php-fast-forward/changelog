@@ -19,6 +19,7 @@ namespace FastForward\Changelog\Changeset\Parser;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\ChangesetParseResult;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Version\VersionImpact;
 
 /**
@@ -256,7 +257,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
      * Trims blank boundary lines while preserving meaningful Markdown bytes.
      *
      * @param list<string> $body   Lines following the closing frontmatter delimiter.
-     * @param list<string> $errors Diagnostics appended for empty text or unclosed fences.
+     * @param list<string> $errors Diagnostics appended for empty text or unsafe unclosed Markdown blocks.
      *
      * @return string Markdown body with its original internal spacing and line breaks.
      */
@@ -281,6 +282,10 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Fragment code fences must close before the end of their rendered release entry.';
         }
 
+        if ('' !== $visibleBody && BlockStructure::hasUnclosedComment($description)) {
+            $errors[] = 'Fragment HTML comments must close before the end of their rendered release entry.';
+        }
+
         return $description;
     }
 
@@ -296,35 +301,11 @@ final readonly class ChangesetParser implements ChangesetParserInterface
      */
     private function hasUnclosedReleaseFence(string $description): bool
     {
-        if (! str_contains($description, "\n")) {
-            return false;
-        }
         $fence = null;
-        $first = explode("\n", $description, 2)[0];
-        $listed = 1 === preg_match('/\A {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/', $first)
-            && 1 !== preg_match('/\A {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?\z/', $first);
+        $containers = [];
 
-        foreach (explode("\n", $description) as $line) {
-            $line = ($listed ? '' : '  ') . $line;
-            if (null !== $fence) {
-                if (1 === preg_match(
-                    '/^ {0,' . (3 + $fence['padding']) . '}' . preg_quote(
-                        $fence['character'],
-                        '/',
-                    ) . '{' . $fence['length'] . ',}[ \\t]*\\z/',
-                    $line,
-                )) {
-                    $fence = null;
-                }
-
-                continue;
-            }
-            if (1 === preg_match('/^ {0,3}((?:(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})(.*)/', $line, $matches)
-                && ('~' === $matches[2][0] || ! str_contains($matches[3], '`'))) {
-                $fence = ['character' => $matches[2][0], 'length' => strlen($matches[2]), 'padding' => strlen(
-                    $matches[1],
-                )];
-            }
+        foreach (explode("\n", BlockStructure::wrapDescription($description)) as $line) {
+            BlockStructure::outsideFence($line, $fence, $containers);
         }
 
         return null !== $fence;

@@ -11,6 +11,7 @@ use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
@@ -22,6 +23,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
 #[CoversClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
@@ -99,6 +101,34 @@ final class HistoryCodecTest extends TestCase
         self::assertNull($parsed->getRelease('9.9.9'));
         self::assertStringContainsString($description, $parsed->getRelease('1.1.0')->getBody());
         self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** Historical list-contained fences end with their container instead of swallowing the next published version. */
+    public function testDedentedReleaseHeadingEndsAHistoricalListContainerFence(): void
+    {
+        $markdown = "## [2.0.0]\n\n- ```text\n  example\n\n## [1.0.0]\n\n- Previous release.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** The closing allowance is relative to the complete list prefix, including its initial indentation. */
+    public function testLeadingListIndentationParticipatesInFencePadding(): void
+    {
+        $notes = "### Fixed\n\n  - ```php\n    example\n      ```\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $document = new HistoryDocument([new HistoryRelease('1.0.0', null, null, $notes)]);
+
+        $markdown = $codec->render($document, $template);
+
+        self::assertStringContainsString($notes, $markdown);
     }
 
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */

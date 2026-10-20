@@ -17,6 +17,7 @@ namespace FastForward\Changelog\History;
 
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
 use JsonException;
@@ -84,6 +85,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $protectedEnd = null;
         $legacyClosed = false;
         $fence = null;
+        $containers = [];
         $offset = 0;
 
         foreach ($this->lines($markdown) as $line) {
@@ -91,7 +93,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             $offset += strlen($line);
 
             if ($protected) {
-                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, $fence)) {
+                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, $fence, $containers)) {
                     $sections[array_key_last($sections)]['body_end'] = $lineOffset;
 
                     if (null === $protectedEnd) {
@@ -105,7 +107,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 continue;
             }
 
-            if (! $this->outsideFence($line, $fence)) {
+            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
                 continue;
             }
 
@@ -168,10 +170,17 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      * @param int|null                                            $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
      * @param array{character:string,length:int,padding:int}|null $fence       Mutable active fence state, including list-container padding.
      *
+     * @param list<int> $containers Mutable list-content columns retained across continuation lines.
+     *
      * @return bool Whether this line closes the current protected body.
      */
-    private function closesProtectedBody(string $line, int $offset, ?int $expectedEnd, ?array &$fence): bool
-    {
+    private function closesProtectedBody(
+        string $line,
+        int $offset,
+        ?int $expectedEnd,
+        ?array &$fence,
+        array &$containers,
+    ): bool {
         if (null !== $expectedEnd) {
             if ($offset < $expectedEnd) {
                 return false;
@@ -184,7 +193,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             return true;
         }
 
-        return $this->outsideFence($line, $fence) && self::END_RELEASE === rtrim($line, "\r\n");
+        return BlockStructure::outsideFence($line, $fence, $containers) && self::END_RELEASE === rtrim($line, "\r\n");
     }
 
     /**
@@ -391,39 +400,6 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     }
 
     /**
-     * Determines whether a line is outside a CommonMark-style fenced block.
-     *
-     * @param string                                              $line  Current source Markdown line, including its original line ending.
-     * @param array{character:string,length:int,padding:int}|null $fence Mutable active fence state, including list-container padding.
-     *
-     * @return bool Whether the current line is ordinary content outside a fence; delimiter lines return false and update the supplied state.
-     */
-    private function outsideFence(string $line, ?array &$fence): bool
-    {
-        if (null !== $fence) {
-            $pattern = '/^ {0,' . (3 + $fence['padding']) . '}' . preg_quote(
-                $fence['character'],
-                '/',
-            ) . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/';
-
-            if (1 === preg_match($pattern, $line)) {
-                $fence = null;
-            }
-
-            return false;
-        }
-
-        if (1 === preg_match('/^ {0,3}((?:(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})(.*)/', $line, $matches)
-            && ('~' === $matches[2][0] || ! str_contains($matches[3], '`'))) {
-            $fence = ['character' => $matches[2][0], 'length' => strlen($matches[2]), 'padding' => strlen($matches[1])];
-
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Recognizes standard, bare Changesets and explicitly selected template headings.
      *
      * Bare version-only headings delegate semantic validation to the release
@@ -516,10 +492,11 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     private function assertPlainBody(string $body, TemplateInterface $template): void
     {
         $fence = null;
+        $containers = [];
         $terminalReference = false;
 
         foreach ($this->lines($body) as $line) {
-            if (! $this->outsideFence($line, $fence)) {
+            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
                 $terminalReference = false;
 
                 continue;
@@ -627,6 +604,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             $categories[substr($template->categoryHeading($category), 4)] = $category;
         }
         $fence = null;
+        $containers = [];
         $pending = null;
         $output = '';
 
@@ -635,7 +613,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
             }
 
-            if (! $this->outsideFence($line, $fence)) {
+            if (! BlockStructure::outsideFence($line, $fence, $containers)) {
                 $output .= $line;
 
                 continue;

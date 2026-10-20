@@ -6,6 +6,7 @@ namespace FastForward\Changelog\Tests\Release\Renderer;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Version\VersionImpact;
@@ -14,6 +15,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
 #[CoversClass(ReleaseNotesRenderer::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(Category::class)]
@@ -242,11 +244,11 @@ final class ReleaseNotesRendererTest extends TestCase
     /** Nested prose, hard breaks and fenced examples keep their original structure while only principal items get links. */
     #[TestWith([
         "- Parent item.  \n  - Child item.\n\n  Another paragraph.\n- Second item.",
-        "- Parent item. ({ref})  \n  - Child item.\n\n  Another paragraph.\n- Second item. ({ref})",
+        "- Parent item.  \n  - Child item.\n\n  Another paragraph.\n\n  ({ref})\n- Second item. ({ref})",
     ])]
     #[TestWith([
-        "- Parent item.\n\n  ```md\n- Literal bullet.\n  ~~~\n  ```\n- Second item.",
-        "- Parent item. ({ref})\n\n  ```md\n- Literal bullet.\n  ~~~\n  ```\n- Second item. ({ref})",
+        "- Parent item.\n\n  ```md\n  - Literal bullet.\n  ~~~\n  ```\n- Second item.",
+        "- Parent item.\n\n  ```md\n  - Literal bullet.\n  ~~~\n  ```\n\n  ({ref})\n- Second item. ({ref})",
     ])]
     #[TestWith([
         "- ```php\n  return true;\n  ```\n- Second item.",
@@ -261,8 +263,8 @@ final class ReleaseNotesRendererTest extends TestCase
         "- ```literal``` span ({ref})\n- Second item. ({ref})",
     ])]
     #[TestWith([
-        "- ```md\n      ```\n- Literal bullet.\n  ```\n- Second item.",
-        "- ```md\n      ```\n- Literal bullet.\n  ```\n\n  ({ref})\n- Second item. ({ref})",
+        "- ```md\n      ```\n  - Literal bullet.\n  ```\n- Second item.",
+        "- ```md\n      ```\n  - Literal bullet.\n  ```\n\n  ({ref})\n- Second item. ({ref})",
     ])]
     #[TestWith([
         "  - First item.\r\n  - Second item.",
@@ -282,6 +284,65 @@ final class ReleaseNotesRendererTest extends TestCase
                 $template,
             ),
         );
+    }
+
+    /** References must stay outside inline code spans and HTML comments that cross source lines. */
+    #[TestWith(["- Use `some\n  code` safely.", "- Use `some\n  code` safely.\n\n  (#7)"])]
+    #[TestWith(["- <!-- hidden\n  --> Visible improvement.", "- <!-- hidden\n  --> Visible improvement.\n\n  (#7)"])]
+    #[TestWith([
+        "- First paragraph.\n\n  Continuation.\n\n- Second.",
+        "- First paragraph.\n\n  Continuation.\n\n  (#7)\n\n- Second. (#7)",
+    ])]
+    public function testMultilineInlineConstructsDoNotSwallowTheDeliveryReference(
+        string $description,
+        string $expected,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, $description),
+        ], $template));
+    }
+
+    /** A non-one ordered list cannot interrupt an earlier bullet's paragraph without a block boundary. */
+    public function testOrderedListStartingAtTwoIsSeparatedFromThePrecedingFragment(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- First.\n\n2. Second.\n3. Third.\n", new ReleaseNotesRenderer()->render([
+            new Changeset('a.md', Category::Added, null, null, null, 'First.'),
+            new Changeset('b.md', Category::Added, null, null, null, "2. Second.\n3. Third."),
+        ], $template));
+    }
+
+    /** A later fence-first item owns its own reference rather than being absorbed by the preceding prose item. */
+    public function testASecondItemCanOpenItsOwnFencedBlock(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $description = "- First.\n- ```php\n  code();\n  ```\n- Last.";
+
+        self::assertSame(
+            "### Added\n\n- First. (#7)\n- ```php\n  code();\n  ```\n\n  (#7)\n- Last. (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('list.md', Category::Added, null, 7, null, $description),
+            ], $template),
+        );
+    }
+
+    /** Direct callers also receive a clear error instead of a hidden reference when bypassing fragment validation. */
+    public function testUnclosedListCommentsCannotHideReferences(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('unclosed HTML comment');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, "- Visible.\n\n  <!-- not closed"),
+        ], $template);
     }
 
     /** A thematic break or an overlong ordered marker is ordinary Markdown, not a list to flatten. */

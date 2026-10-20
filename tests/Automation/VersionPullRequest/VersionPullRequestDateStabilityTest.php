@@ -26,6 +26,7 @@ use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
 use FastForward\Changelog\Release\ReceiptCodec;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
@@ -55,6 +56,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use RuntimeException;
 
+#[UsesClass(BlockStructure::class)]
 #[CoversClass(VersionPullRequestService::class)]
 #[UsesClass(\FastForward\Changelog\Version\VersionBaselineResolver::class)]
 #[UsesClass(GitHubEvidence::class)]

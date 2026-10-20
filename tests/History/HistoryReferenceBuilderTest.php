@@ -10,12 +10,14 @@ use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Template\TemplateInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
 #[CoversClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]

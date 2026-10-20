@@ -98,9 +98,21 @@ final class SquashPublicationTest extends TestCase
             $git($producer, ['commit', '-m', 'Original published fixture']);
             $git($producer, ['tag', 'v1.0.0']);
             mkdir($producer . '/.changelog');
-            $listDescription = 'fenced' === $authoredList
-                ? "- ```md\n  ## [9.9.9]\n  ```\n- Second improvement."
-                : "- First improvement.\n- Second improvement.";
+            $listDescription = match ($authoredList) {
+                'fenced' => "- ```md\n  ## [9.9.9]\n  ```\n- Second improvement.",
+                'indented' => "  - ```md\n    example\n      ```\n  - Second improvement.",
+                'inline' => "- Use `some\n  code` safely.\n- Second improvement.",
+                'comment' => "- <!-- hidden\n  --> Visible improvement.\n- Second improvement.",
+                'ordered' => "2. Second improvement.\n3. Third improvement.",
+                default => "- First improvement.\n- Second improvement.",
+            };
+
+            if ('ordered' === $authoredList) {
+                file_put_contents(
+                    $producer . '/.changelog/a-first.md',
+                    "---\ncategory: fixed\ntype: patch\n---\n\nFirst.\n",
+                );
+            }
             file_put_contents(
                 $producer . '/.changelog/squash.md',
                 null !== $authoredList
@@ -121,11 +133,20 @@ final class SquashPublicationTest extends TestCase
             $plan = $configured->get(ReleasePlannerInterface::class)->plan($options, 'version');
 
             if (null !== $authoredList) {
-                $first = 'fenced' === $authoredList
-                    ? "- ```md\n  ## [9.9.9]\n  ```\n\n  ([#7](https://github.com/owner/fixture/pull/7))"
-                    : '- First improvement. ([#7](https://github.com/owner/fixture/pull/7))';
+                $reference = '([#7](https://github.com/owner/fixture/pull/7))';
+                $first = match ($authoredList) {
+                    'fenced' => "- ```md\n  ## [9.9.9]\n  ```\n\n  " . $reference,
+                    'indented' => "  - ```md\n    example\n      ```\n\n    " . $reference,
+                    'inline' => "- Use `some\n  code` safely.\n\n  " . $reference,
+                    'comment' => "- <!-- hidden\n  --> Visible improvement.\n\n  " . $reference,
+                    default => '- First improvement. ' . $reference,
+                };
                 $expected = "\n### Fixed\n\n" . $first . "\n"
-                    . "- Second improvement. ([#7](https://github.com/owner/fixture/pull/7))\n\n";
+                    . ('indented' === $authoredList ? '  ' : '') . '- Second improvement. ' . $reference . "\n\n";
+
+                if ('ordered' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- First.\n\n2. Second improvement. " . $reference . "\n3. Third improvement. " . $reference . "\n\n";
+                }
                 $history = $configured->get(HistoryCodecInterface::class);
                 self::assertSame($expected, $plan->notes);
                 self::assertSame($expected, $history->notes($history->parse($plan->changelogContents), '1.0.1'));
@@ -372,6 +393,10 @@ final class SquashPublicationTest extends TestCase
             'prose',
         ];
         yield 'list-item code fences survive exact publication reconstruction' => [false, false, false, 'fenced'];
+        yield 'leading list indent survives exact publication reconstruction' => [false, false, false, 'indented'];
+        yield 'multiline inline code keeps references visible' => [false, false, false, 'inline'];
+        yield 'multiline HTML comment keeps references visible' => [false, false, false, 'comment'];
+        yield 'ordered list has a block boundary after prose' => [false, false, false, 'ordered'];
     }
 
     /** Restores write access within the exact temporary tree without following symbolic links, then removes it. */

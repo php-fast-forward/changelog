@@ -18,7 +18,9 @@ namespace FastForward\Changelog\Release\Renderer;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 
 /** Builds readable localized release notes while preserving descriptions and useful links. */
 final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterface
@@ -33,7 +35,8 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
      * @param string|null       $repository Optional GitHub owner/name used for source selection and reference links.
      *
-     * @return string Deterministically category-grouped release body preserving authored descriptions and optional references.
+     * @return string                   Deterministically category-grouped release body preserving authored descriptions and optional references.
+     * @throws InvalidArgumentException When an unclosed HTML comment would hide a list item's delivery references.
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
     {
@@ -41,25 +44,26 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         $sections = [];
         foreach (Category::cases() as $category) {
             $entries = [];
+            $previousOrdered = false;
             foreach ($changesets as $change) {
                 if ($change->category !== $category) {
                     continue;
                 }
                 $references = $this->references($change, $repository);
-                $list = $this->listItem(explode("\n", $change->description, 2)[0]);
+                $list = BlockStructure::listItem(explode("\n", $change->description, 2)[0]);
 
                 if (null !== $list) {
-                    $entries[] = $this->authoredList($change->description, $references, $list['indent']);
+                    $entry = $this->authoredList($change->description, $references, $list['indent']);
+                    $entries[] = ([] !== $entries && ($list['ordered'] || $previousOrdered) ? "\n" : '') . $entry;
+                    $previousOrdered = $list['ordered'];
 
                     continue;
                 }
                 $multiline = str_contains($change->description, "\n");
-                $fenced = $multiline
-                    && 1 === preg_match('/\A {0,3}(`{3,}|~{3,})([^\n]*)/', $change->description, $fence)
-                    && ('~' === $fence[1][0] || ! str_contains($fence[2], '`'));
-                $body = ($fenced ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $change->description);
+                $body = BlockStructure::wrapDescription($change->description);
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
-                $entries[] = $body . $suffix;
+                $entries[] = ($previousOrdered ? "\n" : '') . $body . $suffix;
+                $previousOrdered = false;
             }
             if ([] !== $entries) {
                 $sections[] = $template->categoryHeading($category->value) . "\n\n" . implode("\n", $entries);
@@ -70,90 +74,76 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     }
 
     /**
-     * Keeps authored list structure, attaching references only to its principal items outside fenced code.
+     * Keeps original principal list items, collecting their continuation lines outside fenced examples.
      *
-     * Prose references precede original trailing whitespace so Markdown hard breaks survive. An item opening
-     * directly with a fence receives an indented reference paragraph after its block, never in the info string.
-     * This bounded block scan is not a general Markdown parser; it never rewrites authored marker/content bytes.
-     *
-     * @param  string $description Validated authored description beginning with a recognized list marker.
-     * @param  string $references  Optional already rendered references, shared by this fragment's principal items.
-     * @param  int    $indent      Original principal-item indentation; deeper markers remain nested content.
-     * @return string Original list bytes with optional references, without an additional list wrapper.
+     * @param  string                   $description Authored description beginning with a list marker.
+     * @param  string                   $references  Optional already rendered references shared by this fragment's principal items.
+     * @param  int                      $indent      Principal marker indentation; deeper markers remain nested content.
+     * @return string                   Authored list with references attached only after the owning item's content.
+     * @throws InvalidArgumentException When an open HTML comment would hide delivery references.
      */
     private function authoredList(string $description, string $references, int $indent): string
     {
         if ('' === $references) {
             return $description;
         }
-        $lines = explode("\n", $description);
         $output = [];
+        $itemLines = [];
+        $context = null;
         $fence = null;
-        $pendingIndent = null;
+        $containers = [];
 
-        foreach ($lines as $line) {
-            if (null !== $fence) {
-                $output[] = $line;
-
-                if (1 === preg_match(
-                    '/\A {0,' . (3 + $fence[2]) . '}' . preg_quote($fence[0], '/') . '{' . $fence[1] . ',}[ \t\r]*\z/',
-                    $line,
-                )) {
-                    $fence = null;
-
-                    if (null !== $pendingIndent) {
-                        $output[] = "\n" . str_repeat(' ', $pendingIndent) . '(' . $references . ')';
-                        $pendingIndent = null;
-                    }
-                }
-
-                continue;
-            }
-            $item = $this->listItem($line);
-            $principal = null !== $item && $item['indent'] === $indent;
-
-            $opening = 1 === preg_match(
-                '/\A {0,3}((?:(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})([^\r\n]*)/',
-                $line,
-                $matches,
-            )
-                && ('~' === $matches[2][0] || ! str_contains($matches[3], '`'));
-
-            if ($opening) {
-                $fence = [$matches[2][0], strlen($matches[2]), strlen($matches[1])];
-            }
+        foreach (explode("\n", $description) as $line) {
+            $active = $fence;
+            BlockStructure::outsideFence($line, $fence, $containers);
+            $item = BlockStructure::listItem($line);
+            $principal = null !== $item && $item['indent'] === $indent
+                && (null === $active || $item['indent'] < $active['padding']);
 
             if ($principal) {
-                if ($opening) {
-                    $pendingIndent = $item['contentIndent'];
-                } else {
-                    $text = rtrim($line, " \t\r");
-                    $line = $text . ' (' . $references . ')' . substr($line, strlen($text));
+                if ([] !== $itemLines) {
+                    $output[] = $this->listReference($itemLines, $context['contentIndent'], $references);
                 }
+                $itemLines = [];
+                $context = $item;
             }
-            $output[] = $line;
+            $itemLines[] = $line;
         }
+        $output[] = $this->listReference($itemLines, $context['contentIndent'], $references);
 
         return implode("\n", $output);
     }
 
     /**
-     * Recognizes a Markdown list marker with at most three leading spaces, excluding thematic breaks.
+     * Adds an inline reference to a single-line item or a separate paragraph after a multiline item's constructs.
      *
-     * @param  string                                   $line Authored single line without its LF separator; original spaces and optional CR are retained.
-     * @return array{indent:int,contentIndent:int}|null Marker context, or null for ordinary Markdown.
+     * @param  list<string>             $lines      Exact item lines, including nested content and authored trailing whitespace.
+     * @param  int                      $padding    Content columns used to keep the reference paragraph within its list item.
+     * @param  string                   $references Already rendered delivery metadata for this item's fragment.
+     * @return string                   Original item bytes with visible reference content added outside its inline constructs.
+     * @throws InvalidArgumentException When an unclosed HTML comment would swallow the reference.
      */
-    private function listItem(string $line): ?array
+    private function listReference(array $lines, int $padding, string $references): string
     {
-        if (1 === preg_match('/\A {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?\z/', $line)
-            || 1 !== preg_match('/\A( {0,3})([-+*]|[0-9]{1,9}[.)])([ \t]+).*\z/', $line, $matches)) {
-            return null;
+        $body = implode("\n", $lines);
+
+        if (BlockStructure::hasUnclosedComment($body)) {
+            throw new InvalidArgumentException('An unclosed HTML comment would hide the list item delivery reference.');
         }
 
-        return [
-            'indent' => strlen($matches[1]),
-            'contentIndent' => strlen($matches[1] . $matches[2] . $matches[3]),
-        ];
+        if (1 === count($lines)) {
+            $text = rtrim($body, " \t\r");
+
+            return $text . ' (' . $references . ')' . substr($body, strlen($text));
+        }
+        $trailing = [];
+
+        while ([] !== $lines && '' === trim(array_last($lines))) {
+            array_unshift($trailing, array_pop($lines));
+        }
+
+        return implode("\n", $lines) . "\n\n" . str_repeat(' ', $padding) . '(' . $references . ')'
+            . ([] === $trailing ? '' : "\n" . implode("\n", $trailing));
     }
 
     /**

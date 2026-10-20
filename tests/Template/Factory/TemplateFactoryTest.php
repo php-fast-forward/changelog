@@ -10,6 +10,7 @@ use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
 use InvalidArgumentException;
@@ -19,6 +20,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
 #[CoversClass(TemplateFactory::class)]
 #[UsesClass(KeepAChangelogTemplate::class)]
 #[UsesClass(Category::class)]

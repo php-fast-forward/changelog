@@ -48,11 +48,18 @@ authored Markdown hard breaks remain unchanged.
 
 Descriptions that begin with a Markdown list keep their own `-`, `*`, `+` or
 ordered markers, indentation and nested content. The renderer does not add a
-second outer bullet. With a PR or issue reference, each principal prose item
-receives the same inline reference; nested items and fenced examples remain
-untouched. An item opening directly with a fenced block keeps the reference in
-an indented paragraph after that block, outside its code. Descriptions without
-references preserve their authored list bytes exactly.
+second outer bullet. With a PR or issue reference, each single-line principal
+item receives the same inline reference. A multiline item keeps its reference
+in an indented paragraph after its content, outside code spans, HTML comments
+and fenced examples; nested content retains its authored bytes. Ordered lists
+are separated from surrounding fragments so their starting number stays a list.
+Descriptions without references preserve their authored list bytes exactly.
+
+Validation rejects an opening code fence or HTML comment that would remain
+unclosed at the end of a fragment. In existing history, a list-contained fence
+ends when its container ends, so a dedented release heading remains visible.
+Leading indentation and continuation paragraphs retain the same list-content
+boundary during validation, rendering and historical parsing.
 
 ## Release reference links
 

@@ -23,6 +23,7 @@ use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\History\Import\HistoryImporterInterface;
 use FastForward\Changelog\History\Import\HistoryImportResult;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
 use FastForward\Changelog\Release\ReceiptCodec;
@@ -57,6 +58,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use RuntimeException;
 
+#[UsesClass(BlockStructure::class)]
 #[CoversClass(ReleasePlanner::class)]
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(VersionBaselineResolver::class)]
