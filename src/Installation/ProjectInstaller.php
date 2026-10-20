@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Installation;
 
-use FastForward\Changelog\Skill\SkillInstallerInterface;
 use InvalidArgumentException;
-use JsonException;
 use RuntimeException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
@@ -23,12 +21,12 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
      *
      * @param InstallationFilesystemInterface  $filesystem Read-only inventories and create-only caller publication.
      * @param WorkflowReleaseResolverInterface $releases   Published workflow identity and exact input contract discovery.
-     * @param SkillInstallerInterface          $skills     Existing native skill provenance, preview and explicit install transaction.
+     * @param ProjectSkillInstallerInterface   $skills     Standard Composer manager setup, guarded preview and explicit application.
      */
     public function __construct(
         private InstallationFilesystemInterface $filesystem,
         private WorkflowReleaseResolverInterface $releases,
-        private SkillInstallerInterface $skills,
+        private ProjectSkillInstallerInterface $skills,
     ) {}
 
     /**
@@ -51,9 +49,10 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
      * @param  string                                                                                                                                $cwd              Explicit existing Git consumer directory.
      * @param  ?string                                                                                                                               $reference        Optional selected published workflow tag.
      * @param  array<string,mixed>                                                                                                                   $settings         Literal reusable input overrides selected by the caller.
-     * @param  bool                                                                                                                                  $skill            Whether to install an absent native skill after verifying ownership boundaries.
+     * @param  bool                                                                                                                                  $skill            Whether to configure the Composer skill manager after verifying ownership boundaries.
      * @param  bool                                                                                                                                  $dryRun           Whether to suppress all filesystem mutation and lock acquisition.
      * @param  ?string                                                                                                                               $expectedWorkflow SHA-256 of JSON_THROW_ON_ERROR encoded preview workflow; mismatch blocks every write.
+     * @param  ?string                                                                                                                               $expectedSkill    Reviewed skill metadata/command fingerprint; mismatch blocks every write.
      * @return array{state:string,workflow:array{state:string,path:?string,content:?string,reference:?string},skill:?array,diagnostics:list<string>} Reviewed plan or result.
      * @throws InvalidArgumentException                                                                                                              When settings cannot satisfy the selected published input contract.
      * @throws RuntimeException                                                                                                                      When required repository or release evidence cannot be verified.
@@ -65,6 +64,7 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
         bool $skill = true,
         bool $dryRun = false,
         ?string $expectedWorkflow = null,
+        ?string $expectedSkill = null,
     ): array {
         $snapshot = $this->filesystem->inspect($cwd);
         $inspection = $this->assessment($snapshot);
@@ -79,16 +79,15 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
         }
 
         if ($skill) {
-            $preview = $this->skillPreview($snapshot['root']);
+            $preview = $this->skills->run($snapshot['root'], dryRun: true);
             $result['skill'] = $preview;
-            if (! in_array($preview['state'], ['absent', 'current', 'outdated', 'different'], true)) {
+            if (! in_array($preview['state'], ['planned', 'current'], true)
+                || (null !== $expectedSkill && ! hash_equals($expectedSkill, $preview['fingerprint']))) {
                 $result['state'] = 'blocked';
-                $result['diagnostics'][] = 'Skill ownership or recovery evidence requires attention; no project files were changed.';
+                $result['diagnostics'][] = 'Skill setup is blocked or changed after confirmation; no project files were changed.';
+                $result['diagnostics'] = [...$result['diagnostics'], ...($preview['diagnostics'] ?? [])];
 
                 return $result;
-            }
-            if (in_array($preview['state'], ['outdated', 'different'], true)) {
-                $result['diagnostics'][] = 'The existing native skill was preserved. Use skill:install --check and an explicit skill:install --update to review an update.';
             }
         }
 
@@ -126,12 +125,15 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
             $result['state'] = 'installed';
         }
 
-        if ($skill && 'absent' === $result['skill']['state']) {
+        if ($skill && 'planned' === $result['skill']['state']) {
             try {
-                $result['skill'] = $this->skills->run($snapshot['root']);
+                $result['skill'] = $this->skills->run(
+                    $snapshot['root'],
+                    expectedFingerprint: $result['skill']['fingerprint'],
+                );
                 if (! in_array($result['skill']['state'], ['installed', 'current'], true)) {
                     $result['state'] = 'installed' === $result['workflow']['state'] ? 'partial' : 'blocked';
-                    $result['diagnostics'][] = 'Skill ownership changed before installation; existing skill files were preserved.';
+                    $result['diagnostics'][] = 'Skill setup did not complete; inspect its diagnostics before retrying.';
                 }
             } catch (Throwable $failure) {
                 $result['state'] = 'installed' === $result['workflow']['state'] ? 'partial' : 'blocked';
@@ -246,33 +248,6 @@ final readonly class ProjectInstaller implements ProjectInstallerInterface
         }
 
         return [array_values(array_unique($references)), $foreign, $callers];
-    }
-
-    /**
-     * Honors NPX ownership without fabricating its installer-specific hashes or taking over an orphaned lock entry.
-     *
-     * @param  string              $root Explicit consumer project root.
-     * @return array<string,mixed> Native skill preview or a blocked third-party ownership assessment.
-     * @throws RuntimeException    When metadata cannot be read safely or the native preview fails.
-     */
-    private function skillPreview(string $root): array
-    {
-        $lock = $this->filesystem->read($root, 'skills-lock.json');
-        if (null !== $lock) {
-            try {
-                $metadata = json_decode($lock, true, flags: JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
-                return ['state' => 'unmanaged', 'diagnostic' => 'skills-lock.json is invalid; preserve it and review with its owning installer.'];
-            }
-            if (! is_array($metadata) || ! is_array($metadata['skills'] ?? null)) {
-                return ['state' => 'unmanaged', 'diagnostic' => 'skills-lock.json has an unknown format; no native skill was installed.'];
-            }
-            if (array_key_exists('fast-forward-changelog', $metadata['skills'])) {
-                return ['state' => 'unmanaged', 'diagnostic' => 'NPX owns fast-forward-changelog in skills-lock.json; use NPX to check or update it.'];
-            }
-        }
-
-        return $this->skills->run($root, dryRun: true);
     }
 
     /**

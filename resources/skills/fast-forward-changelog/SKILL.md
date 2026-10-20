@@ -66,16 +66,20 @@ approval.
    so use `help <command>` for changelog help. An existing reviewed project binary
    may be used directly instead. Confirm prerequisites from the chosen release.
 
-Installing this skill installs instructions, independently of the runtime. If
-the selected CLI offers skill installation/check/update operations, inspect
-their help and use only the supported operation and requested scope. Otherwise
-follow that release's skill-installation guide; do not invent a command.
+Installing this skill installs instructions, independently of the runtime. The
+project route uses `llm/skills` with the `php-fast-forward/changelog` GitHub source:
+`composer require --dev llm/skills`, `composer skills:init`, then
+`composer skills:add php-fast-forward/changelog`. Follow the selected release's
+skill guide for plugin approval, target and source settings. Version the manager's
+manifest/lock changes and `skills.json`; keep generated `.agents/` content ignored
+and excluded from archives. The approved plugin restores it on normal Composer
+installs when auto-sync and development dependencies are enabled.
+Do not add the Changelog runtime to the project just to obtain instructions.
 
-Native installation can record the source package version, commit and payload
-integrity. Compare an installed copy with the selected CLI through its documented
-check operation; do not confuse that local comparison with a latest-version
-lookup. Preserve NPX or other installer ownership and its lockfile rather than
-trying to adopt the copy or rewrite metadata into a merely similar JSON format.
+Preserve an existing installer's ownership. NPX and legacy native `skill:install`
+copies retain their own management procedures; a native receipt is not
+`skills.json` or an NPX lock. Inspect help before using version-specific commands,
+and do not replace another installer's files during an ordinary contribution.
 
 This procedure avoids a frozen API inventory. A breaking release can still
 change the lifecycle or these entrypoints: when documentation and capabilities

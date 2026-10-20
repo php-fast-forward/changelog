@@ -4,8 +4,8 @@ Use this guide to adopt an existing changelog, import missing releases or change
 presentation. Preview from the consumer project before applying maintenance:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 backfill --dry-run --source=tags
-cpx --skip-local fast-forward/changelog:^0.1 format --dry-run --locale=pt-BR
+cpx --skip-local fast-forward/changelog backfill --dry-run --source=tags
+cpx --skip-local fast-forward/changelog format --dry-run --locale=pt-BR
 ```
 
 Backfill adds missing tagged versions; format changes recognized headings while

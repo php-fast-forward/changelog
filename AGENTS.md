@@ -7,8 +7,8 @@ used across Fast Forward PHP packages.
 
 - CLI entrypoint: [`bin/changelog`](bin/changelog)
 - Console wiring and invokable commands: [`src/Console/`](src/Console/)
-- Native skill payload installation and integrity: [`src/Skill/`](src/Skill/)
-- Explicit project setup, published workflow discovery and create-only caller writes: [`src/Installation/`](src/Installation/)
+- Explicit project setup, verified published workflows and Composer-managed skills: [`src/Installation/`](src/Installation/)
+- Legacy native skill payload installation and integrity: [`src/Skill/`](src/Skill/)
 - Independent fragments and effective impact: [`src/Changeset/`](src/Changeset/), [`src/Fragment/`](src/Fragment/), [`src/Version/`](src/Version/)
 - Contribution validation: [`src/Validation/`](src/Validation/)
 - Historical Markdown and presentation: [`src/History/`](src/History/), [`src/Template/`](src/Template/)
@@ -132,7 +132,15 @@ used across Fast Forward PHP packages.
   create only absent files. Dry runs and JSON previews never install a skill or
   create directories. Native skill receipts retain their own version/integrity
   contract; do not manufacture NPX ownership or claim host activation.
-- The native skill installer manages only this runtime's canonical payload through
+- Project setup delegates its default skill route to `llm/skills` with the
+  `php-fast-forward/changelog` GitHub source. Add only the manager as a development
+  dependency; do not require the Changelog runtime just to install instructions.
+  Keep source selection in consumer `skills.json`, version manifest/lock changes
+  under the project's policy, and ignore/export-ignore generated `.agents/`
+  content. Preserve existing sources, plugin approvals and installer ownership.
+  Composer/plugin execution is an explicit setup effect, not an incidental
+  effect of ordinary changelog commands.
+- The legacy native skill installer manages only this runtime's canonical payload through
   explicit install/check/update operations. Preserve local edits, foreign installer
   ownership and recovery evidence. Its receipt records local provenance, not trust
   or native host activation. Automatic warnings are local, read-only and limited to
@@ -158,9 +166,9 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Repository CI scope](.github/scripts/ci-impact.md): classifies complete immutable PR changes for internal tests and docs; preserves required contexts and falls back to full validation without changing contribution or publication policy.
 - [Published changelog skill](resources/skills/fast-forward-changelog/SKILL.md): uniquely named portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
-- [Guided project installation](docs/project-installation.md): owns `install` questions, published workflow defaults, confirmation and separate component results; never replaces existing automation or third-party skill state.
-- [Skill distribution guide](docs/skills.md): owns native install/check/update, independent installer ownership and discovery validation; distinguishes copies from native host activation.
-- [Composer skill installation](docs/composer-skills.md): documents the optional donor/plugin route and the verified Fast Forward bundle alternative; consumer activation remains explicit.
+- [Guided project installation](docs/project-installation.md): owns `install` questions, published workflow defaults, optional llm/skills setup, confirmation and separate component results; preserves existing automation and installer ownership.
+- [Skill distribution guide](docs/skills.md): owns the default llm/skills GitHub route, generated-copy rules and legacy/NPX ownership; distinguishes synchronization from host activation.
+- [Composer skill lifecycle](docs/composer-skills.md): documents source selection, plugin execution, automatic reconstruction and update/removal limits; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
 - [Release-channel operation](.github/update-release-channels.md): maintains published major branches with exact tag/commit evidence and conditional ref updates; never creates releases or moves concrete tags.

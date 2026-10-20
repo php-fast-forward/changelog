@@ -24,11 +24,12 @@ or a PHP runtime. CPX's own update/help/version commands concern the executor.
 An existing reviewed `vendor/bin/changelog` may run the same supported arguments
 without changing the application's dependencies.
 
-When `list` offers instruction-management operations, inspect their help before
-using install, check or update options. Use the requested project/global scope
-and preserve local changes. Their existence is a discovered capability, not a
-promise that every published changelog version contains them. Runtime updates,
-instruction installation and host-session activation remain separate results.
+Project instructions are managed separately with `llm/skills` and a GitHub donor
+recorded in `skills.json`. The CLI's guided project setup can offer that route
+when the selected release supports it. Inspect `help install` before use.
+Legacy `skill:install` manages only its own native copies; do not use it to update
+an llm/skills or NPX target. Runtime updates, instruction synchronization and
+host-session activation remain separate results.
 
 ## Preview before consolidation
 
