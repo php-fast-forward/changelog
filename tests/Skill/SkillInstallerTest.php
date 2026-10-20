@@ -59,6 +59,7 @@ final class SkillInstallerTest extends TestCase
     {
         $result = $this->installer->run();
         self::assertSame('installed', $result['state']);
+        self::assertSame($result['source'], $result['installed_source']);
         self::assertSame('project', $result['scope']);
         self::assertSame('.agents/skills/fast-forward-changelog', $result['target']);
         $receipt = $this->receipt();
@@ -128,6 +129,51 @@ final class SkillInstallerTest extends TestCase
         self::assertSame($before, $this->bytes);
     }
 
+    /** Reports recorded native provenance separately from this CLI without inventing a remote latest version. */
+    public function testInstalledProvenanceTracksVerifiedPayloadAcrossPreviewAndUpdate(): void
+    {
+        self::assertNull($this->installer->run(mode: 'check')['installed_source']);
+        self::assertNull($this->installer->run(dryRun: true)['installed_source']);
+        $installed = $this->installer->run()['source'];
+        $this->version = '2.0.0';
+        $before = [$this->bytes, $this->writes, $this->locks];
+        $current = $this->installer->run(mode: 'check');
+        self::assertSame('current', $current['state']);
+        self::assertSame($installed, $current['installed_source']);
+        self::assertSame('2.0.0', $current['source']['version']);
+        self::assertSame($before, [$this->bytes, $this->writes, $this->locks]);
+
+        $this->bytes['/payload/SKILL.md'] .= 'New instructions';
+        $before = [$this->bytes, $this->writes, $this->locks];
+        $preview = $this->installer->run(mode: 'update', dryRun: true);
+        self::assertSame('outdated', $preview['state']);
+        self::assertSame($installed, $preview['installed_source']);
+        self::assertSame($before, [$this->bytes, $this->writes, $this->locks]);
+
+        $updated = $this->installer->run(mode: 'update');
+        self::assertSame('updated', $updated['state']);
+        self::assertSame($updated['source'], $updated['installed_source']);
+        self::assertSame('2.0.0', $updated['installed_source']['version']);
+        self::assertSame($updated['installed_source'], $this->receipt()['source']);
+    }
+
+    /** Exposes only validated receipt fields and preserves unknown commit identity as null. */
+    public function testInstalledProvenanceDoesNotAdoptAdditionalReceiptClaims(): void
+    {
+        $this->installer = $this->compose(reference: null);
+        $this->installer->run();
+        $receipt = $this->receipt();
+        $receipt['source']['latest'] = '999.0.0';
+        $this->bytes[self::DEST . '/' . SkillInstaller::RECEIPT] = json_encode($receipt, JSON_THROW_ON_ERROR);
+        $result = $this->installer->run(mode: 'check');
+
+        self::assertSame('current', $result['state']);
+        self::assertSame(
+            ['package' => 'fast-forward/changelog', 'version' => '1.0.0', 'reference' => null],
+            $result['installed_source'],
+        );
+    }
+
     #[DataProvider('ages')]
     public function testAgeNeverInventsRemoteLatestAndKnownDowngradesAreRefused(
         string $installed,
@@ -142,6 +188,8 @@ final class SkillInstallerTest extends TestCase
         $result = $this->installer->run(mode: 'update', dryRun: true);
         self::assertSame($state, $result['state']);
         self::assertSame($action, $result['action']);
+        self::assertSame($installed, $result['installed_source']['version']);
+        self::assertSame($running, $result['source']['version']);
     }
 
     public static function ages(): array
@@ -156,7 +204,9 @@ final class SkillInstallerTest extends TestCase
         $this->put(self::DEST . '/SKILL.md', 'Human or NPX copy');
         $this->put('/project/skills-lock.json', 'foreign lock');
         $before = $this->bytes;
-        self::assertSame('unmanaged', $this->installer->run(mode: 'update')['state']);
+        $result = $this->installer->run(mode: 'update');
+        self::assertSame('unmanaged', $result['state']);
+        self::assertNull($result['installed_source']);
         self::assertSame($before, $this->bytes);
     }
 
@@ -166,7 +216,9 @@ final class SkillInstallerTest extends TestCase
         $this->installer->run();
         $this->put(self::DEST . '/' . $path, 'Local edit');
         $before = $this->bytes;
-        self::assertSame('diverged', $this->installer->run(mode: 'update')['state']);
+        $result = $this->installer->run(mode: 'update');
+        self::assertSame('diverged', $result['state']);
+        self::assertNull($result['installed_source']);
         self::assertSame($before, $this->bytes);
     }
 
@@ -209,7 +261,9 @@ final class SkillInstallerTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
         $before = $this->bytes;
-        self::assertSame('unmanaged', $this->installer->run(mode: 'update')['state']);
+        $result = $this->installer->run(mode: 'update');
+        self::assertSame('unmanaged', $result['state']);
+        self::assertNull($result['installed_source']);
         self::assertSame($before, $this->bytes);
     }
 
@@ -462,7 +516,9 @@ final class SkillInstallerTest extends TestCase
         );
         $this->move('/project', '/moved');
         $before = $this->bytes;
-        self::assertSame('recovery-required', $this->installer->run('/moved', mode: 'update')['state']);
+        $result = $this->installer->run('/moved', mode: 'update');
+        self::assertSame('recovery-required', $result['state']);
+        self::assertNull($result['installed_source']);
         self::assertSame($before, $this->bytes);
     }
 

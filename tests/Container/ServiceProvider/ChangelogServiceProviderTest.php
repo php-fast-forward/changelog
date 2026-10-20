@@ -102,8 +102,46 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(SkillInstaller::class)]
 #[UsesClass(SkillInstallationWarning::class)]
 #[UsesClass(Changelog::class)]
+#[UsesClass(\FastForward\Changelog\Installation\InstallationFilesystem::class)]
+#[UsesClass(\FastForward\Changelog\Installation\WorkflowReleaseResolver::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
+    /** Installation factories construct bounded public discovery and create-only I/O without executing either. */
+    public function testInstallationFactoriesDoNotReadOrWriteTheConsumer(): void
+    {
+        $http = $this->createMock(HttpClientInterface::class);
+        $http->expects(self::once())->method('withOptions')->with(
+            ['timeout' => 10, 'max_duration' => 30],
+        )->willReturnSelf();
+        $http->expects(self::never())->method('request');
+        $filesystem = $this->createMock(Filesystem::class);
+        $filesystem->expects(self::never())->method('exists');
+        $container = $this->createStub(ContainerInterface::class);
+        $container->method('get')->willReturnMap([
+            [HttpClientInterface::class, $http],
+            [Filesystem::class, $filesystem],
+            [ManagedFileStoreInterface::class, $this->createStub(ManagedFileStoreInterface::class)],
+            [PackagePathResolverInterface::class, $this->createStub(PackagePathResolverInterface::class)],
+            [FinderFactoryInterface::class, $this->createStub(FinderFactoryInterface::class)],
+            [GitRepositoryInterface::class, $this->createStub(GitRepositoryInterface::class)],
+            [
+                \FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class,
+                $this->createStub(\FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class),
+            ],
+            [PackageVersionResolverInterface::class, $this->createStub(PackageVersionResolverInterface::class)],
+        ]);
+        $factories = new ChangelogServiceProvider()->getFactories();
+
+        self::assertInstanceOf(
+            \FastForward\Changelog\Installation\InstallationFilesystem::class,
+            $factories[\FastForward\Changelog\Installation\InstallationFilesystem::class]($container),
+        );
+        self::assertInstanceOf(
+            \FastForward\Changelog\Installation\WorkflowReleaseResolver::class,
+            $factories[\FastForward\Changelog\Installation\WorkflowReleaseResolver::class]($container),
+        );
+    }
+
     /** Resets synthetic defaults before each test; unit tests never observe the real host. */
     protected function setUp(): void
     {
@@ -330,7 +368,19 @@ final class ChangelogServiceProviderTest extends TestCase
         $loader = $container->get(CommandLoaderInterface::class);
         self::assertSame($loader, $container->get(ChangelogCommandLoader::class));
         self::assertSame(
-            ['add', 'check', 'status', 'version', 'notes', 'publish', 'backfill', 'format', 'github', 'skill:install'],
+            [
+                'add',
+                'check',
+                'status',
+                'version',
+                'notes',
+                'publish',
+                'backfill',
+                'format',
+                'github',
+                'install',
+                'skill:install',
+            ],
             $loader->getNames(),
         );
         $command = $loader->get('status');

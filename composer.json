@@ -55,6 +55,7 @@
         "symfony/lock": "^7.4 || ^8.0",
         "symfony/process": "^7.4 || ^8.0",
         "symfony/validator": "^7.4 || ^8.0",
+        "symfony/yaml": "^7.4 || ^8.0",
         "thecodingmachine/safe": "^3.4"
     },
     "require-dev": {
@@ -68,7 +69,6 @@
         "phpunit/php-code-coverage": "^14.4",
         "phpunit/phpunit": "^13.4",
         "rector/rector": "^2.7",
-        "symfony/yaml": "^7.4 || ^8.0",
         "symplify/easy-coding-standard": "^13.3"
     },
     "suggest": {

@@ -8,7 +8,7 @@ workflow consolidates them into `CHANGELOG.md`.
 
 | Task | Guide |
 | --- | --- |
-| Set up GitHub automation | [Adoption](adoption.md) → [Reusable lifecycle](reusable-lifecycle.md) |
+| Set up GitHub automation | [Guided project setup](project-installation.md) → [Reusable lifecycle](reusable-lifecycle.md) |
 | Run the local CLI through CPX | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
 | Give an agent the consumer instructions | [Skill installation](skills.md) |
 | Integrate the PHP services | [PHP API](adoption.md) → [Dependencies](dependencies.md) |

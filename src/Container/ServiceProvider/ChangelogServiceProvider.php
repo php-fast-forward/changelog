@@ -29,6 +29,7 @@ use FastForward\Changelog\Git;
 use FastForward\Changelog\GitHub;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History;
+use FastForward\Changelog\Installation;
 use FastForward\Changelog\Process;
 use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication;
@@ -325,6 +326,32 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     private static function consoleFactories(): array
     {
         return [
+            Installation\ProjectInstallerInterface::class => new AliasFactory(Installation\ProjectInstaller::class),
+            Installation\InstallationFilesystemInterface::class => new AliasFactory(
+                Installation\InstallationFilesystem::class,
+            ),
+            Installation\InstallationFilesystem::class => static fn(ContainerInterface $container): Installation\InstallationFilesystem
+                => new Installation\InstallationFilesystem(
+                    $container->get(\Symfony\Component\Filesystem\Filesystem::class),
+                    $container->get(Filesystem\ManagedFileStoreInterface::class),
+                    $container->get(Filesystem\PackagePathResolverInterface::class),
+                    $container->get(Filesystem\Factory\FinderFactoryInterface::class),
+                    $container->get(Git\GitRepositoryInterface::class),
+                    $container->get(Process\Factory\ProcessFactoryInterface::class),
+                    \link(...),
+                ),
+            Installation\WorkflowReleaseResolverInterface::class => new AliasFactory(
+                Installation\WorkflowReleaseResolver::class,
+            ),
+            // Product discovery uses the public origin with its own bounded unauthenticated transport.
+            Installation\WorkflowReleaseResolver::class => static fn(ContainerInterface $container): Installation\WorkflowReleaseResolver
+                => new Installation\WorkflowReleaseResolver(
+                    new GitHub\GitHubClient($container->get(HttpClientInterface::class)->withOptions([
+                        'timeout' => 10,
+                        'max_duration' => 30,
+                    ])),
+                    $container->get(Version\PackageVersionResolverInterface::class),
+                ),
             Skill\SkillInstallerInterface::class => new AliasFactory(Skill\SkillInstaller::class),
             Skill\SkillInstaller::class => static fn(ContainerInterface $container): Skill\SkillInstaller => new Skill\SkillInstaller(
                 $container->get(\Symfony\Component\Filesystem\Filesystem::class),
