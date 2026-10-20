@@ -15,18 +15,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  impact:
+    uses: ./.github/workflows/repository-impact.yml
+
   documentation:
+    needs: impact
+    if: ${{ always() && !cancelled() }}
     name: Build Documentation
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
+      - name: Require A Complete Documentation Decision
+        env:
+          FF_RESULT: ${{ needs.impact.result }}
+          FF_DOCUMENTATION: ${{ needs.impact.outputs.documentation }}
+        run: |
+          if [[ "$FF_RESULT" != 'success' || ! "$FF_DOCUMENTATION" =~ ^(true|false)$ ]]; then
+            echo '::error::Documentation scope failed or is incomplete.'
+            exit 1
+          fi
+
+      - name: Explain Unchanged Documentation Inputs
+        if: needs.impact.outputs.documentation == 'false'
+        run: echo 'Guides, API source, documentation tools and configuration are unchanged.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check Out Repository
+        if: needs.impact.outputs.documentation == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set Up PHP
+        if: needs.impact.outputs.documentation == 'true'
         uses: shivammathur/setup-php@2.37.1
         with:
           php-version: '8.5'
@@ -34,14 +55,17 @@ jobs:
           tools: composer:v2
 
       - name: Isolate Composer State
+        if: needs.impact.outputs.documentation == 'true'
         run: |
           echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
           echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
 
       - name: Verify GnuPG Is Available
+        if: needs.impact.outputs.documentation == 'true'
         run: gpg --version
 
       - name: Install Locked Documentation Tools
+        if: needs.impact.outputs.documentation == 'true'
         run: >-
           composer install
           --no-interaction
@@ -50,15 +74,18 @@ jobs:
           --no-progress
 
       - name: Build Guides And PHP API Reference
+        if: needs.impact.outputs.documentation == 'true'
         run: composer --no-plugins docs:build
 
       - name: Require Rendered Guides And API
+        if: needs.impact.outputs.documentation == 'true'
         run: |
           test -s .build/docs/index.html
           test -s .build/docs/adoption.html
           test -s .build/docs/namespaces/fastforward-changelog.html
 
       - name: Upload Documentation Preview
+        if: needs.impact.outputs.documentation == 'true'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: changelog-documentation

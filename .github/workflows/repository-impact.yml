@@ -1,0 +1,65 @@
+name: 'Repository: Validation Scope'
+
+on:
+  workflow_call:
+    outputs:
+      runtime:
+        description: Whether runtime, compatibility and packaging validation is required.
+        value: ${{ jobs.impact.outputs.runtime }}
+      documentation:
+        description: Whether guide or API documentation inputs changed.
+        value: ${{ jobs.impact.outputs.documentation }}
+
+permissions:
+  contents: read
+
+jobs:
+  impact:
+    name: Classify The Complete Change
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runtime: ${{ steps.scope.outputs.runtime }}
+      documentation: ${{ steps.scope.outputs.documentation }}
+    steps:
+      - name: Check Out The Comparison History
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select Validation From Immutable PR Changes
+        id: scope
+        env:
+          FF_EVENT: ${{ github.event_name }}
+          FF_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          FF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          FF_CLASSIFIER_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$FF_CLASSIFIER_SHA" =~ ^[a-f0-9]{40}$ ||
+                ( "$FF_EVENT" == 'pull_request' && "$FF_CLASSIFIER_SHA" != "$FF_BASE_SHA" ) ]]; then
+            echo '::error::The classifier must come from the immutable trusted revision.'
+            exit 1
+          fi
+
+          FF_ENTRY="$(git --no-replace-objects --literal-pathspecs ls-tree \
+            --format='%(objectmode) %(objecttype) %(objectname)' \
+            "$FF_CLASSIFIER_SHA" -- .github/scripts/ci-impact.mjs)"
+
+          if [[ ! "$FF_ENTRY" =~ ^100644\ blob\ ([a-f0-9]{40})$ ]]; then
+            # First adoption has no protected helper yet; never substitute the PR copy.
+            printf 'runtime=true\ndocumentation=true\n' >> "$GITHUB_OUTPUT"
+            echo 'Protected classifier unavailable or unsupported; run complete validation.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          FF_BLOB_SHA="${BASH_REMATCH[1]}"
+          FF_DIRECTORY="$(mktemp -d "$RUNNER_TEMP/changelog-impact.XXXXXX")"
+          FF_DIRECTORY="$(cd "$FF_DIRECTORY" && pwd -P)"
+          FF_SCRIPT="$FF_DIRECTORY/classifier.mjs"
+          trap 'rm -f "$FF_SCRIPT"; rmdir "$FF_DIRECTORY"' EXIT
+          git --no-replace-objects cat-file blob "$FF_BLOB_SHA" > "$FF_SCRIPT"
+
+          node "$FF_SCRIPT"

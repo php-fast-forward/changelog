@@ -166,9 +166,10 @@ Missing permissions or inconsistent alerts fail with a diagnostic. See
 [GitHub's automation guidance](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions).
 
 Repository Actions execution policies must permit these base-controlled
-`pull_request_target` jobs; GitHub documents the policy controls in
-[workflow execution protections](https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution).
-The reusable workflows still verify the event and use trusted checkouts.
+`pull_request_target` jobs. See [Actions event policy setup](actions-event-policy.md)
+for the default public-repository restriction, Evaluate versus Active results,
+and a policy scoped to the consumer caller. The reusable workflows still verify
+the event and use trusted checkouts.
 
 The write token must be permitted by the repository's execution policy. GitHub
 restricts `pull_request_target` when the base ref itself was created by

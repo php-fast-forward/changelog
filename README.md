@@ -19,8 +19,10 @@ review release notes and integration contracts before upgrading.
 
 ## 🤖 GitHub Actions
 
-Create `.github/workflows/changelog.yml` in your repository. This enables checks,
-comments, Dependabot notes, a reviewable version PR and publication after its merge:
+Use [guided setup via CPX](docs/project-installation.md) to choose the release
+branch, publication behavior and optional agent skill, then review the generated
+workflow. Existing integrations are preserved. For manual setup, create
+`.github/workflows/changelog.yml`:
 
 ```yaml
 name: Changelog
@@ -89,6 +91,9 @@ See the **[complete workflow and Action reference](docs/workflow-reference.md)**
 for every input, type, default, secret, output and permission. The
 [lifecycle guide](docs/reusable-lifecycle.md) explains event handling and
 [individual recipes](docs/github-actions.md) cover custom composition.
+For another release branch, adjust both event filters and `base-branch`.
+See [setup](resources/workflows/README.md) and [event policies](docs/actions-event-policy.md)
+before adoption.
 
 Your project needs no PHP or Composer installation for automation. The default
 token needs the repository's Actions PR-creation permission; use an optional
@@ -107,9 +112,9 @@ Use PHP `^8.5` and [CPX](https://github.com/laravel/cpx) to run the CLI without
 adding it to the application's Composer dependencies. From your project:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add \
+cpx --skip-local fast-forward/changelog add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
+cpx --skip-local fast-forward/changelog check --no-interaction
 ```
 
 `--skip-local` selects CPX's separate installation. The commands create one
@@ -120,16 +125,16 @@ is an alternative with its own PHP runtime.
 
 ## 🧠 Agent skill
 
-Install the optional consumer instructions with [Skills CLI](docs/skills.md):
+The [project installer](docs/project-installation.md) offers the bundled skill
+with native version and integrity tracking. Alternatively, use [Skills CLI](docs/skills.md):
 
 ```sh
 npx skills add php-fast-forward/changelog --skill fast-forward-changelog
 ```
 
-NPX Skills copies instructions; CPX runs the CLI. The
-[fast-forward-changelog skill](resources/skills/fast-forward-changelog/SKILL.md)
-guides agents through the selected runtime's commands and workflow contracts.
-See [requirements, scope and updates](docs/skills.md)
+NPX Skills and the native installer manage their own copies and metadata; choose
+one owner per copy. The [skill](resources/skills/fast-forward-changelog/SKILL.md)
+consults the selected release's help and documentation. See [scope and updates](docs/skills.md)
 for installation and agent activation, or [optional Composer synchronization](docs/composer-skills.md).
 
 ## 🔌 Further integration

@@ -26,6 +26,7 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retain | `scripts/{lint,php-files,phpdoc,verify-quality}.php` | Actual development gates; excluded from consumer archives and runtime images. |
 | Retain/update | `.github/actions/{check,pr-status,dependabot,version,publish,history}` | Stable public Docker Action paths; metadata and root Docker context remain in shared source archives. |
 | Retain | `.github/actions/{github-auth,setup-docker}` | Trusted internal helpers; excluded from consumer archives and not public integration contracts. |
+| Add | `.github/workflows/repository-impact.yml`, `.github/scripts/ci-impact.{mjs,md}` | Read-only internal validation classifier and its operational guide; preserves required check identities and contribution validation. |
 | Retain/update | `.github/workflows/changelog*.yml` | Seven stable public reusable contracts, kept directly in GitHub's required directory; excluded from Composer archives. |
 | Consolidate/rename | `.github/workflows/repository-{ci,changelog,documentation,image}.yml` | Internal quality, one lifecycle caller, read-only documentation builds and product image publication; excluded from consumer archives. |
 | Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
@@ -33,9 +34,14 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retain/update | `docs/workflow-reference.md` | Complete public parameters, defaults, secrets, outputs and permissions under the same root authority; no new instruction scope. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
+| Retain/update | `src/Installation/`, `docs/project-installation.md` | Explicit project inspection, verified workflow rendering and create-only application under the same root; existing automation and foreign ownership are preserved. |
 
 The root index points to these durable guides and the canonical package.
 No extra child contract is created for resources, scripts or the skill itself.
+Guided setup adds no child contract. Read root → project installation guide →
+the executing command's help. Its preview does not grant workflow execution,
+merge or release authority. Restore source, tests, provider, guide and root index
+together on rollback; never remove consumer-owned files as a rollback shortcut.
 Native skill installation remains source behavior under the same root. Read
 root → skill distribution guide → the selected runtime's actual help. The
 canonical resource procedure discovers release-specific contracts instead of
@@ -62,6 +68,13 @@ development commit pins. Root → source map → affected API remains the
 reading route. No host entrypoint or installed consumer skill is rewritten.
 
 The current hierarchy and target hierarchy both have one development root.
+Repository CI scoping retains that root: read root →
+[classifier contract](https://github.com/php-fast-forward/changelog/blob/main/.github/scripts/ci-impact.md)
+→ actual workflow and fixtures. The root index links the helper's same-basename
+guide. No child instruction file or public consumer input is added. Validate
+with workflow fixtures and actionlint; rollback restores the helper, job gates,
+tests and these navigation entries together without changing branch protection.
+
 Workflow organization changes folder responsibilities and navigation, not
 authority. Read root → automation map → lifecycle or individual operation guide;
 for changelog authoring, read root → canonical resource skill. Root index

@@ -8,7 +8,7 @@ workflow consolidates them into `CHANGELOG.md`.
 
 | Task | Guide |
 | --- | --- |
-| Set up GitHub automation | [Adoption](adoption.md) → [Reusable lifecycle](reusable-lifecycle.md) |
+| Set up GitHub automation | [Guided project setup](project-installation.md) → [Reusable lifecycle](reusable-lifecycle.md) |
 | Run the local CLI through CPX | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
 | Give an agent the consumer instructions | [Skill installation](skills.md) |
 | Integrate the PHP services | [PHP API](adoption.md) → [Dependencies](dependencies.md) |
@@ -19,6 +19,7 @@ workflow consolidates them into `CHANGELOG.md`.
   [workflow and Action parameter reference](workflow-reference.md),
   [individual recipes](github-actions.md) and [workflow map](automation-map.md)
 - [GitHub App credentials](github-app.md) and [validation policies](policies.md)
+- [GitHub Actions event policy setup and blocked runs](actions-event-policy.md)
 - [Version PRs and title customization](version-pull-request.md),
   [approved publication](publication.md) and [local transaction recovery](release-receipts.md)
 - [History, formatting and templates](history.md), [Docker runtime](docker.md)

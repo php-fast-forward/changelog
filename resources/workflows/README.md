@@ -19,6 +19,9 @@ Before enabling it:
    an older published revision whose default was disabled. Verify defaults and
    supported inputs at the selected reusable ref.
 
+Public repositories must also review the consumer's [Actions event policy](../../docs/actions-event-policy.md)
+to permit the trusted `pull_request_target` route for this caller.
+
 Jobs use `ubuntu-latest` by default; no repository variable is required.
 Optionally pass `runs-on` as a JSON array of Linux runner labels, for example
 `runs-on: '["self-hosted", "Linux", "X64"]'`. Docker, Bash and Git are required.

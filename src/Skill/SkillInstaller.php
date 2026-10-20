@@ -51,6 +51,11 @@ final readonly class SkillInstaller implements SkillInstallerInterface
     /**
      * Inspects read-only modes or applies a revalidated, exclusively owned directory transaction.
      *
+     * The source result identifies this runtime's bundled payload. The installed_source
+     * result identifies an intact native copy, or null when no installed provenance
+     * can be established. Successful writes return the newly verified identity.
+     * Neither identity establishes remote freshness, trust or agent activation.
+     *
      * @param  string                   $cwd    Existing project scope resolved independently from the executing package.
      * @param  string                   $target Safe relative discovery root; the skill leaf is fixed.
      * @param  bool                     $global Whether to use the explicitly composed home scope.
@@ -96,6 +101,7 @@ final readonly class SkillInstaller implements SkillInstallerInterface
             }
             $this->replace($destination, $scope, $relative, $payload, $result['installed_sha256']);
             $result['state'] = 'install' === $result['action'] ? 'installed' : 'updated';
+            $result['installed_source'] = $result['source'];
 
             return $result;
         } finally {
@@ -136,7 +142,7 @@ final readonly class SkillInstaller implements SkillInstallerInterface
         $this->guard($stage);
         $this->guard($backup);
         $result = ['state' => 'absent', 'scope' => $scope, 'target' => $relative, 'installed_sha256' => null,
-            'source' => $this->sourceIdentity(), 'payload_sha256' => $this->digest(
+            'source' => $this->sourceIdentity(), 'installed_source' => null, 'payload_sha256' => $this->digest(
                 $this->hashes($payload),
             ), 'action' => null];
         if ($this->filesystem->exists($stage) || $this->filesystem->exists($backup)) {
@@ -156,6 +162,9 @@ final readonly class SkillInstaller implements SkillInstallerInterface
         if ($actual !== $receipt['files']) {
             return array_replace($result, ['state' => 'diverged']);
         }
+        $result['installed_source'] = ['package' => $receipt['source']['package'],
+            'version' => $receipt['source']['version'], 'reference' => $receipt['source']['reference']];
+
         if ($actual === $this->hashes($payload)) {
             return array_replace($result, ['state' => 'current']);
         }
