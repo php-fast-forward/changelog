@@ -61,6 +61,7 @@
     "require-dev": {
         "ext-simplexml": "*",
         "fast-forward/phpdoc-bootstrap-template": "^2.1",
+        "llm/skills": "^1.15",
         "nikic/php-parser": "^5.9",
         "phpspec/prophecy": "^1.26",
         "phpspec/prophecy-phpunit": "^2.5",
@@ -99,6 +100,7 @@
         },
         "sort-packages": true,
         "allow-plugins": {
+            "llm/skills": true,
             "phpdocumentor/shim": true
         }
     },

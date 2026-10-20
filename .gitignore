@@ -6,5 +6,6 @@
 backup/
 tmp/
 vendor/
+/.agents/skills/
 *.cache
 .DS_Store
