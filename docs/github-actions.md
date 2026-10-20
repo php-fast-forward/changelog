@@ -153,7 +153,13 @@ Dependabot Bot identity, same-repository head and supplied SHA before creating
 one deterministic fragment in that PR. It never executes head content. Fork
 writes, stale heads and unknown existing fragment contents are refused; the
 same generated fragment is idempotent. The default is `Changed` with a patch
-impact, including development dependencies and GitHub Actions.
+impact, including development dependencies and GitHub Actions. This is a
+reviewable maintenance default, not an automatic assessment of your package's
+API compatibility. A dependency's major update does not automatically require
+a major package release. To classify a break or new feature, change only the
+generated fragment's `type` to `major` or `minor`, commit and rerun; other
+canonical bytes must remain intact. See [impact decisions](policies.md)
+for development, runtime, compatibility-range and `0.x` examples.
 
 `security-alert-numbers` accepts a JSON array, default `[]`, only from trusted
 metadata associating those alerts with this PR. Do not derive it from PR body,

@@ -284,6 +284,113 @@ final class DependabotFragmentServiceTest extends TestCase
         self::assertSame([], $this->writes());
     }
 
+    /** An explicit impact changes only the canonical type; the existing file never needs another bot write. */
+    #[Test]
+    #[TestWith(['major', false])]
+    #[TestWith(['minor', false])]
+    #[TestWith(['major', true])]
+    #[TestWith(['minor', true])]
+    public function preservesAnExplicitCanonicalImpactWithoutCreatingAnotherCommit(string $impact, bool $legacy): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): bump package/name from 1.0.0 to 2.0.0';
+        $existing = str_replace('type: patch', 'type: ' . $impact, self::LEGACY_FRAGMENT);
+
+        if (! $legacy) {
+            $existing = str_replace('Update dependencies:', $pr['title'] . "\n\nUpdate dependencies:", $existing);
+        }
+
+        $result = $this->service($input, existing: $this->file($existing), prs: [$pr])->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame('unchanged', $result->status);
+        self::assertNull($result->commitSha);
+        self::assertSame([], $result->diagnostics);
+        self::assertSame([], $this->writes());
+    }
+
+    /** An explicit impact cannot bypass the current matching-alert evidence required for security classification. */
+    #[Test]
+    #[TestWith(['open', 'unchanged'])]
+    #[TestWith(['closed', 'refused'])]
+    public function securityImpactOverridesStillRequireLiveAlertProof(string $state, string $expected): void
+    {
+        $input = $this->input(alerts: [9]);
+        $existing = str_replace(
+            ['category: changed', 'type: patch'],
+            ['category: security', 'type: major'],
+            self::LEGACY_FRAGMENT,
+        );
+        $alert = [
+            'number' => 9,
+            'state' => $state,
+            'dependency' => ['package' => ['ecosystem' => 'composer', 'name' => 'package/name']],
+            'security_advisory' => ['ghsa_id' => 'GHSA-abcd-1234-efgh'],
+        ];
+
+        $result = $this->service($input, existing: $this->file($existing), alert: $alert)->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame($expected, $result->status);
+        self::assertNull($result->commitSha);
+        self::assertSame([], $this->writes());
+    }
+
+    /** A major dependency title is context, not an automatic major impact for production or development consumers. */
+    #[Test]
+    #[TestWith(['direct:production'])]
+    #[TestWith(['direct:development'])]
+    public function aMajorDependencyUpdateRetainsTheReviewablePatchDefault(string $type): void
+    {
+        $input = $this->input(type: $type);
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $pr['title'] = 'build(deps): bump package/name from 1.0.0 to 2.0.0';
+
+        $result = $this->service($input, prs: [$pr, $pr])->synchronize($this->options(), $input);
+
+        self::assertSame('created', $result->status);
+        self::assertSame(VersionImpact::Patch, $this->changes[6]);
+    }
+
+    /** Impact selection does not relax exact metadata, presentation, security or current-head checks. */
+    #[Test]
+    #[TestWith(['identity'])]
+    #[TestWith(['package'])]
+    #[TestWith(['security'])]
+    #[TestWith(['invalid'])]
+    #[TestWith(['stale'])]
+    public function impactOverridesCannotAdoptDifferentMetadataOrStaleEvidence(string $case): void
+    {
+        $input = $this->input();
+        $pr = $this->pr('dependabot[bot]', 'Bot', 'dependabot/composer/package-1');
+        $existing = str_replace('type: patch', 'type: major', self::LEGACY_FRAGMENT);
+        $existing = match ($case) {
+            'identity' => str_replace('pull_request: 7', 'pull_request: 8', $existing),
+            'package' => str_replace('package/name', 'another/package', $existing),
+            'security' => str_replace('category: changed', 'category: security', $existing),
+            'invalid' => str_replace('type: major', 'type: invalid', $existing),
+            default => $existing,
+        };
+
+        if ('stale' === $case) {
+            $pr['head']['sha'] = str_repeat('b', 40);
+        }
+
+        $result = $this->service($input, existing: $this->file($existing), prs: [$pr])->synchronize(
+            $this->options(),
+            $input,
+        );
+
+        self::assertSame('refused', $result->status);
+        self::assertNotEmpty($result->diagnostics);
+        self::assertSame([], $this->writes());
+    }
+
     /** Retitling a PR must not overwrite an existing generated description with different bytes. */
     #[Test]
     public function aChangedTitlePreservesThePreviouslyCommittedFragment(): void
