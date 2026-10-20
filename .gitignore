@@ -9,3 +9,4 @@ vendor/
 /.agents/skills/
 *.cache
 .DS_Store
+/.agents/

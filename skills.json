@@ -16,6 +16,14 @@
             "skills": [
                 "fast-forward-config"
             ]
+        },
+        {
+            "from": "github",
+            "package": "php-fast-forward/container",
+            "ref": "^1.10.0",
+            "skills": [
+                "fast-forward-container"
+            ]
         }
     ]
 }
