@@ -51,8 +51,9 @@ used across Fast Forward PHP packages.
   tags/releases requires separate user authorization; retain authority already
   explicitly given for the current task.
 - Edit `resources/skills/fast-forward-changelog` as the sole published skill
-  source. Reserve `.agents/skills` for skills consumed by this project; do not
-  generate host aliases or copies there. Validate resource and archive changes
+  source. Reserve `.agents/skills` for ignored dependency skills restored through
+  the reviewed `skills.json` and development-only `llm/skills` plugin. Do not
+  generate host aliases or duplicate this package's own skill there. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
   remain explicit operations, separate from package distribution. Keep the skill
   focused on the durable lifecycle: preserve an existing reviewed integration;
