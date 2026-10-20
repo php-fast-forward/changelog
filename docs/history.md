@@ -50,15 +50,18 @@ Descriptions that begin with a Markdown list keep their own `-`, `*`, `+` or
 ordered markers and relative nesting. Up to three leading spaces that indent
 the whole authored list are removed when rendering, so its entries cannot become
 children of an unrelated fragment. Stored fragment descriptions stay unchanged.
-Outside fenced payloads, leading indentation tabs are expanded before list
-padding is added to retain their visual indentation. Literal tabs inside fenced
-code, including Makefile recipes, remain unchanged.
+Only structural indentation tabs are expanded before list padding is added.
+Literal tabs inside indented and fenced code, including Makefile recipes,
+remain unchanged; a tab crossing the structural boundary retains equivalent
+content columns.
 The renderer does not add a
 second outer bullet. With a PR or issue reference, each single-line principal
 item receives the same inline reference. A multiline item keeps its reference
 in an indented paragraph after its content, outside code spans, HTML comments
 and fenced examples; nested content retains its authored bytes. Ordered lists
 are separated from surrounding fragments so their starting number stays a list.
+Multiline fragments end with a blank block boundary before the next change,
+preventing a terminal HTML block from consuming another entry.
 An item containing only indented code also receives a separate reference
 paragraph, keeping the published command unchanged.
 Terminal link definitions belonging to an authored list are nested within its

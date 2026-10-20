@@ -30,6 +30,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
      * Prose starts beside its list marker; an opening fence keeps its existing block wrapper for history parsing.
      * An authored Markdown list keeps its markers and relative nesting, aligned with the other release entries.
+     * Multiline entries end at a minimal blank boundary before the next independent fragment, including root HTML.
      *
      * @param list<Changeset>   $changesets independent author records
      * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
@@ -45,6 +46,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         foreach (Category::cases() as $category) {
             $entries = [];
             $previousOrdered = false;
+            $previousMultiline = false;
             foreach ($changesets as $change) {
                 if ($change->category !== $category) {
                     continue;
@@ -58,17 +60,20 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                 }
                 $body = BlockStructure::wrapDescription($change->description);
                 $list = BlockStructure::listItem(explode("\n", $change->description, 2)[0]);
+                $multiline = str_contains($change->description, "\n");
+                $boundary = [] !== $entries && ($previousOrdered || $previousMultiline || ($list['ordered'] ?? false))
+                    && ! str_ends_with(array_last($entries), "\n") ? "\n" : '';
+                $previousMultiline = $multiline;
 
                 if (null !== $list) {
-                    $entry = $this->authoredList($body, $references, 0);
-                    $entries[] = ([] !== $entries && ($list['ordered'] || $previousOrdered) ? "\n" : '') . $entry;
+                    $entry = $this->authoredList($body, $references);
+                    $entries[] = $boundary . $entry;
                     $previousOrdered = $list['ordered'];
 
                     continue;
                 }
-                $multiline = str_contains($change->description, "\n");
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
-                $entries[] = ($previousOrdered ? "\n" : '') . $body . $suffix;
+                $entries[] = $boundary . $body . $suffix;
                 $previousOrdered = false;
             }
             if ([] !== $entries) {
@@ -80,15 +85,14 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     }
 
     /**
-     * Keeps original principal list items, collecting their continuation lines outside fenced examples.
+     * Keeps principal items whose markers stay below the current item's content column, retaining nested content.
      *
      * @param  string                   $description Authored description beginning with a list marker.
      * @param  string                   $references  Optional already rendered references shared by this fragment's principal items.
-     * @param  int                      $indent      Principal marker indentation; deeper markers remain nested content.
      * @return string                   Authored list with references attached only after the owning item's content.
      * @throws InvalidArgumentException When an open HTML comment would hide delivery references.
      */
-    private function authoredList(string $description, string $references, int $indent): string
+    private function authoredList(string $description, string $references): string
     {
         if ('' === $references) {
             return $description;
@@ -105,7 +109,8 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
             $insideComment = null !== $comment;
             BlockStructure::structuralLine($line, $fence, $containers, $comment);
             $item = BlockStructure::listItem($line);
-            $principal = ! $insideComment && null !== $item && $item['indent'] === $indent
+            $principal = ! $insideComment && null !== $item
+                && (null === $context || $item['indent'] < $context['contentIndent'])
                 && (null === $active || $item['indent'] < $active['padding']);
 
             if ($principal) {

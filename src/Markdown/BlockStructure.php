@@ -71,8 +71,8 @@ final class BlockStructure
      * Aligns an authored list with sibling release entries or wraps prose and standalone fenced blocks.
      *
      * Only a principal list's optional outer indentation is removed; relative nesting and content remain intact.
-     * Initial indentation tabs are expanded before adding list padding so their visual columns remain stable.
-     * Internal payload tabs and the stored description are never changed by this presentation step.
+     * Structural indentation tabs are expanded before list padding so their visual columns remain stable.
+     * Tabs beyond indented-code boundaries, fenced payloads and stored descriptions are never changed.
      *
      * @param  string $description Authored Markdown whose effective release-entry layout is required.
      * @return string Effective release-entry Markdown, shared with validation so fence positions cannot diverge.
@@ -89,11 +89,7 @@ final class BlockStructure
             $outside = self::structuralLine($line, $fence, $containers, $comment);
 
             if (null === $active || $outside) {
-                $line = preg_replace_callback(
-                    '/\A[ \t]*\t[ \t]*/',
-                    static fn(array $matches): string => self::expandTabs($matches[0]),
-                    $line,
-                );
+                $line = self::structuralIndentation($line, 4 + ([] === $containers ? 0 : array_last($containers)));
             }
         }
         unset($line);
@@ -111,6 +107,32 @@ final class BlockStructure
             && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'));
 
         return ($fenced ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $description);
+    }
+
+    /**
+     * Expands only whitespace consumed by structural indentation, preserving literal indented-code payload.
+     *
+     * Tabs beyond the content boundary plus four code columns remain literal. A tab crossing the boundary is
+     * represented by its equivalent spaces, including its remaining code columns; no payload character is lost.
+     *
+     * @param  string $line  Original source line outside a fenced payload.
+     * @param  int    $limit Visual columns consumed by the active container and an indented-code block.
+     * @return string Presentation line with stable structural columns and unchanged remaining source bytes.
+     */
+    private static function structuralIndentation(string $line, int $limit): string
+    {
+        $offset = 0;
+        $column = 0;
+        $prefix = '';
+
+        while ($column < $limit && isset($line[$offset]) && (' ' === $line[$offset] || "\t" === $line[$offset])) {
+            $width = "\t" === $line[$offset] ? 4 - ($column % 4) : 1;
+            $prefix .= str_repeat(' ', $width);
+            $column += $width;
+            ++$offset;
+        }
+
+        return $prefix . substr($line, $offset);
     }
 
     /**

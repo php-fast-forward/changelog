@@ -45,6 +45,8 @@ final class BlockStructureTest extends TestCase
     #[TestWith(['Text', '- Text'])]
     #[TestWith(["Text\n\nNext.", "- Text\n\n  Next."])]
     #[TestWith(["Text\n\n\t<!-- literal", "- Text\n\n      <!-- literal"])]
+    #[TestWith(["Text\n\n    all:\n    \tprintf", "- Text\n\n      all:\n      \tprintf"])]
+    #[TestWith(["- Text\n\n    \tprintf", "- Text\n\n        printf"])]
     #[TestWith(["- Text\n\n  \t  code\tpayload", "- Text\n\n      code\tpayload"])]
     #[TestWith([
         "- See [guide].\n\n[guide]: https://example.test",

@@ -99,7 +99,7 @@ final class ReleaseNotesRendererTest extends TestCase
         );
     }
 
-    /** Internal author paragraphs remain within their item without spreading blank separators to adjacent items. */
+    /** Simple items stay compact; a multiline fragment ends before the next independent entry. */
     public function testMultilineParagraphsRemainIndentedBetweenCompactEntries(): void
     {
         $template = $this->createStub(TemplateInterface::class);
@@ -110,7 +110,7 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('c.md', Category::Fixed, null, null, null, 'After.'),
         ];
         self::assertSame(
-            "### Fixed\n\n- Before.\n- First paragraph.\n\n  Second paragraph.\n- After.\n",
+            "### Fixed\n\n- Before.\n- First paragraph.\n\n  Second paragraph.\n\n- After.\n",
             new ReleaseNotesRenderer()->render($changes, $template),
         );
     }
@@ -337,6 +337,64 @@ final class ReleaseNotesRendererTest extends TestCase
             "### Added\n\n-\n  ```make\n  all:\n  \tprintf 'hello'\n  ```\n\n  (#7)\n",
             new ReleaseNotesRenderer()->render([
                 new Changeset('code.md', Category::Added, null, 7, null, "```make\nall:\n\tprintf 'hello'\n```"),
+            ], $template),
+        );
+    }
+
+    /** Removing an indented block's structural columns must leave its literal recipe tab intact. */
+    #[TestWith([
+        "Description.\n\n    all:\n    \tprintf 'hello'",
+        "- Description.\n\n      all:\n      \tprintf 'hello'",
+    ])]
+    #[TestWith(["Description.\n\n\tall:\n\t\tprintf 'hello'", "- Description.\n\n      all:\n      \tprintf 'hello'"])]
+    #[TestWith([
+        "- Description.\n\n      all:\n      \tprintf 'hello'",
+        "- Description.\n\n      all:\n      \tprintf 'hello'",
+    ])]
+    #[TestWith([
+        "- Description.\n\n      all:\n    \tprintf 'hello'",
+        "- Description.\n\n      all:\n        printf 'hello'",
+    ])]
+    public function testIndentedRecipeRetainsItsPayloadTab(string $description, string $expected): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n" . $expected . "\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('code.md', Category::Added, null, null, null, $description),
+            ], $template),
+        );
+    }
+
+    /** Principal items may vary their marker indentation while remaining below the prior item's content column. */
+    #[TestWith(["- First.\n - Second.", "- First. (#7)\n - Second. (#7)"])]
+    #[TestWith(["- First.\n - Second.\n  - Third.", "- First. (#7)\n - Second. (#7)\n  - Third. (#7)"])]
+    #[TestWith(["- First.\n - Second.\n   - Child.", "- First. (#7)\n - Second.\n   - Child.\n\n   (#7)"])]
+    public function testOptionalSiblingIndentationKeepsOneReferencePerItem(string $description, string $expected): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, $description),
+        ], $template));
+    }
+
+    /** A following fragment starts after a blank block boundary instead of becoming literal HTML content. */
+    #[TestWith([''])]
+    #[TestWith(["\n"])]
+    public function testTerminalHtmlDoesNotConsumeTheFollowingFragment(string $ending): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n- First.\n\n<div>Detail.</div>\n\n- Next.\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('a.md', Category::Added, null, null, null, "- First.\n\n<div>Detail.</div>" . $ending),
+                new Changeset('b.md', Category::Added, null, null, null, 'Next.'),
             ], $template),
         );
     }
