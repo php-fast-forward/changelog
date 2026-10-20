@@ -78,7 +78,7 @@ final class InstallCommandTest extends TestCase
         self::assertStringContainsString('workflow never merges it for you', $output);
         self::assertStringContainsString('approved tag and GitHub Release', $output);
         self::assertStringContainsString('llm/skills as a Composer dev dependency', $output);
-        self::assertStringContainsString('approved plugins may run', $output);
+        self::assertStringContainsString('without activating consumer plugins', $output);
         self::assertStringContainsString(
             'Apply the displayed workflow, metadata changes and Composer commands?',
             $output,

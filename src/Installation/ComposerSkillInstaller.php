@@ -33,19 +33,21 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
      * @param ManagedFileStoreInterface       $files      Atomic guarded metadata replacement under the project lock.
      * @param ProcessFactoryInterface         $processes  Unstarted structured Composer processes; no shell interpolation.
      * @param LockFactory                     $locks      Cooperative project-setup locks, never acquired during preview.
+     * @param SkillManagerRuntimeInterface    $runtime    Verified independent PHAR execution; never loads the consumer manager or autoloader.
      */
     public function __construct(
         private InstallationFilesystemInterface $filesystem,
         private ManagedFileStoreInterface $files,
         private ProcessFactoryInterface $processes,
         private LockFactory $locks,
+        private SkillManagerRuntimeInterface $runtime,
     ) {}
 
     /**
      * Applies only a matching reviewed plan and reports the manager's observed result without creating receipts.
      *
-     * Composer scripts are suppressed. Approved Composer plugins may still execute during skills:add;
-     * this operation is not advertised as an isolated runtime or as rollback of dependency-manager effects.
+     * Composer scripts and plugins are suppressed. Skill commands use a digest-verified independent PHAR;
+     * this operation never grants consumer plugin execution or claims rollback of dependency-manager effects.
      *
      * @param string  $root                Previously guarded absolute Git root.
      * @param bool    $dryRun              Suppress writes, locks and process execution.
@@ -86,6 +88,11 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
                 $this->files->write($root . '/' . $path, $bytes);
             }
             foreach ($plan['commands'] as $command) {
+                if (VerifiedSkillManagerRuntime::COMMAND === $command[0]) {
+                    $this->runtime->run($root, $plan['vendor_directory'], array_slice($command, 1));
+
+                    continue;
+                }
                 $process = $this->processes->create($command);
                 $process->setWorkingDirectory($root);
                 $process->setEnv(
@@ -148,6 +155,12 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
             return $this->result($root, $plan, $snapshot, []);
         }
         $config = $this->configuration($snapshot['skills.json']);
+        if (null !== ($config->{'path-from-root'} ?? null)) {
+            $plan['state'] = 'blocked';
+            $plan['diagnostics'][] = 'Existing path-from-root changes the manager target anchor; use llm/skills directly to preserve its ownership boundary.';
+
+            return $this->result($root, $plan, $snapshot, []);
+        }
         $target = $config->target ?? '.agents/skills';
         if (! is_string($target) || '' === $target) {
             throw new RuntimeException('skills.json target must be an explicit project-relative directory.');
@@ -188,17 +201,15 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
                 }
             }
         }
-        if (! $this->allowManager($composer)) {
+        $approval = $this->allowManager($composer);
+        $plan['plugin_approval'] = match ($approval) {
+            true => 'existing', false => 'denied', null => 'required',
+        };
+        if (false === $approval) {
             $plan['state'] = 'blocked';
             $plan['diagnostics'][] = 'Composer explicitly denies llm/skills; the existing plugin policy was preserved.';
 
             return $this->result($root, $plan, $snapshot, []);
-        }
-        if ($this->object($snapshot['composer.json'], 'composer.json') != $composer) {
-            $writes['composer.json'] = $this->json(
-                $composer,
-                str_contains($snapshot['composer.json'], "\r\n") ? "\r\n" : "\n",
-            );
         }
         $missingPayload = null === $snapshot[$skillPath . 'SKILL.md'];
         if (! $declared || ! $installed || ! $this->selected($source) || $missingPayload) {
@@ -207,7 +218,10 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
         if ([] === $writes && [] === $plan['commands']) {
             $plan['state'] = 'current';
         }
-        $plan['diagnostics'][] = 'llm/skills owns discovery, copying and subsequent sync. Composer scripts are disabled here; approved Composer plugins may execute.';
+        $plan['diagnostics'][] = 'Skill commands use the verified official 1.15.0 PHAR; consumer Composer plugins and autoloaders are not activated by setup.';
+        if (null === $approval) {
+            $plan['diagnostics'][] = 'No plugin approval was added. Future Composer auto-sync requires your explicit approval of a trusted llm/skills installation after reviewing its provenance.';
+        }
         $plan['diagnostics'][] = 'Commands use this root composer.json and its reviewed vendor-dir (' . $plan['vendor_directory'] . '); COMPOSER and COMPOSER_VENDOR_DIR environment overrides are replaced.';
 
         return $this->result($root, $plan, $snapshot, $writes);
@@ -263,7 +277,7 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
      * @param bool      $declared  Whether Composer already declares llm/skills in either dependency scope.
      * @param bool      $installed Whether Composer's local package metadata records the plugin.
      *
-     * @return list<list<string>> Structured argv; dependency installation disables plugins, skills commands enable approved plugins.
+     * @return list<list<string>> Composer argv always disables plugins; the fixed PHAR marker selects the independent verified runtime.
      *
      * @throws RuntimeException When adding an allowlisted skill would replace an implicit owner ref.
      */
@@ -285,8 +299,13 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
             $commands[] = [...$base, '--no-plugins', 'install', '--prefer-dist', '--no-progress'];
         }
         $selected = $this->selected($source);
-        $command = $selected ? [...$base, 'skills:update', 'fast-forward/changelog']
-            : [...$base, 'skills:add', self::DONOR, '--skill=' . self::SKILL];
+        $command = $selected ? [
+            VerifiedSkillManagerRuntime::COMMAND,
+            'update',
+            'fast-forward/changelog',
+            '--no-interaction',
+        ]
+            : [VerifiedSkillManagerRuntime::COMMAND, 'add', self::DONOR, '--skill=' . self::SKILL, '--no-interaction'];
         if (null !== $source && ! $selected) {
             if (! is_string($source->ref ?? null) || '' === $source->ref) {
                 throw new RuntimeException(
@@ -390,15 +409,15 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
     }
 
     /**
-     * Adds only an absent exact plugin grant; explicit denial and broader existing policy remain unchanged.
+     * Observes existing plugin approval without ever granting execution to a consumer-supplied package.
      *
      * @param stdClass $composer Local manifest object whose unrelated values retain their JSON types.
      *
-     * @return bool Whether the manager is permitted; the object may receive one missing exact grant.
+     * @return ?bool Existing approval or denial, or null when approval remains an explicit future user operation.
      *
      * @throws RuntimeException When Composer configuration has an unsupported shape.
      */
-    private function allowManager(stdClass $composer): bool
+    private function allowManager(stdClass $composer): ?bool
     {
         $config = $composer->config ?? new stdClass();
         if (! $config instanceof stdClass) {
@@ -416,11 +435,8 @@ final readonly class ComposerSkillInstaller implements ProjectSkillInstallerInte
                 return true === $permitted;
             }
         }
-        $allow->{self::PACKAGE} = true;
-        $config->{'allow-plugins'} = $allow;
-        $composer->config = $config;
 
-        return true;
+        return null;
     }
 
     /**

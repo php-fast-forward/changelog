@@ -72,6 +72,15 @@ install/update invokes synchronization when auto-sync is enabled. With
 use `auto-sync:false` for deliberate manual synchronization or `--no-plugins` to
 prevent plugin loading. Recheck behavior when changing manager versions.
 
+The guided Changelog `install` operation has a narrower execution boundary:
+Composer commands always disable plugins/scripts, and synchronization uses the
+official `1.15.0` self-contained PHAR with a fixed SHA-256 check outside the
+checkout. It never adds plugin approval. A copied skill therefore does not prove
+future Composer auto-sync is enabled: review the manager's provenance and approve
+it explicitly through Composer when required. Existing approvals or denials are
+preserved. The [manual installation recipe](skills.md) remains the normal
+Composer route; its plugin approval is a separate deliberate action.
+
 Keep the generated `.agents/` directory ignored and excluded from archives as
 described in [installation](skills.md). A new development clone's
 `composer install` restores it according to the configured sources and refs.

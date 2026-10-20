@@ -6,6 +6,7 @@ namespace FastForward\Changelog\Tests\Integration;
 
 use FastForward\Changelog\Console\Changelog;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
+use FastForward\Changelog\Installation\SkillManagerRuntimeInterface;
 use FastForward\Changelog\Installation\WorkflowReleaseResolverInterface;
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Skill\SkillInstaller;
@@ -47,6 +48,8 @@ final class ProjectInstallationTest extends TestCase
             if ('composer' !== $command[0]) {
                 return new Process($command, $root, $environment);
             }
+            self::assertContains('--no-plugins', $command);
+            self::assertContains('--no-scripts', $command);
             $process = $this->createStub(Process::class);
             $process->method('run')->willReturnCallback(static function () use (
                 $command,
@@ -82,6 +85,25 @@ final class ProjectInstallationTest extends TestCase
         $runtime = dirname(__DIR__, 2);
         $inputs = Yaml::parseFile($runtime . '/.github/workflows/changelog.yml')['on']['workflow_call']['inputs'];
         $resolver = $this->createStub(WorkflowReleaseResolverInterface::class);
+        $runtimeManager = $this->createStub(SkillManagerRuntimeInterface::class);
+        $runtimeManager->method('run')->willReturnCallback(
+            static function (string $consumer, string $vendor, array $arguments) use (
+                $root,
+                $filesystem,
+                &$commands
+            ): void {
+                self::assertSame($root, $consumer);
+                $commands[] = $arguments;
+                $config = json_decode(file_get_contents($root . '/skills.json'), true);
+                $config['sources'][] = ['from' => 'github', 'package' => 'php-fast-forward/changelog',
+                    'ref' => '^0.3.0', 'skills' => ['fast-forward-changelog']];
+                $filesystem->dumpFile($root . '/skills.json', json_encode($config));
+                $filesystem->dumpFile(
+                    $root . '/.agents/skills/fast-forward-changelog/SKILL.md',
+                    '# Synthetic manager payload',
+                );
+            },
+        );
         $resolver->method('resolve')->willReturn([
             'ref' => 'v9.9.9', 'sha' => str_repeat('a', 40),
             'caller' => file_get_contents($runtime . '/resources/workflows/changelog.yml'),
@@ -92,6 +114,7 @@ final class ProjectInstallationTest extends TestCase
             'skill_warning_enabled' => false]]), new ArrayServiceProvider([
                 WorkflowReleaseResolverInterface::class => static fn() => $resolver,
                 ProcessFactoryInterface::class => static fn() => $processes,
+                SkillManagerRuntimeInterface::class => static fn() => $runtimeManager,
             ]), ChangelogServiceProvider::class);
         $app = $services->get(Changelog::class);
         $app->setAutoExit(false);

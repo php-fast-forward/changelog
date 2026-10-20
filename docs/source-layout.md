@@ -63,6 +63,14 @@ than the legacy `Skill\SkillInstallerInterface`. The standard provider supplies
 update that argument. The project operation can also bind application to its
 reviewed skill-plan fingerprint through the optional `expectedSkill` argument.
 
+Direct construction of `Installation\ComposerSkillInstaller` also requires a
+`Installation\SkillManagerRuntimeInterface` collaborator. The standard provider
+uses `VerifiedSkillManagerRuntime`, whose trusted composition selects anonymous
+HTTP transport, temporary storage and the fixed official PHAR digest. Project
+metadata cannot select its executable or integrity anchor. Composer dependency
+operations disable plugins/scripts; skill synchronization never loads consumer
+autoloaders and does not add a Composer plugin approval.
+
 `Skill\SkillInstallerInterface` remains the native copy/check/update contract for
 existing receipts. It does not become an llm/skills adapter or adopt another
 manager's metadata. See [project setup](project-installation.md) and

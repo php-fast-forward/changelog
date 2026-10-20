@@ -8,6 +8,8 @@ use Closure;
 use FastForward\Changelog\Filesystem\ManagedFileStoreInterface;
 use FastForward\Changelog\Installation\ComposerSkillInstaller;
 use FastForward\Changelog\Installation\InstallationFilesystemInterface;
+use FastForward\Changelog\Installation\SkillManagerRuntimeInterface;
+use FastForward\Changelog\Installation\VerifiedSkillManagerRuntime;
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -46,7 +48,7 @@ final class ComposerSkillInstallerTest extends TestCase
         self::assertSame('planned', $preview['state']);
         self::assertSame('llm/skills', $preview['manager']);
         self::assertSame('php-fast-forward/changelog', $preview['source']);
-        self::assertSame(['skills.json', '.gitignore', '.gitattributes', 'composer.json'], $preview['changes']);
+        self::assertSame(['skills.json', '.gitignore', '.gitattributes'], $preview['changes']);
         self::assertSame([], $this->writes);
         self::assertSame([], $this->commands);
         self::assertSame(0, $this->locks);
@@ -58,10 +60,10 @@ final class ComposerSkillInstallerTest extends TestCase
             self::assertFalse($config['discovery']);
             self::assertFalse($config['vendor-sources']);
             self::assertSame([
-                'other/plugin' => true, 'llm/skills' => true],
+                'other/plugin' => true],
                 json_decode($this->bytes['composer.json'], true)['config']['allow-plugins'],
             );
-            if (in_array('skills:add', $command, true)) {
+            if (in_array('add', $command, true)) {
                 $this->complete();
             }
         };
@@ -71,7 +73,8 @@ final class ComposerSkillInstallerTest extends TestCase
         );
         self::assertSame($preview['commands'], $this->commands);
         self::assertContains('--no-plugins', $this->commands[0]);
-        self::assertContains('--no-scripts', $this->commands[1]);
+        self::assertSame(VerifiedSkillManagerRuntime::COMMAND, $this->commands[1][0]);
+        self::assertSame('required', $preview['plugin_approval']);
         self::assertSame('llm/skills:^1.15', array_last($this->commands[0]));
         self::assertContains('--skill=fast-forward-changelog', $this->commands[1]);
         self::assertStringContainsString('owner-script', $this->bytes['composer.json']);
@@ -174,6 +177,41 @@ final class ComposerSkillInstallerTest extends TestCase
         self::assertSame([], $result['changes']);
     }
 
+    /** An outer target anchor must be rejected before ownership checks can observe the wrong directory. */
+    public function testPathFromRootBlocksBeforeAnyWriteOrProcess(): void
+    {
+        $this->bytes['skills.json'] = '{"path-from-root":"project","target":".agents/skills"}';
+        $before = $this->bytes;
+        $result = $this->compose()->run('/project');
+
+        self::assertSame('blocked', $result['state']);
+        self::assertStringContainsString('target anchor', $result['diagnostics'][0]);
+        self::assertSame($before, $this->bytes);
+        self::assertSame([], $this->commands);
+        self::assertSame(0, $this->locks);
+    }
+
+    /** Forged manager metadata and root autoload maps never select consumer PHP for the skill operation. */
+    public function testContributorControlledPackageAndAutoloadCannotReceiveExecutionOrApproval(): void
+    {
+        $this->ready();
+        $this->bytes['composer.json'] = '{"require-dev":{"llm/skills":"^1.15"},"repositories":[{"type":"package","package":{"name":"llm/skills","version":"1.15.0","dist":{"type":"path","url":"payload"}}}],"autoload":{"psr-4":{"LLM\\\\Skills\\\\":"payload/"},"classmap":["payload/"]},"config":{"allow-plugins":{"owner/plugin":true}}}';
+        $before = $this->bytes['composer.json'];
+        unset($this->bytes[self::SKILL_PATH]);
+        $this->onProcess = function (array $command): void {
+            self::assertSame(VerifiedSkillManagerRuntime::COMMAND, $command[0]);
+            $this->bytes[self::SKILL_PATH] = '# Verified manager output';
+        };
+        $result = $this->compose()->run('/project');
+
+        self::assertSame('installed', $result['state']);
+        self::assertSame('required', $result['plugin_approval']);
+        self::assertSame($before, $this->bytes['composer.json']);
+        self::assertCount(1, $this->commands);
+        self::assertSame(VerifiedSkillManagerRuntime::COMMAND, $this->commands[0][0]);
+        self::assertStringContainsString('No plugin approval was added', implode("\n", $result['diagnostics']));
+    }
+
     /** Donor-only Composer metadata does not become an application manager configuration or prevent setup. */
     public function testDonorSourceMetadataIsPreservedWithoutBlockingSetup(): void
     {
@@ -239,7 +277,7 @@ final class ComposerSkillInstallerTest extends TestCase
         unset($this->bytes[self::SKILL_PATH]);
         $before = $this->bytes['skills.json'];
         $this->onProcess = function (array $command): void {
-            self::assertContains('skills:update', $command);
+            self::assertContains('update', $command);
             self::assertContains('fast-forward/changelog', $command);
             $this->bytes['custom/skills/fast-forward-changelog/SKILL.md'] = '# Managed';
         };
@@ -259,7 +297,7 @@ final class ComposerSkillInstallerTest extends TestCase
         $plan = $this->compose()->run('/project', true);
         self::assertContains('install', $plan['commands'][0]);
         self::assertNotContains('require', $plan['commands'][0]);
-        self::assertContains('skills:update', $plan['commands'][1]);
+        self::assertContains('update', $plan['commands'][1]);
     }
 
     /** An existing generated skill cannot hide a removed Composer requirement or missing local plugin installation. */
@@ -272,7 +310,7 @@ final class ComposerSkillInstallerTest extends TestCase
 
         self::assertSame('planned', $plan['state']);
         self::assertContains('require', $plan['commands'][0]);
-        self::assertContains('skills:update', $plan['commands'][1]);
+        self::assertContains('update', $plan['commands'][1]);
         self::assertSame([], $this->commands);
     }
 
@@ -358,8 +396,9 @@ final class ComposerSkillInstallerTest extends TestCase
         $this->bytes['composer.json'] = '{"require-dev":{"llm/skills":"^1.15"}}';
         $result = $this->compose()->run('/project');
 
-        self::assertSame('installed', $result['state']);
-        self::assertSame(['composer.json'], $result['changes']);
+        self::assertSame('current', $result['state']);
+        self::assertSame([], $result['changes']);
+        self::assertSame('required', $result['plugin_approval']);
         self::assertSame([], $this->commands);
     }
 
@@ -391,15 +430,14 @@ final class ComposerSkillInstallerTest extends TestCase
         $this->bytes['.gitattributes'] = '* text=auto';
         $this->bytes['composer.json'] = "{\r\n\"description\":\"Instruções\",\"require\": {}, \"extra\": {\"empty\":{},\"list\":[],\"enabled\":false}\r\n}";
         $this->onProcess = function (array $command): void {
-            if (in_array('skills:add', $command, true)) {
+            if (in_array('add', $command, true)) {
                 $this->complete();
             }
         };
         $this->compose()->run('/project');
         self::assertSame("vendor/\r\n/.agents/\r\n", $this->bytes['.gitignore']);
         self::assertSame("* text=auto\n/.agents/** export-ignore\n", $this->bytes['.gitattributes']);
-        self::assertStringContainsString("\r\n", $this->writes['composer.json']);
-        self::assertStringContainsString('Instruções', $this->writes['composer.json']);
+        self::assertArrayNotHasKey('composer.json', $this->writes);
         $extra = json_decode($this->bytes['composer.json'])->extra;
         self::assertInstanceOf(\stdClass::class, $extra->empty);
         self::assertSame([], $extra->list);
@@ -479,6 +517,9 @@ final class ComposerSkillInstallerTest extends TestCase
         });
         $processes = $this->createStub(ProcessFactoryInterface::class);
         $processes->method('create')->willReturnCallback(function (array $command): Process {
+            self::assertSame('composer', $command[0]);
+            self::assertContains('--no-plugins', $command);
+            self::assertContains('--no-scripts', $command);
             $process = $this->createMock(Process::class);
             $process->expects(self::once())->method('setWorkingDirectory')->with('/project');
             $process->method('getEnv')->willReturn(
@@ -516,6 +557,14 @@ final class ComposerSkillInstallerTest extends TestCase
             return $lock;
         });
 
-        return new ComposerSkillInstaller($filesystem, $files, $processes, $locks);
+        $runtime = $this->createStub(SkillManagerRuntimeInterface::class);
+        $runtime->method('run')->willReturnCallback(function (string $root, string $vendor, array $arguments): void {
+            self::assertSame('/project', $root);
+            $command = [VerifiedSkillManagerRuntime::COMMAND, ...$arguments];
+            $this->commands[] = $command;
+            ($this->onProcess ?? static fn() => null)($command);
+        });
+
+        return new ComposerSkillInstaller($filesystem, $files, $processes, $locks, $runtime);
     }
 }

@@ -79,10 +79,19 @@ Skill setup invokes Composer and may download the manager and GitHub donor.
 It uses the project's root `composer.json` and fixes `COMPOSER_VENDOR_DIR` to
 the reviewed relative `config.vendor-dir`, defaulting to `vendor`; inherited
 `COMPOSER` and `COMPOSER_VENDOR_DIR` overrides do not select another manifest or
-destination. It suppresses Composer scripts; other Composer environment settings
-and approved local/global plugins still apply. Review that policy before
-accepting setup. No custom post-install hook is added: llm/skills owns automatic
-synchronization. Installation does not commit, push, change GitHub settings, run
+destination. Every Composer invocation disables scripts and plugins. Skill
+commands use the official standalone `1.15.0` PHAR, downloaded to temporary
+storage outside the checkout and checked against its fixed SHA-256 before
+execution. The preview's `verified-llm-skills-1.15.0.phar` command marker is
+replaced with that verified temporary path during application. No consumer
+plugin, dependency autoloader or root autoload map executes to synchronize skills.
+
+Setup preserves plugin policy and never adds an approval, including with `--yes`.
+When approval is absent, `plugin_approval: required` and a diagnostic explain
+that future Composer auto-sync requires explicit approval of a trusted manager
+after reviewing its origin. An existing approval remains existing policy, not
+provenance established by setup. Explicit denial blocks the guided skill route.
+No custom post-install hook is added. Installation does not commit, push, change GitHub settings, run
 workflows or publish a tag/release. Review the diff and configure
 any required [GitHub App credentials](github-app.md) through GitHub's secret
 storage; setup does not collect or save secrets. Then commit the integration
@@ -93,6 +102,9 @@ The guided manager route supports stable llm/skills `1.x` from `1.15.0` and adds
 compatible lock or installed metadata, a constraint that cannot prove this
 baseline blocks setup for owner review; setup does not rewrite it to proceed.
 The GitHub source uses the canonical host, omitted or explicitly `github.com`.
+An existing `path-from-root` changes the manager's containment anchor and blocks
+guided skill setup before writes; maintain that configuration directly through
+the manager. Workflow-only setup remains available with `--no-skill`.
 
 ## Preview or automate setup
 

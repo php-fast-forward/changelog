@@ -99,7 +99,7 @@ final readonly class InstallCommand
             }
             if ($interactive && ! $noSkill && 'conflict' !== $inspection['state']) {
                 $io->note(
-                    'The optional skill uses llm/skills as a Composer dev dependency and a GitHub source in skills.json. Existing manager configuration is preserved. Composer scripts are disabled; approved plugins may run. Foreign or native copies require an explicit migration.',
+                    'The optional skill uses llm/skills as a Composer dev dependency and a GitHub source in skills.json. Setup uses a verified independent manager without activating consumer plugins or adding plugin approval. Future Composer auto-sync requires explicit approval of a trusted installation. Foreign or native copies require an explicit migration.',
                 );
                 $skill = $io->confirm('Set up the project skill with llm/skills?', true);
             }

@@ -43,6 +43,10 @@ the executing command's help. Its preview does not grant workflow execution,
 merge or release authority. Restore source, tests, provider, guide and root index
 together on rollback; never remove consumer-owned files as a rollback shortcut.
 Default project skill setup delegates to llm/skills with a declared GitHub source.
+Its guided execution boundary verifies the fixed official standalone PHAR outside
+the checkout and disables consumer Composer plugins/scripts. Plugin approval is
+preserved as an explicit owner operation; a copied skill alone does not establish
+future auto-sync. This adds no instruction scope or alternative skill manager.
 Read root → skill guide → Composer lifecycle and selected command help. Consumer
 `skills.json` and manifest/lock policy preserve the configuration; generated
 `.agents/` copies stay ignored and excluded from archives. Normal approved
