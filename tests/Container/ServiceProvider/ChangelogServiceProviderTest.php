@@ -33,6 +33,7 @@ use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication\MergedPublicationServiceInterface;
 use FastForward\Changelog\Publication\PublicationService;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
+use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\Reference\PullRequestReferenceResolver;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Release\ReleaseJournalPathResolver;
@@ -51,6 +52,7 @@ use FastForward\Changelog\Version\NextVersionResolver;
 use FastForward\Changelog\Version\PackageVersionResolverInterface;
 use FastForward\Clock\SystemClock;
 use FastForward\Config\ArrayConfig;
+use FastForward\Container\Exception\ContainerException;
 use FastForward\Container\Factory\AliasFactory;
 use FastForward\Container\ServiceProvider\ArrayServiceProvider;
 use InvalidArgumentException;
@@ -364,12 +366,16 @@ final class ChangelogServiceProviderTest extends TestCase
         self::assertSame(0, RuntimeDefaults::$calls);
     }
 
-    /** Aliased discovery stays lazy and a selected consumer command factory failure remains visible. */
+    /** Aliased discovery stays lazy and the first factory failure survives exhausted autowiring fallback. */
     public function testCommandLoaderAutowiresAndPreservesDeferredFactoryFailures(): void
     {
         $calls = 0;
         $failure = new RuntimeException('Configured command graph is unavailable.');
+        $options = $this->createStub(ReleaseOptionsFactoryInterface::class);
         $container = container(new ArrayServiceProvider([
+            ReleaseOptionsFactoryInterface::class => static fn(): ReleaseOptionsFactoryInterface => $options,
+            // An unusable required dependency exhausts the later native-autowiring fallback.
+            ReleasePlannerInterface::class => static fn(): null => null,
             StatusCommand::class => static function () use (&$calls, $failure): never {
                 ++$calls;
 
@@ -401,9 +407,9 @@ final class ChangelogServiceProviderTest extends TestCase
 
         try {
             $command->getDefinition();
-            self::fail('The selected consumer factory must fail instead of falling back to an autowired command.');
-        } catch (RuntimeException $caught) {
-            self::assertSame($failure, $caught);
+            self::fail('Exhausted command resolution must retain the first consumer factory failure.');
+        } catch (ContainerException $caught) {
+            self::assertSame($failure, $caught->getPrevious());
             self::assertSame(1, $calls);
         }
     }
