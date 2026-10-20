@@ -330,6 +330,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     {
         return [
             Installation\ProjectInstallerInterface::class => new AliasFactory(Installation\ProjectInstaller::class),
+            Installation\ProjectSkillInstallerInterface::class => new AliasFactory(
+                Installation\ComposerSkillInstaller::class,
+            ),
             Installation\InstallationFilesystemInterface::class => new AliasFactory(
                 Installation\InstallationFilesystem::class,
             ),

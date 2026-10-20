@@ -22,9 +22,10 @@ interface ProjectInstallerInterface
      * @param  string                                                                                                                                $cwd              Explicit existing Git consumer directory.
      * @param  ?string                                                                                                                               $reference        Optional published workflow tag; null delegates release discovery to the resolver.
      * @param  array<string,mixed>                                                                                                                   $settings         Reusable input names and literal values; only non-default values are emitted.
-     * @param  bool                                                                                                                                  $skill            Whether to offer the native bundled skill without taking ownership from another installer.
+     * @param  bool                                                                                                                                  $skill            Whether to offer Composer-managed GitHub skill installation without taking ownership from another installer.
      * @param  bool                                                                                                                                  $dryRun           Whether all operations must remain read-only, including directory creation and locks.
      * @param  ?string                                                                                                                               $expectedWorkflow SHA-256 of JSON_THROW_ON_ERROR encoded preview workflow; mismatch blocks every write.
+     * @param  ?string                                                                                                                               $expectedSkill    Reviewed skill metadata/command fingerprint; mismatch blocks every write.
      * @return array{state:string,workflow:array{state:string,path:?string,content:?string,reference:?string},skill:?array,diagnostics:list<string>} Explicit plan or observed result.
      * @throws \InvalidArgumentException                                                                                                             When selected input names, types or branch syntax are invalid.
      * @throws \RuntimeException                                                                                                                     When local evidence or the selected published contract cannot be verified.
@@ -36,5 +37,6 @@ interface ProjectInstallerInterface
         bool $skill = true,
         bool $dryRun = false,
         ?string $expectedWorkflow = null,
+        ?string $expectedSkill = null,
     ): array;
 }

@@ -77,9 +77,12 @@ final class InstallCommandTest extends TestCase
         $output = $tester->getDisplay();
         self::assertStringContainsString('workflow never merges it for you', $output);
         self::assertStringContainsString('approved tag and GitHub Release', $output);
-        self::assertStringContainsString('it does not activate an', $output);
-        self::assertStringContainsString('agent or update foreign copies', $output);
-        self::assertStringContainsString('Apply this plan without replacing existing configuration?', $output);
+        self::assertStringContainsString('llm/skills as a Composer dev dependency', $output);
+        self::assertStringContainsString('approved plugins may run', $output);
+        self::assertStringContainsString(
+            'Apply the displayed workflow, metadata changes and Composer commands?',
+            $output,
+        );
     }
 
     /** Keeps every advanced answer explicit while allowing the optional skill to be declined. */
@@ -293,7 +296,7 @@ final class InstallCommandTest extends TestCase
         $tester = $this->tester($installer);
 
         self::assertSame(1, $tester->execute(['--dry-run' => true], ['interactive' => true]));
-        self::assertStringNotContainsString('Install the project skill', $tester->getDisplay());
+        self::assertStringNotContainsString('Set up the project skill', $tester->getDisplay());
     }
 
     /** A failure discovered while applying remains a failure in the final machine-readable response. */
@@ -427,8 +430,10 @@ final class InstallCommandTest extends TestCase
     {
         $plan = $this->plan();
         $plan['workflow']['content'] = '<error>name: custom</error>';
-        $plan['skill'] = ['state' => 'current', 'installed_source' => ['version' => '1.0.0'],
-            'source' => ['version' => '2.0.0']];
+        $plan['skill'] = ['state' => 'current', 'manager' => 'llm/skills',
+            'source' => 'php-fast-forward/changelog', 'target' => '.agents/skills',
+            'changes' => ['skills.json'], 'commands' => [['composer', 'skills:add', '<error>source</error>']],
+            'diagnostics' => ['<info>Approved plugins may run</info>']];
         $plan['diagnostics'] = ['<info>Existing configuration was preserved</info>'];
         $installer = $this->createMock(ProjectInstallerInterface::class);
         $installer->expects(self::once())->method('inspect')->willReturn(
@@ -439,7 +444,16 @@ final class InstallCommandTest extends TestCase
 
         self::assertSame(0, $tester->execute(['--dry-run' => true], ['interactive' => false]));
         self::assertStringContainsString('<error>name: custom</error>', $tester->getDisplay());
-        self::assertStringContainsString('Skill: current; installed: 1.0.0; bundled: 2.0.0', $tester->getDisplay());
+        self::assertStringContainsString(
+            'Skill: current; manager: llm/skills; source: php-fast-forward/changelog',
+            $tester->getDisplay(),
+        );
+        self::assertStringContainsString('Metadata: skills.json', $tester->getDisplay());
+        self::assertStringContainsString(
+            'Command arguments: ["composer","skills:add","<error>source</error>"]',
+            $tester->getDisplay(),
+        );
+        self::assertStringContainsString('<info>Approved plugins may run</info>', $tester->getDisplay());
         self::assertStringContainsString(
             '<info>Existing configuration was preserved</info>',
             $tester->getDisplay(),
@@ -473,7 +487,8 @@ final class InstallCommandTest extends TestCase
     {
         return ['state' => $state, 'workflow' => $workflow ?? ['state' => 'create',
             'path' => '.github/workflows/changelog.yml', 'content' => "name: Changelog\n"],
-            'skill' => ['state' => 'absent', 'installed_source' => null, 'source' => ['version' => '0.2.0']],
+            'skill' => ['state' => 'planned', 'manager' => 'llm/skills', 'source' => 'php-fast-forward/changelog',
+                'target' => '.agents/skills', 'fingerprint' => 'skill-plan'],
             'diagnostics' => []];
     }
 }

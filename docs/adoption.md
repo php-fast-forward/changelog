@@ -161,10 +161,10 @@ The generated API reference supplies exact signatures; the domain guides explain
 [publication](publication.md). [Source namespaces and migration tables](source-layout.md)
 help applications adopting earlier commit snapshots.
 
-The [skill installation guide](skills.md) offers native CLI management when the
-selected release provides it, or installation through NPX Skills. It owns the
-installation/check/update procedure and scope choices. Installing instructions
-is separate from executing the CLI or exposing PHP classes through Composer.
+The [skill installation guide](skills.md) uses `llm/skills` with a GitHub source,
+without adding Changelog to the application's dependencies. It also covers NPX
+and existing native copies. Installing instructions is separate from executing
+the CLI or exposing PHP classes through Composer.
 
 ---
 

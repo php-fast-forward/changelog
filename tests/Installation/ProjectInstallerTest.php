@@ -6,8 +6,8 @@ namespace FastForward\Changelog\Tests\Installation;
 
 use FastForward\Changelog\Installation\InstallationFilesystemInterface;
 use FastForward\Changelog\Installation\ProjectInstaller;
+use FastForward\Changelog\Installation\ProjectSkillInstallerInterface;
 use FastForward\Changelog\Installation\WorkflowReleaseResolverInterface;
-use FastForward\Changelog\Skill\SkillInstallerInterface;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -51,7 +51,9 @@ YAML;
         ]));
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::never())->method('resolve');
-        $installer = new ProjectInstaller($filesystem, $releases, $this->createStub(SkillInstallerInterface::class));
+        $installer = new ProjectInstaller($filesystem, $releases, $this->createStub(
+            ProjectSkillInstallerInterface::class,
+        ));
         $result = $installer->inspect('/project');
 
         self::assertSame('absent', $result['state']);
@@ -67,7 +69,7 @@ YAML;
         $filesystem->expects(self::never())->method('create');
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::never())->method('resolve');
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::never())->method('run');
         $result = new ProjectInstaller($filesystem, $releases, $skills)->run(
             '/project',
@@ -89,13 +91,12 @@ YAML;
         $filesystem = $this->createMock(InstallationFilesystemInterface::class);
         $filesystem->method('inspect')->willReturn($this->snapshot($files));
         $filesystem->expects(self::never())->method('create');
-        $filesystem->expects(self::once())->method('read')->with('/project', 'skills-lock.json')->willReturn(null);
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::never())->method('resolve');
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::exactly(2))->method('run')->willReturnMap([
-            ['/project', '.agents/skills', false, 'install', true, ['state' => 'absent']],
-            ['/project', '.agents/skills', false, 'install', false, ['state' => 'installed']],
+            ['/project', true, null, ['state' => 'planned', 'fingerprint' => 'skill-plan']],
+            ['/project', false, 'skill-plan', ['state' => 'installed']],
         ]);
         $installer = new ProjectInstaller($filesystem, $releases, $skills);
         $inspection = $installer->inspect('/project');
@@ -147,7 +148,7 @@ YAML;
         $filesystem->expects(self::never())->method('read');
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::never())->method('resolve');
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::never())->method('run');
         $installer = new ProjectInstaller($filesystem, $releases, $skills);
 
@@ -184,19 +185,15 @@ YAML;
     {
         $filesystem = $this->createMock(InstallationFilesystemInterface::class);
         $filesystem->method('inspect')->willReturn($this->snapshot());
-        $filesystem->expects(self::once())->method('read')->with('/project', 'skills-lock.json')->willReturn(null);
         $filesystem->expects(self::never())->method('create');
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::once())->method('resolve')->with('v0.2.0')->willReturn($this->release());
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::once())->method('run')->with(
             '/project',
-            '.agents/skills',
-            false,
-            'install',
             true,
         )->willReturn(
-            ['state' => 'absent'],
+            ['state' => 'planned', 'fingerprint' => 'skill-plan'],
         );
         $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', 'v0.2.0', [
             'base-branch' => 'maintenance/1.x', 'publish' => true, 'source' => 'auto', 'count' => 4, 'ratio' => 0.5,
@@ -205,7 +202,7 @@ YAML;
         $document = Yaml::parse($content);
 
         self::assertSame('planned', $result['state']);
-        self::assertSame('absent', $result['skill']['state']);
+        self::assertSame('planned', $result['skill']['state']);
         self::assertSame(
             'php-fast-forward/changelog/.github/workflows/changelog.yml@' . str_repeat('a', 40),
             $document['jobs']['changelog']['uses'],
@@ -279,20 +276,18 @@ YAML;
         $release = $this->release();
         $release['inputs']['base-branch']['default'] = 'main';
         $releases->method('resolve')->willReturn($release);
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::exactly(2))->method('run')->willReturnCallback(
             static function (
                 string $cwd,
-                string $target = '.agents/skills',
-                bool $global = false,
-                string $mode = 'install',
                 bool $dryRun = false,
+                ?string $expectedFingerprint = null,
             ) use (
                 &$events
             ): array {
                 $events[] = $dryRun ? 'preview' : 'skill';
 
-                return ['state' => $dryRun ? 'absent' : 'installed'];
+                return ['state' => $dryRun ? 'planned' : 'installed', 'fingerprint' => 'skill-plan'];
             },
         );
         $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
@@ -310,7 +305,7 @@ YAML;
         $filesystem->expects(self::once())->method('create');
         $releases = $this->createStub(WorkflowReleaseResolverInterface::class);
         $releases->method('resolve')->willReturn($this->release());
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::never())->method('run');
         $installer = new ProjectInstaller($filesystem, $releases, $skills);
         $preview = $installer->run('/project', null, [], false, true);
@@ -329,12 +324,31 @@ YAML;
         self::assertSame('installed', $accepted['state']);
     }
 
+    /** Skill metadata changes after human confirmation block even the otherwise valid workflow creation. */
+    public function testConfirmedSkillFingerprintMustMatchBeforeAnyWrite(): void
+    {
+        $filesystem = $this->createMock(InstallationFilesystemInterface::class);
+        $filesystem->method('inspect')->willReturn($this->snapshot());
+        $filesystem->expects(self::never())->method('create');
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
+        $skills->expects(self::once())->method('run')->with('/project', true)->willReturn([
+            'state' => 'planned', 'fingerprint' => 'changed', 'diagnostics' => ['Review new Composer metadata.'],
+        ]);
+        $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
+        $releases->expects(self::never())->method('resolve');
+        $result = new ProjectInstaller($filesystem, $releases, $skills)->run(
+            '/project', null, [], expectedSkill: 'reviewed',
+        );
+
+        self::assertSame('blocked', $result['state']);
+        self::assertContains('Review new Composer metadata.', $result['diagnostics']);
+    }
+
     /** A release tag retargeted after preview changes the immutable caller and blocks both workflow and skill installation. */
     public function testRetargetedReleaseBlocksEveryWriteAfterConfirmation(): void
     {
         $filesystem = $this->createMock(InstallationFilesystemInterface::class);
         $filesystem->method('inspect')->willReturn($this->snapshot());
-        $filesystem->expects(self::exactly(2))->method('read')->with('/project', 'skills-lock.json')->willReturn(null);
         $filesystem->expects(self::never())->method('create');
         $release = $this->release();
         $retargeted = array_replace($release, ['sha' => str_repeat('b', 40)]);
@@ -343,14 +357,11 @@ YAML;
             $release,
             $retargeted,
         );
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::exactly(2))->method('run')->with(
             '/project',
-            '.agents/skills',
-            false,
-            'install',
             true,
-        )->willReturn(['state' => 'absent']);
+        )->willReturn(['state' => 'planned', 'fingerprint' => 'skill-plan']);
         $installer = new ProjectInstaller($filesystem, $releases, $skills);
         $preview = $installer->run('/project', 'v0.2.0', [], true, true);
         $result = $installer->run(
@@ -379,16 +390,16 @@ YAML;
         $filesystem->method('read')->willReturn(null);
         $releases = $this->createStub(WorkflowReleaseResolverInterface::class);
         $releases->method('resolve')->willReturn($this->release());
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::exactly(2))->method('run')->willReturnOnConsecutiveCalls(
-            ['state' => 'absent'],
+            ['state' => 'planned', 'fingerprint' => 'skill-plan'],
             ['state' => 'unmanaged'],
         );
         $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
 
         self::assertSame($existing ? 'blocked' : 'partial', $result['state']);
         self::assertSame('unmanaged', $result['skill']['state']);
-        self::assertStringContainsString('ownership changed', $result['diagnostics'][0]);
+        self::assertStringContainsString('setup did not complete', $result['diagnostics'][0]);
     }
 
     /** Existing native copies remain untouched, including copies whose donor version has advanced. */
@@ -398,12 +409,9 @@ YAML;
         $filesystem = $this->createStub(InstallationFilesystemInterface::class);
         $filesystem->method('inspect')->willReturn($this->snapshot(['.github/workflows/custom.yml' => self::CALLER]));
         $filesystem->method('read')->willReturn('{"version":1,"skills":{"other":{}}}');
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::once())->method('run')->with(
             '/project',
-            '.agents/skills',
-            false,
-            'install',
             true,
         )->willReturn(
             ['state' => $state],
@@ -425,36 +433,6 @@ YAML;
     public static function nativeStates(): iterable
     {
         yield ['current'];
-        yield ['outdated'];
-        yield ['different'];
-    }
-
-    /** Third-party lock ownership is honored even if the skill directory is absent; invalid lock formats are preserved. */
-    #[DataProvider('foreignLocks')]
-    public function testForeignSkillLockBlocksBeforeAnyWrite(string $lock): void
-    {
-        $filesystem = $this->createMock(InstallationFilesystemInterface::class);
-        $filesystem->method('inspect')->willReturn($this->snapshot());
-        $filesystem->method('read')->willReturn($lock);
-        $filesystem->expects(self::never())->method('create');
-        $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
-        $releases->expects(self::never())->method('resolve');
-        $skills = $this->createMock(SkillInstallerInterface::class);
-        $skills->expects(self::never())->method('run');
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
-
-        self::assertSame('blocked', $result['state']);
-        self::assertSame('unmanaged', $result['skill']['state']);
-        self::assertNotEmpty($result['diagnostics']);
-    }
-
-    /** Provides current third-party ownership, malformed JSON and unsupported lock schemas. */
-    public static function foreignLocks(): iterable
-    {
-        yield ['{"version":1,"skills":{"fast-forward-changelog":{}}}'];
-        yield ['{'];
-        yield ['null'];
-        yield ['{}'];
     }
 
     /** Diverged native ownership prevents adoption rather than leaving a partially configured project. */
@@ -464,7 +442,7 @@ YAML;
         $filesystem->method('inspect')->willReturn($this->snapshot());
         $filesystem->method('read')->willReturn(null);
         $filesystem->expects(self::never())->method('create');
-        $skills = $this->createStub(SkillInstallerInterface::class);
+        $skills = $this->createStub(ProjectSkillInstallerInterface::class);
         $skills->method('run')->willReturn(['state' => 'diverged']);
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::never())->method('resolve');
@@ -486,20 +464,18 @@ YAML;
         $filesystem->method('read')->willReturn(null);
         $releases = $this->createStub(WorkflowReleaseResolverInterface::class);
         $releases->method('resolve')->willReturn($this->release());
-        $skills = $this->createMock(SkillInstallerInterface::class);
+        $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::exactly(2))->method('run')->willReturnCallback(
             static function (
                 string $cwd,
-                string $target = '.agents/skills',
-                bool $global = false,
-                string $mode = 'install',
                 bool $dryRun = false,
+                ?string $expectedFingerprint = null,
             ): array {
                 if (! $dryRun) {
                     throw new RuntimeException('disk full');
                 }
 
-                return ['state' => 'absent'];
+                return ['state' => 'planned', 'fingerprint' => 'skill-plan'];
             },
         );
         $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
@@ -601,7 +577,9 @@ YAML;
         $releases = $this->createStub(WorkflowReleaseResolverInterface::class);
         $releases->method('resolve')->willReturn($release);
 
-        return new ProjectInstaller($filesystem, $releases, $this->createStub(SkillInstallerInterface::class))->run(
+        return new ProjectInstaller($filesystem, $releases, $this->createStub(
+            ProjectSkillInstallerInterface::class,
+        ))->run(
             '/project',
             null,
             $settings,
