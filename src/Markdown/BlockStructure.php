@@ -45,15 +45,21 @@ final class BlockStructure
     }
 
     /**
-     * Reuses an authored list or adds the existing outer item for prose and standalone fenced blocks.
+     * Aligns an authored list with sibling release entries or wraps prose and standalone fenced blocks.
      *
-     * @param  string $description Authored Markdown whose marker/content bytes remain unchanged after unwrapping.
+     * Only a principal list's optional outer indentation is removed; relative nesting and content remain intact.
+     * The stored description is never changed by this presentation step.
+     *
+     * @param  string $description Authored Markdown whose effective release-entry layout is required.
      * @return string Effective release-entry Markdown, shared with validation so fence positions cannot diverge.
      */
     public static function wrapDescription(string $description): string
     {
-        if (null !== self::listItem(explode("\n", $description, 2)[0])) {
-            return $description;
+        $item = self::listItem(explode("\n", $description, 2)[0]);
+
+        if (null !== $item) {
+            return 0 === $item['indent'] ? $description
+                : preg_replace('/^ {1,' . $item['indent'] . '}/m', '', $description);
         }
         $fenced = str_contains($description, "\n")
             && 1 === preg_match('/\A {0,3}(`{3,}|~{3,})([^\n]*)/', $description, $matches)
@@ -102,9 +108,7 @@ final class BlockStructure
             }
         }
         $base = [] === $containers ? 0 : array_last($containers);
-        $item = self::listItem(substr($line, $base));
-
-        if (null !== $item) {
+        while (null !== ($item = self::listItem(substr($line, $base)))) {
             $containers[] = $base + $item['contentIndent'];
             $base = array_last($containers);
         }
@@ -121,7 +125,32 @@ final class BlockStructure
     }
 
     /**
-     * Detects an HTML comment left open outside fenced code and complete backtick spans.
+     * Requires every new fragment fence to have an explicit closer before its containing item ends.
+     *
+     * Existing history may end a fence by ending its list container. New fragments cannot rely on that implicit
+     * boundary because consolidation may insert a delivery-reference paragraph before the following item.
+     *
+     * @param  string $description Authored fragment inspected in its actual release-entry layout.
+     * @return bool   Whether a fence lacks an explicit closing delimiter within its original container.
+     */
+    public static function hasUnclosedFence(string $description): bool
+    {
+        $fence = null;
+        $containers = [];
+
+        foreach (explode("\n", self::wrapDescription($description)) as $line) {
+            if (null !== $fence && $fence['padding'] > 0 && '' !== trim($line)
+                && strspn(self::expandTabs($line), ' ') < $fence['padding']) {
+                return true;
+            }
+            self::outsideFence($line, $fence, $containers);
+        }
+
+        return null !== $fence;
+    }
+
+    /**
+     * Detects an HTML comment left open outside code blocks and complete backtick spans.
      *
      * Comments retain precedence over fence-looking text until their closing delimiter. This is a safety check,
      * not an HTML parser: its purpose is preventing a later delivery-reference paragraph from being hidden.
@@ -136,14 +165,30 @@ final class BlockStructure
         $comment = false;
         $span = null;
         $offset = 0;
+        $paragraph = false;
 
         foreach (explode("\n", $description) as $line) {
             $start = $offset;
             $offset += strlen($line) + 1;
 
-            if (! $comment && null === $span && ! self::outsideFence($line, $fence, $containers)) {
-                continue;
+            if (! $comment && null === $span) {
+                if (! self::outsideFence($line, $fence, $containers)) {
+                    $paragraph = false;
+
+                    continue;
+                }
+                $expanded = self::expandTabs($line);
+                $base = [] === $containers ? 0 : array_last($containers);
+                $startsItem = strspn($expanded, ' ') < $base;
+                $content = substr($expanded, min($base, strlen($expanded)));
+
+                if ((! $paragraph || $startsItem) && strspn($content, ' ') >= 4) {
+                    $paragraph = false;
+
+                    continue;
+                }
             }
+            $paragraph = '' !== trim($line);
             preg_match_all('/`+|<!--|-->/', $line, $delimiters, PREG_OFFSET_CAPTURE);
 
             foreach ($delimiters[0] as [$delimiter, $position]) {

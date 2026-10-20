@@ -47,16 +47,22 @@ remain indented within their list item without adding spaces to empty separators
 authored Markdown hard breaks remain unchanged.
 
 Descriptions that begin with a Markdown list keep their own `-`, `*`, `+` or
-ordered markers, indentation and nested content. The renderer does not add a
+ordered markers and relative nesting. Up to three leading spaces that indent
+the whole authored list are removed when rendering, so its entries cannot become
+children of an unrelated fragment. Stored fragment descriptions stay unchanged.
+The renderer does not add a
 second outer bullet. With a PR or issue reference, each single-line principal
 item receives the same inline reference. A multiline item keeps its reference
 in an indented paragraph after its content, outside code spans, HTML comments
 and fenced examples; nested content retains its authored bytes. Ordered lists
 are separated from surrounding fragments so their starting number stays a list.
-Descriptions without references preserve their authored list bytes exactly.
+The same outer-indentation adjustment applies to lists without references.
 
-Validation rejects an opening code fence or HTML comment that would remain
-unclosed at the end of a fragment. In existing history, a list-contained fence
+New fragments require an explicit closing delimiter for every code fence,
+including fences that Markdown could end implicitly at the next list item.
+Validation also rejects HTML comments left open outside code blocks or complete
+inline code spans. Direct rendering refuses to add references to unclosed
+fences or comments. In existing history, a list-contained fence
 ends when its container ends, so a dedented release heading remains visible.
 Leading indentation and continuation paragraphs retain the same list-content
 boundary during validation, rendering and historical parsing.

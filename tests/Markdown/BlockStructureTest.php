@@ -28,6 +28,7 @@ final class BlockStructureTest extends TestCase
 
     /** Validation examines exactly the wrapper used for real rendering, including single-line fence openers. */
     #[TestWith(['- Text', '- Text'])]
+    #[TestWith(["  - Parent.  \n    - Child.\n\n    Continuation.", "- Parent.  \n  - Child.\n\n  Continuation."])]
     #[TestWith(['Text', '- Text'])]
     #[TestWith(["Text\n\nNext.", "- Text\n\n  Next."])]
     #[TestWith(["```php\ncode();\n```", "-\n  ```php\n  code();\n  ```"])]
@@ -71,6 +72,30 @@ final class BlockStructureTest extends TestCase
         self::assertSame([2], $containers);
     }
 
+    /** Same-line list containers contribute every content column before recognizing their nested fence. */
+    public function testConsecutiveListMarkersCanOpenAFence(): void
+    {
+        $fence = null;
+        $containers = [];
+        self::assertFalse(BlockStructure::outsideFence('- - ```php', $fence, $containers));
+        self::assertSame([2, 4], $containers);
+        self::assertSame(4, $fence['padding']);
+        self::assertFalse(BlockStructure::outsideFence('    code();', $fence, $containers));
+        self::assertFalse(BlockStructure::outsideFence('    ```', $fence, $containers));
+        self::assertNull($fence);
+    }
+
+    /** New fragments need explicit closers even when historical Markdown permits an implicit item boundary. */
+    #[TestWith(["- ```text\n  example\n- Next.", true])]
+    #[TestWith(["- ```text\n  example\n  ```\n- Next.", false])]
+    #[TestWith(["- - ```text\n    example\n    ```", false])]
+    #[TestWith(["```text\nexample", true])]
+    #[TestWith(["Description.\n\n    ```literal", false])]
+    public function testNewFragmentFenceRequiresExplicitClosure(string $description, bool $expected): void
+    {
+        self::assertSame($expected, BlockStructure::hasUnclosedFence($description));
+    }
+
     /** A root-level fence remains active across unindented headings until its actual closing delimiter. */
     public function testRootFenceDoesNotEndOnAnOrdinaryDedent(): void
     {
@@ -88,6 +113,14 @@ final class BlockStructureTest extends TestCase
     #[TestWith(['Use `<!--` literally.', false])]
     #[TestWith(["Use `<!--\ncontinued` literally.", false])]
     #[TestWith(["~~~html\n<!-- literal\n~~~", false])]
+    #[TestWith(["Description.\n\n    <!-- literal", false])]
+    #[TestWith(["- Description.\n\n      <!-- literal", false])]
+    #[TestWith(["-     <!-- literal", false])]
+    #[TestWith(["    Code.\n    <!-- literal", false])]
+    #[TestWith(["Description.\n\n\t<!-- literal", false])]
+    #[TestWith(["Description.\n    <!-- open", true])]
+    #[TestWith(["Description.\n    - <!-- open", true])]
+    #[TestWith(["    Code.\n<!-- open", true])]
     #[TestWith(["Text <!--\n~~~html\n--> Visible.", false])]
     #[TestWith(['\\<!-- literal', false])]
     #[TestWith(['\\\\<!-- open', true])]

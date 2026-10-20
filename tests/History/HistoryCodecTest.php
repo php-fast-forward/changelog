@@ -73,6 +73,7 @@ final class HistoryCodecTest extends TestCase
     /** List-container fences preserve literal release-looking headings through new rendering and later parsing. */
     #[Test]
     #[TestWith(['- ', '  ', '```'])]
+    #[TestWith(['- - ', '    ', '```'])]
     #[TestWith(['1. ', '   ', '~~~'])]
     #[TestWith(['12345) ', '       ', '```'])]
     public function authoredListFencesRemainSafeAcrossNewReleaseRendering(
@@ -129,6 +130,21 @@ final class HistoryCodecTest extends TestCase
         $markdown = $codec->render($document, $template);
 
         self::assertStringContainsString($notes, $markdown);
+    }
+
+    /** Published examples with same-line nested list markers stay byte-identical during explicit formatting. */
+    public function testHistoricalNestedSameLineFenceRoundTripsExactly(): void
+    {
+        $markdown = "## [2.0.0]\n\n- - ```php\n    code();\n    ```\n\n## [1.0.0]\n\n- Previous release.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
     }
 
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */

@@ -29,14 +29,14 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * Renders descriptions and references without leaking technical fragment metadata.
      * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
      * Prose starts beside its list marker; an opening fence keeps its existing block wrapper for history parsing.
-     * A description beginning with a Markdown list retains its own markers and nesting instead of gaining a wrapper.
+     * An authored Markdown list keeps its markers and relative nesting, aligned with the other release entries.
      *
      * @param list<Changeset>   $changesets independent author records
      * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
      * @param string|null       $repository Optional GitHub owner/name used for source selection and reference links.
      *
      * @return string                   Deterministically category-grouped release body preserving authored descriptions and optional references.
-     * @throws InvalidArgumentException When an unclosed HTML comment would hide a list item's delivery references.
+     * @throws InvalidArgumentException When an unclosed fence or HTML comment would hide delivery references.
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
     {
@@ -50,17 +50,23 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                     continue;
                 }
                 $references = $this->references($change, $repository);
+
+                if ('' !== $references && BlockStructure::hasUnclosedFence($change->description)) {
+                    throw new InvalidArgumentException(
+                        'A fragment code fence needs an explicit closing delimiter before delivery references can be added.',
+                    );
+                }
+                $body = BlockStructure::wrapDescription($change->description);
                 $list = BlockStructure::listItem(explode("\n", $change->description, 2)[0]);
 
                 if (null !== $list) {
-                    $entry = $this->authoredList($change->description, $references, $list['indent']);
+                    $entry = $this->authoredList($body, $references, 0);
                     $entries[] = ([] !== $entries && ($list['ordered'] || $previousOrdered) ? "\n" : '') . $entry;
                     $previousOrdered = $list['ordered'];
 
                     continue;
                 }
                 $multiline = str_contains($change->description, "\n");
-                $body = BlockStructure::wrapDescription($change->description);
                 $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = ($previousOrdered ? "\n" : '') . $body . $suffix;
                 $previousOrdered = false;
@@ -117,10 +123,10 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     /**
      * Adds an inline reference to a single-line item or a separate paragraph after a multiline item's constructs.
      *
-     * @param  list<string>             $lines      Exact item lines, including nested content and authored trailing whitespace.
+     * @param  list<string>             $lines      Item lines after outer-indent alignment, retaining relative nesting and authored trailing whitespace.
      * @param  int                      $padding    Content columns used to keep the reference paragraph within its list item.
      * @param  string                   $references Already rendered delivery metadata for this item's fragment.
-     * @return string                   Original item bytes with visible reference content added outside its inline constructs.
+     * @return string                   Aligned item content with visible references added outside its inline constructs.
      * @throws InvalidArgumentException When an unclosed HTML comment would swallow the reference.
      */
     private function listReference(array $lines, int $padding, string $references): string

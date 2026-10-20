@@ -278,7 +278,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Fragment body must contain non-comment Markdown text.';
         }
 
-        if ($this->hasUnclosedReleaseFence($description)) {
+        if (BlockStructure::hasUnclosedFence($description)) {
             $errors[] = 'Fragment code fences must close before the end of their rendered release entry.';
         }
 
@@ -287,28 +287,6 @@ final readonly class ChangesetParser implements ChangesetParserInterface
         }
 
         return $description;
-    }
-
-    /**
-     * Rejects fences that would hide following release structure after list wrapping.
-     * Prose receives two spaces per line; an authored list retains its own container padding.
-     * Match the history codec at the effective rendering indentation without changing bytes,
-     * rejecting deeper indented examples or treating ordinary inline backticks as fences.
-     *
-     * @param string $description Validated Markdown description whose meaningful whitespace is retained.
-     *
-     * @return bool Whether the list-wrapped description would leave a structural code fence open across later release content.
-     */
-    private function hasUnclosedReleaseFence(string $description): bool
-    {
-        $fence = null;
-        $containers = [];
-
-        foreach (explode("\n", BlockStructure::wrapDescription($description)) as $line) {
-            BlockStructure::outsideFence($line, $fence, $containers);
-        }
-
-        return null !== $fence;
     }
 
     /**

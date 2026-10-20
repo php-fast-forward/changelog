@@ -222,11 +222,10 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertStringNotContainsString("\n\n  ([#", $notes);
     }
 
-    /** Authored lists without metadata preserve every byte, including nested lists, paragraphs and code examples. */
+    /** Authored lists without metadata preserve relative nesting, paragraphs and code examples. */
     #[TestWith(["- Parent item\n  - Nested child\n\nAfter the nested list."])]
     #[TestWith(["- Parent item\n\n  ```md\n  - Literal bullet\n  ```\n- Second item."])]
     #[TestWith(["- Parent item\n  continuation with hard break.  \n\n  Another paragraph.\n- Last item."])]
-    #[TestWith(["  - First item.\n  - Second item."])]
     public function testAuthoredListsWithoutReferencesArePreservedExactly(string $description): void
     {
         $template = $this->createStub(TemplateInterface::class);
@@ -268,7 +267,11 @@ final class ReleaseNotesRendererTest extends TestCase
     ])]
     #[TestWith([
         "  - First item.\r\n  - Second item.",
-        "  - First item. ({ref})\r\n  - Second item. ({ref})",
+        "- First item. ({ref})\r\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "  - Parent.\n    - Child.\n\n    Another paragraph.\n  - Second.",
+        "- Parent.\n  - Child.\n\n  Another paragraph.\n\n  ({ref})\n- Second. ({ref})",
     ])]
     public function testListReferencesRespectNestedBlocksAndAuthoredWhitespace(
         string $description,
@@ -315,6 +318,31 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('a.md', Category::Added, null, null, null, 'First.'),
             new Changeset('b.md', Category::Added, null, null, null, "2. Second.\n3. Third."),
         ], $template));
+    }
+
+    /** Leading presentation indentation cannot attach independent fragments to an earlier item's children. */
+    public function testIndentedAuthoredListRemainsIndependentOfEarlierProse(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- First.\n- Second.\n- Third.\n", new ReleaseNotesRenderer()->render([
+            new Changeset('a.md', Category::Added, null, null, null, 'First.'),
+            new Changeset('b.md', Category::Added, null, null, null, "  - Second.\n  - Third."),
+        ], $template));
+    }
+
+    /** A direct caller cannot put delivery references inside a fence lacking an explicit closing delimiter. */
+    public function testImplicitlyClosedListFenceCannotHideReferences(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('explicit closing delimiter');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, "- ```text\n  example\n- Next item."),
+        ], $template);
     }
 
     /** A later fence-first item owns its own reference rather than being absorbed by the preceding prose item. */
