@@ -9,13 +9,13 @@ or current behavior from an older installed skill.
 
 ## Execute the selected CLI
 
-Run from the application's directory. Use the unversioned package command so
-these instructions remain useful across compatible CLI releases:
+Run from the application's directory. `CHANGELOG_VERSION` is the verified exact
+numeric product version, not a range frozen into this skill:
 
 ```sh
-cpx --skip-local fast-forward/changelog list --raw
-cpx --skip-local fast-forward/changelog help status
-cpx --skip-local fast-forward/changelog help version
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help status
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help version
 ```
 
 CPX keeps tool dependencies separate from the application's Composer project;
@@ -35,8 +35,8 @@ instruction installation and host-session activation remain separate results.
 For releases offering these arguments, inspect the read-only plan first:
 
 ```sh
-cpx --skip-local fast-forward/changelog status --json --source=tags --no-interaction
-cpx --skip-local fast-forward/changelog version --dry-run --source=tags --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags --no-interaction
 ```
 
 Review the baseline/current/next version, effective impact, accepted fragment

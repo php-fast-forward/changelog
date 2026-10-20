@@ -10,12 +10,12 @@ Git repository; CPX keeps the CLI dependencies outside the application. No
 
 ## Choose the release and inspect help
 
-Use the stable CLI through CPX and inspect its help before setup. The installer
-independently discovers and previews a published, pinned workflow reference:
+Select a published stable release and set `CHANGELOG_VERSION` to its complete
+numeric version, without `v`. Check that version's help before setup:
 
 ```sh
-cpx --skip-local fast-forward/changelog help install
-cpx --skip-local fast-forward/changelog install
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help install
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install
 ```
 
 If the selected release does not offer `install`, follow the
@@ -75,14 +75,14 @@ Preview both components without creating directories, acquiring installation
 locks or writing files:
 
 ```sh
-cpx --skip-local fast-forward/changelog install \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
   --dry-run --json
 ```
 
 Apply deliberate unattended choices:
 
 ```sh
-cpx --skip-local fast-forward/changelog install \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
   --yes --no-interaction --base-branch=main --publish=true --no-skill \
   --set=comment-mode=on-failure
 ```

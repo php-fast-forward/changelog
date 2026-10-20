@@ -22,16 +22,15 @@ approval.
 ## Select the real contract
 
 1. Read application instructions, Git status and its existing changelog setup.
-   Use its reviewed workflow version for an ordinary task; do not upgrade it incidentally.
+   Use its reviewed version for an ordinary task; do not upgrade it incidentally.
    If its ref is a moving channel, resolve the current commit and corresponding
-   published full tag before inspecting the workflow contract. `v0` is not Composer `0`.
+   published full tag before selecting a local runtime. `v0` is not Composer `0`.
 2. For new adoption or a requested update, discover the latest published stable
    release in the [official repository](https://github.com/php-fast-forward/changelog/releases).
    Confirm the complete release tag and its commit, exclude drafts/prereleases,
-   and respect any explicitly selected maintenance line. For PHP integration,
+   and respect any explicitly selected maintenance line. For CPX or PHP use,
    confirm the same version is available on
-   [Packagist](https://packagist.org/packages/fast-forward/changelog). Local CPX
-   commands use the available stable CLI independently of the workflow pin.
+   [Packagist](https://packagist.org/packages/fast-forward/changelog).
 3. Read that tag's README and relevant documentation, not `main` or an old copy
    of this skill. Before adding a workflow, inspect its
    `resources/workflows/changelog.yml`, companion README and the reusable workflow
@@ -52,14 +51,13 @@ approval.
    validation-only trial must choose `publish: false` explicitly. Installation must
    not publish anything. Preserve an existing caller, its pin and settings;
    migration or upgrades need their own task scope.
-4. For local CLI work, use the unversioned package command below. CPX resolves
-   the available stable CLI independently of the workflow's pinned version.
-   Discover commands and inspect their arguments:
+4. For local CLI work, set `CHANGELOG_VERSION` to the verified exact numeric
+   release, without the tag's `v`. Discover commands and inspect their arguments:
 
    ```sh
-   cpx --skip-local fast-forward/changelog list --raw
-   cpx --skip-local fast-forward/changelog help add
-   cpx --skip-local fast-forward/changelog help check
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help check
    ```
 
    Use [CPX's official setup](https://github.com/laravel/cpx) when installation is
@@ -108,8 +106,8 @@ After help confirms these arguments, the CLI can create and validate that note
 from the application directory instead of writing the example manually:
 
 ```sh
-cpx --skip-local fast-forward/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
 ```
 
 Verify that exactly one intended fragment was created and central history stayed
@@ -119,7 +117,7 @@ fetch the intended baseline under existing authority, then use its supported
 comparison option, for example:
 
 ```sh
-cpx --skip-local fast-forward/changelog check --since=origin/main --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --since=origin/main --no-interaction
 ```
 
 That comparison requires committed contribution changes. A local uncommitted

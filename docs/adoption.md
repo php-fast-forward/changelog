@@ -54,15 +54,16 @@ CLI in a separate installation; the application does not need to require
 `fast-forward/changelog`. Put `--skip-local` before the package to select that
 copy instead of a matching project-local executable.
 
-Run from the project you want to maintain. The unversioned package command lets
-CPX resolve the available stable CLI; inspect its help before choosing options:
+Select the application's reviewed release, or a published stable version for new
+adoption, and set `CHANGELOG_VERSION` to that numeric version. From the project
+you want to maintain:
 
 ```sh
-cpx --skip-local fast-forward/changelog list --raw
-cpx --skip-local fast-forward/changelog help add
-cpx --skip-local fast-forward/changelog add \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
 ```
 
 The first command lists the available commands. `help add` explains authoring.
@@ -76,7 +77,7 @@ and diagnostics.
 Run from another directory by passing the CLI's `--cwd` after the package:
 
 ```sh
-cpx --skip-local fast-forward/changelog check \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
   --cwd=/path/to/project --no-interaction
 ```
 
@@ -84,7 +85,7 @@ After committing the contribution and fetching the intended baseline, compare
 its committed changes with:
 
 ```sh
-cpx --skip-local fast-forward/changelog check \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
   --since=origin/main --no-interaction
 ```
 
@@ -101,8 +102,8 @@ the global binary path; the command arguments are the same.
 ## Preview a release
 
 ```sh
-cpx --skip-local fast-forward/changelog status --json --source=tags
-cpx --skip-local fast-forward/changelog version --dry-run --source=tags
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags
 ```
 
 Both calls are read-only. Review the current/next version, effective impact,
