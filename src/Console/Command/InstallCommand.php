@@ -18,7 +18,7 @@ use Throwable;
 /** Guides explicit project setup while leaving existing workflows and skill ownership intact. */
 #[AsCommand(
     name: 'install',
-    description: 'Configure the GitHub workflow and optionally install the bundled agent skill.',
+    description: 'Configure the GitHub workflow and optionally set up Composer-managed agent skills.',
     help: 'Run from the consumer project, including via CPX. The assistant explains publication, previews a new caller and asks before writing. Existing integrations are preserved. --yes permits noninteractive application with automatic publication and the project skill by default; --no-skill skips the skill. --publish=true|false selects publication explicitly. --set=name=value accepts a repeatable reusable-workflow input. Defaults are read from the selected published full tag; --ref is required from a development runtime. --dry-run writes nothing and --json emits only structured output without prompts. No Composer hooks, commits, pushes, workflow runs, tags or releases are created.',
 )]
 final readonly class InstallCommand
@@ -43,7 +43,7 @@ final readonly class InstallCommand
      * @param  ?string        $publish    Explicit true or false; null uses the explained automatic-publication choice.
      * @param  bool           $noSkill    Skip the optional project skill without affecting existing installations.
      * @param  array<string>  $settings   Repeatable name=value overrides for the selected reusable contract.
-     * @param  bool           $yes        Confirm application without a final prompt; never permits replacement of existing files.
+     * @param  bool           $yes        Confirm displayed workflow/metadata/Composer changes without a final prompt; existing policy remains authoritative.
      * @param  bool           $dryRun     Inspect and render without local writes, locks or skill installation.
      * @param  bool           $json       Emit only structured output with no interactive prompts.
      * @return int            Success for a completed/existing/allowed preview, invalid for missing confirmation or input, otherwise failure.
@@ -70,7 +70,7 @@ final readonly class InstallCommand
         #[Option(name: 'set', description: 'Reusable workflow override as name=value; repeat for multiple inputs.')]
         array $settings = [],
 
-        #[Option(description: 'Confirm the displayed plan; never overwrite existing files.', shortcut: 'y')]
+        #[Option(description: 'Confirm the displayed workflow, metadata changes and Composer commands.', shortcut: 'y')]
         bool $yes = false,
 
         #[Option(description: 'Preview without writing files or installing the skill.', shortcut: 'd')]
@@ -99,9 +99,9 @@ final readonly class InstallCommand
             }
             if ($interactive && ! $noSkill && 'conflict' !== $inspection['state']) {
                 $io->note(
-                    'The optional skill provides instructions for agents. Installation records its version and integrity locally; it does not activate an agent or update foreign copies.',
+                    'The optional skill uses llm/skills as a Composer dev dependency and a GitHub source in skills.json. Setup uses a verified independent manager without activating consumer plugins or adding plugin approval. Future Composer auto-sync requires explicit approval of a trusted installation. Foreign or native copies require an explicit migration.',
                 );
-                $skill = $io->confirm('Install the project skill in .agents/skills?', true);
+                $skill = $io->confirm('Set up the project skill with llm/skills?', true);
             }
             $plan = $this->installer->run($cwd, $ref, $choices, $skill, true);
             if (! $json) {
@@ -110,7 +110,7 @@ final readonly class InstallCommand
             $exit = in_array($plan['state'], ['blocked', 'partial'], true) ? Command::FAILURE : Command::SUCCESS;
             if (! $dryRun && Command::SUCCESS === $exit) {
                 if (! $yes && (! $interactive || ! $io->confirm(
-                    'Apply this plan without replacing existing configuration?',
+                    'Apply the displayed workflow, metadata changes and Composer commands?',
                     false,
                 ))) {
                     if ($json) {
@@ -136,6 +136,7 @@ final readonly class InstallCommand
                     $skill,
                     false,
                     hash('sha256', json_encode($plan['workflow'], JSON_THROW_ON_ERROR)),
+                    $skill ? ($plan['skill']['fingerprint'] ?? null) : null,
                 );
                 $exit = in_array($plan['state'], ['blocked', 'partial'], true) ? Command::FAILURE : Command::SUCCESS;
                 if (! $json) {
@@ -253,7 +254,7 @@ final readonly class InstallCommand
     }
 
     /**
-     * Shows exact proposed YAML and qualified local skill provenance without claiming host activation.
+     * Shows exact proposed YAML, metadata paths and structured Composer commands before confirmation.
      *
      * @param  SymfonyStyle        $io   Human output interface with escaping for consumer-controlled values.
      * @param  array<string,mixed> $plan Structured preview or result with independent component states.
@@ -270,9 +271,23 @@ final readonly class InstallCommand
         $skill = $plan['skill'] ?? null;
         if (is_array($skill)) {
             $io->writeln(OutputFormatter::escape(
-                'Skill: ' . $skill['state'] . '; installed: ' . ($skill['installed_source']['version'] ?? 'unknown/absent')
-                . '; bundled: ' . ($skill['source']['version'] ?? 'unknown'),
+                'Skill: ' . $skill['state'] . '; manager: ' . $skill['manager']
+                . '; source: ' . $skill['source'] . '; target: ' . $skill['target'],
             ));
+            foreach ($skill['changes'] ?? [] as $path) {
+                $io->writeln(OutputFormatter::escape('Metadata: ' . $path));
+            }
+            foreach ($skill['commands'] ?? [] as $command) {
+                $io->writeln(
+                    OutputFormatter::escape('Command arguments: ' . json_encode(
+                        $command,
+                        JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+                    )),
+                );
+            }
+            foreach ($skill['diagnostics'] ?? [] as $diagnostic) {
+                $io->writeln(OutputFormatter::escape($diagnostic));
+            }
         }
         foreach ($plan['diagnostics'] as $diagnostic) {
             $io->writeln(OutputFormatter::escape($diagnostic));

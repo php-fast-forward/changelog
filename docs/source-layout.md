@@ -27,11 +27,11 @@ verify that structural contract.
 | `Git` | Repository observations and exact Git command results needed by changelog services. |
 | `GitHub` | Authenticated GitHub API adaptation with bounded complete evidence and controlled diagnostics. |
 | `History` | Maintained Markdown, release values and historical import. |
-| `Installation` | Explicit project setup, verified published workflow contracts and create-only caller writes; preserves existing integrations and delegates skill ownership to `Skill`. |
+| `Installation` | Explicit project setup, verified published workflow contracts and create-only caller writes; manages the default llm/skills GitHub setup while preserving existing integrations and skill owners. |
 | `Process` | Structured process construction and credential isolation, independent of Git command semantics. |
 | `Publication` | Approved-commit publication evidence and create-only tag/release reconciliation. |
 | `Release` | Exact plans, receipts, journals, consolidation and application; `Renderer` owns release-note presentation. |
-| `Skill` | Local installation, integrity checks and explicit updates of the one canonical bundled skill; native ownership and recovery evidence, without remote discovery. |
+| `Skill` | Legacy native installation, integrity checks and explicit updates of the canonical bundled skill; native ownership and recovery evidence, without remote discovery or takeover of manager-owned copies. |
 | `Template` | Validated localized headings and explicit custom presentation. |
 | `Validation` | Contribution-check orchestration and its aggregate report. |
 | `Validator` | Changelog-specific date, fragment and committed-evidence rules. |
@@ -53,6 +53,28 @@ Direct PHP construction of `Release\ReleasePlanner` and
 `Release\Reference\PullRequestReferenceResolverInterface` collaborator before
 their optional arguments. Consumers constructing these services manually must
 supply it; consumers using `ChangelogServiceProvider` need no wiring change.
+
+## Project setup skill management
+
+Direct construction of `Installation\ProjectInstaller` takes
+`Installation\ProjectSkillInstallerInterface` as its third collaborator, rather
+than the legacy `Skill\SkillInstallerInterface`. The standard provider supplies
+`Installation\ComposerSkillInstaller`; applications composing it manually must
+update that argument. The project operation can also bind application to its
+reviewed skill-plan fingerprint through the optional `expectedSkill` argument.
+
+Direct construction of `Installation\ComposerSkillInstaller` also requires a
+`Installation\SkillManagerRuntimeInterface` collaborator. The standard provider
+uses `VerifiedSkillManagerRuntime`, whose trusted composition selects anonymous
+HTTP transport, temporary storage and the fixed official PHAR digest. Project
+metadata cannot select its executable or integrity anchor. Composer dependency
+operations disable plugins/scripts; skill synchronization never loads consumer
+autoloaders and does not add a Composer plugin approval.
+
+`Skill\SkillInstallerInterface` remains the native copy/check/update contract for
+existing receipts. It does not become an llm/skills adapter or adopt another
+manager's metadata. See [project setup](project-installation.md) and
+[skill ownership](skills.md).
 
 ## PHP API migration
 

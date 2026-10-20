@@ -23,8 +23,10 @@ documented confirmation option. For a new caller, select the published release
 through that command's supported release option; its installer can pin `uses`
 to the verified commit and retain the version as a readable comment. Confirm
 both identities in the preview. Preserve the selected pin of an existing caller.
-The workflow and bundled skill may have separate
-provenance: a workflow ref does not change the executing CLI's instructions.
+The workflow and installed instructions have separate source selections: a
+workflow ref does not rewrite `skills.json` or upgrade an existing skill. The
+default project route manages the GitHub donor through llm/skills; keep another
+owner's copy under that owner's procedure.
 
 For manual setup, copy the caller into the application's `.github/workflows/`, review its events,
 inputs and effective permissions, then set its product references to the selected

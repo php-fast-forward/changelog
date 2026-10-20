@@ -125,17 +125,25 @@ is an alternative with its own PHP runtime.
 
 ## 🧠 Agent skill
 
-The [project installer](docs/project-installation.md) offers the bundled skill
-with native version and integrity tracking. Alternatively, use [Skills CLI](docs/skills.md):
+Manage project instructions from GitHub with [llm/skills](docs/skills.md):
 
 ```sh
-npx skills add php-fast-forward/changelog --skill fast-forward-changelog
+composer require --dev llm/skills
+composer skills:init
+composer skills:add php-fast-forward/changelog
 ```
 
-NPX Skills and the native installer manage their own copies and metadata; choose
-one owner per copy. The [skill](resources/skills/fast-forward-changelog/SKILL.md)
-consults the selected release's help and documentation. See [scope and updates](docs/skills.md)
-for installation and agent activation, or [optional Composer synchronization](docs/composer-skills.md).
+Approve only the intended Composer plugin. Version `skills.json` and the intended
+manifest/lock changes under the project's policy; ignore the generated `.agents/`
+directory and exclude it from archives. With auto-sync enabled,
+`composer install` reconstructs the instructions.
+The Changelog package is not a project dependency for this route.
+
+The [project installer](docs/project-installation.md) offers the same setup.
+The [skill guide](docs/skills.md) explains ownership, updates, NPX as an optional
+alternative and legacy native copies. Installing instructions does not activate
+an agent session; the [skill](resources/skills/fast-forward-changelog/SKILL.md)
+consults the selected runtime's help and documentation.
 
 ## 🔌 Further integration
 

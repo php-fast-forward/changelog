@@ -1,27 +1,15 @@
-# Optional Composer skill synchronization
+# Composer skill sources and lifecycle
 
-Use this route when Composer already manages your project's skills. For native
-Changelog CLI management without an application dependency, or installation
-through NPX Skills, use the [skill installation guide](skills.md) instead.
+Follow [first installation](skills.md) for the minimal project route. The
+development dependency is `llm/skills`; the instructions come from the
+`php-fast-forward/changelog` GitHub source. The application does not need the
+Changelog runtime dependency. The manager's plugin approval and Composer
+requirements are separate from running Changelog through CPX.
 
-`fast-forward/changelog` ships the complete
-`resources/skills/fast-forward-changelog` package. It declares
-`extra.skills.source: resources/skills` and suggests `llm/skills` while retaining
-its `library` type, normal vendor path and CLI binary. The suggestion does not
-install or approve a plugin. The optional consumer tool is `llm/skills ^1.15`;
-keep it out of production runtime requirements.
+## Review the source policy
 
-Keep each copy under one installer's ownership. `skills.json`, NPX
-`skills-lock.json` and Changelog's native receipt have different formats and
-update behavior; native management does not read or rewrite the other tools'
-state. Changing owners requires an explicit migration, not a second sync over
-the same directory.
-
-## Prepare narrow project trust before first sync
-
-Install the product at the separately selected compatible release/reviewed
-revision. In an authorized consumer prepare `skills.json` **before** enabling or
-installing the plugin:
+`skills.json` owns target, sources and synchronization. The guided Changelog
+installer uses a narrow GitHub-only configuration for a new project:
 
 ```json
 {
@@ -30,41 +18,43 @@ installing the plugin:
   "discovery": false,
   "auto-sync": true,
   "vendor-sources": false,
-  "dependencies": {
-    "composer": {
-      "trusted": ["fast-forward/changelog"],
-      "trusted-replace": true
+  "dependencies": {"composer": false},
+  "sources": [
+    {
+      "from": "github",
+      "package": "php-fast-forward/changelog",
+      "skills": ["fast-forward-changelog"]
     }
-  }
+  ]
 }
 ```
 
-Merge these values with existing configuration; preserve intentional aliases,
-other dependencies and plugin approvals. The target is project scope by default.
-`trusted-replace` replaces implicit dependency trust; `discovery:false` and
-`vendor-sources:false` limit sources. Trusting `fast-forward/*` is a deliberate
-broader choice. `aliases:[]` requests no extra host-directory links; a consumer
-may select `.claude/skills` directly when that is its verified discovery root.
+This example shows the source policy; inspect and retain the actual `ref` written
+by `skills:add` for the selected release. Do not replace an existing manifest
+wholesale. `dependencies.composer:false` disables installed-package donor
+discovery; `vendor-sources:false` ignores remote sources advertised by vendor
+packages. Explicit project `sources` are trusted by declaration. `aliases:[]`
+creates no additional host-directory links.
 
-With existing authority to install and execute this Composer plugin:
+An interactive `skills:init` can choose different project settings. Preserve
+deliberate sources, trust and aliases. The GitHub route is independent of the
+library's optional Composer donor metadata (`extra.skills.source` and the
+`llm/skills` suggestion); a suggestion neither installs nor approves a plugin.
 
-```sh
-composer config allow-plugins.llm/skills true
-composer require --dev 'llm/skills:^1.15'
-composer skills:show
-```
+For a selected source, inspect the manager's current help for `--ref` and
+`--skill` before changing policy. A compatible version range may advance when
+synced; an exact reviewed tag or commit fixes the requested source more narrowly.
+`composer.lock` fixes the manager/dependency graph, not the content behind a
+moving GitHub ref.
 
-Root plugin approval executes third-party code; the donor cannot grant it for
-the application. Noninteractive approval must already be explicit. Normal
-approved install/update then synchronizes trusted installed donors without an
-extra post-install hook. Inspect the report and compare the complete target
-`.agents/skills/fast-forward-changelog` to its donor. Commit intended manifest,
-lockfile and `skills.json` changes according to the consumer's policy.
+Guided Changelog setup supports stable llm/skills `1.x` from `1.15.0`, adding
+`^1.15` only for a new dependency. It preserves existing requirements and checks
+lock/installed metadata. Without that evidence, unsupported or ambiguous
+constraints require owner review before setup continues. Its source must use
+the canonical GitHub host; an explicit `github.com` host is preserved when
+delegating commands. Other source hosts remain for manual manager review.
 
-## Explicit mode and suppression
-
-For deliberate manual sync set `auto-sync:false` before plugin installation.
-Then inspect and apply only the selected donor:
+## Inspect, synchronize and restore
 
 ```sh
 composer skills:show
@@ -72,49 +62,58 @@ composer skills:update fast-forward/changelog --dry-run
 composer skills:update fast-forward/changelog
 ```
 
-A named package argument intentionally selects/trusts it for that run. It does
-not test the unfiltered automatic trust policy. For Composer `2.10.3` with
-`llm/skills 1.15.0`, `--no-scripts` alone still allows automatic synchronization.
-Use `auto-sync:false` to disable automatic copies; `--no-plugins` prevents plugin
-loading. Recheck behavior when changing those versions. A green Composer exit
-alone is not evidence of copied files.
+The GitHub repository selector is `php-fast-forward/changelog`; the resolved
+donor is named `fast-forward/changelog` by its Composer manifest. Use the donor
+name shown by `skills:show` when filtering updates.
 
-## Update, remove and recover
+Inspect the report and complete copied payload. Normal approved Composer
+install/update invokes synchronization when auto-sync is enabled. With
+`llm/skills 1.15`, `--no-scripts` alone does not disable the plugin's auto-sync;
+use `auto-sync:false` for deliberate manual synchronization or `--no-plugins` to
+prevent plugin loading. Recheck behavior when changing manager versions.
 
-Treat installed copies as donor-managed. Ordinary `1.15` synchronization replaces
-same-path local edits but retains additional local files and files removed
-upstream. Removing the donor or plugin leaves existing copies behind. Record
-source/installer versions and review target diffs on updates. Change reusable
-instructions in their donor, or use a separately named consumer-owned package.
-A missing/moved donor source does not prove an old installed copy was removed.
+The guided Changelog `install` operation has a narrower execution boundary:
+Composer commands always disable plugins/scripts, and synchronization uses the
+official `1.15.0` self-contained PHAR with a fixed SHA-256 check outside the
+checkout. It never adds plugin approval. A copied skill therefore does not prove
+future Composer auto-sync is enabled: review the manager's provenance and approve
+it explicitly through Composer when required. Existing approvals or denials are
+preserved. The [manual installation recipe](skills.md) remains the normal
+Composer route; its plugin approval is a separate deliberate action.
 
-Preview cleanup before any authorized deletion:
+Keep the generated `.agents/` directory ignored and excluded from archives as
+described in [installation](skills.md). A new development clone's
+`composer install` restores it according to the configured sources and refs.
+Network/source availability still matters: a green Composer exit alone does not
+prove every remote donor resolved or every copy is current. Read its report.
+
+## Updates, removal and ownership
+
+Ordinary synchronization replaces files shipped by the donor, including local
+edits at those paths, while retaining additional files and files removed upstream.
+Change reusable instructions in their donor or a separately named local skill.
+Before updating an edited copy, preserve the selected directory outside discovery.
+
+Removing a source or the plugin does not remove existing copies. Change
+`skills.json` first so the next sync does not recreate the removed donor, then
+review and archive only that copy before deletion. Cleanup has broader effects:
 
 ```sh
-composer skills:update --clean --dry-run
+composer skills:update fast-forward/changelog --clean --dry-run
 ```
 
-Unscoped clean can remove every installed target skill, including handwritten
-ones. Do not assume a noninteractive run will ask for confirmation or add a
-blanket clean hook. Scoped clean only reinstalls currently selected skills; it
-cannot identify a donor already removed from dependencies. Inventory and archive
-only the exact stale package outside discovery before cleanup. The
-[manual copy guide](skills.md) supplies guarded backup/update/
-restore steps. Adjust donor/trust configuration before removing an installer
-copy so the next sync does not recreate it.
+Scoped clean reinstalls selected current skills; it cannot identify an already
+removed donor. Unscoped `--clean` can delete handwritten skills too, and an
+unattended run may not ask first. Do not add a blanket clean hook.
 
-Global Composer plugin installation still operates on a selected project/target;
-it is not installation into a host's global discovery directory. Explicit global
-manual/CLI copies have their own lifecycle. Native discovery and activation
-require a refreshed host session and a bounded task after inspecting the copy.
+NPX locks and Changelog's native receipt retain their own owners. Global scope
+is an explicit separate choice, not a consequence of installing a Composer
+plugin. File synchronization does not activate an agent session.
 
-The [llm/skills 1.15.0 source](https://github.com/roxblnfk/skills/tree/1.15.0),
-[Composer suggestions](https://getcomposer.org/doc/04-schema.md#suggest) and
-[plugin approval](https://getcomposer.org/doc/06-config.md#allow-plugins) provide
-first-party confirmation. The Fast Forward Composer installer handles separate
-resource-bundle packages; changing this CLI library's type to use it would alter
-ordinary runtime installation and is not required for skill distribution.
+See [llm/skills](https://github.com/roxblnfk/skills),
+[Composer plugin approval](https://getcomposer.org/doc/06-config.md#allow-plugins)
+and [Composer suggestions](https://getcomposer.org/doc/04-schema.md#suggest).
 
 ---
 
-[Documentation index](index.md)
+[Skill installation](skills.md) · [Documentation index](index.md)

@@ -4,10 +4,10 @@ Use PHP `^8.5` and CPX as described in [local setup](adoption.md).
 Run from the consumer project, without initialization or a local configuration file:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add \
+cpx --skip-local fast-forward/changelog add \
   "Updates the dependency while preserving the public API." \
   --category=changed --type=patch --no-interaction
-cpx --skip-local fast-forward/changelog:^0.1 check --no-interaction
+cpx --skip-local fast-forward/changelog check --no-interaction
 ```
 
 `--skip-local` belongs to CPX and precedes the package. The remaining arguments
@@ -39,7 +39,7 @@ head branch and complete head SHA, then copy its positive number from the
 canonical PR URL or trusted metadata. With `PULL_REQUEST` set to that number:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add \
+cpx --skip-local fast-forward/changelog add \
   "Fixes Markdown parsing." --category=fixed \
   --pull-request="$PULL_REQUEST" --no-interaction
 ```
@@ -57,7 +57,7 @@ replacing another fragment.
 An explicit `--name` is a complete filename ending in `.md`, for example:
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add \
+cpx --skip-local fast-forward/changelog add \
   "Changes the internal adapter." --category=changed --type=patch \
   --name=internal-adapter.md --no-interaction
 ```
@@ -73,7 +73,7 @@ customizes it when committing. Unrelated staged or unstaged files remain outside
 this operation. No push is performed by fragment authoring.
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 add \
+cpx --skip-local fast-forward/changelog add \
   "Fixes parser handling." --category=fixed --commit \
   --commit-message="chore: document parser fix" --no-interaction
 ```
@@ -91,7 +91,7 @@ diagnostics. A local check may have an empty fragment directory and performs no
 Git comparison unless a baseline is supplied.
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 check --since=origin/main --no-interaction
+cpx --skip-local fast-forward/changelog check --since=origin/main --no-interaction
 ```
 
 With a baseline, existing fragments inherited from the base do not satisfy the
@@ -133,8 +133,8 @@ stable maintained section does it fall back to a stable tag reachable from
 section produces a diagnostic.
 
 ```sh
-cpx --skip-local fast-forward/changelog:^0.1 notes 1.2.3 --no-interaction
-cpx --skip-local fast-forward/changelog:^0.1 notes 1.2.3 \
+cpx --skip-local fast-forward/changelog notes 1.2.3 --no-interaction
+cpx --skip-local fast-forward/changelog notes 1.2.3 \
   --output=notes/release-1.2.3.md --no-interaction
 ```
 
@@ -145,11 +145,13 @@ cannot replace a maintained input. See [history framing](history.md).
 
 ## Public CLI
 
-In the table, append the arguments to `cpx --skip-local fast-forward/changelog:^0.1`.
+In the table, append the arguments to `cpx --skip-local fast-forward/changelog`.
 Use `help <command>` for command-specific help.
 
 | Command | Example arguments | Behavior |
 | --- | --- | --- |
+| `install` | `install --dry-run --json` | Preview the GitHub caller and optional llm/skills project setup; see [guided setup](project-installation.md). |
+| `skill:install` | `skill:install --check --json` | Inspect a legacy native skill copy; llm/skills and NPX retain their own ownership. |
 | `add` | `add "Description" --category=fixed` | Create one validated fragment; commit is opt-in. |
 | `check` | `check --since=origin/main` | Validate the inventory and committed contribution delta. |
 | `status` | `status --json --source=tags` | Print a plan without managed writes. |
@@ -163,6 +165,9 @@ The `github` entrypoint belongs to the Actions' machine-operation contract;
 see [Docker and automation](docker.md). Ordinary local tasks use the commands above.
 
 ### Shared settings
+
+These settings apply to fragment, history and release operations. Project setup
+and legacy skill management have their own options in the linked guides.
 
 | Flag | Default / contract |
 | --- | --- |
@@ -187,6 +192,8 @@ discovery. See [reference and history behavior](history.md).
 
 | Command | Additional options and short forms |
 | --- | --- |
+| `install` | [Project setup options](project-installation.md); preview or explicit application after reviewing Composer and workflow effects. |
+| `skill:install` | [Legacy native options](skills.md); explicit check/update of its own receipt. |
 | `add` | `--category/-c`, `--type/-t`, `--name/-f`, `--issue/-i`, `--pull-request/-p`, `--author/-a`, `--commit`, `--commit-message/-m`. |
 | `check` | `--since/-S`, `--pull-request/-p` for verified authorization at the exact checkout. |
 | `status` | `--json/-j`. |

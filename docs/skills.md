@@ -1,230 +1,139 @@
 # Install the Fast Forward Changelog skill
 
-Use this guide to install and maintain the `fast-forward-changelog` instructions.
-The skill teaches the contribution flow and consults the selected release's help
-and documentation for command and workflow details. Installing instructions does
-not activate an agent session. [CPX executes the CLI](adoption.md); PHP service
-integration uses the application's Composer installation.
+The `fast-forward-changelog` skill teaches contribution and release review while
+consulting the selected runtime's help and documentation. Instructions are text:
+installing them does not install the Changelog CLI or activate an agent session.
+Use [CPX for the CLI](adoption.md) and Composer only when you need the
+[PHP services](adoption.md) in the application.
 
-For workflow and skill setup together, use the
-[guided project installer](project-installation.md). The skill-only command below
-remains available for explicit installation, inspection and updates.
+## Manage project instructions with Composer
 
-## Install with the Changelog CLI
-
-Select a published release whose command list contains `skill:install` and set
-`CHANGELOG_VERSION` to that exact numeric version. Use the GitHub route below
-when your selected release does not offer it. Verify that release's PHP
-requirements and inspect its help:
+Use [llm/skills](https://github.com/roxblnfk/skills) to obtain the instructions
+directly from GitHub. From the consumer project:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install
+composer require --dev llm/skills
+composer skills:init
+composer skills:add php-fast-forward/changelog
 ```
 
-This route needs no Node.js or dependency in the application. It copies the
-complete skill bundled with that CLI into
-`.agents/skills/fast-forward-changelog`. The copy includes a native
-`.fast-forward-install.json` receipt with package provenance and file hashes;
-its relative target remains portable when the project is cloned elsewhere.
-It creates no host aliases and executes no bundled example.
+Approve only the intended `llm/skills` Composer plugin when prompted. `skills:init`
+chooses the discovery target, aliases, trust and automatic synchronization;
+select `.agents/skills` and retain auto-sync for the normal project route.
+Composer may offer initialization during the first installation; inspect any
+existing `skills.json` instead of replacing its settings. Merge with the
+project's existing skills and plugin approvals.
 
-Use the same command for deliberate management; help owns the full option contract:
+`skills:add` records a GitHub source in `skills.json` and fetches the complete
+`resources/skills/fast-forward-changelog` package into
+`.agents/skills/fast-forward-changelog`. It does not require or install
+`fast-forward/changelog` as an application dependency. Add
+`--skill=fast-forward-changelog` when selecting only that skill from a donor.
+The manager needs its own supported PHP/Composer environment; `llm/skills 1.15`
+requires PHP `8.2+`, independently of the Changelog CLI's PHP requirements.
 
-| Mode | Behavior |
-| --- | --- |
-| Default | Install an absent target; an identical native copy needs no write. |
-| `--check` | Compare local ownership and bytes with this CLI's bundled payload, without writes or network. |
-| `--update` | Replace an intact native copy explicitly. Local edits, extra files, unknown owners and known downgrades are refused. |
+Inspect the generated source/ref and copied license, references and example.
+`skills.json` owns the source selection; its GitHub ref can be a version range
+and can resolve a newer compatible release on synchronization. Select a reviewed
+exact tag or commit when fixed content is required. See
+[source policy and updates](composer-skills.md).
 
-`--check` and `--update` are exclusive. `--dry-run` previews without writes.
-Project scope is the default; `--cwd` selects the project, `--target` selects a
-relative discovery root and `--global` explicitly selects the configured home.
-A later CLI release carrying identical skill bytes does not require reinstalling.
+### Keep configuration, generate copies
 
-### Inspect the installed version
+Version `skills.json` and the intended `composer.json` changes. Retain
+`composer.lock` according to the project's existing lockfile policy. Do not add
+the generated skill copy to Git. Merge these rules into the existing files:
 
-```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install --check --json
+`.gitignore`:
+
+```gitignore
+/.agents/
 ```
 
-The result's `installed_source` contains the recorded package version and optional
-commit only when the native receipt and complete installed inventory are valid.
-It is `null` for missing, unmanaged, modified or recovery-pending copies. `source`
-identifies the instructions bundled with the executing CLI; it does not claim to
-be the latest published version. Per-file hashes and the payload digest detect
-local changes. They are integrity records, not signatures.
+`.gitattributes`:
 
-The receipt's schema version describes its JSON format. Its source package
-version describes provenance; matching instruction bytes remain current even
-when a newer CLI has a different package version. Review an actual content change
-with `--check`, then use `--update` deliberately. Neither `install` nor an ordinary
-command silently upgrades the skill.
+```gitattributes
+/.agents/** export-ignore
+```
 
-On human command paths, the CLI can warn when an intact native copy at the default
-project target is provably older than its bundled instructions. This is a local comparison, not a registry
-lookup. Missing, foreign, modified or ambiguous copies do not generate that
-automatic warning; inspect them with `--check`. JSON, pipelines and CI retain
-their ordinary output. No warning installs or updates anything.
-Check custom or global targets explicitly with their original scope options.
+These rules do not untrack existing files. Inspect already tracked content
+before any deliberate migration. They apply to the generated consumer directory,
+not the library's canonical `resources/skills` payload.
 
-Interrupted updates retain `.fast-forward-changelog-*.stage` or
-`.fast-forward-changelog-*.backup` directories in the selected project or home
-root, outside skill discovery. Inspect and preserve the retained copies; another
-replacement is refused until recovery is completed. Do not delete recovery data
-merely to force a retry.
+On another clone, normal `composer install` with development dependencies and
+the approved plugin reconstructs the instructions from `skills.json` when
+auto-sync is enabled. No custom post-install hook is needed. `--no-plugins`,
+disabled auto-sync or an installation without the development tool will not
+perform that reconstruction.
 
-Choose one owner for the installed copy. This receipt is not the NPX Skills
-lock or `llm/skills` configuration, and the command does not adopt their copies.
-Project setup preserves `skills-lock.json` and refuses native ownership when it
-already records this skill, even if the installed directory is absent. Choose
-`install --no-skill` to configure only the workflow while retaining NPX ownership.
-Use their own update/removal route, or explicitly archive a selected copy before
-migrating installers. After installation inspect the files, refresh the host
-session and verify discovery separately.
+Inspect the result with `composer skills:show`. Refresh the agent session,
+verify that it discovers `fast-forward-changelog`, then perform a bounded
+contribution task. A successful file copy is not proof of native activation or
+task quality.
 
-## Install directly from GitHub
+The [guided project installer](project-installation.md) offers this same route
+alongside the GitHub caller. Its preview must explain the Composer/configuration
+changes before application. Existing integrations and skill owners are preserved.
 
-This alternative needs Node.js `22.20.0+`, npm and Git. It does not
-require PHP, Composer or a prior installation of the Changelog library. From
-the consumer project, install only this skill for the host you use:
+## Other installers
+
+Choose one manager for each copy. `skills.json`, NPX's `skills-lock.json` and a
+native `.fast-forward-install.json` receipt are independent formats. Do not
+rewrite one to resemble another or sync two managers into the same directory.
+Before an authorized migration, preserve the selected copy and local changes
+outside discovery, adjust the old source configuration, then verify the new
+owner's complete payload. Leave unrelated skills intact.
+
+### NPX alternative
+
+For a project that chooses Node-based skill management instead of Composer:
 
 ```sh
 npx skills add php-fast-forward/changelog --skill fast-forward-changelog
 ```
 
-The repository shorthand resolves its default branch and discovers
-`resources/skills/fast-forward-changelog`; `--skill` selects that one public name.
-The installer detects the current agent or asks for the host
-and installation method. Project scope is the default; Codex uses
-`.agents/skills/fast-forward-changelog`.
+The [Skills CLI](https://github.com/vercel-labs/skills) owns its host/scope choices,
+lockfile and update/removal procedure. This route needs no PHP or Changelog
+installation. Keep it separate from llm/skills synchronization; a Composer install
+does not reconstruct an NPX-owned copy. Inspect the chosen tool's requirements
+and help, and select global scope only when explicitly intended.
 
-Review and commit the project copy and the installer's lockfile under the
-application's policy. Inspect the complete license, references and example after
-copying; refresh the agent session and verify that it loads the public name.
-A successful copy or listing does not establish native activation or task quality.
+### Existing native copies
 
-The [Skills CLI source documentation](https://github.com/vercel-labs/skills)
-describes direct repository paths, scoped selection and copy mode. To verify
-an updated local source before publishing its revision, the same installer can
-select a reviewed checkout directly:
+`skill:install` remains a compatibility route for copies already managed by the
+Changelog CLI's native receipt. Select the reviewed runtime in
+`CHANGELOG_VERSION` and inspect its help:
 
 ```sh
-npx skills add /path/to/changelog/resources/skills/fast-forward-changelog --skill fast-forward-changelog
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install --check --json
 ```
 
-For an existing Composer installation, the source may instead be
-`./vendor/fast-forward/changelog/resources/skills/fast-forward-changelog`.
-That is an alternative donor location, not an installation prerequisite.
+The native check compares local bytes and ownership with that CLI's bundled
+payload; it is not a latest-release lookup. Its `installed_source` identifies a
+verified intact native copy, while `source` identifies the executing CLI's
+payload. Identical bytes can remain current across different package versions.
+Use its explicit `--update` only for an intact native copy after reviewing the
+change. Local edits, extra files, foreign ownership and known downgrades are
+refused. `--dry-run` previews; `--check` and `--update` are exclusive.
 
-## Advanced installation choices
-
-### Select a revision, host or global scope
-
-The documented route was checked with Skills CLI `1.7.2`; its Node requirement
-is `22.20.0+`. To select an immutable source, choose a reviewed commit whose
-skill metadata supports the installed runtime. Set `CHANGELOG_SKILL_REVISION`
-to that full commit SHA before running this variant; older development commits
-may declare a different product contract. It also selects Codex and copy mode
-without the installer's prompts:
-
-```sh
-npx --yes skills add \
-  "https://github.com/php-fast-forward/changelog/tree/${CHANGELOG_SKILL_REVISION:?Set the reviewed full commit SHA}/resources/skills/fast-forward-changelog" \
-  --skill fast-forward-changelog --agent codex --copy --yes
-npx skills list --agent codex
-```
-
-Choose the actual host, such as `claude-code`. `--copy` installs real files rather
-than host-directory symlinks. Add `--global` explicitly to installation and listing
-only when global scope is intended. Installing the Composer plugin globally does
-not select a global host target.
-
-### Optional Composer synchronization
-
-The [Composer installation guide](composer-skills.md) documents the optional
-`llm/skills ^1.15` project route, narrow donor trust, first synchronization,
-updates and removal limits. It is development tooling and needs the consumer's
-plugin approval. A Composer suggestion is not an installation or approval.
-
-### Guarded manual copy
-
-Prefer project scope for a team. From an authorized consumer, copy the whole
-package from a reviewed checkout and refuse an existing destination,
-including a dangling symlink:
-
-The canonical source is `resources/skills/fast-forward-changelog`, including its
-license, references and example. Preserve the complete flat directory: its name
-matches the public skill name. `.agents/skills` is consumer-owned; the package
-creates no host aliases or copies automatically.
-
-```sh
-skill_source="/path/to/changelog/resources/skills/fast-forward-changelog"
-skill_target=".agents/skills/fast-forward-changelog"
-test -f "$skill_source/SKILL.md" &&
-test ! -e "$skill_target" &&
-test ! -L "$skill_target" &&
-mkdir -p "$(dirname "$skill_target")" &&
-cp -R "$skill_source" "$skill_target"
-```
-
-For explicitly selected global Codex scope set
-`skill_target="$HOME/.agents/skills/fast-forward-changelog"`. The
-[Codex local-skill locations](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)
-document `$HOME/.agents/skills` as user scope. A Claude Code
-consumer can choose `.claude/skills/fast-forward-changelog` or its home
-counterpart. Verify the actual host's configured discovery paths and avoid
-ambiguous duplicate copies. Copy real files rather than linking a discovery
-root into replaceable Composer `vendor/` content. A missing donor source calls
-for inspecting the installed version/archive, not creating an empty placeholder.
-
-Before an authorized update or removal, archive only that selected package
-outside every discovery root. These guards also reject symlink destinations:
-
-```sh
-skill_backup="$HOME/.agent-skill-backups/fast-forward-changelog-$(date +%Y%m%d%H%M%S)-$$"
-test -d "$skill_target" &&
-test ! -L "$skill_target" &&
-test ! -e "$skill_backup" &&
-test ! -L "$skill_backup" &&
-mkdir -p "$(dirname "$skill_backup")" &&
-mv "$skill_target" "$skill_backup"
-```
-
-Moving out removes the manual copy from discovery. Review the new donor and
-repeat the guarded copy to update. For rollback archive any replacement first,
-restore the complete saved directory to its original target and refresh the
-session. Preserve unrelated skill directories. Plugin-managed copies may return
-on the next sync until the donor/trust policy changes.
-
-## Update and remove a Skills CLI copy
-
-Record the product revision and installer version. Review the new donor, archive
-local changes outside discovery and repeat the selected installation route.
-Use the immutable-source variant when the exact revision must remain fixed.
-Removal selects only the intended name and scope:
-
-```sh
-npx --yes skills remove fast-forward-changelog --agent codex --yes
-# Explicit global alternative:
-npx --yes skills remove fast-forward-changelog --agent codex --global --yes
-```
-
-After any route inspect all copied files, refresh the host session, confirm it
-loads `fast-forward-changelog` and perform a bounded contribution task. File
-copies and installer listings do not establish native activation or task quality.
+Project scope is the native default. Keep the original `--cwd`, relative
+`--target` or explicit `--global` options when checking another target. Retained
+`.fast-forward-changelog-*.stage` or `.backup` directories are recovery evidence;
+preserve them and follow diagnostics before another replacement. A human-terminal
+warning is a local comparison and never updates files or queries a registry.
+Native management does not adopt llm/skills or NPX copies.
 
 ## Distribution verification
 
-Run `composer test:packaging` for archive or payload changes. The fixture compares
-every skill file, executes its PHP example and checks contribution arguments
-through the installed no-dev CLI. Those runtime checks do not invoke CPX.
-`.gitattributes` excludes repository agent configuration, development
-scripts, tests and docs from archives; source clones have different contents.
-Official [Agent Skills format validation](https://agentskills.io/specification#validation)
-and [Skills CLI](https://github.com/vercel-labs/skills) documentation supplement
-these checks. Native host acceptance remains a separate consumer operation.
+`resources/skills/fast-forward-changelog` remains the sole distributed source,
+including its license, references and executable example. Run
+`composer test:packaging` after payload/archive changes: it compares every skill
+file and executes the PHP example and contribution arguments through an isolated
+installed CLI. It does not prove CPX, llm/skills synchronization or host activation;
+exercise those routes separately in disposable consumers. Validate the final
+package with the official [Agent Skills validator](https://agentskills.io/specification#validation).
 
 ---
 
-[Documentation index](index.md)
+[Composer lifecycle](composer-skills.md) · [Documentation index](index.md)
