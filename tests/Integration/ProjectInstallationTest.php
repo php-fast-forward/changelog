@@ -15,6 +15,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\ApplicationTester;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Filesystem\Path;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
@@ -92,7 +93,7 @@ final class ProjectInstallationTest extends TestCase
                 $filesystem,
                 &$commands
             ): void {
-                self::assertSame($root, $consumer);
+                self::assertSame(Path::normalize($root), Path::normalize($consumer));
                 $commands[] = $arguments;
                 $config = json_decode(file_get_contents($root . '/skills.json'), true);
                 $config['sources'][] = ['from' => 'github', 'package' => 'php-fast-forward/changelog',
