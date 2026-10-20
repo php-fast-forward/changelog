@@ -3,4 +3,4 @@ category: changed
 type: patch
 ---
 
-Synchronize the Config consumer skill from the verified v1.7.3 release through a development-only Composer skill manager with an explicit project manifest.
+Synchronize the Config and Container consumer skills from the installed Composer dependencies through an explicit trusted-package list, preserving other configured skill sources.
