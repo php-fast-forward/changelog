@@ -374,7 +374,9 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     }
 
     /**
-     * Resolves supported title placeholders and revalidates the final presentation without remote writes.
+     * Resolves repository and version placeholders once, then revalidates presentation without remote writes.
+     *
+     * Repository values MUST come from the validated plan, never local directory or Composer metadata.
      *
      * @param  VersionPullRequestInput     $input Validated operation settings and the immutable remote snapshot selected by
      *                                            the caller.
@@ -387,6 +389,8 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     private function resolvedInput(VersionPullRequestInput $input, ReleasePlan $plan): VersionPullRequestInput
     {
         $title = strtr($input->title, [
+            '{repository}' => $plan->options->repository ?? '',
+            '{repository_name}' => basename($plan->options->repository ?? ''),
             '{current_version}' => $plan->currentVersion,
             '{next_version}' => $plan->nextVersion ?? $plan->currentVersion,
         ]);

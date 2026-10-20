@@ -106,6 +106,57 @@ $repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.
 $repositoryDocumentation = Yaml::parseFile($root . '/.github/workflows/repository-documentation.yml');
 $assertions = 0;
 
+$consumerData = workflowStep($feedback['jobs']['status'], 'Check Out Consumer Data Without Executing It');
+verifyWorkflow(
+    'actions/checkout@v7.0.1' === $consumerData['uses']
+        && true === ($consumerData['with']['allow-unsafe-pr-checkout'] ?? false)
+        && '${{ github.repository }}' === $consumerData['with']['repository']
+        && '${{ inputs.head-sha }}' === $consumerData['with']['ref']
+        && 'project' === $consumerData['with']['path']
+        && false === $consumerData['with']['persist-credentials']
+        && false === ($consumerData['with']['submodules'] ?? null)
+        && false === ($consumerData['with']['lfs'] ?? null),
+    'Checkout v7 must permit immutable fork data without enabling credentials, submodules or LFS.',
+);
+++$assertions;
+foreach ($feedback['jobs']['status']['steps'] as $step) {
+    if (isset($step['uses'])) {
+        verifyWorkflow(
+            in_array($step['uses'], [
+                'actions/github-script@v9.0.0', 'actions/checkout@v7.0.1',
+                './.changelog-runtime/.github/actions/github-auth',
+                './.changelog-runtime/.github/actions/setup-docker',
+                './.changelog-runtime/.github/actions/pr-status',
+            ], true),
+            'Fork data must never introduce a consumer action or an unreviewed executable dependency.',
+        );
+        ++$assertions;
+    }
+    if (isset($step['run']) || isset($step['with']['script'])) {
+        verifyWorkflow(
+            in_array($step['name'], [
+                'Resolve Trusted Context And Immutable Comparison', 'Preserve The Contribution Gate Failure',
+            ], true),
+            'Only the trusted snapshot guard and gate-result step may execute inline code in the fork-data job.',
+        );
+        ++$assertions;
+    }
+}
+foreach (glob($root . '/.github/workflows/*.yml') as $path) {
+    foreach (Yaml::parseFile($path)['jobs'] as $jobName => $job) {
+        foreach ($job['steps'] ?? [] as $step) {
+            if ($step['with']['allow-unsafe-pr-checkout'] ?? false) {
+                verifyWorkflow(
+                    'changelog-pr-status.yml' === basename($path)
+                        && 'status' === $jobName && $consumerData === $step,
+                    'The fork-checkout opt-in must never spread beyond the trusted data-validation step.',
+                );
+                ++$assertions;
+            }
+        }
+    }
+}
+
 foreach ([
     'changelog',
     'changelog-check',
@@ -462,9 +513,9 @@ verifyWorkflow(
 $versionWorkflow = Yaml::parseFile($root . '/.github/workflows/changelog-version.yml');
 $versionAction = Yaml::parseFile($root . '/.github/actions/version/action.yml');
 verifyWorkflow(
-    'chore: update changelog' === $lifecycle['on']['workflow_call']['inputs']['version-pr-title']['default']
+    'chore(release): {repository} v{current_version} → v{next_version}' === $lifecycle['on']['workflow_call']['inputs']['version-pr-title']['default']
         && '${{ inputs.version-pr-title }}' === $lifecycle['jobs']['version']['with']['title']
-        && 'chore: update changelog' === $versionWorkflow['on']['workflow_call']['inputs']['title']['default']
+        && 'chore(release): {repository} v{current_version} → v{next_version}' === $versionWorkflow['on']['workflow_call']['inputs']['title']['default']
         && '${{ inputs.title }}' === workflowStep(
             $versionWorkflow['jobs']['changelog'],
             'Run The Shared Version Action',

@@ -94,10 +94,10 @@ on:
         default: 'github-actions[bot]'
 
       title:
-        description: 'Single-line generated PR title; accepts {current_version} and {next_version}.'
+        description: 'Single-line generated PR title; accepts {repository}, {repository_name}, {current_version} and {next_version}.'
         type: string
         required: false
-        default: 'chore: update changelog'
+        default: 'chore(release): {repository} v{current_version} → v{next_version}'
 
       dry-run:
         description: 'Preview the trusted transaction without writes.'

@@ -53,8 +53,12 @@ For a repository without changelog automation, setup asks:
 
 An optional advanced section asks about the managed version-PR branch, Linux
 runner labels, PR comment mode and version-PR title. Blank answers retain the
-selected release's defaults. Inspect [lifecycle settings](reusable-lifecycle.md)
-for their meaning, and that published revision for its exact supported inputs.
+selected workflow's defaults. The default title identifies the GitHub repository
+and transition, such as `chore(release): acme/example v1.2.0 → v1.3.0`.
+Use a literal package label in a custom template when preferred; see
+[title customization](version-pull-request.md).
+Inspect [lifecycle settings](reusable-lifecycle.md) for their meaning, and that
+published revision for its exact supported inputs.
 
 Setup renders `.github/workflows/changelog.yml` with the release's verified
 commit SHA in `uses` and its full version in a readable comment. It sets event
@@ -143,6 +147,12 @@ published stable GitHub Release, its tag/commit and both YAML blobs from the
 canonical public repository. These read-only public API requests use no consumer
 credentials, with a 10-second timeout and 30-second maximum duration per request;
 this is not an overall command deadline.
+
+For a caller following the published `v0` channel, use the
+[manual consumer example](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md).
+Verify the channel's current published commit and supported inputs, then keep
+`@v0` in `uses` when that is the owner's chosen policy. The guided installer's
+fixed-commit output and its `--ref` validation do not change this manual option.
 
 ## Preserve existing integrations
 

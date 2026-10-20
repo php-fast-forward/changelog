@@ -84,7 +84,7 @@ All lifecycle inputs are optional. These are the main defaults:
 | `comment-mode` | `always` | Sticky PR feedback: `always`, `on-failure` or `never`. |
 | `prepare-release` | `true` | Create or refresh the version PR after base pushes. |
 | `publish` | `true` | Publish the approved version PR's tag/release after merge. Set `false` for a pilot. |
-| `version-pr-title` | `chore: update changelog` | Supports `{current_version}` and `{next_version}`. |
+| `version-pr-title` | `chore(release): {repository} v{current_version} → v{next_version}` | Supports `{repository}`, `{repository_name}`, `{current_version}` and `{next_version}`. |
 | `runs-on` | `'["ubuntu-latest"]'` | Linux runner labels as JSON; Docker, Bash and Git are required. |
 
 See the **[complete workflow and Action reference](docs/workflow-reference.md)**

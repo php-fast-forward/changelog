@@ -35,7 +35,10 @@ approval.
    of this skill. Before adding a workflow, inspect its
    `resources/workflows/changelog.yml`, companion README and the reusable workflow
    they reference. Copy the release's caller, review inputs/permissions and set
-   its product references to that verified full tag or immutable release commit;
+   its product references to the explicitly selected verified channel, full tag
+   or immutable release commit. For a channel such as `v0`, verify its current
+   published commit and retain the chosen channel rather than silently replacing
+   it with a SHA. A channel can advance after verification;
    do not retain an obsolete embedded pin blindly. After setting the final ref,
    inspect the reusable workflow at that exact ref and confirm its inputs,
    permissions and runner requirements before saving the application caller.
@@ -144,6 +147,11 @@ malformed note and any enabled bot route. Inspect the generated version PR:
 planned version/impact, exact notes, central-history changes and only the accepted
 fragment deletions. Review again after its head changes. The workflow does not
 merge its own version PR.
+
+Prefer version-PR titles that identify the package and transition, for example
+`chore(release): fast-forward/container v1.10.0 → v1.10.1`. Inspect the selected
+workflow's title setting and supported placeholders; preserve an existing custom
+title. A literal Composer package label need not match the GitHub owner/name.
 
 For the selected release, verify how committed history and ancestral tags define
 the version baseline. The current lifecycle advances from the greatest stable

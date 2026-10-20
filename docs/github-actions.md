@@ -117,6 +117,10 @@ This workflow validates exact PR identities, sets `Fast Forward Changelog` and
 updates one sticky comment. `comment-mode` accepts `always`, `on-failure` or
 `never`. It uses the trusted runtime and reads PR data without executing PR PHP,
 templates or Composer scripts. A failed contribution can still receive feedback.
+The data checkout explicitly opts into Checkout v7's fork-head access. This opt-in
+is confined to that step: credentials are not persisted, submodules/LFS are off,
+and the Dockerfile, Actions and CLI come from the pinned trusted runtime. Never
+add an execution step from the checked-out consumer or load its dependencies.
 After an automated dependency commit, pass its verified new head; omitting
 `base-sha` resolves the live PR base before validation. Keep the comparison
 immutable within that validation. Do not add this caller alongside the lifecycle's
@@ -153,7 +157,13 @@ Dependabot Bot identity, same-repository head and supplied SHA before creating
 one deterministic fragment in that PR. It never executes head content. Fork
 writes, stale heads and unknown existing fragment contents are refused; the
 same generated fragment is idempotent. The default is `Changed` with a patch
-impact, including development dependencies and GitHub Actions.
+impact, including development dependencies and GitHub Actions. This is a
+reviewable maintenance default, not an automatic assessment of your package's
+API compatibility. A dependency's major update does not automatically require
+a major package release. To classify a break or new feature, change only the
+generated fragment's `type` to `major` or `minor`, commit and rerun; other
+canonical bytes must remain intact. See [impact decisions](policies.md)
+for development, runtime, compatibility-range and `0.x` examples.
 
 `security-alert-numbers` accepts a JSON array, default `[]`, only from trusted
 metadata associating those alerts with this PR. Do not derive it from PR body,
@@ -205,7 +215,7 @@ jobs:
       base-branch: main
       managed-branch: changelog/version
       automation-actor: github-actions[bot]
-      title: 'chore: update changelog'
+      title: 'chore(release): fast-forward/example v{current_version} → v{next_version}'
       dry-run: false
 ```
 
@@ -222,9 +232,9 @@ A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
 The version workflow's `title` accepts a literal title or the placeholders
-`{current_version}` and `{next_version}`. The lifecycle exposes the same setting as
+`{repository}`, `{repository_name}`, `{current_version}` and `{next_version}`. The lifecycle exposes the same setting as
 `version-pr-title`; see [title settings](reusable-lifecycle.md).
-The default remains `chore: update changelog`. A title-only refresh preserves
+The default is `chore(release): {repository} v{current_version} → v{next_version}`. A title-only refresh preserves
 the signed branch head and transaction identity.
 
 Before merging, the generated source base must equal the live PR base. A later

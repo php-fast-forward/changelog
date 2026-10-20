@@ -28,7 +28,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
         self::assertSame('main', $default->baseBranch);
         self::assertSame('changelog/version', $default->managedBranch);
         self::assertSame('github-actions[bot]', $default->automationActor);
-        self::assertSame('chore: update changelog', $default->title);
+        self::assertSame('chore(release): {repository} v{current_version} → v{next_version}', $default->title);
         self::assertFalse($default->dryRun);
         $custom = $factory->create('support/1.x', 'changelog/support-1.x', 'my-app[bot]', 'Update history', true);
         self::assertTrue($custom->dryRun);
@@ -57,9 +57,13 @@ final class VersionPullRequestFactoriesTest extends TestCase
 
     /** Templates have a separate finite bound; final rendering still applies the ordinary PR title limit. */
     #[Test]
-    public function acceptsBoundedTemplatesLongerThanLiteralTitles(): void
+    #[TestWith(['current_version', 1007])]
+    #[TestWith(['repository', 1012])]
+    #[TestWith(['repository_name', 1007])]
+    #[TestWith(['next_version', 1010])]
+    public function acceptsBoundedTemplatesLongerThanLiteralTitles(string $placeholder, int $literalBytes): void
     {
-        $title = str_repeat('a', 1007) . '{current_version}';
+        $title = str_repeat('a', $literalBytes) . '{' . $placeholder . '}';
 
         $input = new VersionPullRequestInputFactory()->create(title: $title);
 

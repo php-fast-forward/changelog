@@ -379,7 +379,7 @@ final class AutomationRunnerTest extends TestCase
             'main',
             'changelog/version',
             'github-actions[bot]',
-            'chore: update changelog',
+            'chore(release): {repository} v{current_version} → v{next_version}',
             false,
         )->willReturn(
             $input,

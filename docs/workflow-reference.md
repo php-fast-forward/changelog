@@ -64,7 +64,7 @@ The Lifecycle accepts its applicable shared rows above and these six optional in
 | Input | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `base-branch` | string | `''` | Maintained release line; empty selects the repository default branch. Match the caller's event filters. |
-| `version-pr-title` | string | `chore: update changelog` | Literal title or template with `{current_version}` and `{next_version}`. |
+| `version-pr-title` | string | `chore(release): {repository} v{current_version} → v{next_version}` | Literal title or template with `{repository}`, `{repository_name}`, `{current_version}` and `{next_version}`. |
 | `comment-mode` | string | `always` | `always`, `on-failure` or `never`; see [comment behavior](reusable-lifecycle.md). |
 | `prepare-release` | boolean | `true` | Prepare/update the version PR on a push to the base or manual dispatch. |
 | `publish` | boolean | `true` | Publish after the configured managed PR is approved and merged. Set `false` for validation; it never merges the PR. |
@@ -97,7 +97,7 @@ Each workflow accepts its applicable shared inputs plus **all** rows for its nam
 | Dependabot | `include-dev` | boolean | `true` | Include development dependency updates. |
 | Dependabot | `include-actions` | boolean | `true` | Include GitHub Actions dependency updates. |
 | Version | `base-branch` | string | `main` | Maintained release branch. Unlike Lifecycle, this default is literally `main`. |
-| Version | `title` | string | `chore: update changelog` | Title accepting `{current_version}` and `{next_version}`. |
+| Version | `title` | string | `chore(release): {repository} v{current_version} → v{next_version}` | Title accepting `{repository}`, `{repository_name}`, `{current_version}` and `{next_version}`. |
 | Version | `dry-run` | boolean | `false` | Plan without creating GitHub content. |
 | Publish | `base-branch` | string | `main` | Configured maintained release branch. |
 | Publish | `pull-request` | number | Required | Merged configured version PR. |
@@ -236,7 +236,7 @@ Each Action accepts its applicable shared rows and all its rows below:
 | Dependabot | `include-dev` | `'true'` | Include development dependency updates. |
 | Dependabot | `include-actions` | `'true'` | Include GitHub Actions updates. |
 | Version | `base-branch` | `main` | Maintained base branch. |
-| Version | `title` | `chore: update changelog` | Literal title or `{current_version}` / `{next_version}` template. |
+| Version | `title` | `chore(release): {repository} v{current_version} → v{next_version}` | Literal title or `{repository}` / `{repository_name}` / `{current_version}` / `{next_version}` template. |
 | Version | `dry-run` | `'false'` | Plan without remote content writes. |
 | Publish | `target-sha` | Required | Full approved publication target. |
 | Publish | `pull-request` | `''` | Merged version PR number; required by managed-PR publication. |

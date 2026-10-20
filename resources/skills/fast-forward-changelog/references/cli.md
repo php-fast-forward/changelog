@@ -46,6 +46,13 @@ historical source explicitly. A branch name alone does not establish a release
 range. Check command help before treating an exit code as success or failure;
 check modes may use a nonzero result for drift as well as errors.
 
+These offline previews omit automatic PR-origin lookup. To reproduce an
+integration using `resolve-pull-requests: true`, inspect the selected CLI's help
+and add `--resolve-pull-requests=true --repository=owner/repository` to both
+commands, with the same GitHub credentials and history options as automation.
+The historical source and PR lookup are independent; `--source=tags` alone does
+not enable PR lookup.
+
 The normal GitHub lifecycle prepares the version PR. Applying a local version
 transaction requires existing consolidation authority and the same reviewed
 options as the preview. Preserve exact committed input bytes, custom-template
