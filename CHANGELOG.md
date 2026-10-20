@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-20
+
+### Changed
+
+- Include the GitHub repository and current-to-next version transition in generated version-PR titles by default, with repository placeholders and preserved custom titles. ([#60](https://github.com/php-fast-forward/changelog/pull/60))
+
+### Fixed
+
+- Restore changelog feedback for fork pull requests with Checkout v7 by explicitly allowing the exact head to be read as validation data, while keeping execution confined to the pinned trusted runtime and disabling persistent credentials, submodules and LFS. ([#61](https://github.com/php-fast-forward/changelog/pull/61))
+- Preserve an explicitly selected minor or major impact in a canonical Dependabot fragment without rewriting it or refusing the rerun. Document the patch maintenance default and classify dependency updates by their effect on the consumer package's public contract. ([#62](https://github.com/php-fast-forward/changelog/pull/62))
+
 ## [0.3.0] - 2026-10-20
 
 ### Added
@@ -60,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable fast-forward-changelog agent skill, consumer examples, focused guides and browsable phpDocumentor API documentation. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 - One managed version PR with configurable titles, deterministic consolidation and recoverable transactions, updating readable history and removing consumed fragments without adding tracked plan files. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 
+[0.4.0]: https://github.com/php-fast-forward/changelog/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/php-fast-forward/changelog/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/php-fast-forward/changelog/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/php-fast-forward/changelog/compare/v0.1.0...v0.2.0
