@@ -283,8 +283,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    12 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and five repository workflows must remain distinct.',
+    13 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and six repository workflows must remain distinct.',
 );
 $assertions += 6;
 
@@ -293,7 +293,7 @@ verifyWorkflow(
         && ['contents' => 'read'] === $repositoryDocumentation['permissions']
         && ['pull_request', 'push', 'workflow_dispatch'] === array_keys($repositoryDocumentation['on'])
         && ['main'] === $repositoryDocumentation['on']['push']['branches']
-        && ['documentation'] === array_keys($repositoryDocumentation['jobs']),
+        && ['impact', 'documentation'] === array_keys($repositoryDocumentation['jobs']),
     'Documentation must build repository sources with read-only permissions and no publication job.',
 );
 $documentation = $repositoryDocumentation['jobs']['documentation'];
@@ -1013,6 +1013,88 @@ $channelFixtures->setTimeout(120);
 $channelFixtures->mustRun();
 echo $channelFixtures->getOutput();
 $assertions += 2;
+
+$impact = Yaml::parseFile($root . '/.github/workflows/repository-impact.yml');
+$impactGuard = workflowStep($impact['jobs']['impact'], 'Select Validation From Immutable PR Changes');
+verifyWorkflow(
+    ['contents' => 'read'] === $impact['permissions']
+        && '${{ github.event.pull_request.base.sha || github.sha }}' === $impactGuard['env']['FF_CLASSIFIER_SHA']
+        && str_contains($impactGuard['run'], 'git --no-replace-objects cat-file blob')
+        && 0 === workflowStep($impact['jobs']['impact'], 'Check Out The Comparison History')['with']['fetch-depth']
+        && false === workflowStep(
+            $impact['jobs']['impact'],
+            'Check Out The Comparison History',
+        )['with']['persist-credentials'],
+    'Validation scope must use complete read-only history and retain no checkout credential.',
+);
+foreach ([$repositoryCi, $repositoryDocumentation] as $workflow) {
+    verifyWorkflow(
+        './.github/workflows/repository-impact.yml' === $workflow['jobs']['impact']['uses']
+            && ! isset($workflow['on']['pull_request']['paths'])
+            && ! isset($workflow['on']['pull_request']['paths-ignore']),
+        'Required workflow contexts must remain present on editorial and release PRs.',
+    );
+}
+foreach (['packaging', 'component-compatibility', 'tests'] as $jobName) {
+    $job = $repositoryCi['jobs'][$jobName];
+    verifyWorkflow(
+        'impact' === $job['needs'] && '${{ always() && !cancelled() }}' === $job['if']
+            && str_contains($job['steps'][0]['run'], 'exit 1')
+            && '${{ needs.impact.result }}' === $job['steps'][0]['env']['FF_RESULT'],
+        'A failed or missing impact decision must fail each required matrix context.',
+    );
+    foreach (array_slice($job['steps'], 2) as $step) {
+        verifyWorkflow(
+            str_contains($step['if'], "needs.impact.outputs.runtime == 'true'"),
+            'Every expensive matrix step must require the runtime scope: ' . $step['name'],
+        );
+        ++$assertions;
+    }
+}
+foreach ([['success', 'true', 0], ['success', 'false', 0], ['failure', 'false', 1],
+    ['skipped', 'false', 1], ['success', '', 1], ['success', 'anything', 1]] as [$result, $runtime, $expected]) {
+    $decision = new Process(['bash', '-c', $repositoryCi['jobs']['tests']['steps'][0]['run']], $root, [
+        'FF_RESULT' => $result, 'FF_RUNTIME' => $runtime, 'BASH_ENV' => false,
+        'GITHUB_TOKEN' => false, 'GH_TOKEN' => false,
+    ]);
+    $decision->setTimeout(10);
+    verifyWorkflow($expected === $decision->run(), 'The actual required-check gate must reject incomplete scope.');
+    ++$assertions;
+}
+verifyWorkflow(
+    str_contains($repositoryCi['jobs']['coverage-report']['if'], "needs.impact.outputs.runtime == 'true'")
+        && str_contains(
+            workflowStep($repositoryCi['jobs']['tests'], 'Run The Package Quality And Unit Coverage Gates')['if'],
+            "matrix.os == 'ubuntu-latest'",
+        )
+        && str_contains(
+            workflowStep($repositoryCi['jobs']['tests'], 'Test Unit Contracts On This Platform')['if'],
+            "matrix.os != 'ubuntu-latest'",
+        ),
+    'One Linux job owns quality and 100% coverage; every other platform still executes unit contracts.',
+);
+$documentationJob = $repositoryDocumentation['jobs']['documentation'];
+verifyWorkflow(
+    'impact' === $documentationJob['needs']
+        && '${{ always() && !cancelled() }}' === $documentationJob['if']
+        && str_contains($documentationJob['steps'][0]['run'], 'exit 1'),
+    'Documentation must also reject failed or incomplete scope decisions.',
+);
+foreach (array_slice($documentationJob['steps'], 2) as $step) {
+    verifyWorkflow(
+        "needs.impact.outputs.documentation == 'true'" === $step['if'],
+        'Every documentation build step must require changed documentation inputs.',
+    );
+    ++$assertions;
+}
+$impactFixtures = new Process(['node', '--test', $root . '/tests/Workflow/ci-impact.test.mjs'], $root, [
+    'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'GH_HOST' => false,
+    'FF_IMPACT_GUARD' => $impactGuard['run'],
+]);
+$impactFixtures->setTimeout(30);
+$impactFixtures->mustRun();
+echo $impactFixtures->getOutput();
+$assertions += 9;
 
 echo json_encode(['status' => 'passed', 'workflow_cases' => $assertions, 'network_requests' => 0,
     'publication' => false, 'consumer_installation' => false], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;

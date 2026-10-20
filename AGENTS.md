@@ -144,6 +144,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Source namespaces](docs/source-layout.md): domain and transport ownership, canonical PHP imports and the major namespace/factory migration; ordinary folders share the root contract.
 - [Integration dependencies](docs/integration-dependencies.md): records verified Git/GitHub candidate versions and adoption criteria without claiming SDK installation or behavioral equivalence.
 - [Development scripts](scripts/README.md): maps the four used PHP quality helpers; production CLI and images do not invoke them.
+- [Repository CI scope](.github/scripts/ci-impact.md): classifies complete immutable PR changes for internal tests and docs; preserves required contexts and falls back to full validation without changing contribution or publication policy.
 - [Published changelog skill](resources/skills/fast-forward-changelog/SKILL.md): uniquely named portable consumer procedure; outputs validated fragments and approved lifecycle operations without granting publication authority.
 - [Adoption guide](docs/adoption.md): introduces runtime and workflow adoption with explicit install and release boundaries.
 - [Skill distribution guide](docs/skills.md): owns native install/check/update, independent installer ownership and discovery validation; distinguishes copies from native host activation.

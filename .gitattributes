@@ -4,6 +4,7 @@
 
 # Keep the six public Docker Actions and their root build context in GitHub dist archives.
 /.github/workflows      export-ignore
+/.github/scripts        export-ignore
 /.github/ReleaseChannelUpdater.php export-ignore
 /.github/update-release-channels.php export-ignore
 /.github/update-release-channels.md export-ignore

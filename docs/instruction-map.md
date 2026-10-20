@@ -26,6 +26,7 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retain | `scripts/{lint,php-files,phpdoc,verify-quality}.php` | Actual development gates; excluded from consumer archives and runtime images. |
 | Retain/update | `.github/actions/{check,pr-status,dependabot,version,publish,history}` | Stable public Docker Action paths; metadata and root Docker context remain in shared source archives. |
 | Retain | `.github/actions/{github-auth,setup-docker}` | Trusted internal helpers; excluded from consumer archives and not public integration contracts. |
+| Add | `.github/workflows/repository-impact.yml`, `.github/scripts/ci-impact.{mjs,md}` | Read-only internal validation classifier and its operational guide; preserves required check identities and contribution validation. |
 | Retain/update | `.github/workflows/changelog*.yml` | Seven stable public reusable contracts, kept directly in GitHub's required directory; excluded from Composer archives. |
 | Consolidate/rename | `.github/workflows/repository-{ci,changelog,documentation,image}.yml` | Internal quality, one lifecycle caller, read-only documentation builds and product image publication; excluded from consumer archives. |
 | Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
@@ -61,6 +62,13 @@ development commit pins. Root → source map → affected API remains the
 reading route. No host entrypoint or installed consumer skill is rewritten.
 
 The current hierarchy and target hierarchy both have one development root.
+Repository CI scoping retains that root: read root →
+[classifier contract](https://github.com/php-fast-forward/changelog/blob/main/.github/scripts/ci-impact.md)
+→ actual workflow and fixtures. The root index links the helper's same-basename
+guide. No child instruction file or public consumer input is added. Validate
+with workflow fixtures and actionlint; rollback restores the helper, job gates,
+tests and these navigation entries together without changing branch protection.
+
 Workflow organization changes folder responsibilities and navigation, not
 authority. Read root → automation map → lifecycle or individual operation guide;
 for changelog authoring, read root → canonical resource skill. Root index
