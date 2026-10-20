@@ -6,12 +6,16 @@ and documentation for command and workflow details. Installing instructions does
 not activate an agent session. [CPX executes the CLI](adoption.md); PHP service
 integration uses the application's Composer installation.
 
+For workflow and skill setup together, use the
+[guided project installer](project-installation.md). The skill-only command below
+remains available for explicit installation, inspection and updates.
+
 ## Install with the Changelog CLI
 
 Select a published release whose command list contains `skill:install` and set
-`CHANGELOG_VERSION` to that exact numeric version. Release `0.1.0` does not
-include this command; use the GitHub route below when your selected release does
-not offer it. Verify that release's PHP requirements and inspect its help:
+`CHANGELOG_VERSION` to that exact numeric version. Use the GitHub route below
+when your selected release does not offer it. Verify that release's PHP
+requirements and inspect its help:
 
 ```sh
 cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
@@ -38,6 +42,25 @@ Project scope is the default; `--cwd` selects the project, `--target` selects a
 relative discovery root and `--global` explicitly selects the configured home.
 A later CLI release carrying identical skill bytes does not require reinstalling.
 
+### Inspect the installed version
+
+```sh
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install --check --json
+```
+
+The result's `installed_source` contains the recorded package version and optional
+commit only when the native receipt and complete installed inventory are valid.
+It is `null` for missing, unmanaged, modified or recovery-pending copies. `source`
+identifies the instructions bundled with the executing CLI; it does not claim to
+be the latest published version. Per-file hashes and the payload digest detect
+local changes. They are integrity records, not signatures.
+
+The receipt's schema version describes its JSON format. Its source package
+version describes provenance; matching instruction bytes remain current even
+when a newer CLI has a different package version. Review an actual content change
+with `--check`, then use `--update` deliberately. Neither `install` nor an ordinary
+command silently upgrades the skill.
+
 On human command paths, the CLI can warn when an intact native copy at the default
 project target is provably older than its bundled instructions. This is a local comparison, not a registry
 lookup. Missing, foreign, modified or ambiguous copies do not generate that
@@ -53,6 +76,9 @@ merely to force a retry.
 
 Choose one owner for the installed copy. This receipt is not the NPX Skills
 lock or `llm/skills` configuration, and the command does not adopt their copies.
+Project setup preserves `skills-lock.json` and refuses native ownership when it
+already records this skill, even if the installed directory is absent. Choose
+`install --no-skill` to configure only the workflow while retaining NPX ownership.
 Use their own update/removal route, or explicitly archive a selected copy before
 migrating installers. After installation inspect the files, refresh the host
 session and verify discovery separately.

@@ -39,8 +39,13 @@ approval.
    do not retain an obsolete embedded pin blindly. After setting the final ref,
    inspect the reusable workflow at that exact ref and confirm its inputs,
    permissions and runner requirements before saving the application caller.
-   Keep publication
-   disabled for adoption. Change existing integration only within task scope.
+   If that release offers a project `install` command, inspect its help and prefer
+   its guided preview for a missing integration. Explain the release branch,
+   publication choice and optional skill before accepting writes. Normal
+   automatic publication follows review and merge of the version PR; disable it
+   only for an explicitly chosen validation-only flow. Installation itself must
+   not publish anything. Preserve an existing caller, its pin and settings;
+   migration or upgrades need their own task scope.
 4. For local CLI work, set `CHANGELOG_VERSION` to the verified exact numeric
    release, without the tag's `v`. Discover commands and inspect their arguments:
 
@@ -60,6 +65,12 @@ Installing this skill installs instructions, independently of the runtime. If
 the selected CLI offers skill installation/check/update operations, inspect
 their help and use only the supported operation and requested scope. Otherwise
 follow that release's skill-installation guide; do not invent a command.
+
+Native installation can record the source package version, commit and payload
+integrity. Compare an installed copy with the selected CLI through its documented
+check operation; do not confuse that local comparison with a latest-version
+lookup. Preserve NPX or other installer ownership and its lockfile rather than
+trying to adopt the copy or rewrite metadata into a merely similar JSON format.
 
 This procedure avoids a frozen API inventory. A breaking release can still
 change the lifecycle or these entrypoints: when documentation and capabilities
