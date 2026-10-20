@@ -18,6 +18,7 @@ workflow consolidates them into `CHANGELOG.md`.
 - [Lifecycle inputs and defaults](reusable-lifecycle.md),
   [individual Actions](github-actions.md) and [workflow map](automation-map.md)
 - [GitHub App credentials](github-app.md) and [validation policies](policies.md)
+- [GitHub Actions event policy setup and blocked runs](actions-event-policy.md)
 - [Version PRs and title customization](version-pull-request.md),
   [approved publication](publication.md) and [local transaction recovery](release-receipts.md)
 - [History, formatting and templates](history.md), [Docker runtime](docker.md)

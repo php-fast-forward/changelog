@@ -19,6 +19,10 @@ full tag or SHA for a fixed revision. The
 [example's setup notes](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md) describe branch filters,
 runner selection and the optional token.
 
+Public repositories must also review [GitHub Actions event policies](actions-event-policy.md).
+The lifecycle needs `pull_request_target` for trusted feedback and approved-merge
+publication; the consumer's policy must permit that caller and event.
+
 The example enables `prepare-release: true` to validate the reviewable version
 PR and keeps `publish: false`. Set `prepare-release: false` when initially
 testing only contributions and comments.

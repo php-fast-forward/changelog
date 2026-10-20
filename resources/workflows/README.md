@@ -15,6 +15,9 @@ Before enabling it:
    updates a sticky PR comment, authors verified Dependabot fragments and
    prepares one reviewable version PR. It never merges that PR.
 
+Public repositories must also review the consumer's [Actions event policy](../../docs/actions-event-policy.md)
+to permit the trusted `pull_request_target` route for this caller.
+
 Jobs use `ubuntu-latest` by default; no repository variable is required.
 Optionally pass `runs-on` as a JSON array of Linux runner labels, for example
 `runs-on: '["self-hosted", "Linux", "X64"]'`. Docker, Bash and Git are required.
