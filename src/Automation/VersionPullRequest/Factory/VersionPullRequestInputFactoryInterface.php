@@ -22,12 +22,12 @@ use FastForward\Changelog\Automation\VersionPullRequest\VersionPullRequestInput;
 interface VersionPullRequestInputFactoryInterface
 {
     /**
-     * Rejects unsafe refs, Bot logins and controls; bounds literal titles to 256 bytes and version templates to 1024 bytes.
+     * Rejects unsafe refs, Bot logins and controls; bounds literal titles to 256 bytes and repository/version templates to 1024 bytes.
      *
      * @param  string                      $baseBranch      Trusted release-line branch that supplies the fresh source base.
      * @param  string                      $managedBranch   Exclusive automation branch reserved for the generated version PR.
      * @param  string                      $automationActor Canonical GitHub Bot login required to own and sign generated commits.
-     * @param  string                      $title           Single-line PR title or supported version-placeholder template; never publication authority.
+     * @param  string                      $title           Single-line PR title or supported repository/version template; never publication authority.
      * @param  bool                        $dryRun          Whether to return the proposed transaction without creating or updating remote content.
      * @return VersionPullRequestInput     Validated immutable branch, Bot, title and preview settings.
      * @throws VersionPullRequestException When branch, Bot identity or bounded single-line title settings are invalid.
@@ -36,7 +36,7 @@ interface VersionPullRequestInputFactoryInterface
         string $baseBranch = 'main',
         string $managedBranch = 'changelog/version',
         string $automationActor = 'github-actions[bot]',
-        string $title = 'chore: update changelog',
+        string $title = 'chore(release): {repository} v{current_version} → v{next_version}',
         bool $dryRun = false,
     ): VersionPullRequestInput;
 }

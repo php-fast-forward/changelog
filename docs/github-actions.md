@@ -205,7 +205,7 @@ jobs:
       base-branch: main
       managed-branch: changelog/version
       automation-actor: github-actions[bot]
-      title: 'chore: update changelog'
+      title: 'chore(release): fast-forward/example v{current_version} → v{next_version}'
       dry-run: false
 ```
 
@@ -222,9 +222,9 @@ A maintenance-only PR has no next public version. See
 [the version PR transaction](version-pull-request.md).
 
 The version workflow's `title` accepts a literal title or the placeholders
-`{current_version}` and `{next_version}`. The lifecycle exposes the same setting as
+`{repository}`, `{repository_name}`, `{current_version}` and `{next_version}`. The lifecycle exposes the same setting as
 `version-pr-title`; see [title settings](reusable-lifecycle.md).
-The default remains `chore: update changelog`. A title-only refresh preserves
+The default is `chore(release): {repository} v{current_version} → v{next_version}`. A title-only refresh preserves
 the signed branch head and transaction identity.
 
 Before merging, the generated source base must equal the live PR base. A later

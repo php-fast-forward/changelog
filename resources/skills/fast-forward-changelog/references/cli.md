@@ -9,13 +9,13 @@ or current behavior from an older installed skill.
 
 ## Execute the selected CLI
 
-Run from the application's directory. `CHANGELOG_VERSION` is the verified exact
-numeric product version, not a range frozen into this skill:
+Run from the application's directory. Use the unversioned package command so
+these instructions remain useful across compatible CLI releases:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help status
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help version
+cpx --skip-local fast-forward/changelog list --raw
+cpx --skip-local fast-forward/changelog help status
+cpx --skip-local fast-forward/changelog help version
 ```
 
 CPX keeps tool dependencies separate from the application's Composer project;
@@ -35,8 +35,8 @@ instruction installation and host-session activation remain separate results.
 For releases offering these arguments, inspect the read-only plan first:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags --no-interaction
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog status --json --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog version --dry-run --source=tags --no-interaction
 ```
 
 Review the baseline/current/next version, effective impact, accepted fragment
@@ -44,6 +44,13 @@ paths, notes and affected files. Choose the relevant maintenance branch and
 historical source explicitly. A branch name alone does not establish a release
 range. Check command help before treating an exit code as success or failure;
 check modes may use a nonzero result for drift as well as errors.
+
+These offline previews omit automatic PR-origin lookup. To reproduce an
+integration using `resolve-pull-requests: true`, inspect the selected CLI's help
+and add `--resolve-pull-requests=true --repository=owner/repository` to both
+commands, with the same GitHub credentials and history options as automation.
+The historical source and PR lookup are independent; `--source=tags` alone does
+not enable PR lookup.
 
 The normal GitHub lifecycle prepares the version PR. Applying a local version
 transaction requires existing consolidation authority and the same reviewed

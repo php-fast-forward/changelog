@@ -12,14 +12,13 @@ remains available for explicit installation, inspection and updates.
 
 ## Install with the Changelog CLI
 
-Select a published release whose command list contains `skill:install` and set
-`CHANGELOG_VERSION` to that exact numeric version. Use the GitHub route below
-when your selected release does not offer it. Verify that release's PHP
-requirements and inspect its help:
+Use the stable CLI through CPX and inspect its help before installation. Verify
+its PHP requirements. The GitHub route below remains available when the CLI
+cannot run in your environment:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install
+cpx --skip-local fast-forward/changelog help skill:install
+cpx --skip-local fast-forward/changelog skill:install
 ```
 
 This route needs no Node.js or dependency in the application. It copies the
@@ -45,7 +44,7 @@ A later CLI release carrying identical skill bytes does not require reinstalling
 ### Inspect the installed version
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install --check --json
+cpx --skip-local fast-forward/changelog skill:install --check --json
 ```
 
 The result's `installed_source` contains the recorded package version and optional

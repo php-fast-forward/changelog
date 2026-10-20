@@ -10,12 +10,12 @@ Git repository; CPX keeps the CLI dependencies outside the application. No
 
 ## Choose the release and inspect help
 
-Select a published stable release and set `CHANGELOG_VERSION` to its complete
-numeric version, without `v`. Check that version's help before setup:
+Use the stable CLI through CPX and inspect its help before setup. The installer
+independently discovers and previews a published, pinned workflow reference:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help install
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install
+cpx --skip-local fast-forward/changelog help install
+cpx --skip-local fast-forward/changelog install
 ```
 
 If the selected release does not offer `install`, follow the
@@ -43,8 +43,12 @@ For a repository without changelog automation, setup asks:
 
 An optional advanced section asks about the managed version-PR branch, Linux
 runner labels, PR comment mode and version-PR title. Blank answers retain the
-selected release's defaults. Inspect [lifecycle settings](reusable-lifecycle.md)
-for their meaning, and that published revision for its exact supported inputs.
+selected workflow's defaults. The default title identifies the GitHub repository
+and transition, such as `chore(release): acme/example v1.2.0 → v1.3.0`.
+Use a literal package label in a custom template when preferred; see
+[title customization](version-pull-request.md).
+Inspect [lifecycle settings](reusable-lifecycle.md) for their meaning, and that
+published revision for its exact supported inputs.
 
 Setup renders `.github/workflows/changelog.yml` with the release's verified
 commit SHA in `uses` and its full version in a readable comment. It sets event
@@ -71,14 +75,14 @@ Preview both components without creating directories, acquiring installation
 locks or writing files:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
+cpx --skip-local fast-forward/changelog install \
   --dry-run --json
 ```
 
 Apply deliberate unattended choices:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
+cpx --skip-local fast-forward/changelog install \
   --yes --no-interaction --base-branch=main --publish=true --no-skill \
   --set=comment-mode=on-failure
 ```

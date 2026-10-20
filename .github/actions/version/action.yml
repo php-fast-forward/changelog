@@ -73,9 +73,9 @@ inputs:
     default: "github-actions[bot]"
 
   title:
-    description: "Generated PR title; accepts {current_version} and {next_version}."
+    description: "Generated PR title; accepts {repository}, {repository_name}, {current_version} and {next_version}."
     required: false
-    default: "chore: update changelog"
+    default: "chore(release): {repository} v{current_version} → v{next_version}"
 
   dry-run:
     description: "Read and plan without creating GitHub objects."

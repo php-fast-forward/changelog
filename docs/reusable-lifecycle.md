@@ -154,11 +154,12 @@ the value for ownership but perform no origin lookup. Keep it consistent across
 separately composed operations. Changing it for a prepared PR requires
 regeneration and review of the new head; see [reference evidence](history.md).
 
-To show the version transition, configure the lifecycle with:
+The default title shows the GitHub repository and version transition. To use a
+different package label, configure it literally:
 
 ```yaml
     with:
-      version-pr-title: 'chore(release): {current_version} → {next_version}'
+      version-pr-title: 'chore(release): fast-forward/container v{current_version} → v{next_version}'
 ```
 
 Values come from the validated plan. The individual workflow/Action uses `title`

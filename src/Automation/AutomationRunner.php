@@ -318,7 +318,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
             $this->text($inputs, 'base-branch', 'main'),
             $this->text($inputs, 'managed-branch', 'changelog/version'),
             $this->text($inputs, 'automation-actor', 'github-actions[bot]'),
-            $this->text($inputs, 'title', 'chore: update changelog'),
+            $this->text($inputs, 'title', 'chore(release): {repository} v{current_version} → v{next_version}'),
             $this->boolean($inputs, 'dry-run'),
         );
         $result = $this->versions->synchronize($options, $input);

@@ -235,8 +235,19 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([], $this->writes());
     }
 
-    /** Presentation expands only known version placeholders; literal titles and unknown braces retain their bytes. */
+    /** Presentation expands repository and version placeholders once; other text retains its bytes. */
     #[Test]
+    #[TestWith([
+        'chore(release): {repository_name} {current_version} → {next_version}',
+        'chore(release): project 1.0.0 → 1.0.1',
+    ])]
+    #[TestWith(['{repository_name} / {repository_name}', 'project / project'])]
+    #[TestWith(['{repository} / {repository_name}', 'owner/project / project'])]
+    #[TestWith([
+        'chore(release): fast-forward/project v{current_version} → v{next_version}',
+        'chore(release): fast-forward/project v1.0.0 → v1.0.1',
+    ])]
+    #[TestWith(['${{ secrets.TOKEN }} $(id) {repository_name}', '${{ secrets.TOKEN }} $(id) project'])]
     #[TestWith(['chore(release): {current_version} → {next_version}', 'chore(release): 1.0.0 → 1.0.1'])]
     #[TestWith(['Release {next_version} from {current_version}', 'Release 1.0.1 from 1.0.0'])]
     #[TestWith(['Update history {custom}', 'Update history {custom}'])]
@@ -248,6 +259,36 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame('created', $result->status);
         self::assertSame($expected, $this->writes('pulls')[0][2]['title']);
         self::assertStringStartsWith($expected . "\n\nChangelog-Plan: ", $this->writes('commits')[0][2]['message']);
+    }
+
+    /** Repository substitutions obey the final byte limit before remote writes in apply and preview modes. */
+    #[Test]
+    #[TestWith(['repository_name', 'project', 249, false, 'created'])]
+    #[TestWith(['repository_name', 'project', 249, true, 'dry-run'])]
+    #[TestWith(['repository_name', 'project', 250, false, 'refused'])]
+    #[TestWith(['repository_name', 'project', 250, true, 'refused'])]
+    #[TestWith(['repository', 'owner/project', 243, false, 'created'])]
+    #[TestWith(['repository', 'owner/project', 244, false, 'refused'])]
+    public function boundsTheResolvedRepositoryTitle(
+        string $placeholder,
+        string $repository,
+        int $literalBytes,
+        bool $dryRun,
+        string $status,
+    ): void {
+        $result = $this->synchronizeFixture(
+            input: new VersionPullRequestInput(title: str_repeat(
+                'a',
+                $literalBytes,
+            ) . '{' . $placeholder . '}', dryRun: $dryRun),
+        );
+
+        self::assertSame($status, $result->status);
+        if ('created' === $status) {
+            self::assertSame(str_repeat('a', $literalBytes) . $repository, $this->writes('pulls')[0][2]['title']);
+        } else {
+            self::assertSame([], $this->writes());
+        }
     }
 
     /** First releases expose the real initial baseline; maintenance has no new version and repeats its current version. */
@@ -637,7 +678,7 @@ final class VersionPullRequestServiceTest extends TestCase
             'changelog/version',
         ) : null;
         if (null !== $pr) {
-            $pr['title'] = $settings['pr_title'] ?? 'chore: update changelog';
+            $pr['title'] = $settings['pr_title'] ?? 'chore(release): owner/project v1.0.0 → v1.0.1';
             $pr['body'] = $settings['pr_body'] ?? 'Manually edited release checklist.';
             $pr['html_url'] = 'https://github.com/owner/project/pull/7';
             $pr['head']['sha'] = $head;
