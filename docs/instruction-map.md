@@ -34,7 +34,7 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retain/update | `docs/workflow-reference.md` | Complete public parameters, defaults, secrets, outputs and permissions under the same root authority; no new instruction scope. |
 | Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
-| Retain/update | `src/Installation/`, `docs/project-installation.md` | Explicit project inspection, verified workflow rendering and create-only application under the same root; existing automation and foreign ownership are preserved. |
+| Retain/update | `src/Installation/`, `docs/project-installation.md` | Explicit project inspection, verified workflow rendering and llm/skills project setup under the same root; existing automation, Composer policy and foreign ownership are preserved. |
 
 The root index points to these durable guides and the canonical package.
 No extra child contract is created for resources, scripts or the skill itself.
@@ -42,11 +42,21 @@ Guided setup adds no child contract. Read root → project installation guide �
 the executing command's help. Its preview does not grant workflow execution,
 merge or release authority. Restore source, tests, provider, guide and root index
 together on rollback; never remove consumer-owned files as a rollback shortcut.
-Native skill installation remains source behavior under the same root. Read
+Default project skill setup delegates to llm/skills with a declared GitHub source.
+Its guided execution boundary verifies the fixed official standalone PHAR outside
+the checkout and disables consumer Composer plugins/scripts. Plugin approval is
+preserved as an explicit owner operation; a copied skill alone does not establish
+future auto-sync. This adds no instruction scope or alternative skill manager.
+Read root → skill guide → Composer lifecycle and selected command help. Consumer
+`skills.json` and manifest/lock policy preserve the configuration; generated
+`.agents/` copies stay ignored and excluded from archives. Normal approved
+Composer installation reconstructs them with auto-sync enabled. No new child
+scope or in-project host adapter is introduced.
+Legacy native skill installation remains source behavior under the same root. Read
 root → skill distribution guide → the selected runtime's actual help. The
 canonical resource procedure discovers release-specific contracts instead of
 freezing an API inventory; it does not authorize installation or incidental
-upgrades. Native receipts belong to installed copies, never the donor source
+upgrades. Native receipts belong to legacy installed copies, never the donor source
 or another installer's lockfile. Copy, ownership and integrity checks do not
 establish native host activation.
 The [source map](source-layout.md) and

@@ -105,6 +105,8 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(Changelog::class)]
 #[UsesClass(\FastForward\Changelog\Installation\InstallationFilesystem::class)]
 #[UsesClass(\FastForward\Changelog\Installation\WorkflowReleaseResolver::class)]
+#[UsesClass(\FastForward\Changelog\Installation\ComposerSkillInstaller::class)]
+#[UsesClass(\FastForward\Changelog\Installation\VerifiedSkillManagerRuntime::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     /** Installation factories construct bounded public discovery and create-only I/O without executing either. */
@@ -117,17 +119,21 @@ final class ChangelogServiceProviderTest extends TestCase
         $http->expects(self::never())->method('request');
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::never())->method('exists');
+        $filesystem->expects(self::never())->method('tempnam');
+        $processes = $this->createMock(\FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class);
+        $processes->expects(self::never())->method('create');
         $container = $this->createStub(ContainerInterface::class);
         $container->method('get')->willReturnMap([
             [HttpClientInterface::class, $http],
             [Filesystem::class, $filesystem],
+            [ChangelogServiceProvider::CONFIG, new ArrayConfig(['temporary_directory' => '/synthetic-temp'])],
             [ManagedFileStoreInterface::class, $this->createStub(ManagedFileStoreInterface::class)],
             [PackagePathResolverInterface::class, $this->createStub(PackagePathResolverInterface::class)],
             [FinderFactoryInterface::class, $this->createStub(FinderFactoryInterface::class)],
             [GitRepositoryInterface::class, $this->createStub(GitRepositoryInterface::class)],
             [
                 \FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class,
-                $this->createStub(\FastForward\Changelog\Process\Factory\ProcessFactoryInterface::class),
+                $processes,
             ],
             [PackageVersionResolverInterface::class, $this->createStub(PackageVersionResolverInterface::class)],
         ]);
@@ -140,6 +146,10 @@ final class ChangelogServiceProviderTest extends TestCase
         self::assertInstanceOf(
             \FastForward\Changelog\Installation\WorkflowReleaseResolver::class,
             $factories[\FastForward\Changelog\Installation\WorkflowReleaseResolver::class]($container),
+        );
+        self::assertInstanceOf(
+            \FastForward\Changelog\Installation\VerifiedSkillManagerRuntime::class,
+            $factories[\FastForward\Changelog\Installation\VerifiedSkillManagerRuntime::class]($container),
         );
     }
 

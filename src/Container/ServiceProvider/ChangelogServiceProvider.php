@@ -330,6 +330,20 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     {
         return [
             Installation\ProjectInstallerInterface::class => new AliasFactory(Installation\ProjectInstaller::class),
+            Installation\ProjectSkillInstallerInterface::class => new AliasFactory(
+                Installation\ComposerSkillInstaller::class,
+            ),
+            Installation\SkillManagerRuntimeInterface::class => new AliasFactory(
+                Installation\VerifiedSkillManagerRuntime::class,
+            ),
+            Installation\VerifiedSkillManagerRuntime::class => static fn(ContainerInterface $container): Installation\VerifiedSkillManagerRuntime
+                => new Installation\VerifiedSkillManagerRuntime(
+                    $container->get(HttpClientInterface::class),
+                    $container->get(\Symfony\Component\Filesystem\Filesystem::class),
+                    $container->get(Filesystem\ManagedFileStoreInterface::class),
+                    $container->get(Process\Factory\ProcessFactoryInterface::class),
+                    $container->get(self::CONFIG)->get('temporary_directory'),
+                ),
             Installation\InstallationFilesystemInterface::class => new AliasFactory(
                 Installation\InstallationFilesystem::class,
             ),

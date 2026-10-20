@@ -10,7 +10,7 @@ workflow consolidates them into `CHANGELOG.md`.
 | --- | --- |
 | Set up GitHub automation | [Guided project setup](project-installation.md) → [Reusable lifecycle](reusable-lifecycle.md) |
 | Run the local CLI through CPX | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
-| Give an agent the consumer instructions | [Skill installation](skills.md) |
+| Manage project instructions from GitHub | [Skill installation](skills.md) → [Composer lifecycle](composer-skills.md) |
 | Integrate the PHP services | [PHP API](adoption.md) → [Dependencies](dependencies.md) |
 
 ## Automation and releases
@@ -29,7 +29,7 @@ workflow consolidates them into `CHANGELOG.md`.
 
 - [Source namespaces and API migrations](source-layout.md),
   [dependency contracts](dependencies.md) and [Git/GitHub adapter choices](integration-dependencies.md)
-- [Optional Composer skill synchronization](composer-skills.md)
+- [Composer skill updates, trust and removal](composer-skills.md)
 - [Contributor quality gates](foundation.md), [this repository's changelog flow](self-changelog.md)
   and [instruction map](instruction-map.md)
 - [Documentation build and source map](documentation.md)
