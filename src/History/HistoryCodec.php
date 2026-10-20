@@ -430,7 +430,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      */
     private function lines(string $markdown): array
     {
-        return array_values(SourceDocument::analyze($markdown)->lines());
+        return preg_split('/(?<=\n)|(?<=\r)(?!\n)/', $markdown, flags: PREG_SPLIT_NO_EMPTY);
     }
 
     /**

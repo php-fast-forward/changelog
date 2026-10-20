@@ -84,7 +84,8 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                 if ('' !== $references && $presentation->hidesAppendedLine('  Fast Forward Reference')) {
                     throw new InvalidArgumentException('An unfinished HTML block would hide the delivery reference.');
                 }
-                $blockReference = $multiline || isset($presentation->literalHtmlLines()[1]);
+                $blockReference = $multiline || isset($presentation->literalHtmlLines()[1])
+                    || $presentation->beginsWithIndentedCode();
                 $suffix = '' === $references ? '' : ($blockReference ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = $boundary . $body . $suffix;
                 $previousOrdered = false;

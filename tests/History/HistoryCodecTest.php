@@ -40,6 +40,18 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ReleaseNotesRenderer::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** Line-only scans retain CRLF and standalone CR introduction bytes without requiring block interpretation. */
+    #[TestWith(["# Introduction\r\n\r\nMaintained prose.\r\n"])]
+    #[TestWith(["# Introduction\r\rMaintained prose.\r"])]
+    public function testIntroductionLineEndingsRemainBytePreserved(string $source): void
+    {
+        $codec = $this->codec();
+        $document = $codec->parse($source);
+
+        self::assertSame($source, $document->getPrefix());
+        self::assertSame($source, $codec->render($document, $this->template('en'), true));
+    }
+
     /** A list-contained HTML tail with no metadata ends at the next root heading and preserves both releases. */
     public function testContainedHtmlWithoutMetadataPreservesTheFollowingRelease(): void
     {

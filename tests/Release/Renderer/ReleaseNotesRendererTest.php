@@ -503,6 +503,17 @@ final class ReleaseNotesRendererTest extends TestCase
         );
     }
 
+    /** A standalone single-line command keeps the delivery reference outside its wrapped literal code block. */
+    public function testSingleLineStandaloneIndentedCodeKeepsTheReferenceOutsideItsPayload(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n-     printf hello\n\n  (#7)\n", new ReleaseNotesRenderer()->render([
+            new Changeset('code.md', Category::Added, null, 7, null, '    printf hello'),
+        ], $template));
+    }
+
     /** A non-one ordered list cannot interrupt an earlier bullet's paragraph without a block boundary. */
     public function testOrderedListStartingAtTwoIsSeparatedFromThePrecedingFragment(): void
     {

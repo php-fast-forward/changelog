@@ -30,6 +30,19 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(HistoryCodec::class)]
 final class HistoryReferenceBuilderTest extends TestCase
 {
+    /** Legacy ending definitions followed by prose remain authoritative outside both the body and terminal footer. */
+    public function testMarkedReleaseEndingDefinitionDoesNotGainADuplicate(): void
+    {
+        $source = "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"date\":null} -->\r\n"
+            . "## [1.0.0]\r\nMaintained body.\r\n<!-- fast-forward-changelog:end-release -->\r\n"
+            . "[1.0.0]: https://example.test/maintained\r\n\r\nFooter license prose.\r\n";
+        $document = $this->codec()->parse($source);
+
+        self::assertSame('', $document->getReferences());
+        self::assertStringContainsString('[1.0.0]:', $document->getRelease('1.0.0')->getEnding());
+        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project'));
+    }
+
     /** Missing links follow semantic predecessors and section order while retaining custom definition bytes. */
     public function testCompletesConcreteVersionsAndRetainsAllExistingBytes(): void
     {

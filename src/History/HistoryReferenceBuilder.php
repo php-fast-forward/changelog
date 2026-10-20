@@ -276,6 +276,7 @@ final readonly class HistoryReferenceBuilder
         foreach ($document->getReleases() as $release) {
             // Domain sections are independent Markdown regions, including sections without stored headings.
             $defined += $this->referenceOffsets($release->getBody());
+            $defined += $this->referenceOffsets($release->getEnding());
         }
 
         return $defined + $this->referenceOffsets($document->getReferences());
