@@ -57,14 +57,14 @@ remain unchanged; a tab crossing the structural boundary retains equivalent
 content columns.
 The renderer does not add a
 second outer bullet. With a PR or issue reference, each single-line principal
-item receives the same inline reference. A multiline item keeps its reference
+prose item receives the same inline reference. A multiline item keeps its reference
 in an indented paragraph after its content, outside code spans, HTML comments
 and fenced examples; nested content retains its authored bytes. Ordered lists
 are separated from surrounding fragments so their starting number stays a list.
 Multiline fragments end with a blank block boundary before the next change,
 preventing a terminal HTML block from consuming another entry.
-An item containing only indented code also receives a separate reference
-paragraph, keeping the published command unchanged.
+An item containing only indented code or link definitions also receives a separate
+reference paragraph, preserving the command, link destination and optional title.
 Terminal link definitions remain active and distinct from the changelog's
 version-reference footer, including when root paragraphs have ended the list.
 Definitions are nested only when their owning item can contain them; metadata

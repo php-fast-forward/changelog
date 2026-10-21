@@ -31,6 +31,64 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(Category::class)]
 final class ReleaseNotesRendererTest extends TestCase
 {
+    /** Definition-only entries retain their link target and title while delivery metadata stays visible. */
+    #[TestWith([null, '-', false])]
+    #[TestWith(['owner/repo', '-', false])]
+    #[TestWith([null, '12.', false])]
+    #[TestWith(['owner/repo', '12.', false])]
+    #[TestWith(['owner/repo', '999999999.', false])]
+    #[TestWith([null, '-', true])]
+    #[TestWith(['owner/repo', '-', true])]
+    #[TestWith([null, '12.', true])]
+    #[TestWith(['owner/repo', '12.', true])]
+    #[TestWith(['owner/repo', '999999999.', true])]
+    public function testDefinitionOnlyListItemsKeepDeliveryReferencesInSeparateParagraphs(
+        ?string $repository,
+        string $marker,
+        bool $withTitle,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $padding = str_repeat(' ', strlen($marker) + 1);
+        $title = $withTitle ? ' "Guide title"' : '';
+        $description = $marker . ' [guide]: https://example.test' . $title . "\n"
+            . $marker . ' See [guide].';
+        $reference = null === $repository ? '#7' : '[#7](https://github.com/owner/repo/pull/7)';
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('definition.md', Category::Added, null, 7, null, $description),
+        ], $template, $repository);
+
+        self::assertSame(
+            "### Added\n\n" . $marker . ' [guide]: https://example.test' . $title . "\n\n"
+                . $padding . '(' . $reference . ")\n" . $marker . ' See [guide]. (' . $reference . ")\n",
+            $notes,
+        );
+        $html = (string) new CommonMarkConverter()->convert($notes);
+
+        self::assertStringContainsString('<a href="https://example.test"' . ($withTitle ? ' title="Guide title"' : '')
+            . '>guide</a>', $html);
+        self::assertSame(2, substr_count($html, null === $repository ? '(#7)' : '>#7</a>'));
+    }
+
+    /** Wrapping a standalone or nested definition must not turn delivery attribution into a link title. */
+    #[TestWith(['[guide]: https://example.test', '- [guide]: https://example.test', 2])]
+    #[TestWith(['- > [guide]: https://example.test', '- > [guide]: https://example.test', 2])]
+    #[TestWith(['- - [guide]: https://example.test', '- - [guide]: https://example.test', 2])]
+    public function testStandaloneAndNestedDefinitionsKeepVisibleAttribution(
+        string $description,
+        string $body,
+        int $padding,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('definition.md', Category::Added, null, 7, null, $description),
+        ], $template);
+
+        self::assertSame("### Added\n\n" . $body . "\n\n" . str_repeat(' ', $padding) . "(#7)\n", $notes);
+        self::assertStringContainsString('(#7)', (string) new CommonMarkConverter()->convert($notes));
+    }
+
     /** Root context retains active definitions while inline-owned comment text and delivery attribution stay intact. */
     #[TestWith([null])]
     #[TestWith([7])]

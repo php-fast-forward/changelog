@@ -262,6 +262,19 @@ final class SourceDocumentTest extends TestCase
         self::assertSame($unclosed, SourceDocument::analyze($source)->hasUnclosedFence());
     }
 
+    /** The upstream reference map recognizes consumed definitions in containers and excludes literal examples. */
+    #[TestWith(['[guide]: https://example.test', true])]
+    #[TestWith(['- [guide]: https://example.test', true])]
+    #[TestWith(['> [guide]: https://example.test', true])]
+    #[TestWith(["[guide]:\n  https://example.test", true])]
+    #[TestWith(['See [guide].', false])]
+    #[TestWith(['`[guide]: https://example.test`', false])]
+    #[TestWith(['[guide]: https://example.test trailing prose', false])]
+    public function testActiveReferenceDefinitionsIncludeContainerOwnedSources(string $source, bool $active): void
+    {
+        self::assertSame($active, SourceDocument::analyze($source)->hasReferenceDefinitions());
+    }
+
     /** Heading inline content obeys comment safety without reinterpreting titles, code or escaped text. */
     #[TestWith(['# Title <!-- hidden', true])]
     #[TestWith(["Title <!-- hidden\n===", true])]

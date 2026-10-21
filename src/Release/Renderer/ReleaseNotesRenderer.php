@@ -85,7 +85,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
                     throw new InvalidArgumentException('An unfinished HTML block would hide the delivery reference.');
                 }
                 $blockReference = $multiline || isset($presentation->literalHtmlLines()[1])
-                    || $presentation->beginsWithIndentedCode();
+                    || $presentation->beginsWithIndentedCode() || $presentation->hasReferenceDefinitions();
                 $suffix = '' === $references ? '' : ($blockReference ? "\n\n  " : ' ') . '(' . $references . ')';
                 $entries[] = $boundary . $body . $suffix;
                 $previousOrdered = false;
@@ -127,7 +127,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
     }
 
     /**
-     * Adds inline references to single-line prose, or separate paragraphs after indented code and multiline items.
+     * Adds inline references to single-line prose, or separate paragraphs after code, definitions and multiline items.
      *
      * @param  list<string>             $lines      Item lines after outer-indent alignment, retaining relative nesting and authored trailing whitespace.
      * @param  int                      $padding    Content columns used to keep the reference paragraph within its list item.
@@ -149,7 +149,7 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         }
 
         if (1 === count($lines) && ! BlockStructure::startsIndentedItem($body)
-            && ! isset($document->literalHtmlLines()[1])) {
+            && ! isset($document->literalHtmlLines()[1]) && ! $document->hasReferenceDefinitions()) {
             $text = rtrim($body, " \t\r");
 
             return $text . ' (' . $references . ')' . substr($body, strlen($text));

@@ -283,6 +283,16 @@ final class SourceDocument
     }
 
     /**
+     * Detects upstream-consumed definitions, including those removed from list or quote content blocks.
+     *
+     * @return bool Whether the document contains an active definition whose target or title must not absorb metadata.
+     */
+    public function hasReferenceDefinitions(): bool
+    {
+        return 0 < count($this->document->getReferenceMap());
+    }
+
+    /**
      * Chooses detached delivery metadata for an item beginning with literal code.
      *
      * @return bool Whether the first list item's first content block is literal indented code.

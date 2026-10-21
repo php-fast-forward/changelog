@@ -102,7 +102,9 @@ final class SquashPublicationTest extends TestCase
             $git($producer, ['tag', 'v1.0.0']);
             mkdir($producer . '/.changelog');
             $listDescription = match ($authoredList) {
-                'root-block-gaps' => "12. First improvement: [inline](https://example.test \"<!--\").\n\nAdditional context.\n\n13. Second improvement.\n\nMore context. See [guide].\n\n[guide]: https://example.test/reference",
+                'root-block-gaps' => "12. [local]: https://example.test/local\n"
+                    . "13. First improvement: [inline](https://example.test \"<!--\"). See [local].\n\nAdditional context.\n\n"
+                    . "14. Second improvement.\n\nMore context. See [guide].\n\n[guide]: https://example.test/reference",
                 'html-tab' => "<pre>\nall:\n\tprintf 'hello'\n</pre>",
                 'mixed-indent' => "  - First improvement.\n- Second improvement.\n\n  Continued.",
                 'raw-html' => "- <pre>\n  ```\n  </pre>\n- Second improvement.",
@@ -195,8 +197,9 @@ final class SquashPublicationTest extends TestCase
                     $expected = "\n### Fixed\n\n- Use `foo " . $reference
                         . "\n- <!-- hidden\n  ~~~\n  -->\n\n  " . $reference . "\n- bar` " . $reference . "\n\n";
                 } elseif ('root-block-gaps' === $authoredList) {
-                    $expected = "\n### Fixed\n\n12. First improvement: [inline](https://example.test \"<!--\"). " . $reference
-                        . "\n\nAdditional context.\n\n13. Second improvement. " . $reference
+                    $expected = "\n### Fixed\n\n12. [local]: https://example.test/local\n\n    " . $reference
+                        . "\n13. First improvement: [inline](https://example.test \"<!--\"). See [local]. " . $reference
+                        . "\n\nAdditional context.\n\n14. Second improvement. " . $reference
                         . "\n\nMore context. See [guide].\n\n   [guide]: https://example.test/reference\n\n";
                     self::assertArrayHasKey('guide', SourceDocument::analyze($plan->notes)->referenceOffsets());
                 } elseif ('html-tab' === $authoredList) {
