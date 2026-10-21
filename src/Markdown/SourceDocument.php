@@ -22,6 +22,7 @@ use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\CommonMark\Node\Block\BlockQuote;
 use League\CommonMark\Extension\CommonMark\Node\Block\FencedCode;
+use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
 use League\CommonMark\Extension\CommonMark\Node\Block\HtmlBlock;
 use League\CommonMark\Extension\CommonMark\Node\Block\IndentedCode;
 use League\CommonMark\Extension\CommonMark\Node\Block\ListBlock;
@@ -357,9 +358,9 @@ final class SourceDocument
      * Applies strict comment safety using block ownership and observations from the upstream inline pipeline.
      *
      * Link titles, HTML attributes, code and escapes retain upstream ownership. A real subsequent fence
-     * interrupts an unmatched inline opener; no raw-source lexer reinterprets those inline constructs.
+     * interrupts an unmatched paragraph opener; headings retain their own inline safety evidence.
      *
-     * @return bool Whether a real comment or an unfinished paragraph comment could hide appended metadata.
+     * @return bool Whether an unfinished block, paragraph or heading comment could hide appended metadata.
      */
     public function hasUnclosedComment(): bool
     {
@@ -368,10 +369,10 @@ final class SourceDocument
                 if ($this->hasUnclosedHtmlComment($node)) {
                     return true;
                 }
-            } elseif ($node instanceof Paragraph) {
+            } elseif ($node instanceof Paragraph || $node instanceof Heading) {
                 $next = $node->getEndLine() + 1;
 
-                if (! isset($this->fenced[$next]) && $node->data->get(
+                if (($node instanceof Heading || ! isset($this->fenced[$next])) && $node->data->get(
                     UnclosedCommentInlineParser::UNCLOSED_COMMENT,
                     false,
                 )) {

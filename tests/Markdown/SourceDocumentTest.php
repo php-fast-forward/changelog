@@ -262,6 +262,21 @@ final class SourceDocumentTest extends TestCase
         self::assertSame($unclosed, SourceDocument::analyze($source)->hasUnclosedFence());
     }
 
+    /** Heading inline content obeys comment safety without reinterpreting titles, code or escaped text. */
+    #[TestWith(['# Title <!-- hidden', true])]
+    #[TestWith(["Title <!-- hidden\n===", true])]
+    #[TestWith(["# Title <!-- hidden\n\n~~~\ncode\n~~~", true])]
+    #[TestWith(["Title <!-- hidden\n---\n~~~\ncode\n~~~", true])]
+    #[TestWith(['# See [guide](https://example.test "<!--")', false])]
+    #[TestWith(["See [guide](https://example.test \"<!--\")\n===", false])]
+    #[TestWith(['# Use `<!-- literal` safely.', false])]
+    #[TestWith(['# Visible \\<!-- literal', false])]
+    #[TestWith(['# Title <!-- closed -->', false])]
+    public function testCommentSafetyIncludesHeadingInlineContent(string $source, bool $unclosed): void
+    {
+        self::assertSame($unclosed, SourceDocument::analyze($source)->hasUnclosedComment());
+    }
+
     /** Strict comment safety distinguishes real openers from escaped text and complete paragraph code spans. */
     #[TestWith(['See [guide](https://example.test "<!--").', false])]
     #[TestWith(['See ![guide](https://example.test "<!--").', false])]

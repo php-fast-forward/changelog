@@ -198,12 +198,15 @@ final class ChangesetParserTest extends TestCase
         self::assertContains('Fragment HTML blocks must not hide following release headings.', $result->errors);
     }
 
-    /** A visible paragraph cannot make an unclosed HTML comment safe for later reference paragraphs. */
-    public function testRejectsUnclosedCommentAfterVisibleProse(): void
+    /** Visible prose and headings cannot make an unclosed comment safe for later delivery metadata. */
+    #[TestWith(["Visible prose.\n\n<!-- not closed"])]
+    #[TestWith(['# Title <!-- not closed'])]
+    #[TestWith(["Title <!-- not closed\n==="])]
+    public function testRejectsUnclosedCommentsInRenderedBlocks(string $body): void
     {
         $result = new ChangesetParser()->parse(
             'entry.md',
-            "---\ncategory: fixed\n---\n\nVisible prose.\n\n<!-- not closed",
+            "---\ncategory: fixed\n---\n\n" . $body,
         );
 
         self::assertContains(
