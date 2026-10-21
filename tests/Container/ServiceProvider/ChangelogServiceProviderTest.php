@@ -31,6 +31,7 @@ use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\Import\HistoryImporter;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication\MergedPublicationServiceInterface;
@@ -88,6 +89,7 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[UsesClass(ChangelogCommandLoader::class)]
 #[UsesClass(PackagePathResolver::class)]
 #[UsesClass(ProcessFactory::class)]

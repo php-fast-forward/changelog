@@ -6,6 +6,7 @@ namespace FastForward\Changelog\Tests\Markdown;
 
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -13,6 +14,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(SourceDocument::class)]
+#[CoversClass(UnclosedCommentInlineParser::class)]
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 final class SourceDocumentTest extends TestCase
@@ -261,6 +263,15 @@ final class SourceDocumentTest extends TestCase
     }
 
     /** Strict comment safety distinguishes real openers from escaped text and complete paragraph code spans. */
+    #[TestWith(['See [guide](https://example.test "<!--").', false])]
+    #[TestWith(['See ![guide](https://example.test "<!--").', false])]
+    #[TestWith(['See <span title="<!--">guide</span>.', false])]
+    #[TestWith(['See &lt;!-- literally.', false])]
+    #[TestWith(['See [guide](https://example.test "<!--") <!-- open', true])]
+    #[TestWith(['Text <!--> remains visible.', false])]
+    #[TestWith(['<!-- closed --> <span title="<!--">', false])]
+    #[TestWith(["<!-- multi\n\nline -->", false])]
+    #[TestWith(['<!-- closed --> `literal <!--`', true])]
     #[TestWith(['Visible \\<!-- literal', false])]
     #[TestWith(['Visible \\\\<!-- hidden', true])]
     #[TestWith(['Use `<!-- literal` safely.', false])]

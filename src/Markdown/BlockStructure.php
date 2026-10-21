@@ -144,10 +144,10 @@ final class BlockStructure
     }
 
     /**
-     * Keeps terminal fragment-owned definitions inside their last principal item rather than the history footer.
+     * Keeps terminal definitions active within their owning list item or the intervening root body.
      *
      * @param  string $description Independently aligned authored list.
-     * @return string Presentation with only a terminal run of active root definitions nested into its owning item.
+     * @return string Presentation with terminal definitions distinguished from the history footer without becoming code.
      */
     private static function nestTrailingReferences(string $description): string
     {
@@ -155,14 +155,34 @@ final class BlockStructure
         $lines = $document->lines();
         $offsets = $document->referencePositions();
         $items = $document->principalItems();
-        $padding = array_last($items)['padding'];
+        $item = array_last($items);
+        $definitions = [];
 
         foreach (array_reverse(array_keys($lines)) as $number) {
             if (isset($offsets[$document->offset($number)]) && str_starts_with($lines[$number], '[')) {
-                $lines[$number] = str_repeat(' ', $padding) . $lines[$number];
+                $definitions[] = $number;
             } elseif ('' !== trim($lines[$number])) {
                 break;
             }
+        }
+
+        if ([] === $definitions) {
+            return $description;
+        }
+        $firstDefinition = min($definitions);
+        $padding = $item['padding'];
+
+        foreach ($lines as $number => $line) {
+            if ($number > $item['end'] && $number < $firstDefinition && '' !== trim($line)) {
+                // Root blocks ended the item; at most three columns keep a body-owned definition active.
+                $padding = min(3, $padding);
+
+                break;
+            }
+        }
+
+        foreach ($definitions as $number) {
+            $lines[$number] = str_repeat(' ', $padding) . $lines[$number];
         }
 
         return implode('', $lines);

@@ -17,6 +17,7 @@ namespace FastForward\Changelog\Markdown;
 
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\CommonMark\Node\Block\BlockQuote;
@@ -25,6 +26,7 @@ use League\CommonMark\Extension\CommonMark\Node\Block\HtmlBlock;
 use League\CommonMark\Extension\CommonMark\Node\Block\IndentedCode;
 use League\CommonMark\Extension\CommonMark\Node\Block\ListBlock;
 use League\CommonMark\Extension\CommonMark\Node\Block\ListItem;
+use League\CommonMark\Extension\CommonMark\Parser\Inline\HtmlInlineParser;
 use League\CommonMark\Node\Block\AbstractBlock;
 use League\CommonMark\Node\Block\Document;
 use League\CommonMark\Node\Block\Paragraph;
@@ -177,6 +179,7 @@ final class SourceDocument
         $environment = new Environment();
         $environment->addExtension(new CommonMarkCoreExtension());
         $environment->addBlockStartParser(new TrackedFencedCodeStartParser(), 51);
+        $environment->addInlineParser(new UnclosedCommentInlineParser(), 39);
 
         return new self($source, new MarkdownParser($environment)->parse($source));
     }
@@ -351,10 +354,10 @@ final class SourceDocument
     }
 
     /**
-     * Applies the strict reference-safety policy only inside upstream-classified paragraphs and HTML comments.
+     * Applies strict comment safety using block ownership and observations from the upstream inline pipeline.
      *
-     * Inline lookahead cannot cross a paragraph or sibling item. A real subsequent fence interrupts an
-     * unmatched inline opener, leaving it literal; fenced and indented examples never enter this lexer.
+     * Link titles, HTML attributes, code and escapes retain upstream ownership. A real subsequent fence
+     * interrupts an unmatched inline opener; no raw-source lexer reinterprets those inline constructs.
      *
      * @return bool Whether a real comment or an unfinished paragraph comment could hide appended metadata.
      */
@@ -362,21 +365,42 @@ final class SourceDocument
     {
         foreach ($this->document->iterator() as $node) {
             if ($node instanceof HtmlBlock && HtmlBlock::TYPE_2_COMMENT === $node->getType()) {
-                if ($this->unclosedComment($node->getLiteral())) {
+                if ($this->hasUnclosedHtmlComment($node)) {
                     return true;
                 }
             } elseif ($node instanceof Paragraph) {
                 $next = $node->getEndLine() + 1;
 
-                if (! isset($this->fenced[$next]) && $this->unclosedComment(implode('', array_slice(
-                    $this->lines, $node->getStartLine() - 1, $node->getEndLine() - $node->getStartLine() + 1,
-                )))) {
+                if (! isset($this->fenced[$next]) && $node->data->get(
+                    UnclosedCommentInlineParser::UNCLOSED_COMMENT,
+                    false,
+                )) {
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Examines raw comment-block HTML without interpreting its payload as Markdown code or links.
+     *
+     * Only upstream HTML and the unclaimed-opener observer run here. Line endings become spaces in this
+     * temporary view so a closed multiline comment remains one inline unit; original source bytes stay intact.
+     *
+     * @param  HtmlBlock $block Nonempty comment block already classified by the upstream block parser.
+     * @return bool      Whether HTML outside complete comments or tags contains an unmatched comment opener.
+     */
+    private function hasUnclosedHtmlComment(HtmlBlock $block): bool
+    {
+        $environment = new Environment();
+        $environment->addInlineParser(new HtmlInlineParser(), 40);
+        $environment->addInlineParser(new UnclosedCommentInlineParser(), 39);
+        $source = strtr($block->getLiteral(), ["\r\n" => ' ', "\r" => ' ', "\n" => ' ']);
+        $document = new MarkdownParser($environment)->parse($source);
+
+        return $document->firstChild()->data->get(UnclosedCommentInlineParser::UNCLOSED_COMMENT, false);
     }
 
     /**
@@ -485,49 +509,4 @@ final class SourceDocument
         return null;
     }
 
-    /**
-     * Checks comment delimiters and complete code spans within one already classified block only.
-     *
-     * @param  string $text Bounded original paragraph or HTML-comment text; block grammar is never inferred here.
-     * @return bool   Whether an unescaped comment opener remains unmatched after complete inline spans are ignored.
-     */
-    private function unclosedComment(string $text): bool
-    {
-        $comment = false;
-        preg_match_all('/`+|<!--|-->/', $text, $tokens, PREG_OFFSET_CAPTURE);
-        $skip = 0;
-
-        foreach ($tokens[0] as [$token, $offset]) {
-            if ($offset < $skip) {
-                continue;
-            }
-
-            if ($comment) {
-                $comment = '-->' !== $token;
-
-                continue;
-            }
-            $slashes = 0;
-
-            for ($before = $offset - 1; $before >= 0 && '\\' === $text[$before]; --$before) {
-                ++$slashes;
-            }
-
-            if (1 === $slashes % 2) {
-                continue;
-            }
-
-            if ('<!--' === $token) {
-                $comment = true;
-            } elseif ('`' === $token[0] && 1 === preg_match(
-                '/(?<!`)' . preg_quote($token, '/') . '(?!`)/', $text, $close, PREG_OFFSET_CAPTURE, $offset + strlen(
-                    $token,
-                ),
-            )) {
-                $skip = $close[0][1] + strlen($token);
-            }
-        }
-
-        return $comment;
-    }
 }

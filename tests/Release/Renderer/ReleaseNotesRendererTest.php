@@ -9,11 +9,13 @@ use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Version\VersionImpact;
 use InvalidArgumentException;
+use League\CommonMark\CommonMarkConverter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -23,11 +25,40 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(ReleaseNotesRenderer::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(Category::class)]
 final class ReleaseNotesRendererTest extends TestCase
 {
+    /** Root context retains active definitions while inline-owned comment text and delivery attribution stay intact. */
+    #[TestWith([null])]
+    #[TestWith([7])]
+    public function testOrderedListRootContextKeepsItsDefinitionsActive(?int $pullRequest): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $description = "12. See [guide].\n\nAdditional context: [inline](https://example.test \"<!--\").\n\n"
+            . '[guide]: https://example.test';
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('context.md', Category::Added, null, $pullRequest, null, $description),
+        ], $template);
+
+        self::assertSame(
+            '### Added' . "\n\n12. See [guide]." . (null === $pullRequest ? '' : ' (#7)')
+                . "\n\nAdditional context: [inline](https://example.test \"<!--\").\n\n   [guide]: https://example.test\n",
+            $notes,
+        );
+        $document = SourceDocument::analyze($notes);
+
+        self::assertSame(['guide' => strpos($notes, '   [guide]:')], $document->referenceOffsets());
+        self::assertFalse($document->hasUnclosedComment());
+        self::assertStringContainsString(
+            '<a href="https://example.test">guide</a>',
+            (string) new CommonMarkConverter()->convert($notes),
+        );
+    }
+
     /** Empty inventories MUST NOT produce an invented release note. */
     public function testEmptyInventoryProducesNoBody(): void
     {

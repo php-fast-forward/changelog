@@ -13,6 +13,7 @@ use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
@@ -27,6 +28,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(TemplateFactory::class)]
 #[UsesClass(KeepAChangelogTemplate::class)]
 #[UsesClass(Category::class)]

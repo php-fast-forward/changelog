@@ -29,6 +29,7 @@ use FastForward\Changelog\History\Import\HistoryImportResult;
 use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactory;
 use FastForward\Changelog\Release\ReceiptCodec;
@@ -63,6 +64,7 @@ use RuntimeException;
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(VersionPullRequestService::class)]
 #[UsesClass(\FastForward\Changelog\Version\VersionBaselineResolver::class)]
 #[UsesClass(GitHubEvidence::class)]

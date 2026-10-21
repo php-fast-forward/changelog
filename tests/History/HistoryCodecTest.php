@@ -14,6 +14,7 @@ use FastForward\Changelog\History\HistoryRelease;
 use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
@@ -30,6 +31,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]

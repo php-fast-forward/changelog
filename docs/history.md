@@ -65,16 +65,18 @@ Multiline fragments end with a blank block boundary before the next change,
 preventing a terminal HTML block from consuming another entry.
 An item containing only indented code also receives a separate reference
 paragraph, keeping the published command unchanged.
-Terminal link definitions belonging to an authored list are nested within its
-entry, keeping them distinct from the changelog's version-reference footer even
-when the fragment has no PR or author metadata.
+Terminal link definitions remain active and distinct from the changelog's
+version-reference footer, including when root paragraphs have ended the list.
+Definitions are nested only when their owning item can contain them; metadata
+is not required to preserve those links.
 The same outer-indentation adjustment applies to lists without references.
 
 New fragments require an explicit closing delimiter for every code fence,
 including fences that Markdown could end implicitly at the next list item.
 Validation also rejects HTML comments left open outside code blocks or complete
-inline code spans. Direct rendering refuses to add references to unclosed
-fences or comments. In existing history, a list-contained fence
+inline code spans. Literal text inside link/image titles or HTML attributes is
+not treated as a comment opener. Direct rendering refuses to add references to
+unclosed fences or comments. In existing history, a list-contained fence
 ends when its container ends, so a dedented release heading remains visible.
 Quoted code uses the same container rules. Fence-looking text inside a closed
 HTML comment remains comment content instead of opening a code block.

@@ -11,6 +11,7 @@ use FastForward\Changelog\Changeset\Parser\ChangesetParser;
 use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -23,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(ChangesetParser::class)]
 #[UsesClass(Category::class)]
 #[UsesClass(Changeset::class)]
@@ -147,6 +149,9 @@ final class ChangesetParserTest extends TestCase
 
     /** Valid Markdown whitespace, Unicode, paired fences and nested/inline examples remain byte-identical. */
     #[Test]
+    #[TestWith(['See [guide](https://example.test "<!--").'])]
+    #[TestWith(['See ![guide](https://example.test "<!--").'])]
+    #[TestWith(['See <span title="<!--">guide</span>.'])]
     #[TestWith(["```php\necho 'exemplo';  \n```"])]
     #[TestWith(["~~~text\n```\n~~~"])]
     #[TestWith(["````php\n```\n````"])]

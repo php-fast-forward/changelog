@@ -7,6 +7,7 @@ namespace FastForward\Changelog\Tests\Markdown;
 use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
 use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
 use FastForward\Changelog\Markdown\SourceDocument;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -15,10 +16,31 @@ use PHPUnit\Framework\TestCase;
 
 #[CoversClass(BlockStructure::class)]
 #[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[UsesClass(TrackedFencedCodeStartParser::class)]
 #[UsesClass(TrackedFencedCodeContinueParser::class)]
 final class BlockStructureTest extends TestCase
 {
+    /** Root prose ends the preceding item, so terminal definitions must remain active outside that container. */
+    #[TestWith(['12.', 3])]
+    #[TestWith(['999999999.', 3])]
+    #[TestWith(['-', 2])]
+    public function testTerminalDefinitionsAfterRootProseDoNotBecomeCode(string $marker, int $padding): void
+    {
+        $source = $marker . " See [guide].\n\nAdditional context.\n\n[guide]: https://example.test";
+        $rendered = BlockStructure::wrapDescription($source);
+        $definition = str_repeat(' ', $padding) . '[guide]: https://example.test';
+
+        self::assertSame(
+            $marker . " See [guide].\n\nAdditional context.\n\n" . $definition,
+            $rendered,
+        );
+        self::assertSame(
+            ['guide' => strpos($rendered, $definition)],
+            SourceDocument::analyze($rendered)->referenceOffsets(),
+        );
+    }
+
     /** Effective release layout must expose the next root heading while still permitting contained HTML. */
     #[TestWith(["- First.\n\n<pre>\nExample", true])]
     #[TestWith(["- First.\n\n<pre>\nExample\n</pre>", false])]

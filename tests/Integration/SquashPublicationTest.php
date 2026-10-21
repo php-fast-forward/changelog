@@ -10,6 +10,7 @@ use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
@@ -101,7 +102,7 @@ final class SquashPublicationTest extends TestCase
             $git($producer, ['tag', 'v1.0.0']);
             mkdir($producer . '/.changelog');
             $listDescription = match ($authoredList) {
-                'root-block-gaps' => "- First improvement.\n\nAdditional context.\n\n- Second improvement.",
+                'root-block-gaps' => "12. First improvement: [inline](https://example.test \"<!--\").\n\nAdditional context.\n\n13. Second improvement.\n\nMore context. See [guide].\n\n[guide]: https://example.test/reference",
                 'html-tab' => "<pre>\nall:\n\tprintf 'hello'\n</pre>",
                 'mixed-indent' => "  - First improvement.\n- Second improvement.\n\n  Continued.",
                 'raw-html' => "- <pre>\n  ```\n  </pre>\n- Second improvement.",
@@ -194,8 +195,10 @@ final class SquashPublicationTest extends TestCase
                     $expected = "\n### Fixed\n\n- Use `foo " . $reference
                         . "\n- <!-- hidden\n  ~~~\n  -->\n\n  " . $reference . "\n- bar` " . $reference . "\n\n";
                 } elseif ('root-block-gaps' === $authoredList) {
-                    $expected = "\n### Fixed\n\n- First improvement. " . $reference
-                        . "\n\nAdditional context.\n\n- Second improvement. " . $reference . "\n\n";
+                    $expected = "\n### Fixed\n\n12. First improvement: [inline](https://example.test \"<!--\"). " . $reference
+                        . "\n\nAdditional context.\n\n13. Second improvement. " . $reference
+                        . "\n\nMore context. See [guide].\n\n   [guide]: https://example.test/reference\n\n";
+                    self::assertArrayHasKey('guide', SourceDocument::analyze($plan->notes)->referenceOffsets());
                 } elseif ('html-tab' === $authoredList) {
                     $expected = "\n### Fixed\n\n- <pre>\n  all:\n  \tprintf 'hello'\n  </pre>\n\n  " . $reference . "\n\n";
                 }
