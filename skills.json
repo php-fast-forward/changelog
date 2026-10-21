@@ -8,6 +8,7 @@
     "dependencies": {
         "composer": {
             "trusted": [
+                "fast-forward/clock",
                 "fast-forward/config",
                 "fast-forward/container"
             ],
