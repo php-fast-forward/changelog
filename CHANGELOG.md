@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-10-20
+## [0.4.0] - 2026-10-21
 
 ### Added
 
@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Require fast-forward/clock ^1.1 and synchronize its bundled consumer skill from the installed Composer package alongside the trusted Config and Container skills. ([#68](https://github.com/php-fast-forward/changelog/pull/68))
 - Project `install` now offers the `llm/skills` Composer manager with the Changelog GitHub source, so projects can restore the agent instructions through an explicitly approved Composer plugin without requiring the Changelog runtime. Setup previews the changes, preserves manager configuration and foreign skill ownership, and uses a verified standalone manager without activating consumer plugins or autoloaders. The legacy native `skill:install` command remains available. ([#65](https://github.com/php-fast-forward/changelog/pull/65))
 - Synchronize the Config and Container consumer skills from the installed Composer dependencies through an explicit trusted-package list, preserving other configured skill sources. ([#66](https://github.com/php-fast-forward/changelog/pull/66))
 - Require fast-forward/container ^1.10 so installed Composer dependencies supply the supported Container consumer skill alongside the runtime library. ([#66](https://github.com/php-fast-forward/changelog/pull/66))

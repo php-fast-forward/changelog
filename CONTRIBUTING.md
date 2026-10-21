@@ -17,18 +17,19 @@ permitted phpDocumentor shim plugin; consumers need neither that tool nor its
 template dependency.
 
 The development-only `llm/skills` plugin synchronizes dependency skills through
-an explicit trusted Composer package list in `skills.json`: `fast-forward/config`
-and `fast-forward/container`. Payloads come from the installed packages rather
-than independent GitHub versions. After the plugin-disabled installation above,
-inspect donors with `composer skills:show` and synchronize with
+an explicit trusted Composer package list in `skills.json`: `fast-forward/clock`,
+`fast-forward/config` and `fast-forward/container`. Payloads come from the
+installed packages rather than independent GitHub versions. After the
+plugin-disabled installation above, inspect donors with `composer skills:show`
+and synchronize with
 `composer skills:update --from=composer`. Generated `.agents/skills` files are
 ignored and no host aliases are created. Ordinary plugin-enabled installs also
 synchronize available dependency skills.
 
-The runtime selects Container `^1.10`, which bundles its consumer skill. Config
-and Container instructions follow the resolved packages; check their installed
-versions and supported contracts before using them. Continue using this
-repository's canonical Changelog skill directly from
+The runtime selects Clock `^1.1` and Container `^1.10`, which bundle their consumer
+skills. Clock, Config and Container instructions follow the resolved packages;
+check their installed versions and supported contracts before using them.
+Continue using this repository's canonical Changelog skill directly from
 `resources/skills/fast-forward-changelog`.
 
 Run `composer test:unit` for a focused change. To select a test, use
