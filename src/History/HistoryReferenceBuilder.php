@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\History;
 
+use FastForward\Changelog\Markdown\SourceDocument;
+
 /** Completes concrete release links without rewriting maintained Markdown or observing external state. */
 final readonly class HistoryReferenceBuilder
 {
@@ -270,18 +272,21 @@ final readonly class HistoryReferenceBuilder
      */
     private function definedLabels(HistoryDocument $document): array
     {
-        $markdown = $document->getPrefix();
+        $defined = $this->referenceOffsets($document->getPrefix());
         foreach ($document->getReleases() as $release) {
-            // Rendered sections have structural line boundaries; this scan never closes fences or rewrites the source.
-            $markdown .= "\n" . ($release->getHeading() ?? '') . $release->getBody() . $release->getEnding();
+            // Domain sections are independent Markdown regions, including sections without stored headings.
+            $defined += $this->referenceOffsets($release->getBody());
+            $defined += $this->referenceOffsets($release->getEnding());
         }
-        $markdown .= $document->getReferences();
 
-        return $this->referenceOffsets($markdown);
+        return $defined + $this->referenceOffsets($document->getReferences());
     }
 
     /**
      * Locates active reference definitions without interpreting examples or rewriting source Markdown.
+     *
+     * List/quote-contained fences use the same recognition as rendering and historical parsing. HTML comments
+     * retain precedence over delimiter-looking content until they close; original byte offsets remain authoritative.
      *
      * @param string $markdown Raw document or footer whose fenced, indented and commented examples are ignored.
      *
@@ -289,37 +294,7 @@ final readonly class HistoryReferenceBuilder
      */
     private function referenceOffsets(string $markdown): array
     {
-        $defined = [];
-        $fence = null;
-        $comment = false;
-        foreach (preg_split('/\r\n|\n|\r/', $markdown, flags: PREG_SPLIT_OFFSET_CAPTURE) as [$line, $offset]) {
-            if (null !== $fence) {
-                if (1 === preg_match(
-                    '/^ {0,3}' . preg_quote($fence[0], '/') . '{' . strlen($fence) . ',}[ \t]*\z/',
-                    $line,
-                )) {
-                    $fence = null;
-                }
-
-                continue;
-            }
-            if ($comment || 1 === preg_match('/^ {0,3}<!--/', $line)) {
-                $comment = !str_contains($line, '-->');
-
-                continue;
-            }
-            if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-                && ('~' === $matches[1][0] || !str_contains($matches[2], '`'))) {
-                $fence = $matches[1];
-
-                continue;
-            }
-            if (1 === preg_match('/^ {0,3}\[([^\]\r\n]+)\]:/', $line, $matches)) {
-                $defined[strtolower(trim($matches[1]))] ??= $offset;
-            }
-        }
-
-        return $defined;
+        return SourceDocument::analyze($markdown)->referenceOffsets();
     }
 
     /**

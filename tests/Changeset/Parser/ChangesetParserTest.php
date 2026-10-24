@@ -8,6 +8,11 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\ChangesetParseResult;
 use FastForward\Changelog\Changeset\Parser\ChangesetParser;
+use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -15,6 +20,11 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(ChangesetParser::class)]
 #[UsesClass(Category::class)]
 #[UsesClass(Changeset::class)]
@@ -116,7 +126,16 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["```php\necho 'example';"])]
     #[TestWith(["~~~text\nexample\n```"])]
     #[TestWith(["````php\nexample\n```"])]
-    #[TestWith([" ```php\nexample\n  ```"])]
+    #[TestWith(["  ```php\nUnclosed real list-contained fence."])]
+    #[TestWith(["- ```php\n  example"])]
+    #[TestWith(["1. ~~~php\n   example\n   ```"])]
+    #[TestWith(['```php'])]
+    #[TestWith([' ```php'])]
+    #[TestWith(['  ```php'])]
+    #[TestWith(['- ```php'])]
+    #[TestWith(["- ```text\n  example\n- Next item."])]
+    #[TestWith(["- Visible <!-- hidden\n  ~~~\n  --> Visible."])]
+    #[TestWith(["- Use `some\n  ~~~\n  code` safely."])]
     public function rejectsFencesThatWouldPreventReleaseHistoryRendering(string $body): void
     {
         $result = new ChangesetParser()->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body);
@@ -130,14 +149,34 @@ final class ChangesetParserTest extends TestCase
 
     /** Valid Markdown whitespace, Unicode, paired fences and nested/inline examples remain byte-identical. */
     #[Test]
+    #[TestWith(['See [guide](https://example.test "<!--").'])]
+    #[TestWith(['See ![guide](https://example.test "<!--").'])]
+    #[TestWith(['See <span title="<!--">guide</span>.'])]
     #[TestWith(["```php\necho 'exemplo';  \n```"])]
     #[TestWith(["~~~text\n```\n~~~"])]
     #[TestWith(["````php\n```\n````"])]
     #[TestWith([" ```php\n example\n ```"])]
-    #[TestWith(["  ```php\nIndented example remains data."])]
-    #[TestWith(['```php'])]
+    #[TestWith(["    ```php\nIndented example remains data."])]
+    #[TestWith([" ```php\nexample\n  ```"])]
     #[TestWith(["```invalid`info\nTexto preservado: ação."])]
     #[TestWith(["```php\nexample\n````  "])]
+    #[TestWith(["- ```php\n  example\n  ```"])]
+    #[TestWith(["1. ~~~php\n   example\n   ~~~"])]
+    #[TestWith(["- Parent.\n\n  ```md\n  - Example.\n  ```"])]
+    #[TestWith(["  - ```php\n    example\n      ```"])]
+    #[TestWith(["- - ```php\n    code();\n    ```"])]
+    #[TestWith(["Description.\n\n    <!-- literal HTML example"])]
+    #[TestWith(["- Description.\n\n      <!-- literal HTML example"])]
+    #[TestWith(["> ~~~html\n> <!-- literal\n> ~~~"])]
+    #[TestWith(["> ~~~html\n>example\n>~~~"])]
+    #[TestWith(["- Parent.\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~"])]
+    #[TestWith(["- See [guide].\n\n[guide]: https://example.test"])]
+    #[TestWith(["- <pre>\n  ```\n  </pre>"])]
+    #[TestWith(["- Use `foo\n- <!-- hidden\n  ~~~\n  -->\n- bar`"])]
+    #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible improvement."])]
+    #[TestWith(["- <!-- hidden\n  ```\n  --> Visible improvement."])]
+    #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~"])]
+    #[TestWith(["- Use `literal\n  ~~~\n  code` example.\n  ~~~"])]
     public function retainsReleaseCompatibleMarkdownExactly(string $body): void
     {
         $expected = new Changeset('entry.md', Category::Fixed, null, null, null, $body, VersionImpact::Patch);
@@ -145,6 +184,35 @@ final class ChangesetParserTest extends TestCase
 
         self::assertEquals($expected, $result->changeset);
         self::assertSame($body, $result->changeset->description);
+    }
+
+    /** A root HTML tail cannot conceal older release headings when an authored list is consolidated. */
+    public function testRejectsAnUncontainedHtmlTail(): void
+    {
+        $result = new ChangesetParser()->parse(
+            'html.md',
+            "---\ncategory: added\ntype: minor\n---\n\n- First.\n\n<pre>\nExample\n",
+        );
+
+        self::assertFalse($result->isValid());
+        self::assertContains('Fragment HTML blocks must not hide following release headings.', $result->errors);
+    }
+
+    /** Visible prose and headings cannot make an unclosed comment safe for later delivery metadata. */
+    #[TestWith(["Visible prose.\n\n<!-- not closed"])]
+    #[TestWith(['# Title <!-- not closed'])]
+    #[TestWith(["Title <!-- not closed\n==="])]
+    public function testRejectsUnclosedCommentsInRenderedBlocks(string $body): void
+    {
+        $result = new ChangesetParser()->parse(
+            'entry.md',
+            "---\ncategory: fixed\n---\n\n" . $body,
+        );
+
+        self::assertContains(
+            'Fragment HTML comments must close before the end of their rendered release entry.',
+            $result->errors,
+        );
     }
 
     #[Test]

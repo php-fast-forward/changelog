@@ -10,18 +10,41 @@ use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryReferenceBuilder;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(HistoryReferenceBuilder::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
 #[UsesClass(HistoryCodec::class)]
 final class HistoryReferenceBuilderTest extends TestCase
 {
+    /** Legacy ending definitions followed by prose remain authoritative outside both the body and terminal footer. */
+    public function testMarkedReleaseEndingDefinitionDoesNotGainADuplicate(): void
+    {
+        $source = "<!-- fast-forward-changelog:release {\"version\":\"1.0.0\",\"date\":null} -->\r\n"
+            . "## [1.0.0]\r\nMaintained body.\r\n<!-- fast-forward-changelog:end-release -->\r\n"
+            . "[1.0.0]: https://example.test/maintained\r\n\r\nFooter license prose.\r\n";
+        $document = $this->codec()->parse($source);
+
+        self::assertSame('', $document->getReferences());
+        self::assertStringContainsString('[1.0.0]:', $document->getRelease('1.0.0')->getEnding());
+        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project'));
+    }
+
     /** Missing links follow semantic predecessors and section order while retaining custom definition bytes. */
     public function testCompletesConcreteVersionsAndRetainsAllExistingBytes(): void
     {
@@ -41,6 +64,40 @@ final class HistoryReferenceBuilderTest extends TestCase
             . "[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0\r\n", $completed->getReferences());
         self::assertSame($completed, $builder->complete($completed, 'owner/project'));
         self::assertStringNotContainsString('[Unreleased]:', $completed->getReferences());
+    }
+
+    /** A reference-shaped literal in an authored-list fence cannot replace the real release footer link. */
+    public function testListContainedFenceCannotDefineTheReleaseReference(): void
+    {
+        $body = "\n### Added\n\n- ```md\n  [1.1.0]: https://example.test/literal\n  ```\n";
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0', body: $body),
+            new HistoryRelease('1.0.0', body: "\nEarlier release.\n"),
+        ]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+
+        self::assertSame($body, $completed->getReleases()[0]->getBody());
+        self::assertStringContainsString(
+            '[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0',
+            $completed->getReferences(),
+        );
+    }
+
+    /** Hidden fence delimiters cannot stop comment state or hide a later maintained active reference. */
+    #[TestWith(['- <!-- hidden', '  '])]
+    #[TestWith(['> <!-- hidden', '> '])]
+    public function testContainerCommentsKeepPrecedenceOverFenceLookingContent(string $opening, string $prefix): void
+    {
+        $body = $opening . "\n" . $prefix . "~~~\n" . $prefix . "[1.2.0]: https://example.test/hidden\n"
+            . $prefix . "--> Visible improvement.\n[1.1.0]: https://example.test/maintained\n";
+        $document = new HistoryDocument([
+            new HistoryRelease('1.2.0', body: $body), new HistoryRelease('1.1.0'),
+        ]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+
+        self::assertSame($body, $completed->getRelease('1.2.0')->getBody());
+        self::assertStringContainsString('[1.2.0]: https://github.com/', $completed->getReferences());
+        self::assertStringNotContainsString('[1.1.0]:', $completed->getReferences());
     }
 
     /** The oldest concrete version points to its release; later identities encode full custom tag names. */
@@ -258,7 +315,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     /** Invalid fence info cannot hide an active definition, while an HTML comment cannot define a link. */
     public function testDefinitionScanningMatchesInvalidBacktickFencesAndHtmlComments(): void
     {
-        $body = "```invalid`info\n[v1.0.0]: https://custom.test/active\n\nFollowing prose.\n"
+        $body = "```invalid`info\n\n[v1.0.0]: https://custom.test/active\n\nFollowing prose.\n"
             . "<!-- Hidden reference example\n[1.1.0]: https://example.test/hidden\n-->\n"
             . "<!-- [1.2.0]: https://example.test/hidden-inline -->\n";
         $original = "## [v1.0.0] - 2026-09-01\n\n" . $body;
@@ -276,6 +333,20 @@ final class HistoryReferenceBuilderTest extends TestCase
         );
         self::assertStringContainsString(
             '[1.2.0]: https://github.com/owner/project/compare/v1.1.0...v1.2.0',
+            $completed->getReferences(),
+        );
+    }
+
+    /** A reference-looking paragraph continuation remains literal and cannot suppress the real version footer. */
+    public function testInactiveParagraphDefinitionCannotSuppressTheVersionFooter(): void
+    {
+        $body = "```invalid`info\n[1.0.0]: https://example.test/literal\n\nFollowing prose.\n";
+        $document = new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]);
+        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+
+        self::assertSame($body, $completed->getRelease('1.0.0')->getBody());
+        self::assertStringContainsString(
+            '[1.0.0]: https://github.com/owner/project/releases/tag/v1.0.0',
             $completed->getReferences(),
         );
     }

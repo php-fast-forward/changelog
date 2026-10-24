@@ -29,6 +29,10 @@ use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactory;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\Import\HistoryImporter;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Process\Factory\ProcessFactory;
 use FastForward\Changelog\Publication\MergedPublicationServiceInterface;
 use FastForward\Changelog\Publication\PublicationService;
@@ -82,6 +86,10 @@ use function FastForward\Container\container;
 require_once __DIR__ . '/Fixture/runtime.php';
 
 #[CoversClass(ChangelogServiceProvider::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[UsesClass(ChangelogCommandLoader::class)]
 #[UsesClass(PackagePathResolver::class)]
 #[UsesClass(ProcessFactory::class)]

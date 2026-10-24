@@ -17,6 +17,7 @@ namespace FastForward\Changelog\History;
 
 use FastForward\Changelog\History\Factory\HistoryDocumentFactoryInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
 use JsonException;
@@ -83,7 +84,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         $protected = false;
         $protectedEnd = null;
         $legacyClosed = false;
-        $fence = null;
+        [$structural, $activeReferences] = $this->sourceOffsets($markdown);
         $offset = 0;
 
         foreach ($this->lines($markdown) as $line) {
@@ -91,7 +92,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             $offset += strlen($line);
 
             if ($protected) {
-                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, $fence)) {
+                if ($this->closesProtectedBody($line, $lineOffset, $protectedEnd, isset($structural[$lineOffset]))) {
                     $sections[array_key_last($sections)]['body_end'] = $lineOffset;
 
                     if (null === $protectedEnd) {
@@ -100,12 +101,14 @@ final readonly class HistoryCodec implements HistoryCodecInterface
 
                     $protected = false;
                     $protectedEnd = null;
+                    // The domain's exact frame ends even when its protected bytes contain unfinished Markdown.
+                    [$structural, $activeReferences] = $this->sourceOffsets(substr($markdown, $offset), $offset);
                 }
 
                 continue;
             }
 
-            if (! $this->outsideFence($line, $fence)) {
+            if (! isset($structural[$lineOffset])) {
                 continue;
             }
 
@@ -138,7 +141,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
                 continue;
             }
 
-            if (1 === preg_match('/^\[[^\]\r\n]+\]:[ \t]+\S/', $line)) {
+            if (isset($activeReferences[$lineOffset]) && str_starts_with($line, '[')) {
                 $referenceOffsets[$lineOffset] = true;
             }
 
@@ -163,15 +166,19 @@ final readonly class HistoryCodec implements HistoryCodecInterface
     /**
      * Recognizes a protected body's closing delimiter at its permitted boundary.
      *
-     * @param string                                  $line        Current source line, including its original newline.
-     * @param int                                     $offset      Byte offset at which the current line begins.
-     * @param int|null                                $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
-     * @param array{character:string,length:int}|null $fence       Mutable active fence state, updated by reference as source lines open or close code blocks.
+     * @param string   $line        Current source line, including its original newline.
+     * @param int      $offset      Byte offset at which the current line begins.
+     * @param int|null $expectedEnd Exact declared boundary, or null for legacy delimiter scanning.
+     * @param bool     $structural  Whether the independently classified source segment permits a legacy delimiter here.
      *
      * @return bool Whether this line closes the current protected body.
      */
-    private function closesProtectedBody(string $line, int $offset, ?int $expectedEnd, ?array &$fence): bool
-    {
+    private function closesProtectedBody(
+        string $line,
+        int $offset,
+        ?int $expectedEnd,
+        bool $structural,
+    ): bool {
         if (null !== $expectedEnd) {
             if ($offset < $expectedEnd) {
                 return false;
@@ -184,7 +191,31 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             return true;
         }
 
-        return $this->outsideFence($line, $fence) && self::END_RELEASE === rtrim($line, "\r\n");
+        return $structural && self::END_RELEASE === rtrim($line, "\r\n");
+    }
+
+    /**
+     * Projects independently framed Markdown into absolute byte positions without altering its source.
+     *
+     * @param  string                                 $source Complete history or the suffix after a proven protected-body delimiter.
+     * @param  int                                    $base   Original document offset at which this independent segment begins.
+     * @return array{array<int,true>,array<int,true>} Eligible root structural and active reference positions in the original document.
+     */
+    private function sourceOffsets(string $source, int $base = 0): array
+    {
+        $document = SourceDocument::analyze($source);
+        $offsets = [];
+
+        foreach ($document->structuralLines() as $number => $eligible) {
+            $offsets[$base + $document->offset($number)] = true;
+        }
+        $references = [];
+
+        foreach ($document->referencePositions() as $offset => $eligible) {
+            $references[$base + $offset] = true;
+        }
+
+        return [$offsets, $references];
     }
 
     /**
@@ -354,7 +385,19 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             $output .= $ending;
         }
 
-        return $output . $document->getReferences();
+        $references = $document->getReferences();
+        $last = array_last($releases);
+
+        if ('' !== $references && '' !== $output && (! $preservePresentation || null === $last?->getHeading())) {
+            $tail = $output . substr($references, 0, strspn($references, "\r\n"));
+
+            if (1 !== preg_match('/(?:\r?\n){2}\z|\r\r\z/', $tail)) {
+                $newline = str_ends_with($output, "\r\n") ? "\r\n" : "\n";
+                $output .= (str_ends_with($tail, "\n") || str_ends_with($tail, "\r") ? '' : $newline) . $newline;
+            }
+        }
+
+        return $output . $references;
     }
 
     /**
@@ -387,40 +430,7 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      */
     private function lines(string $markdown): array
     {
-        return preg_split('/(?<=\n)/', $markdown, -1, PREG_SPLIT_NO_EMPTY);
-    }
-
-    /**
-     * Determines whether a line is outside a CommonMark-style fenced block.
-     *
-     * @param string                                  $line  Current source Markdown line, including its original line ending.
-     * @param array{character:string,length:int}|null $fence Mutable active fence state, updated by reference as source lines open or close code blocks.
-     *
-     * @return bool Whether the current line is ordinary content outside a fence; delimiter lines return false and update the supplied state.
-     */
-    private function outsideFence(string $line, ?array &$fence): bool
-    {
-        if (null !== $fence) {
-            $pattern = '/^ {0,3}' . preg_quote(
-                $fence['character'],
-                '/',
-            ) . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/';
-
-            if (1 === preg_match($pattern, $line)) {
-                $fence = null;
-            }
-
-            return false;
-        }
-
-        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-            && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
-            $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
-
-            return false;
-        }
-
-        return true;
+        return preg_split('/(?<=\n)|(?<=\r)(?!\n)/', $markdown, flags: PREG_SPLIT_NO_EMPTY);
     }
 
     /**
@@ -515,11 +525,13 @@ final readonly class HistoryCodec implements HistoryCodecInterface
      */
     private function assertPlainBody(string $body, TemplateInterface $template): void
     {
-        $fence = null;
+        $document = SourceDocument::analyze($body);
+        $structural = $document->structuralLines();
+        $references = $document->referencePositions();
         $terminalReference = false;
 
-        foreach ($this->lines($body) as $line) {
-            if (! $this->outsideFence($line, $fence)) {
+        foreach ($document->lines() as $number => $line) {
+            if (! isset($structural[$number])) {
                 $terminalReference = false;
 
                 continue;
@@ -533,12 +545,15 @@ final readonly class HistoryCodec implements HistoryCodecInterface
             }
 
             if ('' !== trim($line)) {
-                $terminalReference = 1 === preg_match('/^\[[^\]\r\n]+\]:[ \t]+\S/', $line);
+                $terminalReference = isset($references[$document->offset($number)]) && str_starts_with($line, '[');
             }
         }
 
-        if (null !== $fence) {
+        if ($document->hasUnclosedTailFence()) {
             throw new InvalidArgumentException('An unclosed code fence prevents safe historical reformatting.');
+        }
+        if ($document->hidesAppendedLine('## Fast Forward Boundary')) {
+            throw new InvalidArgumentException('An unfinished HTML block prevents safe historical reformatting.');
         }
         if ($terminalReference) {
             throw new InvalidArgumentException(
@@ -626,16 +641,17 @@ final readonly class HistoryCodec implements HistoryCodecInterface
         foreach (array_unique($categories) as $category) {
             $categories[substr($template->categoryHeading($category), 4)] = $category;
         }
-        $fence = null;
+        $document = SourceDocument::analyze($body);
+        $structural = $document->structuralLines();
         $pending = null;
         $output = '';
 
-        foreach ($this->lines($body) as $line) {
+        foreach ($document->lines() as $number => $line) {
             if (null !== $pending && '' !== trim($line) && ! str_starts_with($line, '### ')) {
                 throw new InvalidArgumentException('A category marker must be followed by one level-three heading.');
             }
 
-            if (! $this->outsideFence($line, $fence)) {
+            if (! isset($structural[$number])) {
                 $output .= $line;
 
                 continue;

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-10-21
+## [0.4.0] - 2026-10-24
 
 ### Added
 
@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Restore changelog feedback for fork pull requests with Checkout v7 by explicitly allowing the exact head to be read as validation data, while keeping execution confined to the pinned trusted runtime and disabling persistent credentials, submodules and LFS. ([#61](https://github.com/php-fast-forward/changelog/pull/61))
+- Render fragment descriptions that already contain a Markdown list without adding a second outer bullet. Use CommonMark source classification to preserve list numbering, nesting, active link definitions after root paragraphs, inline-owned comment text, raw HTML, literal code whitespace and historical release boundaries; keep delivery references within their owning items and outside literal blocks, and reject HTML tails that would hide subsequent headings or references. ([#64](https://github.com/php-fast-forward/changelog/pull/64))
 - Preserve an explicitly selected minor or major impact in a canonical Dependabot fragment without rewriting it or refusing the rerun. Document the patch maintenance default and classify dependency updates by their effect on the consumer package's public contract. ([#62](https://github.com/php-fast-forward/changelog/pull/62))
 
 ## [0.3.0] - 2026-10-20

@@ -19,6 +19,7 @@ namespace FastForward\Changelog\Changeset\Parser;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\ChangesetParseResult;
+use FastForward\Changelog\Markdown\BlockStructure;
 use FastForward\Changelog\Version\VersionImpact;
 
 /**
@@ -256,7 +257,7 @@ final readonly class ChangesetParser implements ChangesetParserInterface
      * Trims blank boundary lines while preserving meaningful Markdown bytes.
      *
      * @param list<string> $body   Lines following the closing frontmatter delimiter.
-     * @param list<string> $errors Diagnostics appended for empty text or unclosed fences.
+     * @param list<string> $errors Diagnostics appended for empty text or unsafe unclosed Markdown blocks.
      *
      * @return string Markdown body with its original internal spacing and line breaks.
      */
@@ -277,48 +278,19 @@ final readonly class ChangesetParser implements ChangesetParserInterface
             $errors[] = 'Fragment body must contain non-comment Markdown text.';
         }
 
-        if ($this->hasUnclosedReleaseFence($description)) {
+        if (BlockStructure::hasUnclosedFence($description)) {
             $errors[] = 'Fragment code fences must close before the end of their rendered release entry.';
         }
 
+        if ('' !== $visibleBody && BlockStructure::hasUnclosedComment($description)) {
+            $errors[] = 'Fragment HTML comments must close before the end of their rendered release entry.';
+        }
+
+        if ('' !== $visibleBody && BlockStructure::hasUncontainedHtmlTail($description)) {
+            $errors[] = 'Fragment HTML blocks must not hide following release headings.';
+        }
+
         return $description;
-    }
-
-    /**
-     * Rejects fences that would hide following release structure after list wrapping.
-     * Multiline descriptions receive two spaces per line in release notes. Match
-     * the history codec's fence rules at that indentation without changing bytes
-     * or rejecting deeper indented examples and ordinary inline backtick text.
-     *
-     * @param string $description Validated Markdown description whose meaningful whitespace is retained.
-     *
-     * @return bool Whether the list-wrapped description would leave a structural code fence open across later release content.
-     */
-    private function hasUnclosedReleaseFence(string $description): bool
-    {
-        if (! str_contains($description, "\n")) {
-            return false;
-        }
-        $fence = null;
-        foreach (explode("\n", $description) as $line) {
-            $line = '  ' . $line;
-            if (null !== $fence) {
-                if (1 === preg_match(
-                    '/^ {0,3}' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',}[ \\t]*\\z/',
-                    $line,
-                )) {
-                    $fence = null;
-                }
-
-                continue;
-            }
-            if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-                && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
-                $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
-            }
-        }
-
-        return null !== $fence;
     }
 
     /**

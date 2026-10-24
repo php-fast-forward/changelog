@@ -46,6 +46,7 @@
         "fast-forward/clock": "^1.1",
         "fast-forward/config": "^1.7",
         "fast-forward/container": "^1.10",
+        "league/commonmark": "^2.10.4",
         "psr/clock": "^1.0",
         "psr/container": "^1.0 || ^2.0",
         "symfony/console": "^8.1",

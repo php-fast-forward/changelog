@@ -11,6 +11,11 @@ use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodec;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\Factory\TemplateFactory;
 use FastForward\Changelog\Template\KeepAChangelogTemplate;
@@ -22,6 +27,11 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(HistoryCodec::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
@@ -32,6 +42,100 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ReleaseNotesRenderer::class)]
 final class HistoryCodecTest extends TestCase
 {
+    /** Line-only scans retain CRLF and standalone CR introduction bytes without requiring block interpretation. */
+    #[TestWith(["# Introduction\r\n\r\nMaintained prose.\r\n"])]
+    #[TestWith(["# Introduction\r\rMaintained prose.\r"])]
+    public function testIntroductionLineEndingsRemainBytePreserved(string $source): void
+    {
+        $codec = $this->codec();
+        $document = $codec->parse($source);
+
+        self::assertSame($source, $document->getPrefix());
+        self::assertSame($source, $codec->render($document, $this->template('en'), true));
+    }
+
+    /** A list-contained HTML tail with no metadata ends at the next root heading and preserves both releases. */
+    public function testContainedHtmlWithoutMetadataPreservesTheFollowingRelease(): void
+    {
+        $template = $this->template('en');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, null, null, "- <pre>\n  Example"),
+        ], $template);
+        $codec = $this->codec();
+        $source = $codec->render(new HistoryDocument([
+            new HistoryRelease('1.1.0', body: $notes),
+            new HistoryRelease('1.0.0', body: "\nOld release.\n", heading: "## [1.0.0]\n"),
+        ]), $template, true);
+        $parsed = $codec->parse($source);
+
+        self::assertSame(['1.1.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(), $parsed->getReleases(),
+        ));
+        self::assertSame("\nOld release.\n", $parsed->getRelease('1.0.0')->getBody());
+        self::assertStringContainsString("- <pre>\n  Example", $parsed->getRelease('1.1.0')->getBody());
+    }
+
+    /** A new plain release cannot leave raw HTML open over following historical headings. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNewReleaseCannotHideOlderHistoryInsideAnHtmlTail(bool $preserve): void
+    {
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0', body: "- First.\n\n<pre>\nExample"),
+            new HistoryRelease('1.0.0', body: "\nOld release.\n", heading: "## [1.0.0]\n"),
+        ]);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTML block');
+
+        $this->codec()->render($document, $this->template('en'), $preserve);
+    }
+
+    /** A newly imported prose tail leaves a real block boundary before the separately owned reference footer. */
+    public function testImportedProseCannotConsumeTheDocumentFooter(): void
+    {
+        $footer = "[guide]: https://example.test/maintained\r\n";
+        $document = new HistoryDocument([new HistoryRelease('1.0.0', body: 'Imported prose.')], references: $footer);
+        $codec = $this->codec();
+
+        foreach ([false, true] as $preserve) {
+            $rendered = $codec->render($document, $this->template('en'), $preserve);
+            $roundTrip = $codec->parse($rendered);
+
+            self::assertSame($footer, $roundTrip->getReferences());
+            self::assertSame("\nImported prose.\n\n", $roundTrip->getRelease('1.0.0')->getBody());
+            self::assertSame('Imported prose.', $document->getRelease('1.0.0')->getBody());
+        }
+    }
+
+    /** A later active duplicate is still a terminal footer even when the same label already occurs in the body. */
+    public function testDuplicateActiveReferenceKeepsItsTerminalFooterBoundary(): void
+    {
+        $body = "\n[guide]: https://example.test/body\n\nFollowing prose.\n\n";
+        $footer = "[guide]: https://example.test/footer\n";
+        $codec = $this->codec();
+        $source = "## [1.0.0]\n" . $body . $footer;
+        $document = $codec->parse($source);
+
+        self::assertSame($body, $document->getRelease('1.0.0')->getBody());
+        self::assertSame($footer, $document->getReferences());
+        self::assertSame($source, $codec->render($document, $this->template('en'), true));
+    }
+
+    /** Literal definition syntax inside an inline code span stays in the release instead of becoming its footer. */
+    public function testInactiveInlineReferenceCannotTruncateTheReleaseBody(): void
+    {
+        $body = "\nLiteral `text\n[guide]: https://example.test/code`\n";
+        $source = "## [1.0.0]\n" . $body;
+        $codec = $this->codec();
+        $document = $codec->parse($source);
+
+        self::assertSame($body, $document->getRelease('1.0.0')->getBody());
+        self::assertSame('', $document->getReferences());
+        self::assertSame($source, $codec->render($document, $this->template('en'), true));
+        self::assertSame($body, $codec->parse($codec->render($document, $this->template('en'), false))
+            ->getRelease('1.0.0')->getBody());
+    }
+
     /** Rendered prose and block-first fences must preserve later real releases without importing code examples. */
     #[Test]
     #[TestWith(['```'])]
@@ -66,6 +170,190 @@ final class HistoryCodecTest extends TestCase
         self::assertSame("\n" . $notes . "\n", $parsed->getRelease('1.1.0')->getBody());
         self::assertStringContainsString('- Published history.', $parsed->getRelease('1.0.0')->getBody());
         self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** List-container fences preserve literal release-looking headings through new rendering and later parsing. */
+    #[Test]
+    #[TestWith(['- ', '  ', '```'])]
+    #[TestWith(['- - ', '    ', '```'])]
+    #[TestWith(['1. ', '   ', '~~~'])]
+    #[TestWith(['12345) ', '       ', '```'])]
+    public function authoredListFencesRemainSafeAcrossNewReleaseRendering(
+        string $marker,
+        string $padding,
+        string $fence,
+    ): void {
+        $template = $this->template('en');
+        $description = $marker . $fence . "md\n" . $padding . '## [9.9.9]' . "\n" . $padding . $fence;
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('example.md', Category::Fixed, null, 7, null, $description),
+        ], $template, 'example/project');
+        $codec = $this->codec();
+        $document = new HistoryDocument([
+            new HistoryRelease('1.1.0', null, null, $notes),
+            new HistoryRelease('1.0.0', null, null, "### Fixed\n\n- Published history.\n"),
+        ]);
+
+        $markdown = $codec->render($document, $template, true);
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['1.1.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertNull($parsed->getRelease('9.9.9'));
+        self::assertStringContainsString($description, $parsed->getRelease('1.1.0')->getBody());
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** Historical list-contained fences end with their container instead of swallowing the next published version. */
+    public function testDedentedReleaseHeadingEndsAHistoricalListContainerFence(): void
+    {
+        $markdown = "## [2.0.0]\n\n- ```text\n  example\n\n## [1.0.0]\n\n- Previous release.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** The closing allowance is relative to the complete list prefix, including its initial indentation. */
+    public function testLeadingListIndentationParticipatesInFencePadding(): void
+    {
+        $notes = "### Fixed\n\n  - ```php\n    example\n      ```\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $document = new HistoryDocument([new HistoryRelease('1.0.0', null, null, $notes)]);
+
+        $markdown = $codec->render($document, $template);
+
+        self::assertStringContainsString($notes, $markdown);
+    }
+
+    /** Published examples with same-line nested list markers stay byte-identical during explicit formatting. */
+    public function testHistoricalNestedSameLineFenceRoundTripsExactly(): void
+    {
+        $markdown = "## [2.0.0]\n\n- - ```php\n    code();\n    ```\n\n## [1.0.0]\n\n- Previous release.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** Quoted code is bounded by its quote container while published source bytes remain untouched. */
+    public function testHistoricalQuotedFenceCannotHideTheNextRelease(): void
+    {
+        $markdown = "## [2.0.0]\n\n> ~~~md\n> <!-- literal\n\n## [1.0.0]\n\n- Previous release.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** Ordinary formatting shares fragment comment precedence instead of opening a fence inside a closed comment. */
+    #[TestWith(["- <!-- hidden\n  ~~~\n  --> Visible."])]
+    #[TestWith(["- Visible <!-- literal\n  ~~~\n  --> Code example.\n  ~~~"])]
+    #[TestWith(["- Use `literal\n  ~~~\n  code` example.\n  ~~~"])]
+    public function testAcceptedCommentFenceExampleCanBeFormatted(string $description): void
+    {
+        $template = $this->template('en');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('comment.md', Category::Fixed, null, 7, null, $description),
+        ], $template);
+        $document = new HistoryDocument([new HistoryRelease('1.1.0', body: $notes)]);
+        $codec = $this->codec();
+
+        $formatted = $codec->render($document, $template);
+
+        self::assertStringContainsString($notes, $formatted);
+        self::assertSame("\n" . $notes, $codec->parse($formatted, $template)->getRelease('1.1.0')->getBody());
+    }
+
+    /** Direct rendering also rejects an inline comment interrupted by a real unclosed fenced block. */
+    public function testInlineCommentCannotHideARealFenceFromDirectRendering(): void
+    {
+        $template = $this->template('en');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('explicit closing delimiter');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('comment.md', Category::Fixed, null, 7, null, "- Visible <!-- hidden\n  ~~~\n  --> Visible."),
+        ], $template);
+    }
+
+    /** Fragment-owned trailing definitions stay within the entry instead of becoming an ambiguous global footer. */
+    public function testAuthoredListDefinitionWithoutMetadataRemainsRenderable(): void
+    {
+        $template = $this->template('en');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset(
+                'guide.md',
+                Category::Fixed,
+                null,
+                null,
+                null,
+                "- See [guide].\n\n[guide]: https://example.test",
+            ),
+        ], $template);
+        $codec = $this->codec();
+
+        self::assertStringContainsString(
+            "- See [guide].\n\n  [guide]: https://example.test",
+            $codec->render(new HistoryDocument([new HistoryRelease('1.1.0', body: $notes)]), $template),
+        );
+    }
+
+    /** An older contained HTML block ends with its list/quote so it cannot swallow another published release. */
+    #[TestWith(["- Visible.\n\n  <!-- not closed"])]
+    #[TestWith(["> <!-- not closed"])]
+    public function testHistoricalContainedCommentCannotHideTheNextRelease(string $body): void
+    {
+        $markdown = "## [2.0.0]\n\n" . $body . "\n\n## [1.0.0]\n\n- Previous.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        self::assertSame(['2.0.0', '1.0.0'], array_map(
+            static fn(HistoryRelease $release): string => $release->getVersion(),
+            $parsed->getReleases(),
+        ));
+        self::assertSame($markdown, $codec->render($parsed, $template, true));
+    }
+
+    /** Every history scan leaves hidden fences, headings and references inside a multiline comment untouched. */
+    public function testHistoricalCommentsCannotCreateReleaseOrCategoryStructure(): void
+    {
+        $hidden = "<!-- hidden\n~~~\n## [9.9.9]\n### Added\n[2.0.0]: https://example.test/literal\n-->\n";
+        $markdown = "## [2.0.0]\n\n" . $hidden . "\n### Fixed\n\n- Current.\n\n## [1.0.0]\n\n- Previous.\n";
+        $codec = $this->codec();
+        $template = $this->template('en');
+        $parsed = $codec->parse($markdown, $template);
+
+        foreach ([false, true] as $preserve) {
+            $rendered = $codec->render($parsed, $template, $preserve);
+            $roundTrip = $codec->parse($rendered, $template);
+            self::assertSame(['2.0.0', '1.0.0'], array_map(
+                static fn(HistoryRelease $release): string => $release->getVersion(),
+                $roundTrip->getReleases(),
+            ));
+            self::assertStringContainsString($hidden, $roundTrip->getRelease('2.0.0')->getBody());
+            self::assertSame($parsed->getRelease('1.0.0')->getBody(), $roundTrip->getRelease('1.0.0')->getBody());
+            self::assertSame('', $roundTrip->getReferences());
+        }
     }
 
     /** Inline spans with backticks in the info string cannot hide real release boundaries. */
