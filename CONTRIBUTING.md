@@ -22,7 +22,7 @@ other namespaces untrusted. Payloads come from the
 installed packages rather than independent GitHub versions. After the
 plugin-disabled installation above, inspect donors with `composer skills:show`
 and synchronize with
-`composer skills:update --from=composer`. Generated `.agents/skills` files are
+`composer skills:update`. Generated `.agents/skills` files are
 ignored and no host aliases are created. Ordinary plugin-enabled installs also
 synchronize available dependency skills.
 
