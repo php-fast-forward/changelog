@@ -19,6 +19,7 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
 
@@ -130,11 +131,12 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         $sections = ['' => ''];
         $active = '';
         $unknown = false;
-        $fence = null;
+        $document = SourceDocument::analyze($body);
+        $structural = $document->structuralLines();
         $markedCategory = null;
-        foreach (preg_split('/(?<=\n)/', $body) as $line) {
+        foreach ($document->lines() as $number => $line) {
             $heading = rtrim($line, " \t\r\n");
-            $outside = $this->outsideFence($line, $fence);
+            $outside = isset($structural[$number]);
             $peer = $outside && 1 === preg_match('/^###(?:[ \t]|\r?\n|\z)/', $line);
             if (null !== $markedCategory && '' !== trim($line) && ! $peer) {
                 throw new InvalidArgumentException(
@@ -204,33 +206,4 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
         return $left . $separator . $right;
     }
 
-    /**
-     * Distinguishes structural headings from backtick and tilde fenced examples.
-     *
-     * @param string                                  $line  Current source Markdown line, including its original line ending.
-     * @param array{character:string,length:int}|null $fence Mutable active fence state, updated by reference as source lines open or close code blocks.
-     *
-     * @return bool Whether the current line may define category structure; fence delimiters return false while updating the supplied state.
-     */
-    private function outsideFence(string $line, ?array &$fence): bool
-    {
-        if (null !== $fence) {
-            if (1 === preg_match(
-                '/^ {0,3}' . preg_quote($fence['character'], '/') . '{' . $fence['length'] . ',}[ \t]*(?:\r?\n|\z)/',
-                $line,
-            )) {
-                $fence = null;
-            }
-
-            return false;
-        }
-        if (1 === preg_match('/^ {0,3}(`{3,}|~{3,})(.*)/', $line, $matches)
-            && ('~' === $matches[1][0] || ! str_contains($matches[2], '`'))) {
-            $fence = ['character' => $matches[1][0], 'length' => strlen($matches[1])];
-
-            return false;
-        }
-
-        return true;
-    }
 }

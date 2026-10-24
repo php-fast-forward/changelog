@@ -18,7 +18,10 @@ namespace FastForward\Changelog\Release\Renderer;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
+use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Template\TemplateInterface;
+use InvalidArgumentException;
 
 /** Builds readable localized release notes while preserving descriptions and useful links. */
 final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterface
@@ -27,12 +30,15 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
      * Renders descriptions and references without leaking technical fragment metadata.
      * Empty paragraph separators stay empty; authored trailing hard breaks remain intact.
      * Prose starts beside its list marker; an opening fence keeps its existing block wrapper for history parsing.
+     * An authored Markdown list keeps its markers and relative nesting, aligned with the other release entries.
+     * Multiline entries end at a minimal blank boundary before the next independent fragment, including root HTML.
      *
      * @param list<Changeset>   $changesets independent author records
      * @param TemplateInterface $template   Validated structural presentation used to recognize or render history headings.
      * @param string|null       $repository Optional GitHub owner/name used for source selection and reference links.
      *
-     * @return string Deterministically category-grouped release body preserving authored descriptions and optional references.
+     * @return string                   Deterministically category-grouped release body preserving authored descriptions and optional references.
+     * @throws InvalidArgumentException When a literal block would hide delivery references or following release headings.
      */
     public function render(array $changesets, TemplateInterface $template, ?string $repository = null): string
     {
@@ -40,18 +46,49 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         $sections = [];
         foreach (Category::cases() as $category) {
             $entries = [];
+            $previousOrdered = false;
+            $previousMultiline = false;
             foreach ($changesets as $change) {
                 if ($change->category !== $category) {
                     continue;
                 }
-                $multiline = str_contains($change->description, "\n");
-                $fenced = $multiline
-                    && 1 === preg_match('/\A {0,3}(`{3,}|~{3,})([^\n]*)/', $change->description, $fence)
-                    && ('~' === $fence[1][0] || ! str_contains($fence[2], '`'));
-                $body = ($fenced ? "-\n  " : '- ') . preg_replace('/\n(?!\n|\z)/', "\n  ", $change->description);
                 $references = $this->references($change, $repository);
-                $suffix = '' === $references ? '' : ($multiline ? "\n\n  " : ' ') . '(' . $references . ')';
-                $entries[] = $body . $suffix;
+
+                if (BlockStructure::hasUncontainedHtmlTail($change->description)) {
+                    throw new InvalidArgumentException(
+                        'An unfinished HTML block would hide following release headings.',
+                    );
+                }
+
+                if ('' !== $references && BlockStructure::hasUnclosedFence($change->description)) {
+                    throw new InvalidArgumentException(
+                        'A fragment code fence needs an explicit closing delimiter before delivery references can be added.',
+                    );
+                }
+                $body = BlockStructure::wrapDescription($change->description);
+                $list = BlockStructure::listItem(explode("\n", $change->description, 2)[0]);
+                $multiline = str_contains($change->description, "\n");
+                $boundary = [] !== $entries && ($previousOrdered || $previousMultiline || ($list['ordered'] ?? false))
+                    && ! str_ends_with(array_last($entries), "\n") ? "\n" : '';
+                $previousMultiline = $multiline;
+
+                if (null !== $list) {
+                    $entry = $this->authoredList($body, $references);
+                    $entries[] = $boundary . $entry;
+                    $previousOrdered = $list['ordered'];
+
+                    continue;
+                }
+                $presentation = SourceDocument::analyze($body);
+
+                if ('' !== $references && $presentation->hidesAppendedLine('  Fast Forward Reference')) {
+                    throw new InvalidArgumentException('An unfinished HTML block would hide the delivery reference.');
+                }
+                $blockReference = $multiline || isset($presentation->literalHtmlLines()[1])
+                    || $presentation->beginsWithIndentedCode() || $presentation->hasReferenceDefinitions();
+                $suffix = '' === $references ? '' : ($blockReference ? "\n\n  " : ' ') . '(' . $references . ')';
+                $entries[] = $boundary . $body . $suffix;
+                $previousOrdered = false;
             }
             if ([] !== $entries) {
                 $sections[] = $template->categoryHeading($category->value) . "\n\n" . implode("\n", $entries);
@@ -59,6 +96,66 @@ final readonly class ReleaseNotesRenderer implements ReleaseNotesRendererInterfa
         }
 
         return [] === $sections ? '' : implode("\n\n", $sections) . "\n";
+    }
+
+    /**
+     * Inserts references at actual principal-item boundaries while retaining intervening root blocks separately.
+     *
+     * @param  string                   $description Authored description beginning with a list marker.
+     * @param  string                   $references  Optional already rendered references shared by this fragment's principal items.
+     * @return string                   Authored list with references attached only after the owning item's content.
+     * @throws InvalidArgumentException When an open HTML block or comment would hide delivery references.
+     */
+    private function authoredList(string $description, string $references): string
+    {
+        if ('' === $references) {
+            return $description;
+        }
+        $document = SourceDocument::analyze($description);
+        $items = $document->principalItems();
+        $lines = explode("\n", $description);
+
+        foreach (array_reverse($items) as $item) {
+            $length = $item['end'] - $item['start'] + 1;
+            $replacement = $this->listReference(
+                array_slice($lines, $item['start'] - 1, $length), $item['padding'], $references,
+            );
+            array_splice($lines, $item['start'] - 1, $length, [$replacement]);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Adds inline references to single-line prose, or separate paragraphs after code, definitions and multiline items.
+     *
+     * @param  list<string>             $lines      Item lines after outer-indent alignment, retaining relative nesting and authored trailing whitespace.
+     * @param  int                      $padding    Content columns used to keep the reference paragraph within its list item.
+     * @param  string                   $references Already rendered delivery metadata for this item's fragment.
+     * @return string                   Aligned item content with visible references added outside its inline constructs.
+     * @throws InvalidArgumentException When an HTML block or comment would swallow the reference paragraph.
+     */
+    private function listReference(array $lines, int $padding, string $references): string
+    {
+        $body = implode("\n", $lines);
+
+        if (BlockStructure::hasUnclosedComment($body)) {
+            throw new InvalidArgumentException('An unclosed HTML comment would hide the list item delivery reference.');
+        }
+        $document = SourceDocument::analyze($body);
+
+        if ($document->hidesAppendedLine(str_repeat(' ', $padding) . 'Fast Forward Reference')) {
+            throw new InvalidArgumentException('An unfinished HTML block would hide the list item delivery reference.');
+        }
+
+        if (1 === count($lines) && ! BlockStructure::startsIndentedItem($body)
+            && ! isset($document->literalHtmlLines()[1]) && ! $document->hasReferenceDefinitions()) {
+            $text = rtrim($body, " \t\r");
+
+            return $text . ' (' . $references . ')' . substr($body, strlen($text));
+        }
+
+        return $body . "\n\n" . str_repeat(' ', $padding) . '(' . $references . ')';
     }
 
     /**

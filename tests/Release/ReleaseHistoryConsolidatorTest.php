@@ -18,6 +18,11 @@ namespace FastForward\Changelog\Tests\Release;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryDocument;
 use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\ReleaseHistoryConsolidator;
 use FastForward\Changelog\Template\TemplateInterface;
 use InvalidArgumentException;
@@ -27,8 +32,13 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(ReleaseHistoryConsolidator::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[UsesClass(HistoryDocument::class)]
 #[UsesClass(HistoryRelease::class)]
+#[UsesClass(BlockStructure::class)]
 #[UsesClass(\FastForward\Changelog\Changeset\Category::class)]
 final class ReleaseHistoryConsolidatorTest extends TestCase
 {
@@ -93,6 +103,26 @@ final class ReleaseHistoryConsolidatorTest extends TestCase
         self::assertStringContainsString("- Rich item\r\n  - nested\r\n", $body);
         self::assertStringContainsString("{$fence}markdown\r\n### Added\r\n{$fence}\r\n", $body);
         self::assertStringContainsString("### Unknown\r\nOther  text.\r\n", $body);
+    }
+
+    /** A list fence ends on category dedent, so rich pending migration merges each genuine category exactly once. */
+    public function testPendingListFenceDoesNotDuplicateAFollowingCategory(): void
+    {
+        $legacy = "### Added\n\n- Example:\n  ```text\n  literal\n\n### Fixed\n\n- Old fix.\n";
+        $old = new HistoryRelease('0.9.0', body: "Published  bytes.\n", heading: "## [0.9.0]\n");
+        $result = $this->service()->promote(
+            new HistoryDocument([new HistoryRelease('unreleased', body: $legacy), $old]),
+            '1.0.0',
+            null,
+            "### Fixed\n\n- New fix.\n",
+            $this->template(),
+        );
+        $body = $result->getRelease('1.0.0')->getBody();
+
+        self::assertSame(1, substr_count($body, '### Fixed'));
+        self::assertStringContainsString("- Example:\n  ```text\n  literal", $body);
+        self::assertStringContainsString("- Old fix.\n- New fix.", $body);
+        self::assertSame($old, $result->getRelease('0.9.0'));
     }
 
     /** Category aliases use the selected presentation while legacy prose and empty new categories are retained. */

@@ -8,9 +8,13 @@ use Closure;
 use FastForward\Changelog\Automation\AutomationRunnerInterface;
 use FastForward\Changelog\Container\ServiceProvider\ChangelogServiceProvider;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\History\HistoryCodecInterface;
+use FastForward\Changelog\History\HistoryRelease;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Publication\PublicationServiceInterface;
 use FastForward\Changelog\Release\Factory\ReleaseOptionsFactoryInterface;
 use FastForward\Changelog\Release\ReleasePlannerInterface;
+use FastForward\Changelog\Template\Factory\TemplateFactoryInterface;
 use FastForward\Container\Factory\ServiceFactory;
 use Interop\Container\ServiceProviderInterface;
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -40,6 +44,7 @@ final class SquashPublicationTest extends TestCase
         bool $staleTrailers,
         bool $customTemplate,
         bool $hostileGitEnvironment = false,
+        ?string $authoredList = null,
     ): void {
         $root = realpath(sys_get_temp_dir()) . '/changelog-squash-' . bin2hex(random_bytes(8));
         if ($hostileGitEnvironment) {
@@ -96,9 +101,51 @@ final class SquashPublicationTest extends TestCase
             $git($producer, ['commit', '-m', 'Original published fixture']);
             $git($producer, ['tag', 'v1.0.0']);
             mkdir($producer . '/.changelog');
+            $listDescription = match ($authoredList) {
+                'root-block-gaps' => "12. [local]: https://example.test/local\n"
+                    . "13. First improvement: [inline](https://example.test \"<!--\"). See [local].\n\nAdditional context.\n\n"
+                    . "14. Second improvement.\n\nMore context. See [guide].\n\n[guide]: https://example.test/reference",
+                'html-tab' => "<pre>\nall:\n\tprintf 'hello'\n</pre>",
+                'mixed-indent' => "  - First improvement.\n- Second improvement.\n\n  Continued.",
+                'raw-html' => "- <pre>\n  ```\n  </pre>\n- Second improvement.",
+                'sibling-inline' => "- Use `foo\n- <!-- hidden\n  ~~~\n  -->\n- bar`",
+                'fenced' => "- ```md\n  ## [9.9.9]\n  ```\n- Second improvement.",
+                'indented' => "  - ```md\n    example\n      ```\n  - Second improvement.",
+                'nested' => "- - ```md\n    ## [9.9.9]\n    ```\n- Second improvement.",
+                'code-comment' => "- First improvement.\n\n      <!-- literal example\n- Second improvement.",
+                'reference-example' => "- ```md\n  [1.0.1]: https://example.test/literal\n  ```\n- Second improvement.",
+                'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n- Second improvement.",
+                'quoted' => "> ~~~html\n> <!-- literal\n> ~~~",
+                'tab-code' => "- First improvement.\n\n  \t  <!-- literal\tpayload\n- Second improvement.",
+                'indented-single' => "-     printf hello\n- Second improvement.",
+                'nested-definition' => "- See [guide].\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~\n\n[guide]: https://example.test",
+                'presentation-boundaries' => "- Description.\n\n      all:\n      \tprintf 'hello'\n - Second.\n\n<div>Detail.</div>",
+                'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n- Second improvement.",
+                'inline' => "- Use `some\n  code` safely.\n- Second improvement.",
+                'comment' => "- <!-- hidden\n  --> Visible improvement.\n- Second improvement.",
+                'ordered' => "2. Second improvement.\n3. Third improvement.",
+                default => "- First improvement.\n- Second improvement.",
+            };
+
+            if ('ordered' === $authoredList) {
+                file_put_contents(
+                    $producer . '/.changelog/a-first.md',
+                    "---\ncategory: fixed\ntype: patch\n---\n\nFirst.\n",
+                );
+            }
+            if ('presentation-boundaries' === $authoredList) {
+                file_put_contents(
+                    $producer . '/.changelog/z-next.md',
+                    "---\ncategory: fixed\ntype: patch\n---\n\nNext.\n",
+                );
+            }
+            $deliveryMetadata = in_array($authoredList, ['nested-definition', 'presentation-boundaries'], true)
+                ? '' : "pull_request: 7\n";
             file_put_contents(
                 $producer . '/.changelog/squash.md',
-                "---\ncategory: fixed\ntype: patch\n---\n\nPreserves publication after a squash merge.\n",
+                null !== $authoredList
+                    ? "---\ncategory: fixed\ntype: patch\n" . $deliveryMetadata . "---\n\n" . $listDescription . "\n"
+                    : "---\ncategory: fixed\ntype: patch\n---\n\nPreserves publication after a squash merge.\n",
             );
             $git($producer, ['add', '.']);
             $git($producer, ['commit', '-m', 'Pending fixture fragment']);
@@ -112,6 +159,89 @@ final class SquashPublicationTest extends TestCase
                 'workingDirectory' => $producer, 'repository' => 'owner/fixture', 'source' => 'tags', 'template' => $template,
             ]);
             $plan = $configured->get(ReleasePlannerInterface::class)->plan($options, 'version');
+
+            if (null !== $authoredList) {
+                $reference = '([#7](https://github.com/owner/fixture/pull/7))';
+                $first = match ($authoredList) {
+                    'fenced' => "- ```md\n  ## [9.9.9]\n  ```\n\n  " . $reference,
+                    'indented' => "- ```md\n  example\n    ```\n\n  " . $reference,
+                    'nested' => "- - ```md\n    ## [9.9.9]\n    ```\n\n  " . $reference,
+                    'code-comment' => "- First improvement.\n\n      <!-- literal example\n\n  " . $reference,
+                    'reference-example' => "- ```md\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
+                    'comment-fence' => "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n\n  " . $reference,
+                    'tab-code' => "- First improvement.\n\n      <!-- literal\tpayload\n\n  " . $reference,
+                    'indented-single' => "-     printf hello\n\n  " . $reference,
+                    'tab-fenced' => "- ```make\n  all:\n  \tprintf 'hello'\n  ## [9.9.9]\n  [1.0.1]: https://example.test/literal\n  ```\n\n  " . $reference,
+                    'inline' => "- Use `some\n  code` safely.\n\n  " . $reference,
+                    'comment' => "- <!-- hidden\n  --> Visible improvement.\n\n  " . $reference,
+                    default => '- First improvement. ' . $reference,
+                };
+                $expected = "\n### Fixed\n\n" . $first . "\n"
+                    . '- Second improvement. ' . $reference . "\n\n";
+
+                if ('ordered' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- First.\n\n2. Second improvement. " . $reference . "\n3. Third improvement. " . $reference . "\n\n";
+                } elseif ('quoted' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- > ~~~html\n  > <!-- literal\n  > ~~~\n\n  " . $reference . "\n\n";
+                } elseif ('nested-definition' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- See [guide].\n  - Child.\n\n    > ~~~html\n    > <!-- literal\n    > ~~~\n\n  [guide]: https://example.test\n\n";
+                } elseif ('presentation-boundaries' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- Description.\n\n      all:\n      \tprintf 'hello'\n - Second.\n\n<div>Detail.</div>\n\n- Next.\n\n";
+                } elseif ('mixed-indent' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- First improvement. " . $reference
+                        . "\n- Second improvement.\n\n  Continued.\n\n  " . $reference . "\n\n";
+                } elseif ('raw-html' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- <pre>\n  ```\n  </pre>\n\n  " . $reference
+                        . "\n- Second improvement. " . $reference . "\n\n";
+                } elseif ('sibling-inline' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- Use `foo " . $reference
+                        . "\n- <!-- hidden\n  ~~~\n  -->\n\n  " . $reference . "\n- bar` " . $reference . "\n\n";
+                } elseif ('root-block-gaps' === $authoredList) {
+                    $expected = "\n### Fixed\n\n12. [local]: https://example.test/local\n\n    " . $reference
+                        . "\n13. First improvement: [inline](https://example.test \"<!--\"). See [local]. " . $reference
+                        . "\n\nAdditional context.\n\n14. Second improvement. " . $reference
+                        . "\n\nMore context. See [guide].\n\n   [guide]: https://example.test/reference\n\n";
+                    self::assertArrayHasKey('guide', SourceDocument::analyze($plan->notes)->referenceOffsets());
+                } elseif ('html-tab' === $authoredList) {
+                    $expected = "\n### Fixed\n\n- <pre>\n  all:\n  \tprintf 'hello'\n  </pre>\n\n  " . $reference . "\n\n";
+                }
+                $history = $configured->get(HistoryCodecInterface::class);
+                self::assertSame($expected, $plan->notes);
+                self::assertSame($expected, $history->notes($history->parse($plan->changelogContents), '1.0.1'));
+                self::assertStringContainsString(
+                    "## [1.0.0] - 2026-10-01\n\nOriginal release.\n",
+                    $plan->changelogContents,
+                );
+                self::assertStringContainsString(
+                    '[1.0.1]: https://github.com/owner/fixture/compare/v1.0.0...v1.0.1',
+                    $plan->changelogContents,
+                );
+
+                if (in_array($authoredList, [
+                    'tab-fenced', 'nested-definition', 'presentation-boundaries', 'mixed-indent', 'raw-html', 'sibling-inline',
+                    'root-block-gaps', 'html-tab',
+                ], true)) {
+                    $presentation = $configured->get(TemplateFactoryInterface::class)->create();
+                    $parsed = $history->parse($plan->changelogContents, $presentation);
+
+                    foreach ([false, true] as $preserve) {
+                        $roundTrip = $history->parse(
+                            $history->render($parsed, $presentation, $preserve),
+                            $presentation,
+                        );
+                        self::assertSame(['1.0.1', '1.0.0'], array_map(
+                            static fn(HistoryRelease $release): string => $release->getVersion(),
+                            $roundTrip->getReleases(),
+                        ));
+                        self::assertSame($expected, $history->notes($roundTrip, '1.0.1'));
+                        self::assertSame(
+                            $parsed->getRelease('1.0.0')->getBody(),
+                            $roundTrip->getRelease('1.0.0')->getBody(),
+                        );
+                        self::assertSame($parsed->getReferences(), $roundTrip->getReferences());
+                    }
+                }
+            }
             $git($producer, ['checkout', '-b', 'changelog/version']);
             file_put_contents($producer . '/CHANGELOG.md', $plan->changelogContents);
             foreach ($plan->consumed as $path => $hash) {
@@ -339,10 +469,59 @@ final class SquashPublicationTest extends TestCase
     /** Exercises ordinary and stale squash messages with built-in and explicit committed templates. */
     public static function squashModes(): iterable
     {
+        foreach (['mixed-indent', 'raw-html', 'sibling-inline', 'root-block-gaps', 'html-tab'] as $description) {
+            yield $description => [false, false, false, $description];
+        }
         yield 'missing metadata' => [false, false];
         yield 'stale metadata' => [true, false];
         yield 'committed custom template' => [false, true];
         yield 'hostile mixed-case inherited Git environment' => [false, false, true];
+        yield 'authored list notes survive planning and exact publication reconstruction' => [
+            false,
+            false,
+            false,
+            'prose',
+        ];
+        yield 'list-item code fences survive exact publication reconstruction' => [false, false, false, 'fenced'];
+        yield 'normalized list indent survives exact publication reconstruction' => [false, false, false, 'indented'];
+        yield 'same-line nested fence survives exact publication reconstruction' => [false, false, false, 'nested'];
+        yield 'indented literal HTML keeps references visible' => [false, false, false, 'code-comment'];
+        yield 'fenced literal definition cannot replace the release footer' => [
+            false,
+            false,
+            false,
+            'reference-example',
+        ];
+        yield 'closed comment keeps fence examples literal' => [false, false, false, 'comment-fence'];
+        yield 'quoted code keeps comment markers literal' => [false, false, false, 'quoted'];
+        yield 'indentation tabs preserve literal HTML and internal payload' => [false, false, false, 'tab-code'];
+        yield 'single-line indented code keeps its delivery reference outside literal content' => [
+            false,
+            false,
+            false,
+            'indented-single',
+        ];
+        yield 'nested quoted code and terminal definitions need no delivery metadata' => [
+            false,
+            false,
+            false,
+            'nested-definition',
+        ];
+        yield 'indented recipe tabs and terminal HTML retain independent fragment boundaries' => [
+            false,
+            false,
+            false,
+            'presentation-boundaries',
+        ];
+        yield 'fenced payload tabs and literal references survive explicit and incremental formatting' => [
+            false,
+            false,
+            false,
+            'tab-fenced',
+        ];
+        yield 'multiline inline code keeps references visible' => [false, false, false, 'inline'];
+        yield 'multiline HTML comment keeps references visible' => [false, false, false, 'comment'];
+        yield 'ordered list has a block boundary after prose' => [false, false, false, 'ordered'];
     }
 
     /** Restores write access within the exact temporary tree without following symbolic links, then removes it. */

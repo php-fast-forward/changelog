@@ -6,19 +6,117 @@ namespace FastForward\Changelog\Tests\Release\Renderer;
 
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
+use FastForward\Changelog\Markdown\BlockStructure;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeContinueParser;
+use FastForward\Changelog\Markdown\Parser\TrackedFencedCodeStartParser;
+use FastForward\Changelog\Markdown\Parser\UnclosedCommentInlineParser;
+use FastForward\Changelog\Markdown\SourceDocument;
 use FastForward\Changelog\Release\Renderer\ReleaseNotesRenderer;
 use FastForward\Changelog\Template\TemplateInterface;
 use FastForward\Changelog\Version\VersionImpact;
+use InvalidArgumentException;
+use League\CommonMark\CommonMarkConverter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[UsesClass(BlockStructure::class)]
+#[UsesClass(TrackedFencedCodeStartParser::class)]
+#[UsesClass(TrackedFencedCodeContinueParser::class)]
+#[UsesClass(SourceDocument::class)]
+#[UsesClass(UnclosedCommentInlineParser::class)]
 #[CoversClass(ReleaseNotesRenderer::class)]
 #[UsesClass(Changeset::class)]
 #[UsesClass(Category::class)]
 final class ReleaseNotesRendererTest extends TestCase
 {
+    /** Definition-only entries retain their link target and title while delivery metadata stays visible. */
+    #[TestWith([null, '-', false])]
+    #[TestWith(['owner/repo', '-', false])]
+    #[TestWith([null, '12.', false])]
+    #[TestWith(['owner/repo', '12.', false])]
+    #[TestWith(['owner/repo', '999999999.', false])]
+    #[TestWith([null, '-', true])]
+    #[TestWith(['owner/repo', '-', true])]
+    #[TestWith([null, '12.', true])]
+    #[TestWith(['owner/repo', '12.', true])]
+    #[TestWith(['owner/repo', '999999999.', true])]
+    public function testDefinitionOnlyListItemsKeepDeliveryReferencesInSeparateParagraphs(
+        ?string $repository,
+        string $marker,
+        bool $withTitle,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $padding = str_repeat(' ', strlen($marker) + 1);
+        $title = $withTitle ? ' "Guide title"' : '';
+        $description = $marker . ' [guide]: https://example.test' . $title . "\n"
+            . $marker . ' See [guide].';
+        $reference = null === $repository ? '#7' : '[#7](https://github.com/owner/repo/pull/7)';
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('definition.md', Category::Added, null, 7, null, $description),
+        ], $template, $repository);
+
+        self::assertSame(
+            "### Added\n\n" . $marker . ' [guide]: https://example.test' . $title . "\n\n"
+                . $padding . '(' . $reference . ")\n" . $marker . ' See [guide]. (' . $reference . ")\n",
+            $notes,
+        );
+        $html = (string) new CommonMarkConverter()->convert($notes);
+
+        self::assertStringContainsString('<a href="https://example.test"' . ($withTitle ? ' title="Guide title"' : '')
+            . '>guide</a>', $html);
+        self::assertSame(2, substr_count($html, null === $repository ? '(#7)' : '>#7</a>'));
+    }
+
+    /** Wrapping a standalone or nested definition must not turn delivery attribution into a link title. */
+    #[TestWith(['[guide]: https://example.test', '- [guide]: https://example.test', 2])]
+    #[TestWith(['- > [guide]: https://example.test', '- > [guide]: https://example.test', 2])]
+    #[TestWith(['- - [guide]: https://example.test', '- - [guide]: https://example.test', 2])]
+    public function testStandaloneAndNestedDefinitionsKeepVisibleAttribution(
+        string $description,
+        string $body,
+        int $padding,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('definition.md', Category::Added, null, 7, null, $description),
+        ], $template);
+
+        self::assertSame("### Added\n\n" . $body . "\n\n" . str_repeat(' ', $padding) . "(#7)\n", $notes);
+        self::assertStringContainsString('(#7)', (string) new CommonMarkConverter()->convert($notes));
+    }
+
+    /** Root context retains active definitions while inline-owned comment text and delivery attribution stay intact. */
+    #[TestWith([null])]
+    #[TestWith([7])]
+    public function testOrderedListRootContextKeepsItsDefinitionsActive(?int $pullRequest): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $description = "12. See [guide].\n\nAdditional context: [inline](https://example.test \"<!--\").\n\n"
+            . '[guide]: https://example.test';
+        $notes = new ReleaseNotesRenderer()->render([
+            new Changeset('context.md', Category::Added, null, $pullRequest, null, $description),
+        ], $template);
+
+        self::assertSame(
+            '### Added' . "\n\n12. See [guide]." . (null === $pullRequest ? '' : ' (#7)')
+                . "\n\nAdditional context: [inline](https://example.test \"<!--\").\n\n   [guide]: https://example.test\n",
+            $notes,
+        );
+        $document = SourceDocument::analyze($notes);
+
+        self::assertSame(['guide' => strpos($notes, '   [guide]:')], $document->referenceOffsets());
+        self::assertFalse($document->hasUnclosedComment());
+        self::assertStringContainsString(
+            '<a href="https://example.test">guide</a>',
+            (string) new CommonMarkConverter()->convert($notes),
+        );
+    }
+
     /** Empty inventories MUST NOT produce an invented release note. */
     public function testEmptyInventoryProducesNoBody(): void
     {
@@ -97,7 +195,7 @@ final class ReleaseNotesRendererTest extends TestCase
         );
     }
 
-    /** Internal author paragraphs remain within their item without spreading blank separators to adjacent items. */
+    /** Simple items stay compact; a multiline fragment ends before the next independent entry. */
     public function testMultilineParagraphsRemainIndentedBetweenCompactEntries(): void
     {
         $template = $this->createStub(TemplateInterface::class);
@@ -108,7 +206,7 @@ final class ReleaseNotesRendererTest extends TestCase
             new Changeset('c.md', Category::Fixed, null, null, null, 'After.'),
         ];
         self::assertSame(
-            "### Fixed\n\n- Before.\n- First paragraph.\n\n  Second paragraph.\n- After.\n",
+            "### Fixed\n\n- Before.\n- First paragraph.\n\n  Second paragraph.\n\n- After.\n",
             new ReleaseNotesRenderer()->render($changes, $template),
         );
     }
@@ -159,7 +257,6 @@ final class ReleaseNotesRendererTest extends TestCase
     #[TestWith(["```php\nreturn true;\n```", "-\n  ```php"])]
     #[TestWith(["~~~php\nreturn true;\n~~~", "-\n  ~~~php"])]
     #[TestWith(["```literal``` span\nContinued text.", '- ```literal``` span'])]
-    #[TestWith(["- Parent item\n  - Nested child\n\nAfter the nested list.", '- - Parent item'])]
     #[TestWith(["> Quoted text.\n>\n> Another paragraph.", '- > Quoted text.'])]
     #[TestWith(["    indented code;\n      keep extra indentation;", '-     indented code;'])]
     #[TestWith(["### Inner heading\n\nBody under the heading.", '- ### Inner heading'])]
@@ -177,5 +274,426 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertDoesNotMatchRegularExpression('/^[ \t]+$/m', $notes);
         $unwrapped = preg_replace('/\A(?:-\n {2}|- )/', '', $item);
         self::assertSame($description, str_replace("\n  ", "\n", $unwrapped));
+    }
+
+    /** Lists already provide entry markers; generated references must not create wrappers or orphan paragraphs. */
+    #[TestWith([
+        "- First improvement.\n- Second improvement.",
+        "- First improvement. ({ref})\n- Second improvement. ({ref})",
+    ])]
+    #[TestWith([
+        "* First improvement.\n* Second improvement.",
+        "* First improvement. ({ref})\n* Second improvement. ({ref})",
+    ])]
+    #[TestWith([
+        "+ First improvement.\n+ Second improvement.",
+        "+ First improvement. ({ref})\n+ Second improvement. ({ref})",
+    ])]
+    #[TestWith([
+        "1. First improvement.\n2. Second improvement.",
+        "1. First improvement. ({ref})\n2. Second improvement. ({ref})",
+    ])]
+    #[TestWith([
+        "1) First improvement.\n2) Second improvement.",
+        "1) First improvement. ({ref})\n2) Second improvement. ({ref})",
+    ])]
+    public function testAuthoredListItemsRetainTheirOwnLevelAndInlineReferences(
+        string $description,
+        string $expected,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        $notes = new ReleaseNotesRenderer()->render(
+            [new Changeset('list.md', Category::Added, null, 7, null, $description)],
+            $template,
+            'example/project',
+        );
+
+        self::assertSame(
+            "### Added\n\n" . str_replace('{ref}', '[#7](https://github.com/example/project/pull/7)', $expected) . "\n",
+            $notes,
+        );
+        self::assertStringNotContainsString('- - ', $notes);
+        self::assertStringNotContainsString("\n\n  ([#", $notes);
+    }
+
+    /** Authored lists without metadata preserve relative nesting, paragraphs and code examples. */
+    #[TestWith(["- Parent item\n  - Nested child\n\nAfter the nested list."])]
+    #[TestWith(["- Parent item\n\n  ```md\n  - Literal bullet\n  ```\n- Second item."])]
+    #[TestWith(["- Parent item\n  continuation with hard break.  \n\n  Another paragraph.\n- Last item."])]
+    public function testAuthoredListsWithoutReferencesArePreservedExactly(string $description): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n" . $description . "\n",
+            new ReleaseNotesRenderer()->render(
+                [new Changeset('list.md', Category::Added, null, null, null, $description)],
+                $template,
+            ),
+        );
+    }
+
+    /** Nested prose, hard breaks and fenced examples keep their original structure while only principal items get links. */
+    #[TestWith([
+        "- Parent item.  \n  - Child item.\n\n  Another paragraph.\n- Second item.",
+        "- Parent item.  \n  - Child item.\n\n  Another paragraph.\n\n  ({ref})\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "- Parent item.\n\n  ```md\n  - Literal bullet.\n  ~~~\n  ```\n- Second item.",
+        "- Parent item.\n\n  ```md\n  - Literal bullet.\n  ~~~\n  ```\n\n  ({ref})\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "- ```php\n  return true;\n  ```\n- Second item.",
+        "- ```php\n  return true;\n  ```\n\n  ({ref})\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "1. ~~~php\n   return true;\n   ~~~",
+        "1. ~~~php\n   return true;\n   ~~~\n\n   ({ref})",
+    ])]
+    #[TestWith([
+        "- ```literal``` span\n- Second item.",
+        "- ```literal``` span ({ref})\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "- ```md\n      ```\n  - Literal bullet.\n  ```\n- Second item.",
+        "- ```md\n      ```\n  - Literal bullet.\n  ```\n\n  ({ref})\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "  - First item.\r\n  - Second item.",
+        "- First item. ({ref})\r\n- Second item. ({ref})",
+    ])]
+    #[TestWith([
+        "  - Parent.\n    - Child.\n\n    Another paragraph.\n  - Second.",
+        "- Parent.\n  - Child.\n\n  Another paragraph.\n\n  ({ref})\n- Second. ({ref})",
+    ])]
+    public function testListReferencesRespectNestedBlocksAndAuthoredWhitespace(
+        string $description,
+        string $expected,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n" . str_replace('{ref}', '#7', $expected) . "\n",
+            new ReleaseNotesRenderer()->render(
+                [new Changeset('list.md', Category::Added, null, 7, null, $description)],
+                $template,
+            ),
+        );
+    }
+
+    /** References must stay outside inline code spans and HTML comments that cross source lines. */
+    #[TestWith(["- Use `some\n  code` safely.", "- Use `some\n  code` safely.\n\n  (#7)"])]
+    #[TestWith(["- <!-- hidden\n  --> Visible improvement.", "- <!-- hidden\n  --> Visible improvement.\n\n  (#7)"])]
+    #[TestWith([
+        "- <!-- hidden\n  ~~~\n  --> Visible improvement.",
+        "- <!-- hidden\n  ~~~\n  --> Visible improvement.\n\n  (#7)",
+    ])]
+    #[TestWith([
+        "- First paragraph.\n\n  Continuation.\n\n- Second.",
+        "- First paragraph.\n\n  Continuation.\n\n  (#7)\n\n- Second. (#7)",
+    ])]
+    public function testMultilineInlineConstructsDoNotSwallowTheDeliveryReference(
+        string $description,
+        string $expected,
+    ): void {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, $description),
+        ], $template));
+    }
+
+    /** Presentation expands only indentation tabs before wrapping, keeping code literal and the reference visible. */
+    public function testIndentedTabCodeRetainsColumnsAndInternalPayloadTabs(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $description = "Description.\n\n\t<!-- literal\tpayload";
+        $change = new Changeset('code.md', Category::Added, null, 7, null, $description);
+
+        self::assertSame(
+            "### Added\n\n- Description.\n\n      <!-- literal\tpayload\n\n  (#7)\n",
+            new ReleaseNotesRenderer()->render([$change], $template),
+        );
+        self::assertSame($description, $change->description);
+    }
+
+    /** A fenced Makefile recipe keeps its significant tab so the published example remains executable. */
+    public function testFencedRecipeRetainsItsLiteralLeadingTab(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n-\n  ```make\n  all:\n  \tprintf 'hello'\n  ```\n\n  (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('code.md', Category::Added, null, 7, null, "```make\nall:\n\tprintf 'hello'\n```"),
+            ], $template),
+        );
+    }
+
+    /** Removing an indented block's structural columns must leave its literal recipe tab intact. */
+    #[TestWith([
+        "Description.\n\n    all:\n    \tprintf 'hello'",
+        "- Description.\n\n      all:\n      \tprintf 'hello'",
+    ])]
+    #[TestWith(["Description.\n\n\tall:\n\t\tprintf 'hello'", "- Description.\n\n      all:\n      \tprintf 'hello'"])]
+    #[TestWith([
+        "- Description.\n\n      all:\n      \tprintf 'hello'",
+        "- Description.\n\n      all:\n      \tprintf 'hello'",
+    ])]
+    #[TestWith([
+        "- Description.\n\n      all:\n    \tprintf 'hello'",
+        "- Description.\n\n      all:\n        printf 'hello'",
+    ])]
+    public function testIndentedRecipeRetainsItsPayloadTab(string $description, string $expected): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n" . $expected . "\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('code.md', Category::Added, null, null, null, $description),
+            ], $template),
+        );
+    }
+
+    /** Principal items may vary their marker indentation while remaining below the prior item's content column. */
+    #[TestWith(["- First.\n - Second.", "- First. (#7)\n - Second. (#7)"])]
+    #[TestWith(["- First.\n - Second.\n  - Third.", "- First. (#7)\n - Second. (#7)\n  - Third. (#7)"])]
+    #[TestWith(["- First.\n - Second.\n   - Child.", "- First. (#7)\n - Second.\n   - Child.\n\n   (#7)"])]
+    public function testOptionalSiblingIndentationKeepsOneReferencePerItem(string $description, string $expected): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, $description),
+        ], $template));
+    }
+
+    /** References belong to the actual item; intervening root paragraphs remain independent authored blocks. */
+    public function testRootParagraphBetweenItemsDoesNotDetachTheirReferences(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n- First. (#7)\n\nAdditional context.\n\n- Second. (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset(
+                    'list.md',
+                    Category::Added,
+                    null,
+                    7,
+                    null,
+                    "- First.\n\nAdditional context.\n\n- Second.",
+                ),
+            ], $template),
+        );
+    }
+
+    /** Preformatted HTML payload whitespace remains literal when the fragment is wrapped and linked. */
+    public function testHtmlRecipeRetainsItsLiteralTab(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $source = "<pre>\nall:\n\tprintf 'hello'\n</pre>";
+
+        self::assertSame(
+            "### Added\n\n- <pre>\n  all:\n  \tprintf 'hello'\n  </pre>\n\n  (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('html.md', Category::Added, null, 7, null, $source),
+            ], $template),
+        );
+    }
+
+    /** A complete one-line raw HTML block receives a separate Markdown reference paragraph. */
+    #[TestWith(['<pre>Code.</pre>'])]
+    #[TestWith(['- <pre>Code.</pre>'])]
+    public function testClosedSingleLineHtmlKeepsTheReferenceOutsideRawMarkup(string $description): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- <pre>Code.</pre>\n\n  (#7)\n", new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, 7, null, $description),
+        ], $template));
+    }
+
+    /** Direct rendering refuses root HTML tails even when no delivery metadata was requested. */
+    #[TestWith([null])]
+    #[TestWith([7])]
+    public function testUncontainedHtmlCannotHideHistoricalReleaseHeadings(?int $pullRequest): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTML block');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, $pullRequest, null, "- First.\n\n<pre>\nExample"),
+        ], $template);
+    }
+
+    /** An HTML block inside a list item must not swallow its appended delivery paragraph. */
+    #[TestWith(["- <pre>\n  Example"])]
+    #[TestWith(["<pre>\nExample"])]
+    public function testContainedHtmlCannotHideItsDeliveryReference(string $description): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTML block');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('html.md', Category::Added, null, 7, null, $description),
+        ], $template);
+    }
+
+    /** A following fragment starts after a blank block boundary instead of becoming literal HTML content. */
+    #[TestWith([''])]
+    #[TestWith(["\n"])]
+    public function testTerminalHtmlDoesNotConsumeTheFollowingFragment(string $ending): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n- First.\n\n<div>Detail.</div>\n\n- Next.\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('a.md', Category::Added, null, null, null, "- First.\n\n<div>Detail.</div>" . $ending),
+                new Changeset('b.md', Category::Added, null, null, null, 'Next.'),
+            ], $template),
+        );
+    }
+
+    /** An item starting with indented code needs a separate visible reference paragraph, even on one source line. */
+    #[TestWith(['-     printf hello', 2])]
+    #[TestWith(['1.     printf hello', 3])]
+    #[TestWith(['- -     printf hello', 2])]
+    #[TestWith(['- >     printf hello', 2])]
+    public function testSingleLineIndentedCodeDoesNotConsumeTheReference(string $description, int $padding): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n" . $description . "\n\n" . str_repeat(' ', $padding) . "(#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('code.md', Category::Added, null, 7, null, $description),
+            ], $template),
+        );
+    }
+
+    /** A standalone single-line command keeps the delivery reference outside its wrapped literal code block. */
+    public function testSingleLineStandaloneIndentedCodeKeepsTheReferenceOutsideItsPayload(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n-     printf hello\n\n  (#7)\n", new ReleaseNotesRenderer()->render([
+            new Changeset('code.md', Category::Added, null, 7, null, '    printf hello'),
+        ], $template));
+    }
+
+    /** A non-one ordered list cannot interrupt an earlier bullet's paragraph without a block boundary. */
+    public function testOrderedListStartingAtTwoIsSeparatedFromThePrecedingFragment(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- First.\n\n2. Second.\n3. Third.\n", new ReleaseNotesRenderer()->render([
+            new Changeset('a.md', Category::Added, null, null, null, 'First.'),
+            new Changeset('b.md', Category::Added, null, null, null, "2. Second.\n3. Third."),
+        ], $template));
+    }
+
+    /** Leading presentation indentation cannot attach independent fragments to an earlier item's children. */
+    public function testIndentedAuthoredListRemainsIndependentOfEarlierProse(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- First.\n- Second.\n- Third.\n", new ReleaseNotesRenderer()->render([
+            new Changeset('a.md', Category::Added, null, null, null, 'First.'),
+            new Changeset('b.md', Category::Added, null, null, null, "  - Second.\n  - Third."),
+        ], $template));
+    }
+
+    /** Each principal item's optional indent is independent of the continuation columns owned by later siblings. */
+    public function testDecreasingPrincipalIndentKeepsLaterContinuationInsideItsItem(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame("### Added\n\n- First.\n- Second.\n\n  Continued.\n", new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, null, null, "  - First.\n- Second.\n\n  Continued."),
+        ], $template));
+    }
+
+    /** A direct caller cannot put delivery references inside a fence lacking an explicit closing delimiter. */
+    public function testImplicitlyClosedListFenceCannotHideReferences(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('explicit closing delimiter');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, "- ```text\n  example\n- Next item."),
+        ], $template);
+    }
+
+    /** A later fence-first item owns its own reference rather than being absorbed by the preceding prose item. */
+    public function testASecondItemCanOpenItsOwnFencedBlock(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $description = "- First.\n- ```php\n  code();\n  ```\n- Last.";
+
+        self::assertSame(
+            "### Added\n\n- First. (#7)\n- ```php\n  code();\n  ```\n\n  (#7)\n- Last. (#7)\n",
+            new ReleaseNotesRenderer()->render([
+                new Changeset('list.md', Category::Added, null, 7, null, $description),
+            ], $template),
+        );
+    }
+
+    /** Direct callers also receive a clear error instead of a hidden reference when bypassing fragment validation. */
+    public function testUnclosedListCommentsCannotHideReferences(): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('unclosed HTML comment');
+
+        new ReleaseNotesRenderer()->render([
+            new Changeset('list.md', Category::Added, null, 7, null, "- Visible.\n\n  <!-- not closed"),
+        ], $template);
+    }
+
+    /** A thematic break or an overlong ordered marker is ordinary Markdown, not a list to flatten. */
+    #[TestWith(["- - -\nAfter rule."])]
+    #[TestWith(["* * *\nAfter rule."])]
+    #[TestWith(["1234567890. Text."])]
+    public function testNonListMarkdownRetainsItsExistingWrapper(string $description): void
+    {
+        $template = $this->createStub(TemplateInterface::class);
+        $template->method('categoryHeading')->willReturn('### Added');
+
+        self::assertSame(
+            "### Added\n\n- " . str_replace("\n", "\n  ", $description) . "\n",
+            new ReleaseNotesRenderer()->render(
+                [new Changeset('rule.md', Category::Added, null, null, null, $description)],
+                $template,
+            ),
+        );
     }
 }
