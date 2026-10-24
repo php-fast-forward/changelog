@@ -1,5 +1,5 @@
 {
-    "$schema": "https://raw.githubusercontent.com/roxblnfk/skills/master/resources/skills.schema.json",
+    "$schema": "https://raw.githubusercontent.com/roxblnfk/skills/1.15.0/resources/skills.schema.json",
     "target": ".agents/skills",
     "aliases": [],
     "discovery": false,
@@ -8,12 +8,15 @@
     "dependencies": {
         "composer": {
             "trusted": [
-                "fast-forward/clock",
-                "fast-forward/config",
-                "fast-forward/container"
+                "fast-forward/*"
             ],
             "trusted-replace": true
         }
     },
-    "sources": []
+    "sources": [
+        {
+            "from": "dir",
+            "path": "resources/skills"
+        }
+    ]
 }
