@@ -129,6 +129,17 @@ This guide does not create channels or install a channel workflow in a consumer.
 
 ## Lower-level actions
 
+PR feedback returns `valid`, `invalid` or `obsolete`. A verified closed PR
+(including a merged version PR), changed head, changed base or changed target
+line makes the original snapshot obsolete. The operation exits successfully
+without claiming validation success, publishing a final commit status or
+updating a comment. If validation already wrote a pending status, that status
+is retained. Current invalid contributions still fail; missing or malformed
+API evidence, authorization failures and other operational errors still fail.
+Freshness is checked before validation and again before its final status write;
+a mismatched authorization head also requires a fresh PR read before it can
+be classified as obsolete. The API read and status write are separate operations.
+
 [`.github/actions`](https://github.com/php-fast-forward/changelog/tree/main/.github/actions) contains the action interfaces used by
 the reusable workflows:
 

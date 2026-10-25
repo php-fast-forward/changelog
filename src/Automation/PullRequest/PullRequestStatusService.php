@@ -39,7 +39,7 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
     ) {}
 
     /**
-     * Rejects mismatched snapshots before writes and leaves a blocking pending status on uncertain execution.
+     * Discards proven obsolete snapshots; unavailable evidence still fails and never publishes a final status.
      *
      * @param  ReleaseOptions   $options          Trusted consumer paths, rendering settings and repository selection for this
      *                                            operation.
@@ -53,8 +53,7 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
      * @param  string           $maintenanceLabel Exact label whose latest privileged human grant may authorize history
      *                                            maintenance.
      * @param  bool             $publishStatus    Whether to write the fixed commit status after verifying the exact PR snapshot.
-     * @return array            Exact-head contribution status, bounded inert comment and complete controlled validation
-     *                          diagnostics.
+     * @return array            Valid/invalid contribution feedback, or an obsolete result without comment or final status.
      * @throws RuntimeException When immutable PR, authority, committed-blob or status evidence cannot be confirmed.
      */
     public function inspect(
@@ -81,7 +80,9 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
                 'PR status requires the repository-root checkout at the exact head, a complete base and the built-in template.',
             );
         }
-        $this->fresh($options, $number, $head, $base, $baseBranch);
+        if (! $this->fresh($options, $number, $head, $base, $baseBranch)) {
+            return $this->obsolete($number, $head, $base);
+        }
 
         if ($publishStatus) {
             $this->status($options, $head, 'pending');
@@ -91,6 +92,10 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
         );
 
         if ($authorization->headSha !== $head) {
+            if (! $this->fresh($options, $number, $head, $base, $baseBranch)) {
+                return $this->obsolete($number, $head, $base);
+            }
+
             throw new RuntimeException('PR authorization is unavailable or belongs to another revision.');
         }
         $report = $this->checks->check(
@@ -104,7 +109,9 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
         }
         $valid = $report->isValid();
         $body = $this->comment($head, $base, $fragments, $authorization, $report, $valid);
-        $this->fresh($options, $number, $head, $base, $baseBranch);
+        if (! $this->fresh($options, $number, $head, $base, $baseBranch)) {
+            return $this->obsolete($number, $head, $base);
+        }
 
         if ($publishStatus) {
             $this->status($options, $head, $valid ? 'success' : 'failure');
@@ -239,7 +246,7 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
     }
 
     /**
-     * Confirms the same open PR/head/base/release line; fork data is allowed but never executed.
+     * Distinguishes proven PR movement/closure from unavailable or malformed API evidence; forks remain inert data.
      *
      * @param  ReleaseOptions   $options Trusted consumer paths, rendering settings and repository selection for this
      *                                   operation.
@@ -247,8 +254,8 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
      * @param  string           $head    Immutable managed or contribution head selected for the current operation.
      * @param  string           $base    Immutable source-base commit used for ancestry, inventory and freshness comparisons.
      * @param  string           $branch  Validated branch name used for the exact remote reference or release line.
-     * @return void             No value; the same open PR, head, base and release line must still be current.
-     * @throws RuntimeException When immutable PR, authority, committed-blob or status evidence cannot be confirmed.
+     * @return bool             Whether the verified PR remains open at the requested head, base and release line.
+     * @throws RuntimeException When the API cannot supply a complete PR identity and recognized state.
      */
     private function fresh(
         ReleaseOptions $options,
@@ -256,15 +263,34 @@ final readonly class PullRequestStatusService implements PullRequestStatusServic
         string $head,
         string $base,
         string $branch,
-    ): void {
+    ): bool {
         $pr = $this->github->request('GET', '/repos/' . $options->repository . '/pulls/' . $number);
 
-        if (! GitHubEvidence::pullRequest($pr, $options->repository, $number, false)
-            || $pr['head']['sha'] !== $head || $pr['base']['sha'] !== $base || ($pr['base']['ref'] ?? null) !== $branch) {
+        // Check closed snapshots against the same identity contract without weakening the shared open-PR guard.
+        if (null === $pr || ! in_array($pr['state'] ?? null, ['open', 'closed'], true)
+            || ! GitHubEvidence::pullRequest([...$pr, 'state' => 'open'], $options->repository, $number, false)
+            || ! is_string($pr['base']['ref'] ?? null) || '' === $pr['base']['ref']) {
             throw new RuntimeException(
-                'PR status snapshot is stale, closed or targets another release line; no final result was published.',
+                'PR status snapshot evidence is unavailable or malformed; no final result was published.',
             );
         }
+
+        return 'open' === $pr['state'] && $pr['head']['sha'] === $head
+            && $pr['base']['sha'] === $base && $pr['base']['ref'] === $branch;
+    }
+
+    /**
+     * Reports a discarded snapshot without asserting contribution validity or producing publishable feedback.
+     *
+     * @param  int    $number Original positive PR number whose live identity was verified.
+     * @param  string $head   Original immutable head, never replaced with a newer revision.
+     * @param  string $base   Original immutable comparison base, retained for diagnostics.
+     * @return array  Explicit obsolete result; any earlier pending status remains untouched.
+     */
+    private function obsolete(int $number, string $head, string $base): array
+    {
+        return ['status' => 'obsolete', 'pull_request' => $number, 'head_sha' => $head, 'base_sha' => $base,
+            'diagnostics' => ['The PR closed or its head, base or release line changed; validation was discarded.']];
     }
 
     /**

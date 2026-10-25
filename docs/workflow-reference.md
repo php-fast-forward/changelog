@@ -156,7 +156,7 @@ as JSON; parse it with `fromJSON(...)` after checking availability.
 | --- | --- |
 | Lifecycle | `version-pr` (reported managed PR number), `version-head` (generated head SHA), `published-version`, `published-tag`, `published-sha` (publication target, including previews). |
 | Check | `result`, `status`, `fragments` (accepted fragment count). |
-| Feedback | `result` (includes feedback/diagnostics), `status` (`valid` or `invalid`). |
+| Feedback | `result` (snapshot identities and diagnostics; obsolete results omit comment/error payloads), `status` (`valid`, `invalid` or `obsolete`). |
 | Dependabot | `result`, `status`, `path` (fragment path), `head-sha` (verified resulting head). |
 | Version | `result`, `status`, `version`, `pull-request`, `url`, `head-sha`, `plan-id`, `maintenance` (maintenance-only indicator). |
 | Publish | `result`, `state`, `version`, `tag`, `sha`, `url` (GitHub release URL). |

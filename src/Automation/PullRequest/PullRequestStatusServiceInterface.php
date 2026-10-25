@@ -11,7 +11,7 @@ use RuntimeException;
 interface PullRequestStatusServiceInterface
 {
     /**
-     * Returns JSON-ready feedback for valid or invalid contributions; unavailable or raced evidence throws.
+     * Returns JSON-ready feedback or a discarded obsolete snapshot; unavailable evidence still throws.
      *
      * @param  ReleaseOptions   $options          Trusted consumer paths, rendering settings and repository selection for this
      *                                            operation.
@@ -25,8 +25,7 @@ interface PullRequestStatusServiceInterface
      * @param  string           $maintenanceLabel Exact label whose latest privileged human grant may authorize history
      *                                            maintenance.
      * @param  bool             $publishStatus    Whether to write the fixed commit status after verifying the exact PR snapshot.
-     * @return array            Exact-head contribution status, bounded inert comment and complete controlled validation
-     *                          diagnostics.
+     * @return array            Valid/invalid contribution feedback, or an obsolete result without comment or final status.
      * @throws RuntimeException When immutable PR, authority, committed-blob or status evidence cannot be confirmed.
      */
     public function inspect(

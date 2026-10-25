@@ -59,9 +59,9 @@ inputs:
 
 outputs:
   result:
-    description: JSON containing comment_body, errors, head_sha and base_sha, including validation failures.
+    description: JSON containing snapshot identities and diagnostics; obsolete results omit comment_body and errors.
   status:
-    description: valid or invalid; unavailable evidence fails without claiming validation.
+    description: valid, invalid or obsolete; unavailable evidence fails without claiming validation.
   head-sha:
     description: Inspected immutable PR head.
 
