@@ -27,6 +27,22 @@ use Throwable;
 #[UsesClass(ReleaseInput::class)]
 final class GitHubCommandTest extends TestCase
 {
+    /** Obsolete feedback exits cleanly with an explicit result, without fabricating a successful validation. */
+    public function testObsoleteFeedbackIsWrittenWithoutFailingTheWorkflow(): void
+    {
+        $result = ['status' => 'obsolete', 'pull_request' => 7, 'head_sha' => str_repeat('a', 40),
+            'base_sha' => str_repeat('b', 40)];
+        $runner = $this->createMock(AutomationRunnerInterface::class);
+        $runner->expects(self::once())->method('run')->with('pr-status', new GitHubInput()->values())->willReturn(
+            $result,
+        );
+        $writer = $this->createMock(GitHubOutputWriterInterface::class);
+        $writer->expects(self::once())->method('write')->with($result)->willReturn('{"status":"obsolete"}');
+        $tester = new CommandTester(new Command('github', new GitHubCommand($runner, $writer)));
+        self::assertSame(0, $tester->execute(['operation' => 'pr-status'], ['interactive' => false]));
+        self::assertSame("{\"status\":\"obsolete\"}\n", $tester->getDisplay(true));
+    }
+
     /** Invalid contributions still persist feedback for the comment job while retaining the failing exit code. */
     public function testInvalidFeedbackIsWrittenBeforeReturningFailure(): void
     {

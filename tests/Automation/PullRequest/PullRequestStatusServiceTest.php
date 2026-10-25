@@ -132,25 +132,94 @@ final class PullRequestStatusServiceTest extends TestCase
             [['root' => '/parent']], [['checkout' => str_repeat('d', 40)]]];
     }
 
-    /** Live identity mismatch and later movement never produce a final green result. */
+    /** Verified closure/movement is discarded without final status writes or publishable feedback. */
     #[DataProvider('races')]
-    public function testLiveSnapshotRacesFailClosed(array $settings, int $pendingWrites): void
+    public function testLiveSnapshotRacesAreObsolete(array $settings, int $pendingWrites): void
+    {
+        $writes = [];
+        $result = $this->inspect($settings + ['no_validation' => 0 === $pendingWrites], $writes);
+        self::assertSame('obsolete', $result['status']);
+        self::assertSame(7, $result['pull_request']);
+        self::assertSame(str_repeat('a', 40), $result['head_sha']);
+        self::assertSame(str_repeat('b', 40), $result['base_sha']);
+        self::assertArrayNotHasKey('comment_body', $result);
+        self::assertCount($pendingWrites, $writes);
+        self::assertSame(
+            array_fill(0, $pendingWrites, 'pending'),
+            array_column(array_column($writes, 'body'), 'state'),
+        );
+    }
+
+    /** Covers closure, merge, head/base/line changes before validation and during validation or authorization. */
+    public static function races(): array
+    {
+        $cases = [];
+        foreach ([['state' => 'closed'], ['state' => 'closed', 'merged' => true],
+            ['head' => ['sha' => str_repeat('c', 40)]], ['base' => ['sha' => str_repeat('c', 40)]],
+            ['base' => ['ref' => 'stable']]] as $snapshot) {
+            $cases[] = [['snapshot' => $snapshot], 0];
+            $cases[] = [['later' => $snapshot], 1];
+            $cases[] = [['later' => $snapshot, 'authorization' => ''], 1];
+        }
+
+        return $cases;
+    }
+
+    /** Missing/malformed identities and API failures are errors even when a response claims closure. */
+    #[DataProvider('unavailableSnapshots')]
+    public function testUnavailableSnapshotsStillFail(array $settings, int $pendingWrites): void
     {
         $writes = [];
         try {
             $this->inspect($settings, $writes);
-            self::fail('A changed PR must fail.');
+            self::fail('Unavailable PR evidence must fail.');
         } catch (RuntimeException $error) {
-            self::assertStringContainsString('snapshot is stale', $error->getMessage());
+            self::assertStringContainsString('snapshot', $error->getMessage());
             self::assertCount($pendingWrites, $writes);
         }
     }
 
-    /** Includes a fork, closed PR, wrong base, wrong line and a race after validation. */
-    public static function races(): array
+    /** Exercises failures at the initial read, final read and the authorization-mismatch recheck. */
+    public static function unavailableSnapshots(): array
     {
-        return [[['pr' => null], 0], [['pr_state' => 'closed'], 0], [['pr_head' => str_repeat('c', 40)], 0],
-            [['pr_base' => str_repeat('c', 40)], 0], [['pr_branch' => 'stable'], 0], [['race' => true], 1]];
+        $cases = [];
+        foreach ([['state' => 'unknown'], ['state' => null], ['number' => 8],
+            ['head' => ['sha' => 'short']], ['head' => ['repo' => ['id' => null]]],
+            ['base' => ['sha' => 'short']], ['base' => ['ref' => null]], ['base' => ['ref' => '']],
+            ['base' => ['repo' => ['full_name' => 'other/project']]],
+            ['state' => 'closed', 'head' => ['sha' => 'short']]] as $snapshot) {
+            $cases[] = [['snapshot' => $snapshot], 0];
+            $cases[] = [['later' => $snapshot], 1];
+            $cases[] = [['later' => $snapshot, 'authorization' => ''], 1];
+        }
+        $cases[] = [['pr' => null], 0];
+        $cases[] = [['null_read' => 2], 1];
+        $cases[] = [['null_read' => 2, 'authorization' => ''], 1];
+        $cases[] = [['api_failure' => 1], 0];
+        $cases[] = [['api_failure' => 2], 1];
+        $cases[] = [['api_failure' => 2, 'authorization' => ''], 1];
+
+        return $cases;
+    }
+
+    /** Real policy/validation exceptions remain failures even if a later API read would show a merged PR. */
+    #[DataProvider('operationFailures')]
+    public function testOperationFailuresAreNotReclassifiedAsObsolete(string $boundary): void
+    {
+        $writes = [];
+        try {
+            $this->inspect([$boundary => true, 'later' => ['state' => 'closed', 'merged' => true]], $writes);
+            self::fail('A real operation failure must remain visible.');
+        } catch (RuntimeException $error) {
+            self::assertSame('Operation failed.', $error->getMessage());
+            self::assertSame(['pending'], array_column(array_column($writes, 'body'), 'state'));
+        }
+    }
+
+    /** Supplies independent injected boundaries without swallowing their operational failures. */
+    public static function operationFailures(): array
+    {
+        return [['policy_failure'], ['check_failure']];
     }
 
     /** Policy and committed-data uncertainty leave a blocking pending result instead of overwriting it with success. */
@@ -205,18 +274,22 @@ final class PullRequestStatusServiceTest extends TestCase
                     return isset($settings['unconfirmed']) ? null : $body;
                 }
                 ++$reads;
+                if (($settings['api_failure'] ?? null) === $reads) {
+                    throw new RuntimeException('PR snapshot API failure.');
+                }
+                if (($settings['null_read'] ?? null) === $reads) {
+                    return null;
+                }
                 if (array_key_exists('pr', $settings)) {
                     return $settings['pr'];
                 }
 
-                return ['number' => 7, 'state' => $settings['pr_state'] ?? 'open',
-                    'head' => ['sha' => ($settings['race'] ?? false) && $reads > 1 ? str_repeat(
-                        'c',
-                        40,
-                    ) : ($settings['pr_head'] ?? $head),
+                return array_replace_recursive(['number' => 7, 'state' => 'open',
+                    'head' => ['sha' => $head,
                         'ref' => 'feature', 'repo' => ['id' => isset($settings['fork']) ? 2 : 1, 'full_name' => 'owner/project']],
-                    'base' => ['sha' => $settings['pr_base'] ?? $base, 'ref' => $settings['pr_branch'] ?? 'main',
-                        'repo' => ['id' => 1, 'full_name' => 'owner/project']]];
+                    'base' => ['sha' => $base, 'ref' => 'main',
+                        'repo' => ['id' => 1, 'full_name' => 'owner/project']]],
+                    $settings['snapshot'] ?? [], $reads > 1 ? ($settings['later'] ?? []) : []);
             },
         );
         $git = $this->createStub(GitRepositoryInterface::class);
@@ -253,14 +326,34 @@ final class PullRequestStatusServiceTest extends TestCase
             }
         }
         $git->method('changesSince')->willReturn($changes);
-        $policy = $this->createStub(PullRequestPolicyInterface::class);
-        $policy->method('inspect')->willReturn(
-            new PullRequestAuthorization(false, false, $settings['kind'] ?? 'ordinary',
-                $settings['diagnostics'] ?? [], $settings['authorization'] ?? $head),
-        );
-        $checks = $this->createStub(CheckServiceInterface::class);
-        $checks->method('check')->willReturn(new ValidationReport($fragments, $settings['errors'] ?? [], false,
-            ['/consumer/.changelog/new.md' => $settings['hash'] ?? hash('sha256', 'accepted')]));
+        $policy = ($settings['no_validation'] ?? false)
+            ? $this->createMock(PullRequestPolicyInterface::class) : $this->createStub(
+                PullRequestPolicyInterface::class,
+            );
+        if ($settings['no_validation'] ?? false) {
+            $policy->expects(self::never())->method('inspect');
+        }
+        $policyResult = $policy->method('inspect');
+        if (isset($settings['policy_failure'])) {
+            $policyResult->willThrowException(new RuntimeException('Operation failed.'));
+        } else {
+            $policyResult->willReturn(
+                new PullRequestAuthorization(false, false, $settings['kind'] ?? 'ordinary',
+                    $settings['diagnostics'] ?? [], $settings['authorization'] ?? $head),
+            );
+        }
+        $checks = ($settings['no_validation'] ?? false)
+            ? $this->createMock(CheckServiceInterface::class) : $this->createStub(CheckServiceInterface::class);
+        if ($settings['no_validation'] ?? false) {
+            $checks->expects(self::never())->method('check');
+        }
+        $checkResult = $checks->method('check');
+        if (isset($settings['check_failure'])) {
+            $checkResult->willThrowException(new RuntimeException('Operation failed.'));
+        } else {
+            $checkResult->willReturn(new ValidationReport($fragments, $settings['errors'] ?? [], false,
+                ['/consumer/.changelog/new.md' => $settings['hash'] ?? hash('sha256', 'accepted')]));
+        }
 
         return new PullRequestStatusService($github, $git, $policy, $checks)->inspect(
             new ReleaseOptions('/consumer', template: $settings['template'] ?? 'keep-a-changelog',

@@ -92,11 +92,11 @@ on:
     outputs:
 
       result:
-        description: Exact validation feedback JSON, including invalid contributions.
+        description: Exact validation feedback JSON, or an obsolete snapshot without publishable feedback.
         value: ${{ jobs.status.outputs.result }}
 
       status:
-        description: valid or invalid.
+        description: valid, invalid or obsolete; obsolete snapshots publish no final status or comment.
         value: ${{ jobs.status.outputs.status }}
 
 permissions: {}
@@ -245,7 +245,8 @@ jobs:
     name: Update PR Changelog Comment
     needs: status
     if: >-
-      !cancelled() && (inputs.comment-mode == 'always' || inputs.comment-mode == 'on-failure')
+      !cancelled() && needs.status.outputs.status != 'obsolete' &&
+      (inputs.comment-mode == 'always' || inputs.comment-mode == 'on-failure')
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 5
     permissions:
