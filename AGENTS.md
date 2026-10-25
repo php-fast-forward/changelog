@@ -53,7 +53,9 @@ used across Fast Forward PHP packages.
 - Edit `resources/skills/fast-forward-changelog` as the sole published skill
   source. Reserve `.agents/skills` for ignored dependency skills restored through
   the reviewed `skills.json` and development-only `llm/skills` plugin. Do not
-  generate host aliases or duplicate this package's own skill there. Validate resource and archive changes
+  generate host aliases or edit generated skill copies there. The local directory
+  source restores this package's canonical skill into that ignored workspace;
+  keep `resources/skills` as its sole authored source. Validate resource and archive changes
   with `composer test:packaging`. Consumer installation and native host activation
   remain explicit operations, separate from package distribution. Keep the skill
   focused on the durable lifecycle: preserve an existing reviewed integration;
