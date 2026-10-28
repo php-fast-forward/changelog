@@ -38,6 +38,8 @@ use function FastForward\Container\container;
 #[PreserveGlobalState(false)]
 final class SquashPublicationTest extends TestCase
 {
+    use RecordsIntegrationProgress;
+
     /** A clone of main/tags has no H object, while the deleted branch's H survives only in the origin PR ref. */
     #[DataProvider('squashModes')]
     public function testDeletedBranchAndMissingLocalHead(

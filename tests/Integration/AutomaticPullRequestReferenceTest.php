@@ -35,6 +35,8 @@ use function FastForward\Container\container;
 #[PreserveGlobalState(false)]
 final class AutomaticPullRequestReferenceTest extends TestCase
 {
+    use RecordsIntegrationProgress;
+
     /** Approved references cannot be added, removed or guessed when association evidence later changes. */
     #[TestWith([true, false])]
     #[TestWith([false, false])]

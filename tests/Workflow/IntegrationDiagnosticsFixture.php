@@ -24,11 +24,15 @@ final class IntegrationDiagnosticsFixture
         verifyWorkflow(
             str_contains($upload['if'], 'always()')
                 && str_contains($upload['if'], "matrix.os == 'windows-latest'")
-                && ['.build/integration.xml', '.build/integration-events.log'] === preg_split(
+                && [
+                    '.build/integration.xml',
+                    '.build/integration-events.log',
+                    '.build/integration-progress.log',
+                ] === preg_split(
                     '/\s+/',
                     trim($upload['with']['path']),
                 ),
-            'Windows must preserve both final timings and incremental events after failure or interruption.',
+            'Windows must preserve final timings, incremental events and isolated test identity after interruption.',
         );
         $directory = sys_get_temp_dir() . '/changelog-integration-diagnostics-' . bin2hex(random_bytes(8));
         $filesystem = new Filesystem();
@@ -94,9 +98,54 @@ final class IntegrationDiagnosticsFixture
                 'Live job output must expose failure details and the interrupted test without a final JUnit report.',
             );
 
-            return 7;
+            self::verifyIsolated($root, $directory, $arguments, $step['env']);
+
+            return 10;
         } finally {
             $filesystem->remove($directory);
         }
+    }
+
+    /** Interrupts a real isolated dataset and verifies its identity survives independently of buffered PHPUnit events. */
+    private static function verifyIsolated(string $root, string $directory, array $arguments, array $environment): void
+    {
+        file_put_contents($directory . '/IsolatedDiagnosticsTest.php', <<<'PHP_WRAP'
+        <?php
+        use FastForward\Changelog\Tests\Integration\RecordsIntegrationProgress;
+        use PHPUnit\Framework\Attributes\PreserveGlobalState;
+        use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+        use PHPUnit\Framework\Attributes\TestWith;
+        use PHPUnit\Framework\TestCase;
+
+        #[RunTestsInSeparateProcesses]
+        #[PreserveGlobalState(false)]
+        final class IsolatedDiagnosticsTest extends TestCase
+        {
+            use RecordsIntegrationProgress;
+
+            /** Interrupt the isolated child after its durable identity has been written. */
+            #[TestWith([true])]
+            public function testInterrupted(bool $interrupt): void
+            {
+                if ($interrupt) {
+                    exit(23);
+                }
+                self::fail('The fixture must interrupt its child process.');
+            }
+        }
+        PHP_WRAP);
+        verifyWorkflow('.build/integration-progress.log' === $environment['FF_INTEGRATION_PROGRESS_LOG'],
+            'The workflow must configure a durable isolated-test identity log.');
+        $process = new Process([
+            PHP_BINARY, $root . '/vendor/bin/phpunit', '--no-configuration',
+            '--bootstrap', $root . '/vendor/autoload.php', ...$arguments,
+            $directory . '/IsolatedDiagnosticsTest.php',
+        ], $directory, [...$environment, 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false]);
+        $process->setTimeout(30);
+        verifyWorkflow(0 !== $process->run() && str_contains($process->getOutput(), 'Child Process Started'),
+            'An interrupted isolated child must retain a failing parent result.');
+        $progress = file_get_contents($directory . '/.build/integration-progress.log');
+        verifyWorkflow(str_contains($progress, 'IsolatedDiagnosticsTest::testInterrupted with data set #0'),
+            'The active isolated test and dataset must survive even when child events cannot be forwarded.');
     }
 }

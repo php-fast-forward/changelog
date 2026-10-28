@@ -46,10 +46,11 @@ without producing outputs. This protected-base loader scenario requires
 Ubuntu owns the common quality gates and the unchanged 100% source-line coverage
 threshold. ARM and Windows retain unit and real integration tests without repeating
 coverage, Rector and ECS. Integration uses PHPUnit's live debug output and an
-incremental event log, so failures and the last started test remain visible even
-when the run cannot finalize JUnit. Windows uploads both files when its artifact
-step can run. A disposable failing-then-interrupted PHPUnit fixture verifies these
-diagnostics and the nonzero exit status using the workflow's actual flags.
+incremental event log. Isolated tests also write their active identity and dataset
+directly before fixture effects, since PHPUnit buffers child events until exit.
+Windows uploads the event log, identity log and JUnit when its artifact step can
+run. Disposable failing-then-interrupted and interrupted-isolated PHPUnit fixtures
+verify these diagnostics and nonzero exit status using the workflow's actual flags.
 
 The squash corpus tests every Markdown variant through real release planning and
 exact history assertions. Publication transport additionally exercises missing and

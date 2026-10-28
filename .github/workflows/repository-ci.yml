@@ -311,6 +311,7 @@ jobs:
           ${{ matrix.integration-arguments }}
         env:
           XDEBUG_MODE: 'off'
+          FF_INTEGRATION_PROGRESS_LOG: .build/integration-progress.log
 
       - name: Preserve Windows Integration Diagnostics
         if: always() && needs.impact.outputs.runtime == 'true' && matrix.os == 'windows-latest'
@@ -320,6 +321,7 @@ jobs:
           path: |
             .build/integration.xml
             .build/integration-events.log
+            .build/integration-progress.log
           if-no-files-found: warn
           retention-days: 14
 
