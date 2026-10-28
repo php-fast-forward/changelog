@@ -111,8 +111,11 @@ The prepared caller selects App **5513989**, client ID
 credentials and managed-PR Bot. Publication still verifies that original author
 independently of the App making API requests. Its requested Contents write and
 Pull requests read permissions are already granted to the App. No App permission
-or installation expansion is proposed for Changelog. Publication using only
-`GITHUB_TOKEN` would not start this release-event workflow.
+or installation expansion is proposed for Changelog. Read-only metadata on
+2026-10-28 confirms installation **176263242** is active with repository selection
+**all** for `php-fast-forward`, including Code Standards. Sharing its private key
+with another repository is still a separately approved credential operation.
+Publication using only `GITHUB_TOKEN` would not start this release-event workflow.
 
 `release-channels` currently has a `main` branch policy and a secret named
 `RELEASE_CHANNEL_APP_PRIVATE_KEY` (metadata verified; key validity not rechecked).
@@ -156,7 +159,10 @@ branches. Future approved normal publication creates `v1`/`latest` as needed;
 preparing or testing this patch does not authorize moving any of these refs.
 Consumer Code Standards must first adopt a verified Changelog release containing
 the new optional publication-only API; the current published `@v0` does not have
-those inputs. Its App installation/key scope requires separate verification.
+those inputs. Its installation is already covered by the organization-wide
+selection; creating its environment and distributing the key remain pending
+approval. Metadata inspection does not verify that an environment secret holds
+a valid key.
 
 ### Remaining limits and recovery
 
@@ -167,6 +173,9 @@ App bypass; they can reject backwards branch writes, but actual server acceptanc
 of the action's API calls requires authorized observation. They do not turn the
 SDK snapshot and later mutation into one atomic transaction. Major and `latest`
 updates are separate requests, so a partial failure can leave them inconsistent.
+The workflow requests a repository-limited token, but the private key can mint
+tokens for other repositories covered by the organization-wide installation.
+Compromise of that key in Code Standards could therefore affect Changelog too.
 Other writers with the key can race this job; deleted/rewritten evidence and
 upstream `@v2` changes require fresh review. Administrators able to edit rules or
 trusted workflows can change these boundaries. A stolen App key/token remains
