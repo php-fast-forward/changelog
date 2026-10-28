@@ -577,7 +577,7 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
      * @param  string                   $path      Canonical consumer-relative fragment path.
      * @param  string                   $sha256    SHA-256 of the exact accepted regular-file bytes.
      * @return bool                     Whether the verified origin is direct; missing bytes or a matching side parent return false.
-     * @throws InvalidArgumentException When the path or complete identity is invalid.
+     * @throws InvalidArgumentException When the path, complete commit identity or SHA-256 digest is invalid.
      * @throws RuntimeException         When Git objects, parents or the bounded origin history cannot be verified.
      */
     public function fragmentHasDirectOrigin(string $directory, string $headSha, string $path, string $sha256): bool

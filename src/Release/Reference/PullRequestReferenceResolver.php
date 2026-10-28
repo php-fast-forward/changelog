@@ -47,6 +47,10 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
     /**
      * Preserves explicit references and enriches only uniquely proved committed fragments.
      *
+     * Inferred references require exact changed bytes and a direct origin at the original PR head
+     * within its complete commit delta. A candidate matching source ancestry and bytes aborts
+     * resolution if its implementation provenance cannot be proved.
+     *
      * All caches belong to this invocation. Operational failures are redacted and never
      * downgraded to an empty association list; no fragment or remote object is modified.
      *
@@ -56,7 +60,8 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      * @param  array<string,string>     $acceptedHashes Accepted source inventory keyed by absolute fragment path; empty means records reconstructed from the base commit.
      * @return list<Changeset>          Original array when no enrichment applies; otherwise records differing only in absent PR numbers.
      * @throws InvalidArgumentException When enabled resolution receives an invalid repository or immutable base.
-     * @throws RuntimeException         When proof is unavailable, incomplete, contradictory or identifies multiple valid PR numbers.
+     * @throws RuntimeException         When origin/provenance capabilities are missing or proof is unavailable, incomplete,
+     *                                  contradictory or identifies multiple valid PR numbers.
      */
     public function resolve(
         ReleaseOptions $options,
@@ -347,12 +352,13 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
     }
 
     /**
-     * Requires the complete immutable merged-PR delta before attributing accepted bytes to its implementation.
+     * Validates a complete merged-PR file list and selects changed destination paths for blob comparison.
      *
      * @param  string               $repository Verified target owner/name used for the scoped file-list request.
      * @param  int                  $number     Verified merged PR number.
      * @param  array                $pr         Full merged PR response, including its expected changed-file count.
-     * @return array<string,string> Changed regular-file candidate paths and their Git blob identities; deleted paths are omitted.
+     * @return array<string,string> Paths reported as added, modified, renamed or copied mapped to Git object identities;
+     *                              removed, changed and unchanged entries are validated but omitted.
      * @throws RuntimeException     When the delta is unavailable, truncated, duplicated, malformed or beyond GitHub's 3000-file limit.
      */
     private function changedFiles(string $repository, int $number, array $pr): array
@@ -390,13 +396,13 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
     }
 
     /**
-     * Binds the head's byte introduction to the PR's own complete commit delta, excluding inherited base commits.
+     * Collects the PR's complete commit identities so the caller can check membership of the head's fragment origin.
      *
      * @param  string             $repository Verified target owner/name.
      * @param  int                $number     Verified merged implementation candidate.
      * @param  array              $pr         Full PR response declaring the expected commit count.
-     * @return array<string,true> Complete unique commit identities; no truncated 250-commit API result is accepted.
-     * @throws RuntimeException   When commit evidence is malformed, unavailable, duplicated or beyond the endpoint limit.
+     * @return array<string,true> Unique commit identities as lookup keys; the declared count must be between 1 and 250.
+     * @throws RuntimeException   When commit evidence is malformed, unavailable, incomplete, duplicated or beyond the endpoint limit.
      */
     private function implementationCommits(string $repository, int $number, array $pr): array
     {
