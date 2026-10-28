@@ -20,6 +20,7 @@ use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitFragmentOriginReaderInterface;
+use FastForward\Changelog\Git\GitFragmentProvenanceReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -46,6 +47,10 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
     /**
      * Preserves explicit references and enriches only uniquely proved committed fragments.
      *
+     * Inferred references require exact changed bytes and a direct origin at the original PR head
+     * within its complete commit delta. A candidate matching source ancestry and bytes aborts
+     * resolution if its implementation provenance cannot be proved.
+     *
      * All caches belong to this invocation. Operational failures are redacted and never
      * downgraded to an empty association list; no fragment or remote object is modified.
      *
@@ -55,7 +60,8 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      * @param  array<string,string>     $acceptedHashes Accepted source inventory keyed by absolute fragment path; empty means records reconstructed from the base commit.
      * @return list<Changeset>          Original array when no enrichment applies; otherwise records differing only in absent PR numbers.
      * @throws InvalidArgumentException When enabled resolution receives an invalid repository or immutable base.
-     * @throws RuntimeException         When proof is unavailable, incomplete, contradictory or identifies multiple valid PR numbers.
+     * @throws RuntimeException         When origin/provenance capabilities are missing or proof is unavailable, incomplete,
+     *                                  contradictory or identifies multiple valid PR numbers.
      */
     public function resolve(
         ReleaseOptions $options,
@@ -77,12 +83,17 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         if (!$this->git instanceof GitFragmentOriginReaderInterface) {
             throw new RuntimeException('Automatic PR references require the Git fragment-origin capability.');
         }
+        if (!$this->git instanceof GitFragmentProvenanceReaderInterface) {
+            throw new RuntimeException('Automatic PR references require the Git fragment-provenance capability.');
+        }
 
         try {
             $references = $this->references($options, $baseSha, $changesets, $acceptedHashes);
         } catch (Throwable) {
             throw new RuntimeException(
-                'Automatic pull-request reference evidence could not be verified; details were withheld.',
+                'Automatic implementation PR provenance could not be verified; details were withheld. '
+                . 'Provide explicit pull_request fragment metadata for the reviewed implementation PR; '
+                . 'inherited fragment corrections require verified maintenance authorization.',
             );
         }
 
@@ -131,6 +142,9 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         $repository = $this->repository($options->repository);
         $associations = [];
         $merges = [];
+        $pullRequests = [];
+        $files = [];
+        $commits = [];
         $references = [];
 
         foreach ($origins as $index => [$path, $blob, $origin]) {
@@ -139,13 +153,36 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
 
             foreach ($associations[$origin] as $number) {
                 if (!array_key_exists($number, $merges)) {
-                    $merges[$number] = $this->mergedCommit($options->repository, $repository, $number);
+                    $merges[$number] = $this->mergedCommit($options->repository, $repository, $number, $pullRequests);
                 }
                 $merge = $merges[$number];
 
                 if (null !== $merge && $this->git->isAncestor($directory, $origin, $merge)
                     && $this->git->isAncestor($directory, $merge, $baseSha)
                     && $this->git->readFileAt($directory, $merge, $path) === $blob) {
+                    $pr = $pullRequests[$number];
+                    $files[$number] ??= $this->changedFiles($options->repository, $number, $pr);
+                    $object = 'blob ' . strlen($blob) . "\0" . $blob;
+                    $oid = $files[$number][$path] ?? '';
+                    $commits[$number] ??= $this->implementationCommits($options->repository, $number, $pr);
+                    $headOrigin = $this->git->fragmentOrigin(
+                        $directory,
+                        $pr['head']['sha'],
+                        $path,
+                        hash('sha256', $blob),
+                    );
+                    if (! in_array($oid, [hash('sha1', $object), hash('sha256', $object)], true)
+                        || null === $headOrigin || ! isset($commits[$number][$headOrigin])
+                        || ! $this->git->fragmentHasDirectOrigin(
+                            $directory,
+                            $pr['head']['sha'],
+                            $path,
+                            hash('sha256', $blob),
+                        )) {
+                        throw new RuntimeException(
+                            'The associated integration PR does not prove direct implementation.',
+                        );
+                    }
                     $references[$index][] = $number;
                 }
             }
@@ -275,13 +312,14 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      * Fork heads are allowed: only the target repository is bound to the selected repository.
      * Open and closed-unmerged PRs supply no reference; incomplete evidence never does so.
      *
-     * @param  string                                        $name       Trusted owner/name used for the repository-scoped PR request.
-     * @param  array{id:int,node_id:string,full_name:string} $repository Verified target repository identity.
-     * @param  int                                           $number     Positive association number corroborated by the full PR response.
+     * @param  string                                        $name         Trusted owner/name used for the repository-scoped PR request.
+     * @param  array{id:int,node_id:string,full_name:string} $repository   Verified target repository identity.
+     * @param  int                                           $number       Positive association number corroborated by the full PR response.
+     * @param  array<int,array>                              $pullRequests Invocation-local cache receiving complete verified merged PR records.
      * @return ?string                                       Complete merged commit SHA, or null for a valid unmerged PR.
      * @throws RuntimeException                              When REST or GraphQL evidence is absent, inconsistent or incomplete.
      */
-    private function mergedCommit(string $name, array $repository, int $number): ?string
+    private function mergedCommit(string $name, array $repository, int $number, array &$pullRequests): ?string
     {
         $pr = $this->github->request('GET', '/repos/' . $name . '/pulls/' . $number);
 
@@ -308,7 +346,84 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
             throw new RuntimeException('Legacy REST merge evidence contradicts the GraphQL merge commit.');
         }
 
+        $pullRequests[$number] = $pr;
+
         return $merge;
+    }
+
+    /**
+     * Validates a complete merged-PR file list and selects changed destination paths for blob comparison.
+     *
+     * @param  string               $repository Verified target owner/name used for the scoped file-list request.
+     * @param  int                  $number     Verified merged PR number.
+     * @param  array                $pr         Full merged PR response, including its expected changed-file count.
+     * @return array<string,string> Paths reported as added, modified, renamed or copied mapped to Git object identities;
+     *                              removed, changed and unchanged entries are validated but omitted.
+     * @throws RuntimeException     When the delta is unavailable, truncated, duplicated, malformed or beyond GitHub's 3000-file limit.
+     */
+    private function changedFiles(string $repository, int $number, array $pr): array
+    {
+        $count = $pr['changed_files'] ?? null;
+        if (! is_int($count) || $count < 0 || $count > 3000) {
+            throw new RuntimeException('Implementation provenance requires a bounded complete PR file count.');
+        }
+        $records = $this->github->paginate('/repos/' . $repository . '/pulls/' . $number . '/files');
+        if (count($records) !== $count) {
+            throw new RuntimeException('Implementation PR file evidence is incomplete.');
+        }
+        $files = [];
+        $seen = [];
+        foreach ($records as $file) {
+            $path = $file['filename'] ?? null;
+            $sha = $file['sha'] ?? null;
+            $status = $file['status'] ?? null;
+            if (! is_string($path) || '' === $path || isset($seen[$path])
+                || ! is_string($sha) || ! GitHubEvidence::sha($sha)
+                || ! in_array(
+                    $status,
+                    ['added', 'modified', 'renamed', 'copied', 'removed', 'changed', 'unchanged'],
+                    true,
+                )) {
+                throw new RuntimeException('Implementation PR file evidence is malformed.');
+            }
+            $seen[$path] = true;
+            if (in_array($status, ['added', 'modified', 'renamed', 'copied'], true)) {
+                $files[$path] = $sha;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * Collects the PR's complete commit identities so the caller can check membership of the head's fragment origin.
+     *
+     * @param  string             $repository Verified target owner/name.
+     * @param  int                $number     Verified merged implementation candidate.
+     * @param  array              $pr         Full PR response declaring the expected commit count.
+     * @return array<string,true> Unique commit identities as lookup keys; the declared count must be between 1 and 250.
+     * @throws RuntimeException   When commit evidence is malformed, unavailable, incomplete, duplicated or beyond the endpoint limit.
+     */
+    private function implementationCommits(string $repository, int $number, array $pr): array
+    {
+        $count = $pr['commits'] ?? null;
+        if (! is_int($count) || $count < 1 || $count > 250) {
+            throw new RuntimeException('Implementation provenance requires a bounded complete PR commit count.');
+        }
+        $records = $this->github->paginate('/repos/' . $repository . '/pulls/' . $number . '/commits');
+        if (count($records) !== $count) {
+            throw new RuntimeException('Implementation PR commit evidence is incomplete.');
+        }
+        $commits = [];
+        foreach ($records as $record) {
+            $sha = $record['sha'] ?? null;
+            if (! is_string($sha) || ! GitHubEvidence::sha($sha) || isset($commits[$sha])) {
+                throw new RuntimeException('Implementation PR commit evidence is malformed.');
+            }
+            $commits[$sha] = true;
+        }
+
+        return $commits;
     }
 
     /**

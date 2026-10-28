@@ -40,6 +40,64 @@ final class GitFragmentOriginTest extends TestCase
         );
     }
 
+    #[TestWith([''])]
+    #[TestWith(['cccccccccccccccccccccccccccccccccccccccc'])]
+    public function testDirectProvenanceAcceptsRootAndOrdinaryImplementationCommits(string $parents): void
+    {
+        $responses = [...$this->preflight(), ...$this->blob(self::BASE),
+            $this->history(self::ORIGIN . "\0"), ...$this->blob(self::ORIGIN), $this->parents(self::ORIGIN, $parents)];
+        if ('' !== $parents) {
+            array_push($responses, ...$this->blob(self::PARENT, 'previous'));
+        }
+        $responses[] = $this->parents(self::ORIGIN, $parents);
+        self::assertTrue($this->repository($responses)->fragmentHasDirectOrigin(
+            '/consumer', self::BASE, self::PATH, hash('sha256', 'current'),
+        ));
+    }
+
+    public function testDirectProvenanceRefusesAFragmentAbsentFromTheOriginalPrHead(): void
+    {
+        self::assertFalse($this->repository([...$this->preflight(),
+            [$this->git(['ls-tree', '-z', self::BASE, '--', self::PATH]), ''],
+        ])->fragmentHasDirectOrigin('/consumer', self::BASE, self::PATH, hash('sha256', 'current')));
+    }
+
+    #[TestWith(['current', false])]
+    #[TestWith(['other', true])]
+    public function testMergeProvenanceDistinguishesImportedBytesFromAnAuthoredMergeChange(
+        string $sideBytes,
+        bool $expected,
+    ): void {
+        $side = str_repeat('e', 40);
+        $parents = self::PARENT . ' ' . $side;
+        self::assertSame($expected, $this->repository([
+            ...$this->preflight(), ...$this->blob(self::BASE), $this->history(self::ORIGIN . "\0"),
+            ...$this->blob(self::ORIGIN), $this->parents(self::ORIGIN, $parents),
+            ...$this->blob(self::PARENT, 'previous'), $this->parents(self::ORIGIN, $parents),
+            [$this->git(['rev-parse', '--show-prefix']), "\n"],
+            [['git', '-C', '/consumer', 'rev-parse', '--show-toplevel'], "/consumer\n"],
+            ...$this->blob($side, $sideBytes),
+        ])->fragmentHasDirectOrigin('/consumer', self::BASE, self::PATH, hash('sha256', 'current')));
+    }
+
+    #[TestWith(['invalid'])]
+    #[TestWith(['bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'])]
+    #[TestWith(['excessive'])]
+    public function testMalformedOrExcessiveProvenanceParentsFailClosed(string $parents): void
+    {
+        if ('excessive' === $parents) {
+            $parents = implode(' ', array_fill(0, 101, self::PARENT));
+        }
+        $repository = $this->repository([
+            ...$this->preflight(), ...$this->blob(self::BASE), $this->history(self::ORIGIN . "\0"),
+            ...$this->blob(self::ORIGIN), $this->parents(self::ORIGIN, ''),
+            $this->parents(self::ORIGIN, $parents),
+        ]);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('provenance parents');
+        $repository->fragmentHasDirectOrigin('/consumer', self::BASE, self::PATH, hash('sha256', 'current'));
+    }
+
     public function testMergeTransitionUsesOnlyTheActualFirstParent(): void
     {
         self::assertSame(self::ORIGIN, $this->repository([

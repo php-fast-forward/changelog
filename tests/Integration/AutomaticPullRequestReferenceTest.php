@@ -34,10 +34,13 @@ use function FastForward\Container\container;
 final class AutomaticPullRequestReferenceTest extends TestCase
 {
     /** Approved references cannot be added, removed or guessed when association evidence later changes. */
-    #[TestWith([true])]
-    #[TestWith([false])]
-    public function testAutomaticReferencesSurviveRecoveryAndAreReprovedBeforePublication(bool $associated): void
-    {
+    #[TestWith([true, false])]
+    #[TestWith([false, false])]
+    #[TestWith([true, true])]
+    public function testAutomaticReferencesSurviveRecoveryAndAreReprovedBeforePublication(
+        bool $associated,
+        bool $stacked,
+    ): void {
         $root = realpath(sys_get_temp_dir()) . '/changelog-auto-pr-' . bin2hex(random_bytes(8));
         $fs = new Filesystem();
         $fs->mkdir($root, 0700);
@@ -60,20 +63,36 @@ final class AutomaticPullRequestReferenceTest extends TestCase
             $git(['add', 'CHANGELOG.md']);
             $git(['commit', '-m', 'Initial fixture']);
             $git(['tag', 'v1.0.0']);
+            if ($stacked) {
+                $git(['switch', '-c', 'umbrella']);
+                $git(['commit', '--allow-empty', '-m', 'Root integration work']);
+                $git(['switch', '-c', 'implementation']);
+            }
             $fs->mkdir($root . '/.changelog');
             $fragment = "---\ncategory: fixed\ntype: patch\n---\n\nKeeps the authored fragment intact.\n";
             file_put_contents($root . '/.changelog/auto-pr.md', $fragment);
             $git(['add', '.changelog/auto-pr.md']);
             $git(['commit', '-m', 'A title does not supply provenance #999']);
             $base = trim($git(['rev-parse', 'HEAD']));
-            $github = new class ($base, $associated) implements GitHubClientInterface {
+            $implementation = $base;
+            if ($stacked) {
+                $git(['switch', 'umbrella']);
+                $git(['merge', '--no-ff', 'implementation', '-m', 'Import a nested implementation']);
+                $git(['switch', 'main']);
+                $git(['merge', '--no-ff', 'umbrella', '-m', 'Integrate stack']);
+                $base = trim($git(['rev-parse', 'HEAD']));
+            }
+            $github = new class ($base, $associated, $fragment) implements GitHubClientInterface {
                 public array $numbers;
                 public bool $unavailable = false;
+                public ?string $head = null;
+                public bool $incompleteFiles = false;
                 public array $calls = [];
 
                 public function __construct(
                     private readonly string $origin,
                     bool $associated,
+                    private readonly string $fragment,
                 ) {
                     $this->numbers = $associated ? [41] : [];
                 }
@@ -90,7 +109,7 @@ final class AutomaticPullRequestReferenceTest extends TestCase
                             'nameWithOwner' => $repo['full_name'], 'id' => $repo['node_id'],
                             'pullRequest' => [
                                 'number' => $body['variables']['number'], 'state' => 'MERGED', 'merged' => true,
-                                'headRefOid' => $this->origin, 'headRefName' => 'contribution', 'baseRefName' => 'main',
+                                'headRefOid' => $this->head ?? $this->origin, 'headRefName' => 'contribution', 'baseRefName' => 'main',
                                 'mergeCommit' => ['oid' => $this->origin],
                             ],
                         ]]];
@@ -102,8 +121,8 @@ final class AutomaticPullRequestReferenceTest extends TestCase
                         return $repo;
                     }
                     if (preg_match('~/pulls/([0-9]+)$~D', $path, $match)) {
-                        return ['number' => (int) $match[1], 'state' => 'closed', 'merged' => true,
-                            'head' => ['sha' => $this->origin, 'ref' => 'contribution'],
+                        return ['number' => (int) $match[1], 'state' => 'closed', 'merged' => true, 'changed_files' => 1, 'commits' => 1,
+                            'head' => ['sha' => $this->head ?? $this->origin, 'ref' => 'contribution'],
                             'base' => ['ref' => 'main', 'repo' => $repo]];
                     }
 
@@ -113,6 +132,13 @@ final class AutomaticPullRequestReferenceTest extends TestCase
                 public function paginate(string $path): array
                 {
                     $this->calls[] = ['GET', $path];
+                    if (! $this->unavailable && str_ends_with($path, '/files')) {
+                        return $this->incompleteFiles ? [] : [['filename' => '.changelog/auto-pr.md', 'status' => 'added',
+                            'sha' => hash('sha1', 'blob ' . strlen($this->fragment) . "\0" . $this->fragment)]];
+                    }
+                    if (! $this->unavailable && str_ends_with($path, '/commits')) {
+                        return [['sha' => $this->head ?? $this->origin]];
+                    }
                     if ($this->unavailable || $path !== '/repos/owner/fixture/commits/' . $this->origin . '/pulls') {
                         throw new RuntimeException('Synthetic association evidence unavailable.');
                     }
@@ -141,6 +167,17 @@ final class AutomaticPullRequestReferenceTest extends TestCase
             $application = $runtime->get(Changelog::class);
             $application->setAutoExit(false);
             $tester = new ApplicationTester($application);
+            if ($stacked) {
+                self::assertSame(1, $tester->run([
+                    'command' => 'status', '--cwd' => $root, '--repository' => 'owner/fixture',
+                    '--source' => 'tags', '--resolve-pull-requests' => 'true', '--no-interaction' => true,
+                ]));
+                self::assertStringContainsString('explicit pull_request', $tester->getDisplay());
+                self::assertSame($history, file_get_contents($root . '/CHANGELOG.md'));
+                self::assertSame($fragment, file_get_contents($root . '/.changelog/auto-pr.md'));
+                // Complete association evidence for the actual implementation can still be proved at the shared merge.
+                $github->head = $implementation;
+            }
             self::assertSame(0, $tester->run([
                 'command' => 'status', '--cwd' => $root, '--repository' => 'owner/fixture',
                 '--source' => 'tags', '--resolve-pull-requests' => 'true', '--no-interaction' => true,
@@ -187,9 +224,11 @@ final class AutomaticPullRequestReferenceTest extends TestCase
                 'A new uncommitted note cannot change approved evidence.',
             );
             self::assertSame('dry-run', $publisher->publish($options, $approved, true)->state);
-            foreach (['outage', 'drift', 'ambiguity'] as $failure) {
+            foreach (['outage', 'drift', 'ambiguity', 'implementation'] as $failure) {
                 $github->unavailable = 'outage' === $failure;
-                $github->numbers = 'ambiguity' === $failure ? [41, 42] : ($associated ? [] : [41]);
+                $github->incompleteFiles = 'implementation' === $failure;
+                $github->numbers = 'ambiguity' === $failure ? [41, 42]
+                    : ('implementation' === $failure ? [41] : ($associated ? [] : [41]));
                 $failed = false;
                 try {
                     $publisher->publish($options, $approved, true);
