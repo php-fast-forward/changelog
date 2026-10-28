@@ -49,7 +49,8 @@ Before any remote mutation, publication verifies:
   of the older completion formats remain valid for already approved commits;
   arbitrary footer changes do not.
   With `resolvePullRequests` enabled, missing fragment PR references are
-  recomputed from exact committed bytes, first-parent Git history and verified
+  recomputed from exact committed bytes, first-parent Git history, the original
+  implementation head and complete PR file/commit deltas, and verified
   merged-PR API evidence before comparing the canonical notes.
   Missing reachable tagged sections
   imported during planning are taken from the reviewed approved bytes for

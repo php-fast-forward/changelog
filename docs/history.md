@@ -189,8 +189,14 @@ field; set it to `false` consistently when keeping references entirely explicit.
 The resolver matches the fragment's exact committed bytes and canonical regular
 path against first-parent Git history at the selected base. It accepts a merged
 PR only after checking its repository and commit ancestry, including independent
-GitHub merge identity. Titles, branch names and commit prose do not establish
-that origin. Explicit PR, issue and author metadata remains authoritative.
+GitHub merge identity. It then requires the complete PR file delta to identify
+the exact accepted Git blob and verifies those bytes at the original PR head.
+That head's byte-introducing commit must belong to the complete PR commit delta;
+a pre-existing base commit does not establish implementation by this PR.
+The head's first-parent byte introduction must be its own change: importing the
+same bytes from a merge side parent does not establish implementation provenance.
+Titles, branch names and commit prose do not establish that origin.
+Explicit PR, issue and author metadata remains authoritative.
 Discovery adds no author, issue or commit link.
 Local previews compare the accepted fragment hashes with the committed blobs;
 publication reconstructs from the immutable source base independently of the
@@ -203,6 +209,33 @@ the description alone. Outside Git, or without committed matching bytes, origin
 lookup adds no reference and does not relax the normal release-input checks.
 Unavailable, incomplete or ambiguous API evidence fails preparation before any
 journal or managed-file write.
+
+### Stacked implementation PRs
+
+An automatically inferred reference identifies a proved implementation/review
+PR, rather than an umbrella PR that merely integrates other contributions.
+GitHub can report a shared merge SHA for several stacked PRs and associate an
+implementation commit only with the umbrella PR. Neither association nor shared
+merge ancestry alone establishes the implementation. The resolver does not scan
+every closed PR or guess a replacement number. If an associated merged PR cannot
+prove its own exact-byte change, preparation fails with an explicit diagnostic.
+Unavailable original head objects also fail rather than weaken the proof.
+
+When the implementation PR is known, record `pull_request: 26` (using the actual
+reviewed number) in that fragment. This explicit route bypasses automatic origin
+discovery. Corrections to already inherited fragments still require verified
+maintenance authorization and a new validated maintenance note. Regenerate and
+review the version PR; do not edit its generated history manually. Published
+releases remain immutable.
+
+Custom Git adapters enabling automatic resolution must implement both
+`GitFragmentOriginReaderInterface` and `GitFragmentProvenanceReaderInterface`.
+The former retains its first-parent integration-origin contract; the latter
+adds the original-head implementation proof. PR file evidence is paginated and
+must match the full API changed-file count, with a maximum of 3000 files. The
+commit list must match the full API commit count and remain within the endpoint's
+250-commit limit. Truncation or exceeding either bound fails with the explicit
+metadata diagnostic; partial results never authorize attribution.
 
 `--source=tags` controls historical release-note imports independently of this
 setting. It does not disable PR-origin API reads when resolution is enabled.

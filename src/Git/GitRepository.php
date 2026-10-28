@@ -22,7 +22,7 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /** Runs structured Git argv without shell interpolation or global cwd mutation. */
-final readonly class GitRepository implements GitRepositoryInterface, GitCommitTreeReaderInterface, GitFragmentOriginReaderInterface
+final readonly class GitRepository implements GitRepositoryInterface, GitCommitTreeReaderInterface, GitFragmentOriginReaderInterface, GitFragmentProvenanceReaderInterface
 {
     private ReleaseMetadataParser $metadata;
 
@@ -567,6 +567,45 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         }
 
         return null;
+    }
+
+    /**
+     * Distinguishes a PR's own byte transition from unchanged bytes brought in by a nested merge.
+     *
+     * @param  string                   $directory Consumer directory used to interpret the canonical path.
+     * @param  string                   $headSha   Complete immutable original PR head, independently verified by GitHub.
+     * @param  string                   $path      Canonical consumer-relative fragment path.
+     * @param  string                   $sha256    SHA-256 of the exact accepted regular-file bytes.
+     * @return bool                     Whether the verified origin is direct; missing bytes or a matching side parent return false.
+     * @throws InvalidArgumentException When the path or complete identity is invalid.
+     * @throws RuntimeException         When Git objects, parents or the bounded origin history cannot be verified.
+     */
+    public function fragmentHasDirectOrigin(string $directory, string $headSha, string $path, string $sha256): bool
+    {
+        $origin = $this->fragmentOrigin($directory, $headSha, $path, $sha256);
+        if (null === $origin) {
+            return false;
+        }
+        $raw = rtrim($this->fragmentGit(
+            $directory,
+            ['show', '-s', '--no-notes', '--no-show-signature', '--format=%P', $origin, '--'],
+        ), "\r\n");
+        $parents = '' === $raw ? [] : explode(' ', $raw);
+        if (! array_all($parents, static fn(string $sha): bool => 1 === preg_match(
+            '/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha,
+        )) || in_array($origin, $parents, true) || count($parents) > 100) {
+            throw new RuntimeException('Git returned malformed or excessive fragment provenance parents.');
+        }
+        if (count($parents) < 2) {
+            return true;
+        }
+        // fragmentOrigin already validated the same prefix and root against the immutable head.
+        $prefix = rtrim($this->fragmentGit($directory, ['rev-parse', '--show-prefix']), "\r\n");
+        $root = $this->repositoryRoot($directory);
+
+        return array_all(array_slice($parents, 1), fn(string $parent): bool => $this->fragmentHashAt(
+            $root, $parent, $prefix . $path,
+        ) !== $sha256);
     }
 
     /**

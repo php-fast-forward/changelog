@@ -9,6 +9,7 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitFragmentOriginReaderInterface;
+use FastForward\Changelog\Git\GitFragmentProvenanceReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
@@ -42,7 +43,10 @@ final class PullRequestReferenceResolverTest extends TestCase
     private array $calls = [];
     private array $responses = [];
     private array $associations = [['number' => 108]];
+    private array $lists = [];
+    private bool $directOrigin = true;
     private ?string $origin = self::ORIGIN;
+    private ?string $headOrigin = self::ORIGIN;
     private array $blobs = [];
     private array $ancestry = [];
     private ?string $relativePath = null;
@@ -60,7 +64,11 @@ final class PullRequestReferenceResolverTest extends TestCase
     ): void {
         $git = $capability
             ? $this->createMockForIntersectionOfInterfaces(
-                [GitRepositoryInterface::class, GitFragmentOriginReaderInterface::class],
+                [
+                    GitRepositoryInterface::class,
+                    GitFragmentOriginReaderInterface::class,
+                    GitFragmentProvenanceReaderInterface::class,
+                ],
             )
             : $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::never())->method('repositoryRoot');
@@ -143,7 +151,7 @@ final class PullRequestReferenceResolverTest extends TestCase
         self::assertSame($change->issue, $result[0]->issue);
         self::assertSame($change->type, $result[0]->type);
         self::assertSame(['git.origin', '/repo', self::BASE, self::PATH, hash('sha256', self::BLOB)], $this->calls[2]);
-        self::assertCount(1, $this->callsOf('github.paginate'));
+        self::assertCount(3, $this->callsOf('github.paginate'));
         self::assertCount(3, $this->callsOf('github.request'));
     }
 
@@ -157,10 +165,10 @@ final class PullRequestReferenceResolverTest extends TestCase
             108, 108],
             array_column($resolver->resolve($this->options(), self::BASE, $changes), 'pullRequest'),
         );
-        self::assertCount(1, $this->callsOf('github.paginate'));
+        self::assertCount(3, $this->callsOf('github.paginate'));
         self::assertCount(3, $this->callsOf('github.request'));
         $resolver->resolve($this->options(), self::BASE, $changes);
-        self::assertCount(2, $this->callsOf('github.paginate'));
+        self::assertCount(6, $this->callsOf('github.paginate'));
         self::assertCount(6, $this->callsOf('github.request'));
     }
 
@@ -277,6 +285,113 @@ final class PullRequestReferenceResolverTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('ambiguous');
         $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    public function testOriginCapabilityAloneCannotClaimImplementationProvenance(): void
+    {
+        $git = $this->createStubForIntersectionOfInterfaces([
+            GitRepositoryInterface::class, GitFragmentOriginReaderInterface::class,
+        ]);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('fragment-provenance capability');
+        new PullRequestReferenceResolver($git, $this->createStub(GitHubClientInterface::class),
+            $this->createStub(PackagePathResolverInterface::class))->resolve(
+                $this->options(),
+                self::BASE,
+                [$this->change()],
+            );
+    }
+
+    /** A shared merge and commit association are insufficient when the original PR head inherited the fragment. */
+    public function testStackIntegrationCannotMasqueradeAsImplementation(): void
+    {
+        $this->directOrigin = false;
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('explicit pull_request fragment metadata');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    public function testOriginalPrHeadWithoutTheFragmentDoesNotSupplyImplementationEvidence(): void
+    {
+        $this->headOrigin = null;
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('explicit pull_request');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    /** Complete file evidence must bind the exact accepted bytes to a real changed destination. */
+    #[DataProvider('unprovedDeltas')]
+    public function testUnprovedImplementationDeltasNeverBecomeReferences(?array $files, mixed $count): void
+    {
+        $this->responses['GET /repos/owner/project/pulls/108'] = array_replace(
+            $this->pr(),
+            ['changed_files' => $count],
+        );
+        if (null !== $files) {
+            $this->lists['/repos/owner/project/pulls/108/files'] = $files;
+        }
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('explicit pull_request');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    public static function unprovedDeltas(): array
+    {
+        $file = ['filename' => self::PATH, 'sha' => hash(
+            'sha1',
+            'blob ' . strlen(self::BLOB) . "\0" . self::BLOB,
+        ), 'status' => 'added'];
+        $cases = [[null, null], [null, '2'], [null, -1], [null, 3001], [[], 1], [[$file, $file], 2],
+            [[], 0], [[array_replace($file, ['filename' => 'other.md'])], 1],
+            [[array_replace($file, ['sha' => str_repeat('e', 40)])], 1]];
+        foreach (['filename' => [null, ''], 'sha' => [null, 'HEAD'], 'status' => [
+            null,
+            'unknown',
+            'removed',
+            'unchanged',
+            'changed',
+        ]] as $field => $values) {
+            foreach ($values as $value) {
+                $cases[] = [[array_replace($file, [$field => $value])], 1];
+            }
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('changedStatuses')]
+    public function testExactImplementationDeltaAcceptsEachChangedDestination(string $status, string $algorithm): void
+    {
+        $this->responses['GET /repos/owner/project/pulls/108'] = array_replace($this->pr(), ['changed_files' => 1]);
+        $this->lists['/repos/owner/project/pulls/108/files'] = [[
+            'filename' => self::PATH, 'status' => $status,
+            'sha' => hash($algorithm, 'blob ' . strlen(self::BLOB) . "\0" . self::BLOB),
+        ]];
+        self::assertSame(
+            108,
+            $this->fixture()->resolve($this->options(), self::BASE, [$this->change()])[0]->pullRequest,
+        );
+    }
+
+    public static function changedStatuses(): array
+    {
+        return [['added', 'sha1'], ['modified', 'sha1'], ['renamed', 'sha1'], ['copied', 'sha256']];
+    }
+
+    #[DataProvider('unprovedCommits')]
+    public function testIncompleteOrInheritedCommitEvidenceFailsClosed(mixed $count, array $records): void
+    {
+        $this->responses['GET /repos/owner/project/pulls/108'] = array_replace($this->pr(), ['commits' => $count]);
+        $this->lists['/repos/owner/project/pulls/108/commits'] = $records;
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('explicit pull_request');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    public static function unprovedCommits(): array
+    {
+        return [[null, []], ['1', []], [0, []], [251, []], [1, []], [1, [['sha' => self::HEAD]]],
+            [1, [[]]], [1, [['sha' => 'HEAD']]], [2, [['sha' => self::ORIGIN], ['sha' => self::ORIGIN]]]];
     }
 
     #[DataProvider('invalidPaths')]
@@ -488,7 +603,16 @@ final class PullRequestReferenceResolverTest extends TestCase
 
                 return new MockResponse(json_encode($pr, JSON_THROW_ON_ERROR));
             }
+            if (str_contains($url, '/files?')) {
+                $first = str_ends_with($url, 'page=1');
+                $link = 'https://api.github.com/repos/owner/project/pulls/109/files?per_page=100&page=2';
+
+                return new MockResponse(json_encode([$this->files()[$first ? 0 : 1]], JSON_THROW_ON_ERROR), [
+                    'response_headers' => $first ? ['link' => '<' . $link . '>; rel="next"'] : [],
+                ]);
+            }
             $payload = match (true) {
+                str_contains($url, '/commits?') => [['sha' => self::ORIGIN]],
                 str_ends_with($url, '/pulls/109') => $this->pr(109),
                 str_ends_with($url, '/graphql') => $this->graph(109),
                 default => $this->repository(),
@@ -498,9 +622,12 @@ final class PullRequestReferenceResolverTest extends TestCase
         });
         $resolver = $this->fixture(new GitHubClient($http));
         self::assertSame(109, $resolver->resolve($this->options(), self::BASE, [$this->change()])[0]->pullRequest);
-        self::assertCount(6, $requests);
+        self::assertCount(9, $requests);
         self::assertContains([
             'GET', 'https://api.github.com/repos/owner/project/commits/' . self::ORIGIN . '/pulls?per_page=100&page=2',
+        ], $requests);
+        self::assertContains([
+            'GET', 'https://api.github.com/repos/owner/project/pulls/109/files?per_page=100&page=2',
         ], $requests);
     }
 
@@ -516,6 +643,8 @@ final class PullRequestReferenceResolverTest extends TestCase
                 $options['normalized_headers']['x-github-api-version'],
             );
             $payload = match (true) {
+                str_contains($url, '/commits?') => [['sha' => self::ORIGIN]],
+                str_contains($url, '/files?') => $this->files(),
                 str_ends_with($url, '/commits/' . self::ORIGIN . '/pulls?per_page=100&page=1') => [['number' => 108]],
                 str_ends_with($url, '/pulls/108') => $this->pr(),
                 str_ends_with($url, '/api/graphql') => $this->graph(),
@@ -527,7 +656,7 @@ final class PullRequestReferenceResolverTest extends TestCase
         $resolver = $this->fixture(new GitHubClient($http, 'synthetic', 'https://enterprise.test/api/v3'));
         self::assertSame(108, $resolver->resolve($this->options(), self::BASE, [$this->change()])[0]->pullRequest);
         self::assertContains(['POST', 'https://enterprise.test/api/graphql'], $requests);
-        self::assertCount(4, $requests);
+        self::assertCount(6, $requests);
     }
 
     public function testRealClientDoesNotTreatAssociation404AsNoPullRequest(): void
@@ -544,7 +673,11 @@ final class PullRequestReferenceResolverTest extends TestCase
     private function fixture(?GitHubClientInterface $client = null): PullRequestReferenceResolver
     {
         $git = $this->createStubForIntersectionOfInterfaces(
-            [GitRepositoryInterface::class, GitFragmentOriginReaderInterface::class],
+            [
+                GitRepositoryInterface::class,
+                GitFragmentOriginReaderInterface::class,
+                GitFragmentProvenanceReaderInterface::class,
+            ],
         );
         $git->method('repositoryRoot')->willReturnCallback(function (string $directory): string {
             self::assertSame('/repo/project', $directory);
@@ -570,11 +703,11 @@ final class PullRequestReferenceResolverTest extends TestCase
         $git->method('fragmentOrigin')->willReturnCallback(
             function (string $directory, string $sha, string $path, string $hash): ?string {
                 self::assertSame('/repo', $directory);
-                self::assertSame(self::BASE, $sha);
+                self::assertContains($sha, [self::BASE, self::HEAD]);
                 self::assertSame(hash('sha256', self::BLOB), $hash);
                 $this->calls[] = ['git.origin', $directory, $sha, $path, $hash];
 
-                return $this->origin;
+                return self::HEAD === $sha ? $this->headOrigin : $this->origin;
             },
         );
         $git->method('isAncestor')->willReturnCallback(
@@ -583,6 +716,16 @@ final class PullRequestReferenceResolverTest extends TestCase
                 $this->calls[] = ['git.ancestor', $directory, $ancestor, $descendant];
 
                 return $this->ancestry[$ancestor . ':' . $descendant] ?? true;
+            },
+        );
+        $git->method('fragmentHasDirectOrigin')->willReturnCallback(
+            function (string $directory, string $head, string $path, string $hash): bool {
+                self::assertSame('/repo', $directory);
+                self::assertSame(self::HEAD, $head);
+                self::assertSame(hash('sha256', self::BLOB), $hash);
+                $this->calls[] = ['git.provenance', $head, $path];
+
+                return $this->directOrigin;
             },
         );
         $paths = $this->createStub(PackagePathResolverInterface::class);
@@ -595,8 +738,14 @@ final class PullRequestReferenceResolverTest extends TestCase
         $paths->method('isAbsolute')->willReturnCallback(static fn(string $path): bool => str_starts_with($path, '/'));
         $github = $this->createStub(GitHubClientInterface::class);
         $github->method('paginate')->willReturnCallback(function (string $path): array {
-            self::assertSame('/repos/owner/project/commits/' . self::ORIGIN . '/pulls', $path);
             $this->calls[] = ['github.paginate', $path];
+            if (str_ends_with($path, '/files')) {
+                return $this->lists[$path] ?? $this->files();
+            }
+            if (str_ends_with($path, '/commits')) {
+                return $this->lists[$path] ?? [['sha' => self::ORIGIN]];
+            }
+            self::assertSame('/repos/owner/project/commits/' . self::ORIGIN . '/pulls', $path);
 
             return $this->associations;
         });
@@ -664,10 +813,19 @@ final class PullRequestReferenceResolverTest extends TestCase
     private function pr(int $number = 108): array
     {
         return [
-            'number' => $number, 'state' => 'closed', 'merged' => true,
+            'number' => $number, 'state' => 'closed', 'merged' => true, 'changed_files' => 2, 'commits' => 1,
             'head' => ['sha' => self::HEAD, 'ref' => 'feature', 'repo' => ['id' => 42, 'node_id' => 'fork-node', 'full_name' => 'contributor/fork']],
             'base' => ['ref' => 'main', 'repo' => $this->repository()],
         ];
+    }
+
+    private function files(): array
+    {
+        return array_map(static fn(string $path): array => ['filename' => $path, 'status' => 'added',
+            'sha' => hash('sha1', 'blob ' . strlen(self::BLOB) . "\0" . self::BLOB)], [
+                self::PATH,
+                'project/.changelog/second.md',
+            ]);
     }
 
     private function graph(int $number = 108): array

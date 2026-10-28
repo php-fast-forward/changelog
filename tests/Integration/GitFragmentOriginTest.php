@@ -137,6 +137,45 @@ final class GitFragmentOriginTest extends TestCase
         );
     }
 
+    /** A root PR can contain an implementation merge without being the fragment's own implementation. */
+    #[TestWith([''])]
+    #[TestWith(['package/'])]
+    public function testStackedMergePreservesIntegrationOriginButRefusesUmbrellaImplementationAttribution(
+        string $prefix,
+    ): void {
+        $this->git('switch', '-c', 'umbrella');
+        $this->write('umbrella.txt', 'Root integration work.');
+        $originalUmbrella = $this->commit('umbrella.txt');
+        $this->git('switch', '-c', 'implementation');
+        $this->write($prefix . self::PATH, self::BYTES);
+        $implementation = $this->commit($prefix . self::PATH);
+        $this->write('later.txt', 'Another reviewed implementation change.');
+        $implementationHead = $this->commit('later.txt');
+        $this->git('switch', 'umbrella');
+        $this->git('merge', '--no-ff', 'implementation', '-m', 'Nested implementation, misleading #9999.');
+        $umbrellaHead = $this->head();
+        $this->git('switch', 'main');
+        $this->git('merge', '--no-ff', 'umbrella', '-m', 'Integrate the complete stack.');
+        $merge = $this->head();
+        $repository = $this->repository();
+        $hash = hash('sha256', self::BYTES);
+        $directory = $this->directory . ('' === $prefix ? '' : '/' . rtrim($prefix, '/'));
+
+        self::assertSame($merge, $repository->fragmentOrigin($directory, $merge, self::PATH, $hash));
+        self::assertSame(
+            $implementation,
+            $repository->fragmentOrigin($directory, $implementationHead, self::PATH, $hash),
+        );
+        self::assertTrue(
+            $repository->fragmentHasDirectOrigin($directory, $implementationHead, self::PATH, $hash),
+        );
+        self::assertFalse($repository->fragmentHasDirectOrigin($directory, $originalUmbrella, self::PATH, $hash));
+        self::assertFalse($repository->fragmentHasDirectOrigin($directory, $umbrellaHead, self::PATH, $hash));
+        self::assertFalse($repository->fragmentHasDirectOrigin($directory, $merge, self::PATH, $hash));
+        $this->write($prefix . self::PATH, 'Untracked edits cannot change immutable attribution.');
+        self::assertFalse($repository->fragmentHasDirectOrigin($directory, $umbrellaHead, self::PATH, $hash));
+    }
+
     public function testDeletionReintroductionAndRenamesStartOriginsAtTheCurrentCanonicalPath(): void
     {
         $this->write(self::PATH, self::BYTES);
