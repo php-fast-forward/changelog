@@ -98,10 +98,12 @@ ancestral concrete tags and
 separate optional `v1`/`v2` publication channels. Read root → automation map →
 reusable lifecycle/operation contract. The package's own `main` caller does not
 limit the public reusable's configurable maintenance lines. The repository's
-internal channel operation has a same-basename companion in
-`.github/update-release-channels.md`; read root → self-changelog guide →
-operation contract for pending activation and recovery limits. This adds an operational
-entrypoint, not a child instruction scope or a consumer installation.
+channel operation is documented directly in `docs/self-changelog.md` alongside
+its ordinary lifecycle; the removed PHP helper has no remaining companion guide.
+Read root → self-changelog guide for channel activation, selection and recovery
+limits. This retires an obsolete operational entrypoint without creating a child
+instruction scope or changing the canonical skill's ownership. Restore the
+workflow, guide and index entries together if reverting this migration.
 
 The lifecycle defaults to publication after an approved version-PR merge; explicit
 `publish: false` consolidates without creating a tag or GitHub Release. Future

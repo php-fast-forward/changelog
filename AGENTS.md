@@ -44,7 +44,9 @@ used across Fast Forward PHP packages.
 - Public and private methods MUST explain contracts in PHPDoc, including
   relevant invariants, observable effects and failure conditions.
 - Preserve unrelated work and stage only reviewed task files. External Actions
-  use verified full version tags, as requested by the maintainer. Consumers select
+  use verified full version tags, as requested by the maintainer; the repository
+  channel workflow explicitly follows `Actions-R-Us/actions-tagger@v2` under the
+  current reviewed exception. Consumers select
   a published full version, reviewed immutable commit or verified release channel;
   repository-local reusable calls test the caller's exact revision. Merging requires review and
   passing checks for the current head. Installing elsewhere or publishing real
@@ -109,12 +111,14 @@ used across Fast Forward PHP packages.
   concrete tags as version evidence. Configuring or moving channels is a separate
   operation with its own reviewed workflow and publication authority.
 - The proposed `repository-release-channels.yml` uses actions-tagger on real
-  published stable release events to maintain moving `v<major>` tags. Activation
+  published/edited stable release events to maintain `v<major>` branches and
+  the upstream moving `latest` tag. A small inline SDK selector prevents known
+  stale-release and cross-major regressions. Activation
   requires separate publication-credential, environment and ruleset approval;
   the default GITHUB_TOKEN publication does not trigger that workflow. Do not
-  simulate events or migrate the existing channel branch as an incidental test.
+  simulate events or move existing channel refs as an incidental test.
   The PHP updater and manual arbitrary tag/SHA dispatch are removed. See the
-  operation guide for the changed concurrency guarantees and recovery limits.
+  self-changelog guide for the changed concurrency guarantees and recovery limits.
 - A channel update does not authorize another release. `@v0` can cross breaking
   development minors; keep the skill/CPX constraint aligned with its declared
   product contract rather than assuming it has the same range.
@@ -174,7 +178,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Composer skill lifecycle](docs/composer-skills.md): documents source selection, plugin execution, automatic reconstruction and update/removal limits; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
-- [Release-channel operation](.github/update-release-channels.md): describes Marketplace major-tag promotion, pending activation, authority boundaries and recovery limits; never authorizes releases or remote ref migration.
+- [Release channels](docs/self-changelog.md#released-major-branches-and-latest): owns major-branch/latest-tag promotion, pending activation and recovery limits; never authorizes remote configuration or ref changes.
 - [Workflow reference](docs/workflow-reference.md): lists public inputs, defaults, secrets, outputs and permissions; publication defaults to enabled after an approved version-PR merge, while `publish: false` is an explicit validation choice.
 - [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; copying a workflow does not grant merge or publication authority.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.

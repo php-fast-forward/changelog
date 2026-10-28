@@ -72,7 +72,18 @@ function workflowScriptGuard(
       if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
 
       return { data: JSON.parse(process.argv[2]) };
-    } } } };
+    } }, repos: {
+      getRelease: async request => {
+        requests.push(request);
+        if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
+        return { data: JSON.parse(process.argv[2]).release };
+      },
+      listTags: () => {}
+    } }, paginate: async (method, request) => {
+      requests.push(request);
+      if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
+      return JSON.parse(process.argv[2]).tags;
+    } };
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     new AsyncFunction('github', 'context', 'core', process.argv[1])(github, context, core)
       .catch(() => { process.exitCode = 1; })
@@ -89,7 +100,11 @@ function workflowScriptGuard(
     verifyWorkflow(0 === $expected || [] === $result['outputs'], 'Failed guards must never authorize an output.');
     foreach ($result['requests'] as $request) {
         verifyWorkflow(
-            ['owner' => 'fixture', 'repo' => 'consumer', 'pull_number' => 7] === $request,
+            ['owner' => 'fixture', 'repo' => 'consumer', ...match (true) {
+                isset($request['release_id']) => ['release_id' => 7],
+                isset($request['per_page']) => ['per_page' => 100],
+                default => ['pull_number' => 7],
+            }] === $request,
             'SDK requests must target the exact consumer PR.',
         );
     }
@@ -1045,7 +1060,7 @@ try {
 $channels = Yaml::parseFile($root . '/.github/workflows/repository-release-channels.yml');
 $channelJob = $channels['jobs']['channel'];
 verifyWorkflow(
-    ['release' => ['types' => ['published']]] === $channels['on']
+    ['release' => ['types' => ['published', 'edited']]] === $channels['on']
         && ! isset($repository['jobs']['channels'])
         && 'release-channels' === $channelJob['environment']
         && ['contents' => 'read'] === $channelJob['permissions']
@@ -1058,12 +1073,12 @@ verifyWorkflow(
 );
 ++$assertions;
 verifyWorkflow(
-    'Actions-R-Us/actions-tagger@v2.0.3'
-        === workflowStep($channelJob, 'Update The Released Major Tag')['uses']
+    'Actions-R-Us/actions-tagger@v2'
+        === workflowStep($channelJob, 'Update The Released Major Branch')['uses']
         && [
             'token' => '${{ steps.channel-app.outputs.token }}',
-            'prefer_branch_releases' => 'false', 'publish_latest_tag' => 'true',
-        ] === workflowStep($channelJob, 'Update The Released Major Tag')['with']
+            'prefer_branch_releases' => 'true', 'publish_latest_tag' => '${{ steps.release.outputs.latest }}',
+        ] === workflowStep($channelJob, 'Update The Released Major Branch')['with']
         && [
             'client-id' => '${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}',
             'private-key' => '${{ secrets.app-private-key }}',
@@ -1071,19 +1086,46 @@ verifyWorkflow(
             'permission-contents' => 'write', 'permission-workflows' => 'write',
             'skip-token-revoke' => 'false',
         ] === workflowStep($channelJob, 'Create The Channel App Token')['with']
-        && 3 === count($channelJob['steps']),
-    'The Marketplace action promotes major tags with the repository-scoped App, without checkout or a custom updater.',
+        && 3 === count($channelJob['steps'])
+        && "steps.release.outputs.promote == 'true'" === workflowStep($channelJob, 'Create The Channel App Token')['if']
+        && "steps.release.outputs.promote == 'true'" === workflowStep($channelJob, 'Update The Released Major Branch')['if'],
+    'The requested Marketplace branch-mode candidate uses the repository-scoped App without restoring a custom updater.',
 );
 ++$assertions;
 
-$channelDirectory = sys_get_temp_dir() . '/changelog-channel-tag-' . bin2hex(random_bytes(6));
+$channelDirectory = sys_get_temp_dir() . '/changelog-channel-selection-' . bin2hex(random_bytes(6));
 $filesystem->mkdir($channelDirectory);
 try {
-    $tagGuard = workflowStep($channelJob, 'Require A Full Stable Release Tag')['run'];
-    foreach (['v0.4.2' => 0, 'v1.0.0' => 0, 'v1.0.0-rc1' => 1, 'v0' => 1, 'main' => 1] as $tag => $expected) {
-        workflowGuard($tagGuard, $channelDirectory, ['FF_RELEASE_TAG' => $tag], $expected);
+    $selection = workflowStep($channelJob, 'Select The Published Release Channels');
+    verifyWorkflow('actions/github-script@v9.0.0' === $selection['uses'], 'Release selection uses the existing SDK action.');
+    $sha = str_repeat('a', 40);
+    $tags = array_map(static fn(string $name): array => ['name' => $name, 'commit' => ['sha' => $sha]],
+        ['v0.4.1', 'v0.4.2', 'v1.0.0', 'v1.1.0', 'latest']);
+    foreach ([
+        ['v0.4.2', [], array_slice($tags, 0, 2), ['promote' => true, 'latest' => true], 0],
+        ['v0.4.1', [], $tags, ['promote' => false, 'latest' => false], 0],
+        ['v1.0.0', [], array_slice($tags, 0, 3), ['promote' => true, 'latest' => true], 0],
+        ['v1.0.0', [], $tags, ['promote' => false, 'latest' => false], 0],
+        ['v0.4.3', [], [...$tags, ['name' => 'v0.4.3', 'commit' => ['sha' => $sha]]],
+            ['promote' => true, 'latest' => false], 0],
+        ['v0.4.2', ['draft' => true], $tags, [], 1],
+        ['v0.4.2', ['prerelease' => true], $tags, [], 1],
+        ['v0.4.2', ['published_at' => null], $tags, [], 1],
+        ['v0.4.2', ['tag_name' => 'v0.4.1'], $tags, [], 1],
+        ['v0.4.2', [], [['name' => 'v0.4.2', 'commit' => ['sha' => str_repeat('b', 40)]]], [], 1],
+        ['v0', [], $tags, [], 1], ['v1.0.0-rc1', [], $tags, [], 1], ["v0.4.2\n", [], $tags, [], 1],
+    ] as [$tag, $overrides, $catalog, $outputs, $status]) {
+        $result = workflowScriptGuard($selection['with']['script'], $channelDirectory, [
+            'FF_RELEASE_TAG' => $tag, 'FF_RELEASE_SHA' => $sha, 'FF_RELEASE_ID' => '7',
+        ], ['release' => ['tag_name' => $tag, 'draft' => false, 'prerelease' => false,
+            'published_at' => '2026-10-28T00:00:00Z', ...$overrides], 'tags' => $catalog], $status);
+        verifyWorkflow($outputs === $result['outputs'], 'Release selection must suppress stale majors and cross-major latest regression.');
         ++$assertions;
     }
+    workflowScriptGuard($selection['with']['script'], $channelDirectory, [
+        'FF_RELEASE_TAG' => 'v0.4.2', 'FF_RELEASE_SHA' => $sha, 'FF_RELEASE_ID' => '7', 'FF_FIXTURE_API_FAILURE' => '1',
+    ], [], 1);
+    ++$assertions;
 } finally {
     $filesystem->remove($channelDirectory);
 }

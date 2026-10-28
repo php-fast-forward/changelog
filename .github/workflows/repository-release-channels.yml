@@ -2,7 +2,7 @@ name: 'Repository: Release Channels'
 
 on:
   release:
-    types: [published]
+    types: [published, edited]
 
 permissions: {}
 
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   channel:
-    name: Update Released Major Tag
+    name: Update Released Major Branch
     if: >-
       github.repository == 'php-fast-forward/changelog' &&
       github.event.release.draft == false && github.event.release.prerelease == false
@@ -22,18 +22,46 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Require A Full Stable Release Tag
-        shell: bash
+      - name: Select The Published Release Channels
+        id: release
+        uses: actions/github-script@v9.0.0
         env:
           FF_RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          [[ "$FF_RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
-            echo '::error::Release channels require a full stable vMAJOR.MINOR.PATCH tag.'
-            exit 1
-          }
+          FF_RELEASE_SHA: ${{ github.sha }}
+          FF_RELEASE_ID: ${{ github.event.release.id }}
+        with:
+          script: |
+            const tag = process.env.FF_RELEASE_TAG;
+            const sha = process.env.FF_RELEASE_SHA;
+            const version = name => {
+              const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(name);
+              return match && match[0] === name ? match.slice(1).map(BigInt) : null;
+            };
+            const selected = version(tag);
+            if (!selected) throw new Error('A full stable vMAJOR.MINOR.PATCH tag is required.');
+            const { data: release } = await github.rest.repos.getRelease({
+              ...context.repo, release_id: Number(process.env.FF_RELEASE_ID)
+            });
+            if (release.tag_name !== tag || release.draft || release.prerelease || !release.published_at) {
+              throw new Error('The event must identify an existing published stable release.');
+            }
+            const tags = await github.paginate(github.rest.repos.listTags, { ...context.repo, per_page: 100 });
+            if (!tags.some(item => item.name === tag && item.commit.sha === sha)) {
+              throw new Error('The concrete release tag must still identify the exact event commit.');
+            }
+            const compare = (left, right) => {
+              for (let index = 0; index < 3; ++index) {
+                if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
+              }
+              return 0;
+            };
+            const stable = tags.map(item => version(item.name)).filter(Boolean);
+            core.setOutput('promote', !stable.some(item => item[0] === selected[0] && compare(item, selected) > 0));
+            core.setOutput('latest', !stable.some(item => compare(item, selected) > 0));
 
       - name: Create The Channel App Token
         id: channel-app
+        if: steps.release.outputs.promote == 'true'
         uses: actions/create-github-app-token@v3.3.0
         with:
           client-id: ${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}
@@ -44,9 +72,10 @@ jobs:
           permission-workflows: write
           skip-token-revoke: 'false'
 
-      - name: Update The Released Major Tag
-        uses: Actions-R-Us/actions-tagger@v2.0.3
+      - name: Update The Released Major Branch
+        if: steps.release.outputs.promote == 'true'
+        uses: Actions-R-Us/actions-tagger@v2
         with:
           token: ${{ steps.channel-app.outputs.token }}
-          prefer_branch_releases: 'false'
-          publish_latest_tag: 'true'
+          prefer_branch_releases: 'true'
+          publish_latest_tag: ${{ steps.release.outputs.latest }}
