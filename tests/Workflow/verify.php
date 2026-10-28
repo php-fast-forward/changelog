@@ -1123,6 +1123,27 @@ try {
         'FF_RELEASE_TAG' => 'v0.4.2', 'FF_FIXTURE_API_FAILURE' => '1',
     ], [], 1);
     ++$assertions;
+    $activation = sprintf(
+        "const vars = { RELEASE_CHANNEL_PUBLICATION_ENABLED: process.env.FF_PUBLICATION_ENABLED };
+"
+        . "const secrets = { 'app-private-key': 'synthetic-staged-publisher-key' };
+"
+        . "core.setOutput('client-id', %s); core.setOutput('environment', %s); core.setOutput('key-enabled', Boolean(%s));",
+        substr($repositoryLifecycle['with']['publish-app-client-id'], 3, -2),
+        substr($repositoryLifecycle['with']['publish-environment'], 3, -2),
+        str_replace('secrets.app-private-key', "secrets['app-private-key']",
+            substr($repositoryLifecycle['secrets']['publish-app-private-key'], 3, -2)),
+    );
+    foreach (['', 'false', 'true'] as $enabled) {
+        $result = workflowScriptGuard($activation, $channelDirectory, ['FF_PUBLICATION_ENABLED' => $enabled], [], 0);
+        verifyWorkflow(
+            ['client-id' => 'true' === $enabled ? 'Iv23liHqRng02H747IYa' : '',
+                'environment' => 'true' === $enabled ? 'release-channels' : '',
+                'key-enabled' => 'true' === $enabled] === $result['outputs'],
+            'The publisher App must be opt-in so unstaged credentials cannot break the existing publication route.',
+        );
+        ++$assertions;
+    }
 } finally {
     $filesystem->remove($channelDirectory);
 }
@@ -1137,8 +1158,14 @@ verifyWorkflow(
         && ! isset(workflowStep($publicationJob, 'Authenticate Trusted GitHub Operations')['with']['automation-actor'])
         && '${{ inputs.automation-actor }}'
             === workflowStep($publicationJob, 'Run The Shared Publish Action')['with']['automation-actor']
-        && 'Iv23liHqRng02H747IYa' === $repositoryLifecycle['with']['publish-app-client-id']
-        && 'release-channels' === $repositoryLifecycle['with']['publish-environment'],
+        && str_contains(
+            $repositoryLifecycle['with']['publish-app-client-id'],
+            'vars.RELEASE_CHANNEL_PUBLICATION_ENABLED',
+        )
+        && str_contains(
+            $repositoryLifecycle['with']['publish-environment'],
+            'vars.RELEASE_CHANNEL_PUBLICATION_ENABLED',
+        ),
     'A separate publisher App must preserve the original managed-PR Bot verification and default consumer behavior.',
 );
 ++$assertions;

@@ -52,13 +52,13 @@ jobs:
       comment-mode: always
       prepare-release: true
       publish: true
-      # Activation requires separate approval of this App's publication authority
-      # and the environment's app-private-key secret (see the channel guide).
-      publish-app-client-id: Iv23liHqRng02H747IYa
-      publish-environment: release-channels
+      # Enable only after separately approved environment/key staging.
+      # Until then, retain the existing publication credential route.
+      publish-app-client-id: ${{ vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' && 'Iv23liHqRng02H747IYa' || '' }}
+      publish-environment: ${{ vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' && 'release-channels' || '' }}
     secrets:
       token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
-      publish-app-private-key: ${{ secrets.app-private-key }}
+      publish-app-private-key: ${{ vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' && secrets.app-private-key || '' }}
 
   image:
     name: Publish Docker CLI

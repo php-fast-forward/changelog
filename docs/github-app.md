@@ -110,8 +110,11 @@ authentication fails before publication instead of falling back silently.
    assume the moving channel has already advanced.
 3. Separately approve and provision the publication environment, declared
    `app-private-key` secret, repository-scoped App use and relevant policies.
-   Forward the declared secret through both reusable calls. The optional API
-   does not provision credentials or authorize channel writes.
+   Forward the declared secret through both reusable calls. For this repository's
+   own caller, set `RELEASE_CHANNEL_PUBLICATION_ENABLED=true` only after the
+   separately approved configuration is staged; otherwise its previous publication
+   credential route remains active. The optional API does not provision
+   credentials or authorize channel writes.
 4. Merge the separately reviewed consumer caller only after its selected provider
    and configuration prerequisites are satisfied. Its next separately authorized
    managed-version-PR merge can publish through the App and emit a real release

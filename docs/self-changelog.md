@@ -111,7 +111,12 @@ No PHP updater, checkout or manual arbitrary-SHA dispatch remains.
 ### Activation still requires separate approval
 
 The prepared caller selects App **5513989**, client ID
-`Iv23liHqRng02H747IYa`, only for publication. Other lifecycle jobs retain their
+`Iv23liHqRng02H747IYa`, only for publication when repository variable
+**`RELEASE_CHANNEL_PUBLICATION_ENABLED`** is exactly **`true`**. Until that opt-in,
+it retains the existing publication credential route and does not select the
+publication environment. Enable the variable only after separately approved key,
+environment and policy staging; neither adding the optional API nor merging code
+is credential activation. Other lifecycle jobs retain their
 credentials and managed-PR Bot. Publication still verifies that original author
 independently of the App making API requests. Its requested Contents write and
 Pull requests read permissions are already granted to the App. No App permission
@@ -170,7 +175,12 @@ a valid key.
 
 ### Remaining limits and recovery
 
-The non-cancelling repository lock serializes this workflow only. The action has
+The repository lock prevents cancellation of the running workflow, but its
+default queue holds only one pending run: a newer event replaces an existing
+pending run even with `cancel-in-progress: false`. A replaced 0.x event followed
+by a 1.x event can leave `v0` stale. Include canceled pending runs when inspecting
+recovery. See [GitHub's concurrency behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+The lock serializes this workflow only. The action has
 no expected-old-SHA CAS, ancestry check, immediate evidence revalidation or
 post-write confirmation. Native non-fast-forward rules remain proposed without
 App bypass; they can reject backwards branch writes, but actual server acceptance
@@ -186,7 +196,7 @@ trusted workflows can change these boundaries. A stolen App key/token remains
 a supply-chain risk; no absolute immutability is promised for moving channels.
 
 For recovery, inspect the live release, full tag, current channel refs and failed
-run before separately authorizing a rerun of that original event. The selector
+or canceled run before separately authorizing a rerun of that original event. The selector
 rechecks the current tag catalog; there is no arbitrary SHA recovery input. Do
 not edit a release solely to bypass a failure. Tests exercise this actual inline
 selector and the resolved action against synthetic events and a local mock API;
