@@ -101,12 +101,12 @@ and help, and select global scope only when explicitly intended.
 ### Existing native copies
 
 `skill:install` remains a compatibility route for copies already managed by the
-Changelog CLI's native receipt. Select the reviewed runtime in
-`CHANGELOG_VERSION` and inspect its help:
+Changelog CLI's native receipt. Use the unversioned CPX invocation and inspect
+the resolved runtime's help:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install --check --json
+cpx --skip-local fast-forward/changelog help skill:install
+cpx --skip-local fast-forward/changelog skill:install --check --json
 ```
 
 The native check compares local bytes and ownership with that CLI's bundled

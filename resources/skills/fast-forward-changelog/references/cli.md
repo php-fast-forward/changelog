@@ -9,15 +9,17 @@ or current behavior from an older installed skill.
 
 ## Execute the selected CLI
 
-Run from the application's directory. `CHANGELOG_VERSION` is the verified exact
-numeric product version, not a range frozen into this skill:
+Run from the application's directory without a package version suffix and
+inspect the resolved CLI's actual help:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help status
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help version
+cpx --skip-local fast-forward/changelog list --raw
+cpx --skip-local fast-forward/changelog help status
+cpx --skip-local fast-forward/changelog help version
 ```
 
+CPX reuses the unversioned `latest` cache slot, with cached update checks and
+Composer constraints. This does not guarantee immediate upgrades across majors.
 CPX keeps tool dependencies separate from the application's Composer project;
 the command still operates on application files. It is not a filesystem sandbox
 or a PHP runtime. CPX's own update/help/version commands concern the executor.
@@ -36,8 +38,8 @@ host-session activation remain separate results.
 For releases offering these arguments, inspect the read-only plan first:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags --no-interaction
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog status --json --source=tags --no-interaction
+cpx --skip-local fast-forward/changelog version --dry-run --source=tags --no-interaction
 ```
 
 Review the baseline/current/next version, effective impact, accepted fragment
