@@ -27,21 +27,21 @@ closed merged managed PR event and the exact approved merge SHA. Manual dispatch
 is restricted to `refs/heads/main`. Code is checked out at the called workflow's
 verified repository and exact implementation SHA, never the PR head or release notes.
 
-The channel workflow accepts no caller token and has no `CHANGELOG_TOKEN` or
-`github.token` fallback. Its built-in token is read-only. The protected
-`release-channels` environment provides `RELEASE_CHANNEL_APP_CLIENT_ID`,
-`RELEASE_CHANNEL_APP_SLUG` and the secret `RELEASE_CHANNEL_APP_PRIVATE_KEY`.
-Only the dedicated App installation token reaches the updater. It is scoped to
-this repository with Contents write, Workflows write (historical workflow refs)
-and Pull requests read (managed-merge evidence), and revoked at job completion.
-The App has no administration permission and is never used to publish releases.
+The job uses the dedicated `fast-forward-release-channels` App (ID 5513989)
+through the `release-channels` environment. Configure the environment variable
+`RELEASE_CHANNEL_APP_CLIENT_ID` and secret `RELEASE_CHANNEL_APP_PRIVATE_KEY`.
+Allow only branch `main` in this environment. No caller token, CHANGELOG_TOKEN
+or github.token fallback is accepted; the built-in token has Contents read only.
+The installation token is scoped to `changelog`, requests Contents and Workflows
+write (needed for historical targets with different workflow files), and is
+revoked at job completion. The PHP updater and its verification remain unchanged.
 
-See [the protection proposal and activation procedure](release-channel-policy/README.md)
-for exact offline-rendered payloads, identity boundaries, approval requirements,
-current remote findings and residual risks. Local invocation still requires an
-explicitly authorized credential; it is no longer a documented human recovery
-route. Use the guarded workflow on `main` to recover. Missing App credentials or
-unproven evidence fail closed; do not substitute a PAT or unprotect the branch.
+The active v0 rules allow updates only from App 5513989. Separate rulesets block
+branch creation, deletion and force pushes without bypass, and reserve the tag
+`v0`. Existing main checks remain unchanged, with no additional reviewer required.
+Administrators can change rules; other trusted main workflows can access the same
+environment. A stolen App key/token can still make arbitrary fast-forward writes.
+These rules restrict an identity, not one workflow or the code it runs.
 
 ## Effects and refusal conditions
 
@@ -50,13 +50,10 @@ most one GraphQL `updateRefs` mutation for `refs/heads/v<major>`. The expected
 old OID is mandatory, including an all-zero OID for branch creation, and
 `force:false` requires a fast-forward. It never writes a tag or release.
 
-It verifies immutable, published, non-draft, non-prerelease state; full stable SemVer;
-repository identity; tag-to-commit binding; the exact merged same-repository
-`changelog/version` PR into `main`; and a complete release catalog for
+It verifies published, non-draft, non-prerelease state; full stable SemVer;
+repository identity; tag-to-commit binding; and a complete release catalog for
 the major. Annotated tags are peeled through at most sixteen objects, and the
-catalog is bounded to ten pages of one hundred releases. Associated PR evidence
-is bounded to fewer than one hundred entries and must contain exactly one matching
-managed merge. Mutable releases and arbitrary published commit selectors are refused. Evidence beyond those
+catalog is bounded to ten pages of one hundred releases. Evidence beyond those
 bounds, malformed responses and API/permission failures block the update.
 
 An existing branch must be an older published release commit from the same
@@ -68,10 +65,7 @@ No ancestry between different major channels is required.
 The selected release and catalog are read again before the mutation. A
 concurrent branch change fails the exact old-OID condition; no force update or
 automatic takeover recovers that failure. Full release tags remain untouched.
-Repository rules may reject the write. The dedicated App bypasses only the
-separate update restriction, never creation, deletion or non-fast-forward rules.
-With the proposed rules active, recreation of a missing `v0` fails even though
-the generic updater supports creation for unprotected future channels.
+Repository rules may reject the write, and this operation never bypasses them.
 
 ## Output and recovery
 

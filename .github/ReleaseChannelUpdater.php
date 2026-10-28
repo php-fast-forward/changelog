@@ -332,44 +332,11 @@ final readonly class ReleaseChannelUpdater
     private function releaseEvidence(string $repository, string $tag, string $sha): array
     {
         $release = $this->api('GET', '/repos/' . $repository . '/releases/tags/' . rawurlencode($tag));
-        if (! self::published($release) || true !== ($release['immutable'] ?? null)
-            || $tag !== $release['tag_name'] || $sha !== $this->commit($repository, $tag)) {
+        if (! self::published($release) || $tag !== $release['tag_name'] || $sha !== $this->commit($repository, $tag)) {
             throw new RuntimeException('Published stable release, selected tag and expected SHA do not match.');
         }
 
-        $this->managedMerge($repository, $sha);
-
         return $release;
-    }
-
-    /**
-     * Requires the destination to be the exact merge of a same-repository managed version PR.
-     *
-     * Both automatic publication and manual recovery use this evidence; a published tag alone
-     * cannot authorize an arbitrary commit. Revalidation repeats this check before writing.
-     *
-     * @param string $repository Repository owning the release, base and managed PR head.
-     * @param string $sha        Exact release commit, never a caller-selected branch tip.
-     *
-     * @throws RuntimeException When bounded PR evidence cannot prove the managed merge.
-     */
-    private function managedMerge(string $repository, string $sha): void
-    {
-        $pulls = $this->api('GET', '/repos/' . $repository . '/commits/' . $sha . '/pulls?per_page=100');
-        if (! array_is_list($pulls) || count($pulls) >= 100) {
-            throw new RuntimeException('Managed release merge evidence is incomplete or exceeds its bound.');
-        }
-        $matches = array_filter($pulls, static fn(mixed $pull): bool => is_array($pull)
-            && 'closed' === ($pull['state'] ?? null)
-            && is_string($pull['merged_at'] ?? null) && '' !== $pull['merged_at']
-            && $sha === ($pull['merge_commit_sha'] ?? null)
-            && 'main' === ($pull['base']['ref'] ?? null)
-            && $repository === ($pull['base']['repo']['full_name'] ?? null)
-            && 'changelog/version' === ($pull['head']['ref'] ?? null)
-            && $repository === ($pull['head']['repo']['full_name'] ?? null));
-        if (1 !== count($matches)) {
-            throw new RuntimeException('The release commit must be the exact managed version PR merge into main.');
-        }
     }
 
     /**

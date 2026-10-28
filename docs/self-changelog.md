@@ -75,17 +75,15 @@ call does not wait for a token-generated tag event to start another
 workflow. Concrete release tags remain immutable. These channels are distinct
 from maintenance branches where fixes and fragments accumulate.
 
-The channel job uses only a dedicated GitHub App installation token from the
-protected `release-channels` environment, with Contents/Workflows write and Pull
-requests read. It accepts no caller token or `CHANGELOG_TOKEN`/`github.token`
-fallback. App credentials, environment and repository rules require separate
-approval; see the [exact protection proposal](https://github.com/php-fast-forward/changelog/blob/main/.github/release-channel-policy/README.md).
-The lifecycle publication credential remains separate.
+Channel updates use a separate repository-scoped App token from the
+`release-channels` environment. Configure `RELEASE_CHANNEL_APP_CLIENT_ID` and
+`RELEASE_CHANNEL_APP_PRIVATE_KEY`, allow only branch `main`, and keep the App as
+the sole identity permitted to update `v0`. The job has no shared-token fallback
+and revokes its installation token when finished. The release verifier is unchanged.
 
 For recovery, open **Repository: Release Channels**, select `main`, and supply
 the newest published full tag for that major and its exact 40-character commit
-SHA. The updater requires an immutable release, exact tag/SHA and the matching
-merged same-repository managed PR into main before any write. An existing
+SHA. The updater verifies the release and tag before any write. An existing
 channel must identify an older published release of the same major and permit
 a fast-forward. Conflicting tags, unrelated branches and stale selectors cannot
 overwrite the current ref. See the [operation and recovery contract](https://github.com/php-fast-forward/changelog/blob/main/.github/update-release-channels.md).

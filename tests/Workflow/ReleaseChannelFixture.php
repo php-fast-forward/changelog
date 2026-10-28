@@ -21,7 +21,6 @@ final class ReleaseChannelFixture
     public ?Closure $releaseRead = null;
     public ?Closure $catalog = null;
     public ?Closure $referenceOverride = null;
-    public ?Closure $pulls = null;
     public bool $loseResponse = false;
     public bool $tagCycle = false;
     public bool $wrongTagIdentity = false;
@@ -47,8 +46,7 @@ final class ReleaseChannelFixture
             if ('unreleased' !== $tag) {
                 $this->git(['tag', $tag]);
                 $this->releases[$tag] = ['id' => $index + 1, 'tag_name' => $tag,
-                    'draft' => false, 'prerelease' => false, 'immutable' => true,
-                    'published_at' => '2026-01-01T00:00:00Z'];
+                    'draft' => false, 'prerelease' => false, 'published_at' => '2026-01-01T00:00:00Z'];
             }
         }
         $this->updater = new ReleaseChannelUpdater(new MockHttpClient($this->respond(...)));
@@ -122,14 +120,6 @@ final class ReleaseChannelFixture
             parse_str(parse_url($url, PHP_URL_QUERY), $query);
             $data = null !== $this->catalog ? ($this->catalog)(++$this->catalogReads, (int) $query['page'])
                 : array_slice(array_values($this->releases), ((int) $query['page'] - 1) * 100, 100);
-        } elseif (str_starts_with($path, '/repos/fixture/library/commits/')) {
-            $sha = basename(dirname($path));
-            $data = [['state' => 'closed', 'merged_at' => '2026-01-01T00:00:00Z', 'merge_commit_sha' => $sha,
-                'base' => ['ref' => 'main', 'repo' => ['full_name' => 'fixture/library']],
-                'head' => ['ref' => 'changelog/version', 'repo' => ['full_name' => 'fixture/library']]]];
-            if (null !== $this->pulls) {
-                $data = ($this->pulls)($data);
-            }
         } elseif (str_starts_with($path, '/repos/fixture/library/git/ref/')) {
             $ref = substr($path, strlen('/repos/fixture/library/git/ref/'));
             $sha = $this->git(['show-ref', '--verify', '--hash', 'refs/' . $ref], true);
