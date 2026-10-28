@@ -54,8 +54,10 @@ Proposed final tag rules (App ID **5513989**, `Fast Forward Release Channels`):
 | --- | --- | --- | --- |
 | Dedicated channel writer | `refs/tags/v0`, `refs/tags/v1`, `refs/tags/latest` | Restrict creation and updates | Integration `5513989`, `always` |
 | Channel deletion protection | Same exact refs | Restrict deletion | None |
+| Concrete release publisher | `refs/tags/v*.*.*` | Restrict creation | Integration `5513989`, `always` |
+| Concrete release immutability | `refs/tags/v*.*.*` | Restrict updates and deletion | None |
 
-Set both proposed rulesets to `active` (they have not been applied). The current tag reservation (ID **26066273**) must be
+Set the proposed rulesets to `active` (they have not been applied). The current tag reservation (ID **26066273**) must be
 replaced with these rules. Non-fast-forward restriction must not apply to these
 moving tags; only the dedicated App bypasses creation/update restrictions.
 The existing branch rules (**26066270**, **26066275**) remain until a separately
@@ -68,8 +70,15 @@ approvals unchanged. No GitHub Actions shared-identity bypass is proposed.
 Exact proposed ruleset payloads (configuration only, not applied):
 
 ```json
-[{"target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v0","refs/tags/v1","refs/tags/latest"],"exclude":[]}},"name":"Dedicated channel writer","bypass_actors":[{"actor_id":5513989,"actor_type":"Integration","bypass_mode":"always"}],"rules":[{"type":"creation"},{"type":"update"}]},{"target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v0","refs/tags/v1","refs/tags/latest"],"exclude":[]}},"name":"Channel deletion protection","bypass_actors":[],"rules":[{"type":"deletion"}]}]
+[{"target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v0","refs/tags/v1","refs/tags/latest"],"exclude":[]}},"name":"Dedicated channel writer","bypass_actors":[{"actor_id":5513989,"actor_type":"Integration","bypass_mode":"always"}],"rules":[{"type":"creation"},{"type":"update"}]},{"target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v0","refs/tags/v1","refs/tags/latest"],"exclude":[]}},"name":"Channel deletion protection","bypass_actors":[],"rules":[{"type":"deletion"}]},{"target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v*.*.*"],"exclude":[]}},"name":"Concrete release publisher","bypass_actors":[{"actor_id":5513989,"actor_type":"Integration","bypass_mode":"always"}],"rules":[{"type":"creation"}]},{"target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v*.*.*"],"exclude":[]}},"name":"Concrete release immutability","bypass_actors":[],"rules":[{"type":"update"},{"type":"deletion"}]}]
 ```
+
+The concrete-tag creation restriction matters because the release event executes
+workflow code from the released ref and the environment permits version tags.
+Without it, a writer could publish an arbitrary version-tag workflow and obtain
+the environment key. This restriction also limits other tag-creating automation;
+review that impact before activation. Administrators who can edit these rules
+or trusted workflow code retain authority to change the boundary.
 
 ## Guarantees and limits
 
@@ -83,7 +92,8 @@ promoting an older version when a greater version of that major is already
 listed. This is not a fresh check against the GitHub Releases catalog. The
 repository-wide non-cancelling lock serializes this workflow; the action does
 not use an expected-old-SHA condition, revalidate evidence immediately before
-writing, or enforce ancestry. An external concurrent writer can race it.
+writing, or enforce ancestry. An external concurrent writer can race it. Major and `latest` updates are
+separate requests, so a partial failure can leave them temporarily inconsistent.
 These are deliberate differences from the removed PHP updater, not equivalent
 security guarantees. Only normal stable publication is in scope; future
 prerelease adoption requires reviewing the action's comparison behavior.
