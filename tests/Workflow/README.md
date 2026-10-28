@@ -45,8 +45,18 @@ without producing outputs. This protected-base loader scenario requires
 
 Ubuntu owns the common quality gates and the unchanged 100% source-line coverage
 threshold. ARM and Windows retain unit and real integration tests without repeating
-coverage, Rector and ECS. Integration logs show test names and Windows uploads its
-JUnit timings, allowing future performance work to use per-test measurements.
+coverage, Rector and ECS. Integration uses PHPUnit's live debug output and an
+incremental event log, so failures and the last started test remain visible even
+when the run cannot finalize JUnit. Windows uploads both files when its artifact
+step can run. A disposable failing-then-interrupted PHPUnit fixture verifies these
+diagnostics and the nonzero exit status using the workflow's actual flags.
+
+The squash corpus tests every Markdown variant through real release planning and
+exact history assertions. Publication transport additionally exercises missing and
+stale trailers, a committed custom template, hostile inherited Git configuration,
+literal Markdown/references and independent fragment boundaries. This keeps native
+Git publication coverage on every platform without cloning and reconstructing an
+identical publication transaction for each Markdown variant.
 
 These checks do not execute GitHub's scheduler, Docker runner, token-permission
 model, sticky comment action or required-status settings in a consumer. A pilot

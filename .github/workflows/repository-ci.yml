@@ -272,23 +272,29 @@ jobs:
         if: needs.impact.outputs.runtime == 'true'
         run: php bin/changelog list --raw
 
-      - name: Verify Squash Publication In Disposable Git Repositories
+      - name: Prepare Integration Diagnostics Directory
+        if: needs.impact.outputs.runtime == 'true'
+        run: php -r "is_dir('.build') || mkdir('.build', 0777, true);"
+
+      - name: Test Integration Contracts In Disposable Git Repositories
         if: needs.impact.outputs.runtime == 'true'
         run: >-
           vendor/bin/phpunit
           --testsuite integration
           --no-coverage
           --log-junit .build/integration.xml
-          --testdox
+          --log-events-text .build/integration-events.log --debug
         env:
           XDEBUG_MODE: 'off'
 
-      - name: Preserve Windows Integration Timings
+      - name: Preserve Windows Integration Diagnostics
         if: always() && needs.impact.outputs.runtime == 'true' && matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: windows-integration-timings
-          path: .build/integration.xml
+          path: |
+            .build/integration.xml
+            .build/integration-events.log
           if-no-files-found: warn
           retention-days: 14
 

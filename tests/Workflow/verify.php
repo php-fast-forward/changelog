@@ -106,6 +106,9 @@ $repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.
 $repositoryDocumentation = Yaml::parseFile($root . '/.github/workflows/repository-documentation.yml');
 $assertions = 0;
 
+require __DIR__ . '/IntegrationDiagnosticsFixture.php';
+$assertions += IntegrationDiagnosticsFixture::verify($root, $repositoryCi['jobs']['tests']);
+
 $consumerData = workflowStep($feedback['jobs']['status'], 'Check Out Consumer Data Without Executing It');
 verifyWorkflow(
     'actions/checkout@v7.0.1' === $consumerData['uses']
