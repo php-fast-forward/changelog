@@ -1088,7 +1088,10 @@ verifyWorkflow(
         ] === workflowStep($channelJob, 'Create The Channel App Token')['with']
         && 3 === count($channelJob['steps'])
         && "steps.release.outputs.promote == 'true'" === workflowStep($channelJob, 'Create The Channel App Token')['if']
-        && "steps.release.outputs.promote == 'true'" === workflowStep($channelJob, 'Update The Released Major Branch')['if'],
+        && "steps.release.outputs.promote == 'true'" === workflowStep(
+            $channelJob,
+            'Update The Released Major Branch',
+        )['if'],
     'The requested Marketplace branch-mode candidate uses the repository-scoped App without restoring a custom updater.',
 );
 ++$assertions;
@@ -1097,7 +1100,10 @@ $channelDirectory = sys_get_temp_dir() . '/changelog-channel-selection-' . bin2h
 $filesystem->mkdir($channelDirectory);
 try {
     $selection = workflowStep($channelJob, 'Select The Published Release Channels');
-    verifyWorkflow('actions/github-script@v9.0.0' === $selection['uses'], 'Release selection uses the existing SDK action.');
+    verifyWorkflow(
+        'actions/github-script@v9.0.0' === $selection['uses'],
+        'Release selection uses the existing SDK action.',
+    );
     $sha = str_repeat('a', 40);
     $tags = array_map(static fn(string $name): array => ['name' => $name, 'commit' => ['sha' => $sha]],
         ['v0.4.1', 'v0.4.2', 'v1.0.0', 'v1.1.0', 'latest']);
@@ -1119,7 +1125,10 @@ try {
             'FF_RELEASE_TAG' => $tag, 'FF_RELEASE_SHA' => $sha, 'FF_RELEASE_ID' => '7',
         ], ['release' => ['tag_name' => $tag, 'draft' => false, 'prerelease' => false,
             'published_at' => '2026-10-28T00:00:00Z', ...$overrides], 'tags' => $catalog], $status);
-        verifyWorkflow($outputs === $result['outputs'], 'Release selection must suppress stale majors and cross-major latest regression.');
+        verifyWorkflow(
+            $outputs === $result['outputs'],
+            'Release selection must suppress stale majors and cross-major latest regression.',
+        );
         ++$assertions;
     }
     workflowScriptGuard($selection['with']['script'], $channelDirectory, [
