@@ -197,14 +197,38 @@ jobs:
   tests:
     needs: impact
     if: ${{ always() && !cancelled() }}
-    name: PHP 8.5 (${{ matrix.os }})
+    name: ${{ matrix.check }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+        include:
+          - os: ubuntu-latest
+            check: PHP 8.5 (ubuntu-latest)
+            shard: all
+            integration-arguments: ''
+          - os: ubuntu-24.04-arm
+            check: PHP 8.5 (ubuntu-24.04-arm)
+            shard: all
+            integration-arguments: ''
+          - os: windows-latest
+            check: Windows Integration (references)
+            shard: references
+            integration-arguments: --group windows-references --exclude-filter=.#2
+          - os: windows-latest
+            check: Windows Integration (stacked references)
+            shard: stacked-references
+            integration-arguments: --group windows-references --filter=.#2
+          - os: windows-latest
+            check: Windows Integration (provenance)
+            shard: provenance
+            integration-arguments: --group windows-provenance
+          - os: windows-latest
+            check: Windows Integration (publication)
+            shard: publication
+            integration-arguments: --exclude-group windows-references --exclude-group windows-provenance
 
     steps:
       - name: Require A Complete Validation Decision
@@ -272,23 +296,32 @@ jobs:
         if: needs.impact.outputs.runtime == 'true'
         run: php bin/changelog list --raw
 
-      - name: Verify Squash Publication In Disposable Git Repositories
+      - name: Prepare Integration Diagnostics Directory
+        if: needs.impact.outputs.runtime == 'true'
+        run: php -r "is_dir('.build') || mkdir('.build', 0777, true);"
+
+      - name: Test Integration Contracts In Disposable Git Repositories
         if: needs.impact.outputs.runtime == 'true'
         run: >-
           vendor/bin/phpunit
           --testsuite integration
           --no-coverage
           --log-junit .build/integration.xml
-          --testdox
+          --log-events-text .build/integration-events.log --debug
+          ${{ matrix.integration-arguments }}
         env:
           XDEBUG_MODE: 'off'
+          FF_INTEGRATION_PROGRESS_LOG: .build/integration-progress.log
 
-      - name: Preserve Windows Integration Timings
+      - name: Preserve Windows Integration Diagnostics
         if: always() && needs.impact.outputs.runtime == 'true' && matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: windows-integration-timings
-          path: .build/integration.xml
+          name: windows-integration-${{ matrix.shard }}
+          path: |
+            .build/integration.xml
+            .build/integration-events.log
+            .build/integration-progress.log
           if-no-files-found: warn
           retention-days: 14
 
@@ -363,6 +396,23 @@ jobs:
           path: .build/coverage.xml
           if-no-files-found: error
           retention-days: 30
+
+  windows:
+    name: PHP 8.5 (windows-latest)
+    needs: tests
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require All Platform And Windows Shard Results
+        env:
+          FF_RESULT: ${{ needs.tests.result }}
+        shell: bash
+        run: |
+          if [[ "$FF_RESULT" != 'success' ]]; then
+            echo '::error::A platform or Windows shard did not pass; inspect the matrix results.'
+            exit 1
+          fi
 
   coverage-report:
     name: Line Coverage Report

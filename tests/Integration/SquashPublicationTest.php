@@ -38,6 +38,8 @@ use function FastForward\Container\container;
 #[PreserveGlobalState(false)]
 final class SquashPublicationTest extends TestCase
 {
+    use RecordsIntegrationProgress;
+
     /** A clone of main/tags has no H object, while the deleted branch's H survives only in the origin PR ref. */
     #[DataProvider('squashModes')]
     public function testDeletedBranchAndMissingLocalHead(
@@ -45,6 +47,28 @@ final class SquashPublicationTest extends TestCase
         bool $customTemplate,
         bool $hostileGitEnvironment = false,
         ?string $authoredList = null,
+    ): void {
+        $this->exerciseScenario($staleTrailers, $customTemplate, $hostileGitEnvironment, $authoredList, true);
+    }
+
+    /** Every Markdown regression exercises real planning and exact history round trips without another publication transaction. */
+    #[DataProvider('markdownModes')]
+    public function testMarkdownSurvivesPlanning(
+        bool $staleTrailers,
+        bool $customTemplate,
+        bool $hostileGitEnvironment,
+        string $authoredList,
+    ): void {
+        $this->exerciseScenario($staleTrailers, $customTemplate, $hostileGitEnvironment, $authoredList, false);
+    }
+
+    /** Builds disposable Git evidence; only publication scenarios continue through squash, clone and reconstruction. */
+    private function exerciseScenario(
+        bool $staleTrailers,
+        bool $customTemplate,
+        bool $hostileGitEnvironment,
+        ?string $authoredList,
+        bool $publish,
     ): void {
         $root = realpath(sys_get_temp_dir()) . '/changelog-squash-' . bin2hex(random_bytes(8));
         if ($hostileGitEnvironment) {
@@ -241,6 +265,9 @@ final class SquashPublicationTest extends TestCase
                         self::assertSame($parsed->getReferences(), $roundTrip->getReferences());
                     }
                 }
+            }
+            if (! $publish) {
+                return;
             }
             $git($producer, ['checkout', '-b', 'changelog/version']);
             file_put_contents($producer . '/CHANGELOG.md', $plan->changelogContents);
@@ -469,22 +496,39 @@ final class SquashPublicationTest extends TestCase
     /** Exercises ordinary and stale squash messages with built-in and explicit committed templates. */
     public static function squashModes(): iterable
     {
-        foreach (['mixed-indent', 'raw-html', 'sibling-inline', 'root-block-gaps', 'html-tab'] as $description) {
-            yield $description => [false, false, false, $description];
-        }
         yield 'missing metadata' => [false, false];
         yield 'stale metadata' => [true, false];
         yield 'committed custom template' => [false, true];
         yield 'hostile mixed-case inherited Git environment' => [false, false, true];
-        yield 'authored list notes survive planning and exact publication reconstruction' => [
+        yield 'literal Markdown and references survive publication reconstruction' => [
+            false,
+            false,
+            false,
+            'tab-fenced',
+        ];
+        yield 'independent fragment boundaries survive publication reconstruction' => [
+            false,
+            false,
+            false,
+            'presentation-boundaries',
+        ];
+    }
+
+    /** Preserves the complete Markdown corpus at the real planner and history boundary, independently of publication transport. */
+    public static function markdownModes(): iterable
+    {
+        foreach (['mixed-indent', 'raw-html', 'sibling-inline', 'root-block-gaps', 'html-tab'] as $description) {
+            yield $description => [false, false, false, $description];
+        }
+        yield 'authored list notes survive planning' => [
             false,
             false,
             false,
             'prose',
         ];
-        yield 'list-item code fences survive exact publication reconstruction' => [false, false, false, 'fenced'];
-        yield 'normalized list indent survives exact publication reconstruction' => [false, false, false, 'indented'];
-        yield 'same-line nested fence survives exact publication reconstruction' => [false, false, false, 'nested'];
+        yield 'list-item code fences survive planning' => [false, false, false, 'fenced'];
+        yield 'normalized list indent survives planning' => [false, false, false, 'indented'];
+        yield 'same-line nested fence survives planning' => [false, false, false, 'nested'];
         yield 'indented literal HTML keeps references visible' => [false, false, false, 'code-comment'];
         yield 'fenced literal definition cannot replace the release footer' => [
             false,

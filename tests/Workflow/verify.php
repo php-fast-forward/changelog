@@ -106,6 +106,11 @@ $repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.
 $repositoryDocumentation = Yaml::parseFile($root . '/.github/workflows/repository-documentation.yml');
 $assertions = 0;
 
+require __DIR__ . '/IntegrationDiagnosticsFixture.php';
+$assertions += IntegrationDiagnosticsFixture::verify($root, $repositoryCi['jobs']['tests']);
+require __DIR__ . '/WindowsPartitionFixture.php';
+$assertions += WindowsPartitionFixture::verify($root, $repositoryCi['jobs']);
+
 $consumerData = workflowStep($feedback['jobs']['status'], 'Check Out Consumer Data Without Executing It');
 verifyWorkflow(
     'actions/checkout@v7.0.1' === $consumerData['uses']
@@ -202,12 +207,13 @@ verifyWorkflow(
 verifyWorkflow(
     'Fresh Composer Installations (${{ matrix.dependencies }})' === $repositoryCi['jobs']['packaging']['name']
         && ['highest', 'lowest'] === $repositoryCi['jobs']['packaging']['strategy']['matrix']['dependencies']
-        && 'PHP 8.5 (${{ matrix.os }})' === $repositoryCi['jobs']['tests']['name']
-        && [
-            'ubuntu-latest',
-            'ubuntu-24.04-arm',
-            'windows-latest',
-        ] === $repositoryCi['jobs']['tests']['strategy']['matrix']['os'],
+        && '${{ matrix.check }}' === $repositoryCi['jobs']['tests']['name']
+        && ['PHP 8.5 (ubuntu-latest)', 'PHP 8.5 (ubuntu-24.04-arm)'] === array_column(
+            array_filter($repositoryCi['jobs']['tests']['strategy']['matrix']['include'],
+                static fn(array $row): bool => 'windows-latest' !== $row['os']),
+            'check',
+        )
+        && 'PHP 8.5 (windows-latest)' === $repositoryCi['jobs']['windows']['name'],
     'Repository CI renames must preserve all five required check names and matrix values.',
 );
 verifyWorkflow(

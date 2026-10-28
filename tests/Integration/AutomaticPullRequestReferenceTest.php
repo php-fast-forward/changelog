@@ -14,6 +14,7 @@ use FastForward\Changelog\Release\ReleasePlannerInterface;
 use FastForward\Container\Factory\ServiceFactory;
 use Interop\Container\ServiceProviderInterface;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -29,10 +30,13 @@ use function FastForward\Container\container;
 
 /** Exercises real CLI, container, Git, consolidation and publication reconstruction with synthetic API evidence. */
 #[CoversNothing]
+#[Group('windows-references')]
 #[RunTestsInSeparateProcesses]
 #[PreserveGlobalState(false)]
 final class AutomaticPullRequestReferenceTest extends TestCase
 {
+    use RecordsIntegrationProgress;
+
     /** Approved references cannot be added, removed or guessed when association evidence later changes. */
     #[TestWith([true, false])]
     #[TestWith([false, false])]
@@ -44,8 +48,28 @@ final class AutomaticPullRequestReferenceTest extends TestCase
         $root = realpath(sys_get_temp_dir()) . '/changelog-auto-pr-' . bin2hex(random_bytes(8));
         $fs = new Filesystem();
         $fs->mkdir($root, 0700);
-        foreach (['HOME' => $root, 'GIT_CONFIG_GLOBAL' => $root . '/empty', 'GIT_CONFIG_NOSYSTEM' => '1'] as $name => $value) {
+        if ($stacked) {
+            // Reproduce a host override that would rewrite fixture bytes during checkout on any platform.
+            foreach ([
+                'GIT_CONFIG_COUNT' => '1', 'GIT_CONFIG_KEY_0' => 'core.autocrlf', 'GIT_CONFIG_VALUE_0' => 'true',
+            ] as $name => $value) {
+                putenv($name . '=' . $value);
+                $_ENV[$name] = $_SERVER[$name] = $value;
+            }
+        }
+        // This isolated PHP process must not inherit host Git routing, filters or configuration overrides.
+        foreach (array_unique([...array_keys(getenv()), ...array_keys($_ENV), ...array_keys($_SERVER)]) as $name) {
+            if (str_starts_with(strtoupper($name), 'GIT_')) {
+                putenv($name);
+                unset($_ENV[$name], $_SERVER[$name]);
+            }
+        }
+        foreach ([
+            'HOME' => $root, 'XDG_CONFIG_HOME' => $root . '/xdg',
+            'GIT_CONFIG_GLOBAL' => $root . '/empty', 'GIT_CONFIG_NOSYSTEM' => '1',
+        ] as $name => $value) {
             putenv($name . '=' . $value);
+            $_ENV[$name] = $_SERVER[$name] = $value;
         }
         file_put_contents($root . '/empty', '');
         $git = static fn(array $args): string => new Process(
@@ -81,6 +105,8 @@ final class AutomaticPullRequestReferenceTest extends TestCase
                 $git(['switch', 'main']);
                 $git(['merge', '--no-ff', 'umbrella', '-m', 'Integrate stack']);
                 $base = trim($git(['rev-parse', 'HEAD']));
+                self::assertSame($fragment, file_get_contents($root . '/.changelog/auto-pr.md'),
+                    'Fixture checkouts must retain exact authored bytes independently of host line-ending settings.');
             }
             $github = new class ($base, $associated, $fragment) implements GitHubClientInterface {
                 public array $numbers;

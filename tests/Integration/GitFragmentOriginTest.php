@@ -7,6 +7,7 @@ namespace FastForward\Changelog\Tests\Integration;
 use FastForward\Changelog\Git\GitRepository;
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -14,6 +15,7 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 #[CoversNothing]
+#[Group('windows-provenance')]
 final class GitFragmentOriginTest extends TestCase
 {
     private string $temporary;

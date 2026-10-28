@@ -45,8 +45,37 @@ without producing outputs. This protected-base loader scenario requires
 
 Ubuntu owns the common quality gates and the unchanged 100% source-line coverage
 threshold. ARM and Windows retain unit and real integration tests without repeating
-coverage, Rector and ECS. Integration logs show test names and Windows uploads its
-JUnit timings, allowing future performance work to use per-test measurements.
+coverage, Rector and ECS. Integration uses PHPUnit's live debug output and an
+incremental event log. Isolated tests also write their active identity and dataset
+directly before fixture effects, since PHPUnit buffers child events until exit.
+Windows uploads the event log, identity log and JUnit when its artifact step can
+run. Disposable failing-then-interrupted and interrupted-isolated PHPUnit fixtures
+verify these diagnostics and nonzero exit status using the workflow's actual flags.
+
+The squash corpus tests every Markdown variant through real release planning and
+exact history assertions. Publication transport additionally exercises missing and
+stale trailers, a committed custom template, hostile inherited Git configuration,
+literal Markdown/references and independent fragment boundaries. This keeps native
+Git publication coverage on every platform without cloning and reconstructing an
+identical publication transaction for each Markdown variant.
+
+Windows runs ordinary references, stacked references, Git provenance and the
+remaining integration tests in four parallel jobs. New ungrouped tests belong to
+the remaining-tests partition.
+The workflow harness compares real PHPUnit test IDs, including every provider
+case, to prove the partitions are disjoint and cover the complete suite. Each
+partition retains its own diagnostics. The existing required
+`PHP 8.5 (windows-latest)` context waits for the entire platform matrix and rejects
+failed, cancelled, skipped or missing results; it cannot pass while a shard runs.
+This reduces elapsed time, with additional runner setup and repeated unit-test
+cost. Linux and ARM still run the complete integration suite.
+
+The automatic-reference fixture clears inherited Git overrides and synchronizes
+its isolated configuration across the process environment and PHP superglobals.
+Symfony Process derives child environments from all three sources; `putenv()`
+alone did not isolate system Git configuration on Windows. The stacked scenario
+injects a hostile line-ending override first and asserts exact worktree bytes
+after checkout, preserving the original provenance rejection assertion.
 
 These checks do not execute GitHub's scheduler, Docker runner, token-permission
 model, sticky comment action or required-status settings in a consumer. A pilot
