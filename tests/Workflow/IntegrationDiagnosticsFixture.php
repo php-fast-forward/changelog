@@ -59,7 +59,10 @@ final class IntegrationDiagnosticsFixture
                 }
             }
             PHP_WRAP);
-            $arguments = preg_split('/\s+/', trim($step['run']));
+            $arguments = preg_split(
+                '/\s+/',
+                trim(str_replace('${{ matrix.integration-arguments }}', '', $step['run'])),
+            );
             // Keep the diagnostic flags verbatim; only select the disposable fixture instead of the real suite.
             $arguments = array_values(array_filter(
                 $arguments,
