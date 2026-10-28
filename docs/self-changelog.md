@@ -94,15 +94,19 @@ when latest is enabled. In branch mode its native comparison does not recognize
 abbreviated `v0`/`v1` branches as full versions: an old edited release can regress
 both major and latest refs without the additional selection step.
 
-The single inline SDK selection step checks the live release is published,
-stable and bound to the event's tag, and that the full tag still identifies the
-event SHA. It paginates existing full stable tags, compares three numeric
-components, and permits only the newest tag of that major. It enables `latest`
-only for the newest full stable tag globally. Editing an older release therefore
-skips token minting and promotion. A newer full tag without a release can
-conservatively block promotion; the selector is not a complete publication
-catalog reconciler. No PHP updater, checkout or manual arbitrary-SHA dispatch
-remains in this operation.
+The Changelog publisher already verifies the release, full tag and exact commit.
+The real release event supplies the SHA used by the action. The short inline SDK
+step therefore only selects channels: it parses full stable version tags,
+paginates them, compares three numeric components, and permits only the newest
+tag of that major. It enables `latest` only for the newest full stable tag
+globally. Editing an older release skips token minting and promotion. A version
+that cannot be compared fails closed; there is no separate format validator.
+A newer full tag without a release can conservatively block promotion. The
+selector is not a publication catalog reconciler and does not repeat live
+release/SHA checks. This smaller contract depends on publication only through
+Changelog and immutable full tags after separately approved activation; neither
+is asserted to be enforced by the current unmodified remote configuration.
+No PHP updater, checkout or manual arbitrary-SHA dispatch remains.
 
 ### Activation still requires separate approval
 

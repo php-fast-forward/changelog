@@ -73,11 +73,6 @@ function workflowScriptGuard(
 
       return { data: JSON.parse(process.argv[2]) };
     } }, repos: {
-      getRelease: async request => {
-        requests.push(request);
-        if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
-        return { data: JSON.parse(process.argv[2]).release };
-      },
       listTags: () => {}
     } }, paginate: async (method, request) => {
       requests.push(request);
@@ -101,7 +96,6 @@ function workflowScriptGuard(
     foreach ($result['requests'] as $request) {
         verifyWorkflow(
             ['owner' => 'fixture', 'repo' => 'consumer', ...match (true) {
-                isset($request['release_id']) => ['release_id' => 7],
                 isset($request['per_page']) => ['per_page' => 100],
                 default => ['pull_number' => 7],
             }] === $request,
@@ -1104,27 +1098,19 @@ try {
         'actions/github-script@v9.0.0' === $selection['uses'],
         'Release selection uses the existing SDK action.',
     );
-    $sha = str_repeat('a', 40);
-    $tags = array_map(static fn(string $name): array => ['name' => $name, 'commit' => ['sha' => $sha]],
+    $tags = array_map(static fn(string $name): array => ['name' => $name],
         ['v0.4.1', 'v0.4.2', 'v1.0.0', 'v1.1.0', 'latest']);
     foreach ([
-        ['v0.4.2', [], array_slice($tags, 0, 2), ['promote' => true, 'latest' => true], 0],
-        ['v0.4.1', [], $tags, ['promote' => false, 'latest' => false], 0],
-        ['v1.0.0', [], array_slice($tags, 0, 3), ['promote' => true, 'latest' => true], 0],
-        ['v1.0.0', [], $tags, ['promote' => false, 'latest' => false], 0],
-        ['v0.4.3', [], [...$tags, ['name' => 'v0.4.3', 'commit' => ['sha' => $sha]]],
-            ['promote' => true, 'latest' => false], 0],
-        ['v0.4.2', ['draft' => true], $tags, [], 1],
-        ['v0.4.2', ['prerelease' => true], $tags, [], 1],
-        ['v0.4.2', ['published_at' => null], $tags, [], 1],
-        ['v0.4.2', ['tag_name' => 'v0.4.1'], $tags, [], 1],
-        ['v0.4.2', [], [['name' => 'v0.4.2', 'commit' => ['sha' => str_repeat('b', 40)]]], [], 1],
-        ['v0', [], $tags, [], 1], ['v1.0.0-rc1', [], $tags, [], 1], ["v0.4.2\n", [], $tags, [], 1],
-    ] as [$tag, $overrides, $catalog, $outputs, $status]) {
+        ['v0.4.2', array_slice($tags, 0, 2), ['promote' => true, 'latest' => true], 0],
+        ['v0.4.1', $tags, ['promote' => false, 'latest' => false], 0],
+        ['v1.0.0', array_slice($tags, 0, 3), ['promote' => true, 'latest' => true], 0],
+        ['v1.0.0', $tags, ['promote' => false, 'latest' => false], 0],
+        ['v0.4.3', [...$tags, ['name' => 'v0.4.3']], ['promote' => true, 'latest' => false], 0],
+        ['v0', $tags, [], 1], ['v1.0.0-rc1', $tags, [], 1], ["v0.4.2\n", $tags, [], 1],
+    ] as [$tag, $catalog, $outputs, $status]) {
         $result = workflowScriptGuard($selection['with']['script'], $channelDirectory, [
-            'FF_RELEASE_TAG' => $tag, 'FF_RELEASE_SHA' => $sha, 'FF_RELEASE_ID' => '7',
-        ], ['release' => ['tag_name' => $tag, 'draft' => false, 'prerelease' => false,
-            'published_at' => '2026-10-28T00:00:00Z', ...$overrides], 'tags' => $catalog], $status);
+            'FF_RELEASE_TAG' => $tag,
+        ], ['tags' => $catalog], $status);
         verifyWorkflow(
             $outputs === $result['outputs'],
             'Release selection must suppress stale majors and cross-major latest regression.',
@@ -1132,7 +1118,7 @@ try {
         ++$assertions;
     }
     workflowScriptGuard($selection['with']['script'], $channelDirectory, [
-        'FF_RELEASE_TAG' => 'v0.4.2', 'FF_RELEASE_SHA' => $sha, 'FF_RELEASE_ID' => '7', 'FF_FIXTURE_API_FAILURE' => '1',
+        'FF_RELEASE_TAG' => 'v0.4.2', 'FF_FIXTURE_API_FAILURE' => '1',
     ], [], 1);
     ++$assertions;
 } finally {

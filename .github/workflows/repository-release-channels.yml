@@ -27,28 +27,16 @@ jobs:
         uses: actions/github-script@v9.0.0
         env:
           FF_RELEASE_TAG: ${{ github.event.release.tag_name }}
-          FF_RELEASE_SHA: ${{ github.sha }}
-          FF_RELEASE_ID: ${{ github.event.release.id }}
         with:
           script: |
             const tag = process.env.FF_RELEASE_TAG;
-            const sha = process.env.FF_RELEASE_SHA;
             const version = name => {
               const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(name);
               return match && match[0] === name ? match.slice(1).map(BigInt) : null;
             };
             const selected = version(tag);
-            if (!selected) throw new Error('A full stable vMAJOR.MINOR.PATCH tag is required.');
-            const { data: release } = await github.rest.repos.getRelease({
-              ...context.repo, release_id: Number(process.env.FF_RELEASE_ID)
-            });
-            if (release.tag_name !== tag || release.draft || release.prerelease || !release.published_at) {
-              throw new Error('The event must identify an existing published stable release.');
-            }
+            if (!selected) throw new Error('The release version cannot be compared.');
             const tags = await github.paginate(github.rest.repos.listTags, { ...context.repo, per_page: 100 });
-            if (!tags.some(item => item.name === tag && item.commit.sha === sha)) {
-              throw new Error('The concrete release tag must still identify the exact event commit.');
-            }
             const compare = (left, right) => {
               for (let index = 0; index < 3; ++index) {
                 if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
