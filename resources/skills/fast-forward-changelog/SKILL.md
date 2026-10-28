@@ -51,21 +51,18 @@ approval.
    validation-only trial must choose `publish: false` explicitly. Installation must
    not publish anything. Preserve an existing caller, its pin and settings;
    migration or upgrades need their own task scope.
-4. For local CLI work, invoke CPX without a package version suffix. Discover
-   the resolved CLI's commands and inspect their arguments:
+4. For local CLI work, set `CHANGELOG_VERSION` to the verified exact numeric
+   release, without the tag's `v`. Discover commands and inspect their arguments:
 
    ```sh
-   cpx --skip-local fast-forward/changelog list --raw
-   cpx --skip-local fast-forward/changelog help add
-   cpx --skip-local fast-forward/changelog help check
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
+   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help check
    ```
 
    Use [CPX's official setup](https://github.com/laravel/cpx) when installation is
    authorized; do not pin the executor in these commands. `--skip-local` selects
-   its separate tool installation. Unversioned calls reuse CPX's `latest` cache
-   slot; update checks and the cached Composer constraints still apply. Do not
-   promise an immediate update or automatic major-version jumps, and do not
-   clean older installations as part of an ordinary contribution. CPX may handle `--help` or `--version` itself,
+   its separate tool installation. CPX may handle `--help` or `--version` itself,
    so use `help <command>` for changelog help. An existing reviewed project binary
    may be used directly instead. Confirm prerequisites from the chosen release.
 
@@ -113,8 +110,8 @@ After help confirms these arguments, the CLI can create and validate that note
 from the application directory instead of writing the example manually:
 
 ```sh
-cpx --skip-local fast-forward/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
 ```
 
 Verify that exactly one intended fragment was created and central history stayed
@@ -124,7 +121,7 @@ fetch the intended baseline under existing authority, then use its supported
 comparison option, for example:
 
 ```sh
-cpx --skip-local fast-forward/changelog check --since=origin/main --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --since=origin/main --no-interaction
 ```
 
 That comparison requires committed contribution changes. A local uncommitted

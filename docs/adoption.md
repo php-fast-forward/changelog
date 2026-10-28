@@ -54,23 +54,17 @@ CLI in a separate installation; the application does not need to require
 `fast-forward/changelog`. Put `--skip-local` before the package to select that
 copy instead of a matching project-local executable.
 
-Use the package name without a version suffix. From the project you want to
-maintain:
+Select the application's reviewed release, or a published stable version for new
+adoption, and set `CHANGELOG_VERSION` to that numeric version. From the project
+you want to maintain:
 
 ```sh
-cpx --skip-local fast-forward/changelog list --raw
-cpx --skip-local fast-forward/changelog help add
-cpx --skip-local fast-forward/changelog add \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
 ```
-
-An unversioned invocation uses CPX's `latest` installation slot rather than a
-separate slot for each explicit version. In the inspected CPX implementation,
-automatic update checks are cached for one hour. Updates run Composer against
-the cached installation's constraints; the slot name does not guarantee an
-immediate update or a jump to a new major. Inspect the resolved tool's help and
-requirements when upgrading. This procedure does not remove older cached copies.
 
 The first command lists the available commands. `help add` explains authoring.
 `add` creates one unique `.changelog/*.md` file, and `check` validates the pending
@@ -83,7 +77,7 @@ and diagnostics.
 Run from another directory by passing the CLI's `--cwd` after the package:
 
 ```sh
-cpx --skip-local fast-forward/changelog check \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
   --cwd=/path/to/project --no-interaction
 ```
 
@@ -91,7 +85,7 @@ After committing the contribution and fetching the intended baseline, compare
 its committed changes with:
 
 ```sh
-cpx --skip-local fast-forward/changelog check \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
   --since=origin/main --no-interaction
 ```
 
@@ -108,8 +102,8 @@ the global binary path; the command arguments are the same.
 ## Preview a release
 
 ```sh
-cpx --skip-local fast-forward/changelog status --json --source=tags
-cpx --skip-local fast-forward/changelog version --dry-run --source=tags
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags
 ```
 
 Both calls are read-only. Review the current/next version, effective impact,

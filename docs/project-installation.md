@@ -12,19 +12,17 @@ needs an existing `composer.json` and Composer: it adds `llm/skills` as a
 development tool and manages its source in `skills.json`, without requiring the
 Changelog runtime in the application.
 
-## Inspect the resolved CLI and choose the workflow release
+## Choose the release and inspect help
 
-Invoke the package without a version suffix and inspect its actual help before
-setup:
+Select a published stable release and set `CHANGELOG_VERSION` to its complete
+numeric version, without `v`. Check that version's help before setup:
 
 ```sh
-cpx --skip-local fast-forward/changelog help install
-cpx --skip-local fast-forward/changelog install
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help install
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install
 ```
 
-Use the help and guide matching the resolved CLI; choose and verify the workflow
-release separately during installation. CPX reuses a cached installation and
-does not guarantee an immediate upgrade; see [cache behavior](adoption.md#run-the-cli-with-cpx). An installer that offers
+Use the help and guide from the same selected release. An installer that offers
 native copies follows its own [compatibility procedure](skills.md), rather than
 implicitly adopting another release's Composer-manager behavior.
 
@@ -114,14 +112,14 @@ Preview both components without creating directories, acquiring installation
 locks or writing files:
 
 ```sh
-cpx --skip-local fast-forward/changelog install \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
   --dry-run --json
 ```
 
 Apply deliberate unattended choices:
 
 ```sh
-cpx --skip-local fast-forward/changelog install \
+cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
   --yes --no-interaction --base-branch=main --publish=true --no-skill \
   --set=comment-mode=on-failure
 ```
