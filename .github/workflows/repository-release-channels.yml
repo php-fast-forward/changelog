@@ -11,13 +11,6 @@ on:
         description: 'Full commit SHA of the existing release tag.'
         type: string
         required: true
-    secrets:
-      token:
-        description: 'Optional approved token for updating refs at released commits.'
-        required: false
-      CHANGELOG_TOKEN:
-        description: 'Optional configured changelog token; the caller token takes precedence.'
-        required: false
   workflow_dispatch:
     inputs:
       tag:
@@ -40,8 +33,9 @@ jobs:
     name: Update Released Major Branch
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: release-channels
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Require A Trusted Repository Workflow
         shell: bash
@@ -51,6 +45,7 @@ jobs:
           FF_RUNTIME_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
           FF_EVENT: ${{ github.event_name }}
           FF_REF: ${{ github.ref }}
+          FF_WORKFLOW_REF: ${{ github.workflow_ref }}
           FF_ACTION: ${{ github.event.action }}
           FF_MERGED: ${{ github.event.pull_request.merged }}
           FF_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
@@ -66,10 +61,13 @@ jobs:
             echo '::error::Release channels belong only to the canonical repository.'
             exit 1
           fi
-          if [[ "$FF_EVENT" == workflow_dispatch && "$FF_REF" == refs/heads/main ]]; then
+          if [[ "$FF_EVENT" == workflow_dispatch && "$FF_REF" == refs/heads/main \
+              && "$FF_WORKFLOW_REF" == "$FF_REPOSITORY/.github/workflows/repository-release-channels.yml@refs/heads/main" ]]; then
             exit 0
           fi
-          if [[ "$FF_EVENT" != pull_request_target || "$FF_ACTION" != closed \
+          if [[ "$FF_EVENT" != pull_request_target || "$FF_REF" != refs/heads/main \
+              || "$FF_WORKFLOW_REF" != "$FF_REPOSITORY/.github/workflows/repository-changelog.yml@refs/heads/main" \
+              || "$FF_ACTION" != closed \
               || "$FF_MERGED" != true || "$FF_HEAD_REPOSITORY" != "$FF_REPOSITORY" \
               || "$FF_HEAD_BRANCH" != changelog/version || "$FF_BASE_BRANCH" != main \
               || "$FF_MERGE_SHA" != "$FF_EXPECTED_SHA" ]]; then
@@ -99,10 +97,49 @@ jobs:
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/release-channel-composer-cache
         run: composer install --no-dev --no-plugins --no-scripts --no-interaction --prefer-dist --no-progress
 
+      - name: Require Dedicated Channel Credentials
+        shell: bash
+        env:
+          FF_CLIENT_ID: ${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}
+          FF_APP_SLUG: ${{ vars.RELEASE_CHANNEL_APP_SLUG }}
+          FF_PRIVATE_KEY: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FF_CLIENT_ID" || -z "$FF_PRIVATE_KEY" || -z "$FF_APP_SLUG" \
+              || "$FF_APP_SLUG" == github-actions ]]; then
+            echo '::error::Configure the dedicated channel App in the protected release-channels environment.'
+            exit 1
+          fi
+
+      - name: Mint The Dedicated Channel Installation Token
+        id: channel-app
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}
+          owner: php-fast-forward
+          repositories: changelog
+          permission-contents: write
+          permission-workflows: write
+          permission-pull-requests: read
+          skip-token-revoke: 'false'
+
+      - name: Confirm The Dedicated Channel Identity
+        shell: bash
+        env:
+          FF_EXPECTED_SLUG: ${{ vars.RELEASE_CHANNEL_APP_SLUG }}
+          FF_ACTUAL_SLUG: ${{ steps.channel-app.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FF_ACTUAL_SLUG" || "$FF_ACTUAL_SLUG" != "$FF_EXPECTED_SLUG" ]]; then
+            echo '::error::Channel installation identity differs from the approved App.'
+            exit 1
+          fi
+
       - name: Advance The Verified Released Major Branch
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.token || secrets.CHANGELOG_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.channel-app.outputs.token }}
           FF_REPOSITORY: ${{ github.repository }}
           FF_TAG: ${{ inputs.tag }}
           FF_EXPECTED_SHA: ${{ inputs.expected-sha }}

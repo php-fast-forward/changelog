@@ -88,6 +88,67 @@ final class ReleaseChannelUpdaterTest extends TestCase
         }
     }
 
+    #[DataProvider('unsafeRecoveryEvidence')]
+    public function testRecoveryRejectsUntrustedPublicationOrMergeEvidence(string $kind): void
+    {
+        $f = $this->fixture;
+        if ('mutable' === $kind) {
+            $f->releases['v0.2.0']['immutable'] = false;
+        } elseif ('missing-immutable' === $kind) {
+            unset($f->releases['v0.2.0']['immutable']);
+        } else {
+            $f->pulls = (static fn(array $pulls): array => match ($kind) {
+                'absent' => [],
+                'unmerged' => [array_replace($pulls[0], ['merged_at' => null])],
+                'open' => [array_replace($pulls[0], ['state' => 'open'])],
+                'wrong-sha' => [array_replace($pulls[0], ['merge_commit_sha' => str_repeat('f', 40)])],
+                'wrong-base' => [array_replace_recursive($pulls[0], ['base' => ['ref' => 'other']])],
+                'wrong-head' => [array_replace_recursive($pulls[0], ['head' => ['ref' => 'feature']])],
+                'fork' => [array_replace_recursive(
+                    $pulls[0],
+                    ['head' => ['repo' => ['full_name' => 'foreign/library']]],
+                )],
+                'foreign-base' => [array_replace_recursive(
+                    $pulls[0],
+                    ['base' => ['repo' => ['full_name' => 'foreign/library']]],
+                )],
+                'ambiguous' => [$pulls[0], $pulls[0]],
+                'bounded' => array_fill(0, 100, $pulls[0]),
+                'malformed' => ['message' => 'synthetic'],
+            });
+        }
+        try {
+            $f->run();
+            self::fail('Unsafe recovery evidence was accepted.');
+        } catch (RuntimeException) {
+            self::assertSame([], $f->mutations);
+            self::assertNull($f->git(['show-ref', '--verify', 'refs/heads/v0'], true));
+        }
+    }
+
+    public static function unsafeRecoveryEvidence(): iterable
+    {
+        foreach (['mutable', 'missing-immutable', 'absent', 'unmerged', 'open', 'wrong-sha',
+            'wrong-base', 'wrong-head', 'fork', 'foreign-base', 'ambiguous', 'bounded', 'malformed'] as $kind) {
+            yield $kind => [$kind];
+        }
+    }
+
+    public function testRechecksManagedMergeBeforeWriting(): void
+    {
+        $reads = 0;
+        $this->fixture->pulls = static function (array $pulls) use (&$reads): array {
+            return ++$reads > 1 ? [] : $pulls;
+        };
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('exact managed version PR merge');
+        try {
+            $this->fixture->run();
+        } finally {
+            self::assertSame([], $this->fixture->mutations);
+        }
+    }
+
     public function testRejectsAConflictingTagWithoutDeletingIt(): void
     {
         $f = $this->fixture;

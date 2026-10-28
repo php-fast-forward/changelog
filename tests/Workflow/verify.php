@@ -41,7 +41,7 @@ function workflowGuard(string $source, string $directory, array $environment, in
     $process->setTimeout(10);
     $status = $process->run();
     verifyWorkflow($expected === $status, 'Workflow guard returned unexpected status: ' . $process->getErrorOutput());
-    foreach (['FF_AUTH_PRIVATE_KEY', 'FF_AUTH_TOKEN'] as $secret) {
+    foreach (['FF_AUTH_PRIVATE_KEY', 'FF_AUTH_TOKEN', 'FF_PRIVATE_KEY'] as $secret) {
         verifyWorkflow(
             '' === ($environment[$secret] ?? '') || ! str_contains(
                 $process->getOutput() . $process->getErrorOutput(),
@@ -1038,7 +1038,9 @@ $channelCall = $repository['jobs']['channels'];
 verifyWorkflow(
     ['workflow_call', 'workflow_dispatch'] === array_keys($channels['on'])
         && 'ubuntu-latest' === $channelJob['runs-on']
-        && ['contents' => 'write'] === $channelJob['permissions']
+        && ['contents' => 'read'] === $channelJob['permissions']
+        && ['contents' => 'read'] === $channelCall['permissions']
+        && 'release-channels' === $channelJob['environment']
         && 'release-channels-${{ github.repository }}' === $channels['concurrency']['group']
         && false === $channels['concurrency']['cancel-in-progress']
         && 'changelog' === $channelCall['needs']
@@ -1058,19 +1060,96 @@ verifyWorkflow(
     'Channels must use the PHP entrypoint without persistent Git credentials.',
 );
 verifyWorkflow(
-    false === $channels['on']['workflow_call']['secrets']['token']['required']
-        && false === $channels['on']['workflow_call']['secrets']['CHANGELOG_TOKEN']['required']
-        && $repository['jobs']['changelog']['secrets']['token'] === $channelCall['secrets']['token']
-        && '${{ secrets.CHANGELOG_TOKEN || github.token }}' === $channelCall['secrets']['token']
-        && '${{ secrets.token || secrets.CHANGELOG_TOKEN || github.token }}'
+    ! isset($channels['on']['workflow_call']['secrets'])
+        && ! isset($channelCall['secrets'])
+        && 'actions/create-github-app-token@v3.3.0'
+            === workflowStep($channelJob, 'Mint The Dedicated Channel Installation Token')['uses']
+        && [
+            'client-id' => '${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}',
+            'private-key' => '${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}',
+            'owner' => 'php-fast-forward', 'repositories' => 'changelog',
+            'permission-contents' => 'write', 'permission-workflows' => 'write',
+            'permission-pull-requests' => 'read', 'skip-token-revoke' => 'false',
+        ] === workflowStep($channelJob, 'Mint The Dedicated Channel Installation Token')['with']
+        && '${{ steps.channel-app.outputs.token }}'
             === workflowStep($channelJob, 'Advance The Verified Released Major Branch')['env']['GH_TOKEN'],
-    'Channels must forward the lifecycle token and support the configured token during direct manual recovery.',
+    'Channels must use only the dedicated repository-scoped App, without caller, PAT or built-in token fallback.',
 );
 ++$assertions;
+$policy = json_decode(
+    file_get_contents($root . '/.github/release-channel-policy/configuration.json'),
+    true,
+    flags: JSON_THROW_ON_ERROR,
+);
+[$writerRule, $integrityRule, $tagRule] = $policy['rulesets'];
+verifyWorkflow(
+    [['actor_id' => null, 'actor_type' => 'Integration', 'bypass_mode' => 'always']] === $writerRule['bypass_actors']
+        && [['type' => 'update', 'parameters' => ['update_allows_fetch_and_merge' => false]]] === $writerRule['rules']
+        && ['refs/heads/v0'] === $writerRule['conditions']['ref_name']['include']
+        && [] === $integrityRule['bypass_actors']
+        && ['creation', 'deletion', 'non_fast_forward'] === array_column($integrityRule['rules'], 'type')
+        && $writerRule['conditions'] === $integrityRule['conditions']
+        && [] === $tagRule['bypass_actors'] && 'tag' === $tagRule['target']
+        && ['refs/tags/v0'] === $tagRule['conditions']['ref_name']['include']
+        && ['creation', 'update', 'deletion', 'non_fast_forward'] === array_column($tagRule['rules'], 'type')
+        && 3 === count($policy['rulesets'])
+        && ['refs/heads/v0', 'refs/heads/v0', 'refs/tags/v0'] === array_map(
+            static fn(array $rule): string => $rule['conditions']['ref_name']['include'][0],
+            $policy['rulesets'],
+        )
+        && ['contents' => 'write', 'workflows' => 'write', 'pull_requests' => 'read'] === $policy['app_registration']['permissions']
+        && false === $policy['app_registration']['webhook_active']
+        && false === $policy['app_registration']['request_oauth_on_install']
+        && false === $policy['environment']['settings']['can_admins_bypass']
+        && [] === $policy['environment']['settings']['reviewers']
+        && [['name' => 'main', 'type' => 'branch']] === $policy['environment']['branch_policies'],
+    'The dedicated writer bypass must never bypass integrity; reserve the tag without introducing additional review requirements on main.',
+);
+foreach (['123456789', '15368', '0', '-1', 'unknown', '9007199254740992'] as $appId) {
+    $render = new Process(['node', $root . '/.github/release-channel-policy/render.mjs', $appId], $root);
+    $render->run();
+    verifyWorkflow(
+        ('123456789' === $appId ? 0 : 2) === $render->getExitCode(),
+        'Policy rendering must require a dedicated numeric App ID.',
+    );
+    if ('123456789' === $appId) {
+        $rendered = json_decode($render->getOutput(), true, flags: JSON_THROW_ON_ERROR);
+        verifyWorkflow(
+            123456789 === $rendered['rulesets'][0]['bypass_actors'][0]['actor_id'],
+            'Use App ID, never the shared Actions identity.',
+        );
+    }
+}
 $channelGuard = workflowStep($channelJob, 'Require A Trusted Repository Workflow')['run'];
 $channelDirectory = sys_get_temp_dir() . '/changelog-channel-guard-' . bin2hex(random_bytes(6));
 $filesystem->mkdir($channelDirectory);
 try {
+    $ordered = [];
+    $credentialGuard = workflowStep($channelJob, 'Require Dedicated Channel Credentials')['run'];
+    foreach ([[], ['FF_CLIENT_ID' => ''], ['FF_PRIVATE_KEY' => ''], ['FF_APP_SLUG' => ''],
+        ['FF_APP_SLUG' => 'github-actions']] as $overrides) {
+        workflowGuard($credentialGuard, $channelDirectory, [
+            'FF_CLIENT_ID' => 'synthetic-client', 'FF_PRIVATE_KEY' => 'synthetic-key',
+            'FF_APP_SLUG' => 'synthetic-channel', ...$overrides,
+        ], [] === $overrides ? 0 : 1);
+    }
+    $identityGuard = workflowStep($channelJob, 'Confirm The Dedicated Channel Identity')['run'];
+    foreach (['synthetic-channel', '', 'other-app', 'github-actions'] as $slug) {
+        workflowGuard($identityGuard, $channelDirectory, [
+            'FF_EXPECTED_SLUG' => 'synthetic-channel', 'FF_ACTUAL_SLUG' => $slug,
+        ], 'synthetic-channel' === $slug ? 0 : 1);
+    }
+    foreach (['Require A Trusted Repository Workflow', 'Require Dedicated Channel Credentials',
+        'Mint The Dedicated Channel Installation Token', 'Confirm The Dedicated Channel Identity',
+        'Advance The Verified Released Major Branch'] as $name) {
+        $ordered[] = array_search($name, array_column($channelJob['steps'], 'name'), true);
+    }
+    $sorted = $ordered;
+    sort($sorted);
+    verifyWorkflow(
+        $ordered === $sorted,
+        'Trust guards must precede token creation and identity verification must precede mutation.',
+    );
     foreach ([
         ['workflow_dispatch', 'refs/heads/main', 'php-fast-forward/changelog', 0],
         ['workflow_dispatch', 'refs/heads/untrusted', 'php-fast-forward/changelog', 1],
@@ -1079,6 +1158,7 @@ try {
     ] as [$event, $ref, $target, $expected]) {
         workflowGuard($channelGuard, $channelDirectory, [
             'FF_EVENT' => $event, 'FF_REF' => $ref, 'FF_REPOSITORY' => $target,
+            'FF_WORKFLOW_REF' => 'php-fast-forward/changelog/.github/workflows/repository-release-channels.yml@refs/heads/main',
             'FF_RUNTIME_REPOSITORY' => 'php-fast-forward/changelog', 'FF_RUNTIME_SHA' => str_repeat('c', 40),
             'FF_ACTION' => '', 'FF_MERGED' => '', 'FF_HEAD_REPOSITORY' => '',
             'FF_HEAD_BRANCH' => '', 'FF_BASE_BRANCH' => '', 'FF_MERGE_SHA' => '', 'FF_EXPECTED_SHA' => '',
@@ -1087,6 +1167,7 @@ try {
     }
     $mergedChannel = [
         'FF_EVENT' => 'pull_request_target', 'FF_REF' => 'refs/heads/main',
+        'FF_WORKFLOW_REF' => 'php-fast-forward/changelog/.github/workflows/repository-changelog.yml@refs/heads/main',
         'FF_REPOSITORY' => 'php-fast-forward/changelog', 'FF_ACTION' => 'closed', 'FF_MERGED' => 'true',
         'FF_RUNTIME_REPOSITORY' => 'php-fast-forward/changelog', 'FF_RUNTIME_SHA' => str_repeat('c', 40),
         'FF_HEAD_REPOSITORY' => 'php-fast-forward/changelog', 'FF_HEAD_BRANCH' => 'changelog/version',
@@ -1095,6 +1176,8 @@ try {
     foreach ([[], ['FF_ACTION' => 'opened'], ['FF_MERGED' => 'false'],
         ['FF_HEAD_REPOSITORY' => 'foreign/repository'], ['FF_HEAD_BRANCH' => 'feature'],
         ['FF_BASE_BRANCH' => 'other'], ['FF_EXPECTED_SHA' => str_repeat('b', 40)],
+        ['FF_REF' => 'refs/heads/other'],
+        ['FF_WORKFLOW_REF' => 'php-fast-forward/changelog/.github/workflows/other.yml@refs/heads/main'],
         ['FF_RUNTIME_REPOSITORY' => 'foreign/repository'], ['FF_RUNTIME_SHA' => 'main']] as $overrides) {
         workflowGuard($channelGuard, $channelDirectory, [...$mergedChannel, ...$overrides], [] === $overrides ? 0 : 1);
         ++$assertions;

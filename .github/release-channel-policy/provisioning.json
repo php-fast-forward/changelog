@@ -1,0 +1,87 @@
+{
+  "observed_date": "2026-10-28",
+  "app": {
+    "app_id": 5513989,
+    "slug": "fast-forward-release-channels",
+    "client_id": "Iv23liHqRng02H747IYa",
+    "installation_id": 176263242,
+    "owner": "php-fast-forward",
+    "repository_selection": "all",
+    "repositories_at_initial_provisioning": [
+      "php-fast-forward/changelog"
+    ]
+  },
+  "environment": {
+    "id": 25599735332,
+    "name": "release-channels",
+    "branch_policy_id": 64692452,
+    "allowed_branches": [
+      "main"
+    ],
+    "allowed_tags": [],
+    "can_admins_bypass": false,
+    "required_reviewers": [],
+    "variables": {
+      "RELEASE_CHANNEL_APP_CLIENT_ID": "Iv23liHqRng02H747IYa",
+      "RELEASE_CHANNEL_APP_SLUG": "fast-forward-release-channels"
+    },
+    "secret_names": [
+      "RELEASE_CHANNEL_APP_PRIVATE_KEY"
+    ]
+  },
+  "credential": {
+    "fingerprint": "SHA256:ATBdcQLgQM3SGpndbgtJq/JtMyN8679ZbxP0gLOw3SM=",
+    "active_key_count": 1,
+    "old_keys_revoked": true,
+    "authentication_verified": true,
+    "verification_token_revoked": true
+  },
+  "rules_applied": true,
+  "v0_sha": "203db95e68fc974e95ba1a921f08d01f88851be1",
+  "existing_ruleset_ids": [
+    25283339
+  ],
+  "applied_rulesets": [
+    {
+      "id": 26066270,
+      "name": "v0 channel integrity",
+      "url": "https://github.com/php-fast-forward/changelog/rules/26066270"
+    },
+    {
+      "id": 26066273,
+      "name": "v0 reserved tag namespace",
+      "url": "https://github.com/php-fast-forward/changelog/rules/26066273"
+    },
+    {
+      "id": 26066275,
+      "name": "v0 dedicated channel updater",
+      "url": "https://github.com/php-fast-forward/changelog/rules/26066275"
+    }
+  ],
+  "main_ruleset_unchanged": true,
+  "main_required_status_checks": [
+    {
+      "context": "PHP 8.5 (ubuntu-latest)",
+      "integration_id": 15368
+    },
+    {
+      "context": "PHP 8.5 (ubuntu-24.04-arm)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Fresh Composer Installations (highest)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Fresh Composer Installations (lowest)",
+      "integration_id": 15368
+    },
+    {
+      "context": "Check Contribution / Check Changelog",
+      "integration_id": 15368
+    }
+  ],
+  "main_required_approving_review_count": 0,
+  "installation_repository_selection_observed": "all",
+  "installation_scope_changed_by_this_operation": false
+}

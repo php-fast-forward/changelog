@@ -70,14 +70,11 @@ jobs:
       needs.changelog.outputs.published-sha != '' &&
       needs.changelog.outputs.published-sha == github.event.pull_request.merge_commit_sha
     permissions:
-      contents: write
+      contents: read
     uses: ./.github/workflows/repository-release-channels.yml
     with:
       tag: ${{ needs.changelog.outputs.published-tag }}
       expected-sha: ${{ needs.changelog.outputs.published-sha }}
-    secrets:
-      token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
-
   image:
     name: Publish Docker CLI
     needs: changelog

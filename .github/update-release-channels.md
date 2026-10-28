@@ -27,33 +27,21 @@ closed merged managed PR event and the exact approved merge SHA. Manual dispatch
 is restricted to `refs/heads/main`. Code is checked out at the called workflow's
 verified repository and exact implementation SHA, never the PR head or release notes.
 
-Reusable callers may pass the optional `token` secret. This repository forwards
-the same `CHANGELOG_TOKEN` used by its lifecycle, falling back to `github.token`.
-Direct manual dispatch uses the repository's `CHANGELOG_TOKEN` when configured.
-The final token order is caller `token`, repository `CHANGELOG_TOKEN`, then
-`github.token`; none of these values is copied into inputs or outputs.
+The channel workflow accepts no caller token and has no `CHANGELOG_TOKEN` or
+`github.token` fallback. Its built-in token is read-only. The protected
+`release-channels` environment provides `RELEASE_CHANNEL_APP_CLIENT_ID`,
+`RELEASE_CHANNEL_APP_SLUG` and the secret `RELEASE_CHANNEL_APP_PRIVATE_KEY`.
+Only the dedicated App installation token reaches the updater. It is scoped to
+this repository with Contents write, Workflows write (historical workflow refs)
+and Pull requests read (managed-merge evidence), and revoked at job completion.
+The App has no administration permission and is never used to publish releases.
 
-Updating a ref to a historical released commit with different workflow files
-may require an approved token with repository **Contents: write** and
-**Workflows: write**. The default `GITHUB_TOKEN` does not always satisfy that
-guard, and YAML has no `workflows: write` permission to add. Use the existing
-approved secret mechanism and a suitably scoped token; this operation does not
-create an App, fetch credentials or bypass repository rules.
-
-For an already authorized local diagnostic/recovery from a trusted source clone,
-PHP `^8.5`, Composer and the locked runtime dependencies are required:
-
-```sh
-composer install --no-dev --no-plugins --no-scripts --no-interaction --prefer-dist
-php .github/update-release-channels.php php-fast-forward/changelog v0.1.0 FULL_RELEASE_COMMIT_SHA
-```
-
-Replace the tag/SHA with verified release evidence. Supply `GH_TOKEN` through the
-existing approved secret mechanism; it needs repository contents write access.
-The historical-workflow permission requirement above applies to this route too.
-The program does not load a dotenv file, inspect other token variables, print
-the token, or persist credentials in Git remotes. It rejects another repository.
-Do not run it against a real repository as a test.
+See [the protection proposal and activation procedure](release-channel-policy/README.md)
+for exact offline-rendered payloads, identity boundaries, approval requirements,
+current remote findings and residual risks. Local invocation still requires an
+explicitly authorized credential; it is no longer a documented human recovery
+route. Use the guarded workflow on `main` to recover. Missing App credentials or
+unproven evidence fail closed; do not substitute a PAT or unprotect the branch.
 
 ## Effects and refusal conditions
 
@@ -62,10 +50,13 @@ most one GraphQL `updateRefs` mutation for `refs/heads/v<major>`. The expected
 old OID is mandatory, including an all-zero OID for branch creation, and
 `force:false` requires a fast-forward. It never writes a tag or release.
 
-It verifies published, non-draft, non-prerelease state; full stable SemVer;
-repository identity; tag-to-commit binding; and a complete release catalog for
+It verifies immutable, published, non-draft, non-prerelease state; full stable SemVer;
+repository identity; tag-to-commit binding; the exact merged same-repository
+`changelog/version` PR into `main`; and a complete release catalog for
 the major. Annotated tags are peeled through at most sixteen objects, and the
-catalog is bounded to ten pages of one hundred releases. Evidence beyond those
+catalog is bounded to ten pages of one hundred releases. Associated PR evidence
+is bounded to fewer than one hundred entries and must contain exactly one matching
+managed merge. Mutable releases and arbitrary published commit selectors are refused. Evidence beyond those
 bounds, malformed responses and API/permission failures block the update.
 
 An existing branch must be an older published release commit from the same
@@ -77,7 +68,10 @@ No ancestry between different major channels is required.
 The selected release and catalog are read again before the mutation. A
 concurrent branch change fails the exact old-OID condition; no force update or
 automatic takeover recovers that failure. Full release tags remain untouched.
-Repository rules may reject the write, and this operation never bypasses them.
+Repository rules may reject the write. The dedicated App bypasses only the
+separate update restriction, never creation, deletion or non-fast-forward rules.
+With the proposed rules active, recreation of a missing `v0` fails even though
+the generic updater supports creation for unprotected future channels.
 
 ## Output and recovery
 

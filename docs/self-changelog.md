@@ -50,7 +50,7 @@ with `publish: false`; see [the lifecycle](reusable-lifecycle.md).
 
 ## Credentials and maintenance
 
-Write jobs use `secrets.CHANGELOG_TOKEN` when configured, otherwise
+Lifecycle write jobs use `secrets.CHANGELOG_TOKEN` when configured, otherwise
 `github.token`. `vars.CHANGELOG_AUTOMATION_ACTOR` selects the exact Bot login
 (default `github-actions[bot]`). Repository policy must permit PR creation and
 that token's job permissions. For automatically triggered downstream CI, see
@@ -75,15 +75,17 @@ call does not wait for a token-generated tag event to start another
 workflow. Concrete release tags remain immutable. These channels are distinct
 from maintenance branches where fixes and fragments accumulate.
 
-The caller forwards the lifecycle's configured `CHANGELOG_TOKEN`, with
-`github.token` as fallback; manual dispatch also uses `CHANGELOG_TOKEN` when
-configured. Historical targets with different workflow files may require a
-token with Contents and Workflows write access. The default token cannot always
-perform this update; no nonexistent YAML `workflows: write` permission is added.
+The channel job uses only a dedicated GitHub App installation token from the
+protected `release-channels` environment, with Contents/Workflows write and Pull
+requests read. It accepts no caller token or `CHANGELOG_TOKEN`/`github.token`
+fallback. App credentials, environment and repository rules require separate
+approval; see the [exact protection proposal](https://github.com/php-fast-forward/changelog/blob/main/.github/release-channel-policy/README.md).
+The lifecycle publication credential remains separate.
 
 For recovery, open **Repository: Release Channels**, select `main`, and supply
 the newest published full tag for that major and its exact 40-character commit
-SHA. The updater verifies the release and tag before any write. An existing
+SHA. The updater requires an immutable release, exact tag/SHA and the matching
+merged same-repository managed PR into main before any write. An existing
 channel must identify an older published release of the same major and permit
 a fast-forward. Conflicting tags, unrelated branches and stale selectors cannot
 overwrite the current ref. See the [operation and recovery contract](https://github.com/php-fast-forward/changelog/blob/main/.github/update-release-channels.md).
