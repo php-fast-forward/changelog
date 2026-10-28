@@ -36,7 +36,7 @@ verified human maintenance policy described in [policies](policies.md).
 | Contribution PR | Read-only contribution check, exact-head status and sticky feedback from trusted code. |
 | Dependabot PR | A verified dependency fragment, followed by validation of the resulting head. |
 | Push to `main` | Create or refresh the single `changelog/version` PR. |
-| Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication starts image publication and the released-major branch update. |
+| Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication starts image publication; major-tag promotion consumes a separate release event. |
 
 The [automation map](automation-map.md) lists the repository CI, documentation,
 lifecycle and image jobs. The lifecycle uses the public Docker Actions;
@@ -53,7 +53,10 @@ with `publish: false`; see [the lifecycle](reusable-lifecycle.md).
 Lifecycle write jobs use `secrets.CHANGELOG_TOKEN` when configured, otherwise
 `github.token`. `vars.CHANGELOG_AUTOMATION_ACTOR` selects the exact Bot login
 (default `github-actions[bot]`). Repository policy must permit PR creation and
-that token's job permissions. For automatically triggered downstream CI, see
+that token's job permissions. The prepared publication-only App route uses `publish-app-client-id` and
+`publish-environment`; its activation and secret provisioning remain pending
+separate approval. It keeps the managed-PR author unchanged. For automatically
+triggered downstream CI, see
 [GitHub App authentication](github-app.md).
 
 Dependabot descriptions preserve the live PR title, its supplied versions and
@@ -67,32 +70,21 @@ from an ordinary contribution. Follow [transactions and recovery](release-receip
 and [publication](publication.md); never bypass checks to force a stale plan.
 For image-only failures after a published release, use [Docker recovery](docker.md).
 
-## Released major branches and recovery
+## Released major tags
 
-After publication, the repository workflow updates the matching `v<major>`
-branch, such as `v0`, to the exact published stable release commit. This explicit
-call does not wait for a token-generated tag event to start another
-workflow. Concrete release tags remain immutable. These channels are distinct
-from maintenance branches where fixes and fragments accumulate.
+The repository channel workflow uses `Actions-R-Us/actions-tagger@v2.0.3` on a
+real published stable release event. It maintains `v0` for `0.x` and `v1` for
+`1.x`, leaving `v0` on its final `0.x` release. `latest` follows the greatest stable major and advances to `1.x` while `v0` remains unchanged. Consumers
+can keep `@v0` without updating a full version pin for each stable release.
+Concrete release tags remain immutable; these major tags intentionally move.
+`@v0` can cross breaking development minors, unlike Composer/CPX `^0.1`.
 
-Channel updates use a separate repository-scoped App token from the
-`release-channels` environment. Configure `RELEASE_CHANNEL_APP_CLIENT_ID` and
-`RELEASE_CHANNEL_APP_PRIVATE_KEY`, allow only branch `main`, and keep the App as
-the sole identity permitted to update `v0`. The job has no shared-token fallback
-and revokes its installation token when finished. The release verifier is unchanged.
-
-For recovery, open **Repository: Release Channels**, select `main`, and supply
-the newest published full tag for that major and its exact 40-character commit
-SHA. The updater verifies the release and tag before any write. An existing
-channel must identify an older published release of the same major and permit
-a fast-forward. Conflicting tags, unrelated branches and stale selectors cannot
-overwrite the current ref. See the [operation and recovery contract](https://github.com/php-fast-forward/changelog/blob/main/.github/update-release-channels.md).
-
-Numeric branches appear as development versions in Composer. With Composer's
-default stable minimum-stability, constraints select concrete releases.
-The automation channel `@v0` can cross breaking
-`0.x` minors, whereas Composer/CPX `^0.1` stays below `0.2`. Choose a full tag
-or SHA when automatic channel advancement is unsuitable.
+Activation is pending publication credentials, tag rules and the environment's
+release-tag policy. Publication with the default `GITHUB_TOKEN` does not trigger
+the release workflow. The previous PHP updater and manual tag/SHA dispatch are
+removed. The Marketplace action does not preserve the previous atomic old-SHA
+or ancestry guarantees. See the [operation and activation contract](https://github.com/php-fast-forward/changelog/blob/main/.github/update-release-channels.md)
+for the concrete pending configuration, recovery limits and authority boundaries.
 
 ---
 

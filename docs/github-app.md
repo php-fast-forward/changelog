@@ -70,6 +70,23 @@ action's default revocation at job completion. PR-head checks continue to use
 the ordinary read-only token and do not receive the App key. Trusted code must
 not execute a PR's scripts or PHP templates with the key present.
 
+## A separate App for publication only
+
+A caller can retain its existing PR author and credentials while using a different
+App to publish the verified release. The lifecycle accepts optional
+`publish-app-client-id`, `publish-environment` and secret
+`publish-app-private-key`. They affect only the publication job. That job requests
+Contents write and Pull requests read; it still passes the original
+`automation-actor` to the publication service to verify the managed PR.
+
+The individual publication reusable also accepts `environment`. If selected,
+its `app-private-key` environment secret takes precedence for that job; callers
+must explicitly forward the declared secret through the reusable chain. The
+repository's own caller demonstrates this route. Environment policy, App use and
+secret provisioning require separate authorization; optional inputs do not grant
+that authority. This feature must be present in the consumer's verified selected
+Changelog release before adding the new inputs.
+
 ## Adopting an App after an existing version PR
 
 Changing `automation-actor` does not transfer an existing PR's creator to the

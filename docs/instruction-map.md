@@ -100,7 +100,7 @@ reusable lifecycle/operation contract. The package's own `main` caller does not
 limit the public reusable's configurable maintenance lines. The repository's
 internal channel operation has a same-basename companion in
 `.github/update-release-channels.md`; read root → self-changelog guide →
-operation contract for an authorized recovery. This adds an operational
+operation contract for pending activation and recovery limits. This adds an operational
 entrypoint, not a child instruction scope or a consumer installation.
 
 The lifecycle defaults to publication after an approved version-PR merge; explicit

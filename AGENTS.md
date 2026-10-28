@@ -108,12 +108,13 @@ used across Fast Forward PHP packages.
   already published commits; they are not maintenance branches and cannot replace
   concrete tags as version evidence. Configuring or moving channels is a separate
   operation with its own reviewed workflow and publication authority.
-- This repository updates `v<major>` branches through
-  `repository-release-channels.yml`, called explicitly after effective publication.
-  These refs select published stable commits, never the current `main` tip.
-  Manual recovery runs from `main` with the existing full tag and exact released
-  SHA; verify the resulting ref. Preserve its old-SHA condition and fast-forward
-  check, and never replace an unrelated branch or abbreviated tag.
+- The proposed `repository-release-channels.yml` uses actions-tagger on real
+  published stable release events to maintain moving `v<major>` tags. Activation
+  requires separate publication-credential, environment and ruleset approval;
+  the default GITHUB_TOKEN publication does not trigger that workflow. Do not
+  simulate events or migrate the existing channel branch as an incidental test.
+  The PHP updater and manual arbitrary tag/SHA dispatch are removed. See the
+  operation guide for the changed concurrency guarantees and recovery limits.
 - A channel update does not authorize another release. `@v0` can cross breaking
   development minors; keep the skill/CPX constraint aligned with its declared
   product contract rather than assuming it has the same range.
@@ -173,7 +174,7 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Composer skill lifecycle](docs/composer-skills.md): documents source selection, plugin execution, automatic reconstruction and update/removal limits; consumer activation remains explicit.
 - [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
-- [Release-channel operation](.github/update-release-channels.md): maintains published major branches with exact tag/commit evidence and conditional ref updates; never creates releases or moves concrete tags.
+- [Release-channel operation](.github/update-release-channels.md): describes Marketplace major-tag promotion, pending activation, authority boundaries and recovery limits; never authorizes releases or remote ref migration.
 - [Workflow reference](docs/workflow-reference.md): lists public inputs, defaults, secrets, outputs and permissions; publication defaults to enabled after an approved version-PR merge, while `publish: false` is an explicit validation choice.
 - [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; copying a workflow does not grant merge or publication authority.
 - [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.
