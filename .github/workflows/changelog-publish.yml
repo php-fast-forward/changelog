@@ -242,7 +242,7 @@ jobs:
         uses: ./.changelog-runtime/.github/actions/github-auth
         with:
           app-client-id: ${{ inputs.app-client-id }}
-          app-private-key: ${{ inputs.app-client-id != '' && (secrets.app-private-key || secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}
+          app-private-key: ${{ secrets.app-private-key || (inputs.app-client-id != '' && secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}
           token: ${{ secrets.token }}
           fallback-token: ${{ github.token }}
           repository: ${{ inputs.repository || github.repository }}

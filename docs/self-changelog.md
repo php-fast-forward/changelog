@@ -54,8 +54,8 @@ Lifecycle write jobs use `secrets.CHANGELOG_TOKEN` when configured, otherwise
 `github.token`. `vars.CHANGELOG_AUTOMATION_ACTOR` selects the exact Bot login
 (default `github-actions[bot]`). Repository policy must permit PR creation and
 that token's job permissions. The prepared publication-only App route uses `publish-app-client-id` and
-`publish-environment`; its activation and secret provisioning remain pending
-separate approval. It keeps the managed-PR author unchanged. For automatically
+`publish-environment`; the environment and valid secret are provisioned. Its
+workflow takes effect after approved integration. It keeps the managed-PR author unchanged. For automatically
 triggered downstream CI, see
 [GitHub App authentication](github-app.md).
 

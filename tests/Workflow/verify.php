@@ -75,6 +75,7 @@ function workflowScriptGuard(
     } }, repos: {
       listTags: () => {}
     } }, paginate: async (method, request) => {
+      if (method !== github.rest.repos.listTags) throw new Error('Unexpected paginated endpoint');
       requests.push(request);
       if (process.env.FF_FIXTURE_API_FAILURE === '1') throw new Error('Synthetic API failure');
       return JSON.parse(process.argv[2]).tags;
@@ -620,7 +621,7 @@ foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-p
             verifyWorkflow(
                 '${{ inputs.app-client-id }}' === $authentication['with']['app-client-id']
                     && ('changelog-publish' === $entrypoint
-                        ? "\${{ inputs.app-client-id != '' && (secrets.app-private-key || secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}"
+                        ? "\${{ secrets.app-private-key || (inputs.app-client-id != '' && secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}"
                         : '${{ secrets.app-private-key }}') === $authentication['with']['app-private-key']
                     && '${{ secrets.token }}' === $authentication['with']['token']
                     && '${{ github.token }}' === $authentication['with']['fallback-token']
@@ -1126,6 +1127,15 @@ try {
         'FF_RELEASE_TAG' => 'v0.4.2', 'FF_FIXTURE_API_FAILURE' => '1',
     ], [], 1);
     ++$assertions;
+    $wrongEndpoint = str_replace(
+        'github.rest.repos.listTags',
+        'github.rest.pulls.get',
+        $selection['with']['script'],
+        $endpointReplacements,
+    );
+    verifyWorkflow(1 === $endpointReplacements, 'The endpoint mutation must replace the actual tag request.');
+    workflowScriptGuard($wrongEndpoint, $channelDirectory, ['FF_RELEASE_TAG' => 'v0.4.2'], ['tags' => $tags], 1);
+    $assertions += 2;
     $activation = sprintf(
         "const vars = { RELEASE_CHANNEL_PUBLICATION_ENABLED: process.env.FF_PUBLICATION_ENABLED };
 "
@@ -1175,6 +1185,8 @@ try {
     foreach ([
         ['', '', '', '', 'raw-token', 'staged-key', '', '', 'raw-token', 0],
         ['', '', '', '', '', 'staged-key', '', '', '', 0],
+        ['', '', 'explicit-key', '', 'raw-token', 'staged-key', '', 'explicit-key', 'raw-token', 1],
+        ['', '', 'explicit-key', '', '', 'staged-key', '', 'explicit-key', '', 1],
         ['legacy-id', '', 'legacy-key', 'unused-publisher-key', '', 'staged-key', 'legacy-id', 'legacy-key', '', 0],
         [
             'legacy-id',
@@ -1231,7 +1243,7 @@ verifyWorkflow(
         && isset($publicationWorkflow['on']['workflow_call']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY'])
         && "\${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || '' }}"
             === $lifecycle['jobs']['publish']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']
-        && "\${{ inputs.app-client-id != '' && (secrets.app-private-key || secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}"
+        && "\${{ secrets.app-private-key || (inputs.app-client-id != '' && secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}"
             === workflowStep($publicationJob, 'Authenticate Trusted GitHub Operations')['with']['app-private-key'],
     'Environment secrets require a valid underscore name forwarded separately from logical workflow-call aliases.',
 );
