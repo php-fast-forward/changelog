@@ -72,7 +72,8 @@ For image-only failures after a published release, use [Docker recovery](docker.
 
 ## Released major branches and latest
 
-The repository channel workflow uses `Actions-R-Us/actions-tagger@v2.0.3` on real
+The repository channel workflow pins `Actions-R-Us/actions-tagger` to reviewed
+commit `330ddfac760021349fef7ff62b372f2f691c20fb` (`v2.0.3`) on real
 `release: published` and `release: edited` events. The requested major channels
 are **branches** `v0` and `v1`; `latest` is the action's native moving **tag**.
 A 1.x release creates/updates `v1` and can advance `latest`, leaving `v0` on 0.x.
@@ -88,8 +89,9 @@ See [Composer's tag and branch rules](https://getcomposer.org/doc/articles/versi
 
 On 2026-10-29, the verified full tag `@v2.0.3` resolves to commit
 `330ddfac760021349fef7ff62b372f2f691c20fb`, with distributed Git blob
-`0e8ec35de217f085b99b6f27e63343c3b9202c96`. A full version tag can still be moved
-upstream; this is not an immutable SHA pin.
+`0e8ec35de217f085b99b6f27e63343c3b9202c96`. The workflow uses that immutable
+commit, with `v2.0.3` retained as a readable comment, so moving the upstream tag
+cannot substitute the action implementation.
 The resolved action force-updates major branches and always uses `tags/latest`
 when latest is enabled. In branch mode its native comparison does not recognize
 abbreviated `v0`/`v1` branches as full versions: an old edited release can regress
@@ -210,7 +212,7 @@ The workflow requests a repository-limited token, but the private key can mint
 tokens for other repositories covered by the organization-wide installation.
 Compromise of that key in Code Standards could therefore affect Changelog too.
 Other writers with the key can race this job; deleted/rewritten evidence and
-upstream `@v2.0.3` changes require fresh review. Administrators able to edit rules or
+changes to the pinned action commit require fresh review. Administrators able to edit rules or
 trusted workflows can change these boundaries. A stolen App key/token remains
 a supply-chain risk; no absolute immutability is promised for moving channels.
 
