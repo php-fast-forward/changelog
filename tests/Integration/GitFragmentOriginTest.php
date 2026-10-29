@@ -4,8 +4,16 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Tests\Integration;
 
+use FastForward\Changelog\Changeset\Category;
+use FastForward\Changelog\Changeset\Changeset;
+use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Git\GitRepository;
+use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubPublicTransportInterface;
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
+use FastForward\Changelog\Release\Reference\PullRequestReferenceResolver;
+use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Version\VersionImpact;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -137,6 +145,85 @@ final class GitFragmentOriginTest extends TestCase
             $origin,
             $repository->fragmentOrigin($this->directory, $base, self::PATH, hash('sha256', self::BYTES)),
         );
+    }
+
+    /** A full main-only clone lacks squash heads; exact acquisition restores proof without changing refs or files. */
+    public function testMissingSquashedHeadIsAcquiredOnlyAfterApiVerification(): void
+    {
+        $this->git('switch', '-c', 'feature');
+        $this->write(self::PATH, self::BYTES);
+        $head = $this->commit(self::PATH);
+        $this->git('switch', 'main');
+        $this->git('merge', '--squash', 'feature');
+        $this->git('commit', '-m', 'Squash implementation');
+        $merge = $this->head();
+        $clone = $this->temporary . '/clone';
+        $this->git('clone', '--no-local', '--single-branch', '--branch=main', $this->directory, $clone);
+        $this->process(['git', '-C', $clone, 'remote', 'set-url', 'origin', 'https://github.com/owner/project.git']);
+        $probe = new Process(['git', '-C', $clone, 'cat-file', '-e', $head], $clone, $this->environment);
+        self::assertNotSame(0, $probe->run());
+        $refs = $this->process(['git', '-C', $clone, 'show-ref']);
+        $factory = new readonly class (
+            $clone,
+            $this->directory,
+            $this->environment,
+        ) implements ProcessFactoryInterface {
+            public function __construct(
+                private string $clone,
+                private string $remote,
+                private array $environment,
+            ) {}
+
+            public function create(array $command): Process
+            {
+                // Only this synthetic GitHub URL is redirected to the disposable source repository.
+                if (in_array('fetch', $command, true)) {
+                    $key = array_search('https://github.com/owner/project.git', $command, true);
+                    TestCase::assertNotFalse($key);
+                    $command[$key] = $this->remote;
+                }
+
+                return new Process($command, $this->clone, $this->environment);
+            }
+        };
+        $repo = ['id' => 42, 'node_id' => 'synthetic-node', 'full_name' => 'owner/project'];
+        $pr = ['number' => 94, 'state' => 'closed', 'merged' => true, 'changed_files' => 1, 'commits' => 1,
+            'head' => ['sha' => $head, 'ref' => 'feature'], 'base' => ['ref' => 'main', 'repo' => $repo]];
+        $github = $this->createStubForIntersectionOfInterfaces([
+            GitHubClientInterface::class,
+            GitHubPublicTransportInterface::class,
+        ]);
+        $github->method('usesPublicGitHub')->willReturn(true);
+        $github->method('request')->willReturnCallback(static fn(string $method, string $path): array => match ($path) {
+            '/repos/owner/project' => $repo,
+            '/repos/owner/project/pulls/94' => $pr,
+            '/graphql' => ['data' => ['repository' => ['id' => $repo['node_id'], 'nameWithOwner' => $repo['full_name'],
+                'pullRequest' => ['number' => 94, 'state' => 'MERGED', 'merged' => true, 'headRefOid' => $head,
+                    'headRefName' => 'feature', 'baseRefName' => 'main', 'mergeCommit' => ['oid' => $merge]]]]],
+            default => throw new RuntimeException('Unexpected synthetic API request'),
+        });
+        $github->method('paginate')->willReturnCallback(static fn(string $path): array => match ($path) {
+            '/repos/owner/project/commits/' . $merge . '/pulls' => [['number' => 94]],
+            '/repos/owner/project/pulls/94/commits' => [['sha' => $head]],
+            '/repos/owner/project/pulls/94/files' => [['filename' => self::PATH, 'status' => 'added',
+                'sha' => hash('sha1', 'blob ' . strlen(self::BYTES) . "\0" . self::BYTES)]],
+            default => throw new RuntimeException('Unexpected synthetic API list'),
+        });
+        $resolver = new PullRequestReferenceResolver(
+            new GitRepository($factory), $github, new PackagePathResolver($clone),
+        );
+        $result = $resolver->resolve(new ReleaseOptions(
+            $clone, repository: 'owner/project', resolvePullRequests: true,
+        ), $merge, [new Changeset(
+            'fix.md', Category::Fixed, null, null, null, 'Exact current fragment.',
+            VersionImpact::Patch,
+        )]);
+        self::assertSame(94, $result[0]->pullRequest);
+        self::assertSame($refs, $this->process(['git', '-C', $clone, 'show-ref']));
+        self::assertSame($merge, trim($this->process(['git', '-C', $clone, 'rev-parse', 'HEAD'])));
+        self::assertSame('', $this->process(['git', '-C', $clone, 'status', '--porcelain']));
+        self::assertSame(self::BYTES, file_get_contents($clone . '/' . self::PATH));
+        self::assertFileDoesNotExist($clone . '/.git/FETCH_HEAD');
     }
 
     /** A root PR can contain an implementation merge without being the fragment's own implementation. */

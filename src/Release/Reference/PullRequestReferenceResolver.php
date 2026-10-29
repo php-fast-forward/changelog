@@ -19,10 +19,12 @@ use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use FastForward\Changelog\Git\GitCommitAcquirerInterface;
 use FastForward\Changelog\Git\GitFragmentOriginReaderInterface;
 use FastForward\Changelog\Git\GitFragmentProvenanceReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubPublicTransportInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use InvalidArgumentException;
 use RuntimeException;
@@ -53,6 +55,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      *
      * All caches belong to this invocation. Operational failures are redacted and never
      * downgraded to an empty association list; no fragment or remote object is modified.
+     * Missing verified PR heads may populate local Git objects.
      *
      * @param  ReleaseOptions           $options        Trusted consumer paths, explicit repository and opt-in resolution policy.
      * @param  ?string                  $baseSha        Immutable source base, or null when no committed origin is available.
@@ -146,6 +149,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         $files = [];
         $commits = [];
         $references = [];
+        $heads = [];
 
         foreach ($origins as $index => [$path, $blob, $origin]) {
             $associations[$origin] ??= $this->associatedNumbers($options->repository, $origin);
@@ -164,15 +168,21 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
                     $files[$number] ??= $this->changedFiles($options->repository, $number, $pr);
                     $object = 'blob ' . strlen($blob) . "\0" . $blob;
                     $oid = $files[$number][$path] ?? '';
+                    if (! in_array($oid, [hash('sha1', $object), hash('sha256', $object)], true)) {
+                        throw new RuntimeException('The candidate PR does not contain the accepted fragment blob.');
+                    }
                     $commits[$number] ??= $this->implementationCommits($options->repository, $number, $pr);
+                    if (! isset($heads[$number])) {
+                        $this->ensureHead($directory, $options->repository, $repository, $number, $pr, $merge);
+                        $heads[$number] = true;
+                    }
                     $headOrigin = $this->git->fragmentOrigin(
                         $directory,
                         $pr['head']['sha'],
                         $path,
                         hash('sha256', $blob),
                     );
-                    if (! in_array($oid, [hash('sha1', $object), hash('sha256', $object)], true)
-                        || null === $headOrigin || ! isset($commits[$number][$headOrigin])
+                    if (null === $headOrigin || ! isset($commits[$number][$headOrigin])
                         || ! $this->git->fragmentHasDirectOrigin(
                             $directory,
                             $pr['head']['sha'],
@@ -189,6 +199,48 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         }
 
         return $references;
+    }
+
+    /**
+     * Recovers a missing original head only after independent API proofs selected this candidate.
+     *
+     * @param  string           $directory  Canonical consumer Git root.
+     * @param  string           $name       Trusted owner/name used in repository-scoped API calls.
+     * @param  array            $repository Verified REST repository identity.
+     * @param  int              $number     Verified merged candidate PR number.
+     * @param  array            $pr         Original corroborated REST PR record.
+     * @param  string           $merge      Original corroborated merge commit.
+     * @return void             No value; only the exact verified head may proceed to provenance checks.
+     * @throws RuntimeException When acquisition is unavailable, fails or disagrees with renewed API evidence.
+     */
+    private function ensureHead(
+        string $directory,
+        string $name,
+        array $repository,
+        int $number,
+        array $pr,
+        string $merge,
+    ): void {
+        $head = $pr['head']['sha'];
+        try {
+            $resolved = $this->git->resolveRef($directory, $head);
+        } catch (RuntimeException $failure) {
+            if (! $this->git instanceof GitCommitAcquirerInterface
+                || ! $this->github instanceof GitHubPublicTransportInterface || ! $this->github->usesPublicGitHub()) {
+                throw $failure;
+            }
+            $this->git->acquireCommit($directory, $name, $head);
+            $resolved = $this->git->resolveRef($directory, $head);
+            $renewed = [];
+            if ($this->repository($name) !== $repository
+                || $this->mergedCommit($name, $repository, $number, $renewed) !== $merge
+                || $renewed[$number]['head']['sha'] !== $head) {
+                throw new RuntimeException('Acquired PR head evidence changed during verification.');
+            }
+        }
+        if ($resolved !== $head) {
+            throw new RuntimeException('The local PR head does not match the verified immutable SHA.');
+        }
     }
 
     /**

@@ -20,6 +20,57 @@ final class GitRepositoryTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+    /** Only the corroborated repository and complete SHA reach Git; no ref destination is supplied. */
+    public function testAcquisitionFetchesOnlyTheExactHeadWithoutUpdatingRefs(): void
+    {
+        $this->repository([
+            [['remote', 'get-url', 'origin'], 'git@github.com:owner/project.git'],
+            [['fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--',
+                'https://github.com/owner/project.git', self::SHA], ''],
+        ])->acquireCommit('/consumer', 'owner/project', self::SHA);
+    }
+
+    /** Unverified transport origins are refused before network access. */
+    #[DataProvider('untrustedAcquisitionOrigins')]
+    public function testAcquisitionRejectsUntrustedOrigins(?string $origin): void
+    {
+        $this->expectExceptionMessage('selected GitHub repository origin');
+        $this->repository([[['remote', 'get-url', 'origin'], $origin ?? '']])->acquireCommit(
+            '/consumer', 'owner/project', self::SHA,
+        );
+    }
+
+    /** Supplies mismatching repositories and non-GitHub transports. */
+    public static function untrustedAcquisitionOrigins(): array
+    {
+        return [[null], ['https://github.com/other/project.git'], ['https://untrusted.test/owner/project.git']];
+    }
+
+    /** Arbitrary refs and malformed repository names never start Git. */
+    #[DataProvider('invalidAcquisitionInputs')]
+    public function testAcquisitionRejectsInvalidInputs(string $repository, string $sha): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->repository([])->acquireCommit('/consumer', $repository, $sha);
+    }
+
+    /** Supplies invalid owner/name and non-immutable revisions. */
+    public static function invalidAcquisitionInputs(): array
+    {
+        return [['bad', self::SHA], ['owner/project', 'main']];
+    }
+
+    /** Network failures remain failures and cannot fabricate local provenance. */
+    public function testAcquisitionPropagatesFetchFailure(): void
+    {
+        $this->expectExceptionMessage('Git failed: unavailable');
+        $this->repository([
+            [['remote', 'get-url', 'origin'], 'https://github.com/owner/project.git'],
+            [['fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--',
+                'https://github.com/owner/project.git', self::SHA], '', false, 'unavailable'],
+        ])->acquireCommit('/consumer', 'owner/project', self::SHA);
+    }
+
     /** Origin inference reads only local Git configuration and never contacts a remote. */
     public function testOriginUrlRetainsItsValueWithoutTransportNewlines(): void
     {
