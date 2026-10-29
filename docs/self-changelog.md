@@ -104,38 +104,48 @@ that cannot be compared fails closed; there is no separate format validator.
 A newer full tag without a release can conservatively block promotion. The
 selector is not a publication catalog reconciler and does not repeat live
 release/SHA checks. This smaller contract depends on publication only through
-Changelog and immutable full tags after separately approved activation; neither
-is asserted to be enforced by the current unmodified remote configuration.
+Changelog and immutable full tags enforced by the applied tag rules. Configuration
+checks do not prove a future workflow execution or publication; provider and
+caller deployment remain separate.
 No PHP updater, checkout or manual arbitrary-SHA dispatch remains.
 
-### Activation still requires separate approval
+### Configuration applied; workflow deployment remains separate
 
 The prepared caller selects App **5513989**, client ID
 `Iv23liHqRng02H747IYa`, only for publication when repository variable
 **`RELEASE_CHANNEL_PUBLICATION_ENABLED`** is exactly **`true`**. Until that opt-in,
 it retains the existing publication credential route and does not select the
-publication environment. Enable the variable only after separately approved key,
-environment and policy staging; neither adding the optional API nor merging code
-is credential activation. Other lifecycle jobs retain their
+publication environment. The user authorized staging on 2026-10-29. The environment key and policies
+were verified before the variable was enabled; neither this configuration task
+nor its checks merged code or published a release. Other lifecycle jobs retain their
 credentials and managed-PR Bot. Publication still verifies that original author
 independently of the App making API requests. Its requested Contents write and
 Pull requests read permissions are already granted to the App. No App permission
 or installation expansion is proposed for Changelog. Read-only metadata on
 2026-10-28 confirms installation **176263242** is active with repository selection
-**all** for `php-fast-forward`, including Code Standards. Sharing its private key
-with another repository is still a separately approved credential operation.
+**all** for `php-fast-forward`, including Code Standards. The user authorized using that existing key in Code Standards on 2026-10-29;
+future distribution outside these two repositories still requires approval.
 Publication using only `GITHUB_TOKEN` would not start this release-event workflow.
 
-`release-channels` currently has a `main` branch policy and a secret named
-`RELEASE_CHANNEL_APP_PRIVATE_KEY` (metadata verified; key validity not rechecked).
-The proposed configuration retains `main`, adds tag policy `v*.*.*`, and migrates
-the key to **`app-private-key`**, the existing publication-reusable secret name
-also used by channel promotion. Stage that name before deploying reviewed code;
-remove the old secret name only after the deployment is confirmed. No key has
-been read or copied for this patch. The caller explicitly forwards the declared
-publication secret; the nested job's environment supplies its value.
+The environment key is **`RELEASE_CHANNEL_APP_PRIVATE_KEY`** in both repositories.
+GitHub repository/environment secret names permit only letters, digits and
+underscores; uploading a secret named `app-private-key` was rejected with HTTP
+422. Hyphenated names such as `publish-app-private-key` and `app-private-key`
+remain valid **logical workflow-call inputs**, not environment secret slots.
+The lifecycle explicitly forwards `RELEASE_CHANNEL_APP_PRIVATE_KEY` to the
+publication reusable; that job's environment value takes precedence while
+raw-token and logical `app-private-key` callers remain compatible. The channel
+job reads the same valid environment key directly. No key-name migration or
+permanent duplicate secret is needed.
 
-Proposed active rulesets use these targets and bypass identities:
+The environments allow branch `main` and full release tags `v*.*.*`, without
+additional reviewers. Their public `RELEASE_CHANNEL_APP_CLIENT_ID` variable
+identifies App 5513989. Readback on 2026-10-29 verified both environments, secret names, Client IDs
+and branch/tag policies. Workflow code still requires the separately reviewed
+provider/caller deployments, including the valid secret-name binding. No merge or
+publication is performed by configuration verification.
+
+The applied active rulesets use these targets and bypass identities:
 
 | Target | Restrictions | Bypass |
 | --- | --- | --- |
@@ -147,16 +157,18 @@ Proposed active rulesets use these targets and bypass identities:
 | Full tags `v*.*.*` | Creation | App integration **5513989**, always |
 | Full tags `v*.*.*` | Update and deletion | None |
 
-Update the existing branch writer (**26066275**) and integrity (**26066270**)
-accordingly; expand the existing numeric tag reservation (**26066273**) to `v1`.
-The other rules are proposed additions. Full-tag creation restrictions matter
-because release-event workflow code comes from the released ref and the
-environment permits full version tags. A writer able to publish arbitrary
-version-tag workflows could otherwise obtain the environment key. Review the
-impact on other tag-creating automation before applying these rules. Keep `main`
-checks and zero required approvals unchanged.
+Changelog's existing branch writer (**26066275**), integrity (**26066270**) and
+numeric tag reservation (**26066273**) were updated. The new rulesets are latest
+writer **26099239**, latest deletion **26099240**, concrete-tag creation
+**26099234**, and concrete-tag immutability **26099237**. Equivalent rules were
+created for Code Standards. Full-tag creation restrictions matter because
+release-event workflow code comes from the released ref and the environment
+permits full version tags; arbitrary version-tag workflows could otherwise obtain
+the environment key. No shared GitHub Actions or administrator bypass was added
+to these channel/full-tag rules. Existing `main` rules were verified unchanged,
+including current checks and approval settings.
 
-Exact proposed payloads, **not applied**:
+Applied payloads, read back and verified on **2026-10-29**:
 
 ```json
 [{"name":"Dedicated major branch writer","target":"branch","enforcement":"active","conditions":{"ref_name":{"include":["refs/heads/v0","refs/heads/v1"],"exclude":[]}},"rules":[{"type":"creation"},{"type":"update"}],"bypass_actors":[{"actor_id":5513989,"actor_type":"Integration","bypass_mode":"always"}]},{"name":"Major branch integrity","target":"branch","enforcement":"active","conditions":{"ref_name":{"include":["refs/heads/v0","refs/heads/v1"],"exclude":[]}},"rules":[{"type":"deletion"},{"type":"non_fast_forward"}],"bypass_actors":[]},{"name":"Dedicated latest tag writer","target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/latest"],"exclude":[]}},"rules":[{"type":"creation"},{"type":"update"}],"bypass_actors":[{"actor_id":5513989,"actor_type":"Integration","bypass_mode":"always"}]},{"name":"Latest tag deletion protection","target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/latest"],"exclude":[]}},"rules":[{"type":"deletion"}],"bypass_actors":[]},{"name":"Reserved numeric channel tags","target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v0","refs/tags/v1"],"exclude":[]}},"rules":[{"type":"creation"},{"type":"update"},{"type":"deletion"}],"bypass_actors":[]},{"name":"Concrete release publisher","target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v*.*.*"],"exclude":[]}},"rules":[{"type":"creation"}],"bypass_actors":[{"actor_id":5513989,"actor_type":"Integration","bypass_mode":"always"}]},{"name":"Concrete release immutability","target":"tag","enforcement":"active","conditions":{"ref_name":{"include":["refs/tags/v*.*.*"],"exclude":[]}},"rules":[{"type":"update"},{"type":"deletion"}],"bypass_actors":[]}]
@@ -169,9 +181,12 @@ preparing or testing this patch does not authorize moving any of these refs.
 Consumer Code Standards must first adopt a verified Changelog release containing
 the new optional publication-only API; the current published `@v0` does not have
 those inputs. Its installation is already covered by the organization-wide
-selection; creating its environment and distributing the key remain pending
-approval. Metadata inspection does not verify that an environment secret holds
-a valid key.
+selection. Its environment and valid secret were provisioned under the user's
+2026-10-29 authorization. The local key was authenticated read-only as App 5513989
+before upload; secret values were never printed. Readback verifies secret
+metadata, not decryption or a live publication. The prior candidate revision
+expects an invalid environment secret name; the separately reviewed caller must
+adopt the corrected provider binding before the next publication.
 
 ### Remaining limits and recovery
 
@@ -182,7 +197,7 @@ by a 1.x event can leave `v0` stale. Include canceled pending runs when inspecti
 recovery. See [GitHub's concurrency behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 The lock serializes this workflow only. The action has
 no expected-old-SHA CAS, ancestry check, immediate evidence revalidation or
-post-write confirmation. Native non-fast-forward rules remain proposed without
+post-write confirmation. Native non-fast-forward rules are active without
 App bypass; they can reject backwards branch writes, but actual server acceptance
 of the action's API calls requires authorized observation. They do not turn the
 SDK snapshot and later mutation into one atomic transaction. Major and `latest`

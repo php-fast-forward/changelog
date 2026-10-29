@@ -79,8 +79,14 @@ App to publish the verified release. The lifecycle accepts optional
 Contents write and Pull requests read; it still passes the original
 `automation-actor` to the publication service to verify the managed PR.
 
+The names `app-private-key` and `publish-app-private-key` are logical workflow-call
+aliases. They cannot be used as repository/environment secret names: those names
+must contain only letters, digits and underscores. For protected-environment
+publication use `RELEASE_CHANNEL_APP_PRIVATE_KEY`, explicitly forwarded under
+that name to the nested publication workflow.
+
 The individual publication reusable also accepts `environment`. If selected,
-its `app-private-key` environment secret takes precedence for that job; callers
+its `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret takes precedence for that job; callers
 must explicitly forward the declared secret through the reusable chain. The
 repository's own caller demonstrates this route. Environment policy, App use and
 secret provisioning require separate authorization; optional inputs do not grant
@@ -109,10 +115,10 @@ authentication fails before publication instead of falling back silently.
    contract and selects that verified revision. Do not invent a future tag or
    assume the moving channel has already advanced.
 3. Separately approve and provision the publication environment, declared
-   `app-private-key` secret, repository-scoped App use and relevant policies.
+   `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret, repository-scoped App use and relevant policies.
    Forward the declared secret through both reusable calls. For this repository's
-   own caller, set `RELEASE_CHANNEL_PUBLICATION_ENABLED=true` only after the
-   separately approved configuration is staged; otherwise its previous publication
+   own caller, `RELEASE_CHANNEL_PUBLICATION_ENABLED=true` is set after the
+   approved configuration is staged; otherwise its previous publication
    credential route remains active. The optional API does not provision
    credentials or authorize channel writes.
 4. Merge the separately reviewed consumer caller only after its selected provider
