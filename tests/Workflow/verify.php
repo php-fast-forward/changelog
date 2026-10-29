@@ -1072,7 +1072,7 @@ verifyWorkflow(
 );
 ++$assertions;
 verifyWorkflow(
-    'Actions-R-Us/actions-tagger@v2.0.3'
+    'Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb'
         === workflowStep($channelJob, 'Update The Released Major Branch')['uses']
         && [
             'token' => '${{ steps.channel-app.outputs.token }}',
