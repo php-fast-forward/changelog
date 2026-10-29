@@ -20,7 +20,7 @@ use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /** Sends explicit GitHub API requests with bounded pagination and redacted failures. */
-final readonly class GitHubClient implements GitHubClientInterface
+final readonly class GitHubClient implements GitHubClientInterface, GitHubPublicTransportInterface
 {
     /**
      * Injects the transport and explicit API settings; no host or network state is read here.
@@ -40,6 +40,16 @@ final readonly class GitHubClient implements GitHubClientInterface
         private string $apiUrl = 'https://api.github.com',
         private int $maxPages = 100,
     ) {}
+
+    /**
+     * Binds optional public Git object acquisition to this adapter's trusted API origin.
+     *
+     * @return bool Whether API evidence was obtained through the canonical public GitHub origin.
+     */
+    public function usesPublicGitHub(): bool
+    {
+        return 'https://api.github.com' === rtrim($this->apiUrl, '/');
+    }
 
     /**
      * Executes one request and returns only its decoded JSON value.

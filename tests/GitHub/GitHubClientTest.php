@@ -18,6 +18,17 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 #[CoversClass(GitHubClient::class)]
 final class GitHubClientTest extends TestCase
 {
+    /** Git acquisition can only use public GitHub when API evidence shares that trusted origin. */
+    public function testPublicTransportIdentityIsExplicit(): void
+    {
+        self::assertTrue(new GitHubClient($this->createStub(HttpClientInterface::class))->usesPublicGitHub());
+        self::assertFalse(
+            new GitHubClient($this->createStub(
+                HttpClientInterface::class,
+            ), apiUrl: 'https://enterprise.test/api/v3')->usesPublicGitHub(),
+        );
+    }
+
     #[Test]
     public function sendsExplicitHeadersJsonAndDisablesRedirects(): void
     {

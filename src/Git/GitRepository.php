@@ -22,7 +22,7 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /** Runs structured Git argv without shell interpolation or global cwd mutation. */
-final readonly class GitRepository implements GitRepositoryInterface, GitCommitTreeReaderInterface, GitFragmentOriginReaderInterface, GitFragmentProvenanceReaderInterface
+final readonly class GitRepository implements GitCommitAcquirerInterface, GitRepositoryInterface, GitCommitTreeReaderInterface, GitFragmentOriginReaderInterface, GitFragmentProvenanceReaderInterface
 {
     private ReleaseMetadataParser $metadata;
 
@@ -273,6 +273,36 @@ final readonly class GitRepository implements GitRepositoryInterface, GitCommitT
         }
 
         return $sha;
+    }
+
+    /**
+     * Fetches one API-verified GitHub head without changing local refs or the working tree.
+     *
+     * @param  string                   $directory  Consumer Git root receiving immutable objects.
+     * @param  string                   $repository Verified owner/name that must match the local GitHub origin.
+     * @param  string                   $sha        Complete independently corroborated original PR head.
+     * @return void                     No value; the caller rechecks the fetched commit before using its provenance.
+     * @throws InvalidArgumentException When an input is not a complete repository or commit identity.
+     * @throws RuntimeException         When origin identity or the exact object acquisition cannot be verified.
+     */
+    public function acquireCommit(string $directory, string $repository, string $sha): void
+    {
+        if (1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)
+            || 1 !== preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha)) {
+            throw new InvalidArgumentException('Commit acquisition requires a repository and complete SHA.');
+        }
+        $origin = $this->originUrl($directory);
+        if (null === $origin || 1 !== preg_match(
+            '~\A(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?\z~iD',
+            $origin,
+            $matches,
+        ) || 0 !== strcasecmp($matches[1], $repository)) {
+            throw new RuntimeException('Commit acquisition requires the selected GitHub repository origin.');
+        }
+        $this->run($directory, [
+            'fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--',
+            'https://github.com/' . $repository . '.git', $sha,
+        ]);
     }
 
     /**
