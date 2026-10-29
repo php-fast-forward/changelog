@@ -135,8 +135,10 @@ underscores; uploading a secret named `app-private-key` was rejected with HTTP
 422. Hyphenated names such as `publish-app-private-key` and `app-private-key`
 remain valid **logical workflow-call inputs**, not environment secret slots.
 The lifecycle explicitly forwards `RELEASE_CHANNEL_APP_PRIVATE_KEY` to the
-publication reusable; that job's environment value takes precedence while
-raw-token and logical `app-private-key` callers remain compatible. The channel
+publication reusable. An explicitly forwarded logical `app-private-key` takes
+precedence; the environment key is a fallback only when an App client ID is
+selected and no explicit key is supplied. Raw-token callers ignore the staged
+environment key. The channel
 job reads the same valid environment key directly. No key-name migration or
 permanent duplicate secret is needed.
 

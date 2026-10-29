@@ -121,7 +121,7 @@ differs from the low-level History Action's default.
 | --- | --- | --- | --- |
 | `token` | No | All | Existing authorized Bot/App token. Empty uses `github.token`; Lifecycle's PR-head Check always uses its ordinary read-only token. |
 | `publish-app-private-key` | No | Lifecycle | Optional key for the publication-only App; other operations retain their credentials. An explicitly forwarded `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret can supply the publication job instead. |
-| `RELEASE_CHANNEL_APP_PRIVATE_KEY` | No | Publish | Valid underscore-named environment secret, explicitly forwarded by Lifecycle; takes precedence over the logical `app-private-key` alias in that job. |
+| `RELEASE_CHANNEL_APP_PRIVATE_KEY` | No | Publish | Valid underscore-named environment secret, explicitly forwarded by Lifecycle; used only when an App client ID is selected and no explicit logical `app-private-key` is supplied. The explicit key takes precedence when both are supplied. |
 | `app-private-key` | No | All except Check | GitHub App private key paired with `app-client-id`; each trusted job creates its own installation token. |
 
 Use either an existing `token` or the App pair, never both. For managed PRs,
