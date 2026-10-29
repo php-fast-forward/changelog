@@ -86,7 +86,10 @@ publication use `RELEASE_CHANNEL_APP_PRIVATE_KEY`, explicitly forwarded under
 that name to the nested publication workflow.
 
 The individual publication reusable also accepts `environment`. If selected,
-its `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret takes precedence for that job; callers
+its `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret supplies a key only when
+an App client ID is selected and no explicit logical `app-private-key` is supplied.
+A staged environment key is ignored in token mode. Publication-only keys are
+forwarded only with `publish-app-client-id`, keeping the legacy App/key pair intact; callers
 must explicitly forward the declared secret through the reusable chain. The
 repository's own caller demonstrates this route. Environment policy, App use and
 secret provisioning require separate authorization; optional inputs do not grant

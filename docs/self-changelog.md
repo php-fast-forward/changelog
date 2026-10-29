@@ -72,7 +72,7 @@ For image-only failures after a published release, use [Docker recovery](docker.
 
 ## Released major branches and latest
 
-The repository channel workflow uses `Actions-R-Us/actions-tagger@v2` on real
+The repository channel workflow uses `Actions-R-Us/actions-tagger@v2.0.3` on real
 `release: published` and `release: edited` events. The requested major channels
 are **branches** `v0` and `v1`; `latest` is the action's native moving **tag**.
 A 1.x release creates/updates `v1` and can advance `latest`, leaving `v0` on 0.x.
@@ -86,9 +86,10 @@ introducing that abbreviated stable tag; numeric branches have development
 stability. This does not make a moving Actions channel an immutable dependency.
 See [Composer's tag and branch rules](https://getcomposer.org/doc/articles/versions.md#vcs-tags-and-branches).
 
-On 2026-10-28, upstream `@v2` resolved to commit
+On 2026-10-29, the verified full tag `@v2.0.3` resolves to commit
 `330ddfac760021349fef7ff62b372f2f691c20fb`, with distributed Git blob
-`0e8ec35de217f085b99b6f27e63343c3b9202c96`. This upstream channel can move.
+`0e8ec35de217f085b99b6f27e63343c3b9202c96`. A full version tag can still be moved
+upstream; this is not an immutable SHA pin.
 The resolved action force-updates major branches and always uses `tags/latest`
 when latest is enabled. In branch mode its native comparison does not recognize
 abbreviated `v0`/`v1` branches as full versions: an old edited release can regress
@@ -113,7 +114,8 @@ No PHP updater, checkout or manual arbitrary-SHA dispatch remains.
 
 The prepared caller selects App **5513989**, client ID
 `Iv23liHqRng02H747IYa`, only for publication when repository variable
-**`RELEASE_CHANNEL_PUBLICATION_ENABLED`** is exactly **`true`**. Until that opt-in,
+**`RELEASE_CHANNEL_PUBLICATION_ENABLED`** is exactly **`true`**. The channel job
+requires the same opt-in before accessing its environment. Until that opt-in,
 it retains the existing publication credential route and does not select the
 publication environment. The user authorized staging on 2026-10-29. The environment key and policies
 were verified before the variable was enabled; neither this configuration task
@@ -206,7 +208,7 @@ The workflow requests a repository-limited token, but the private key can mint
 tokens for other repositories covered by the organization-wide installation.
 Compromise of that key in Code Standards could therefore affect Changelog too.
 Other writers with the key can race this job; deleted/rewritten evidence and
-upstream `@v2` changes require fresh review. Administrators able to edit rules or
+upstream `@v2.0.3` changes require fresh review. Administrators able to edit rules or
 trusted workflows can change these boundaries. A stolen App key/token remains
 a supply-chain risk; no absolute immutability is promised for moving channels.
 

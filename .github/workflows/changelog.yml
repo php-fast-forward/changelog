@@ -307,8 +307,8 @@ jobs:
       dry-run: ${{ inputs.dry-run }}
     secrets:
       token: ${{ inputs.publish-app-client-id == '' && secrets.token || '' }}
-      app-private-key: ${{ secrets.publish-app-private-key || secrets.app-private-key }}
-      RELEASE_CHANNEL_APP_PRIVATE_KEY: ${{ secrets.publish-app-private-key }}
+      app-private-key: ${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || inputs.publish-app-client-id == '' && secrets.app-private-key || '' }}
+      RELEASE_CHANNEL_APP_PRIVATE_KEY: ${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || '' }}
 
   report:
     name: Explain Version And Publication Results

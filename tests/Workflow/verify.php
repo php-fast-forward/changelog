@@ -597,9 +597,9 @@ foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-p
                 verifyWorkflow(
                     '${{ inputs.publish-app-client-id || inputs.app-client-id }}' === $job['with']['app-client-id']
                         && '${{ inputs.publish-environment }}' === $job['with']['environment']
-                        && '${{ secrets.publish-app-private-key || secrets.app-private-key }}'
+                        && "\${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || inputs.publish-app-client-id == '' && secrets.app-private-key || '' }}"
                             === $job['secrets']['app-private-key']
-                        && '${{ secrets.publish-app-private-key }}' === $job['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']
+                        && "\${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || '' }}" === $job['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']
                         && "\${{ inputs.publish-app-client-id == '' && secrets.token || '' }}"
                             === $job['secrets']['token'],
                     'Publication-only App credentials must not change the other lifecycle operations.',
@@ -620,7 +620,7 @@ foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-p
             verifyWorkflow(
                 '${{ inputs.app-client-id }}' === $authentication['with']['app-client-id']
                     && ('changelog-publish' === $entrypoint
-                        ? '${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY || secrets.app-private-key }}'
+                        ? "\${{ inputs.app-client-id != '' && (secrets.app-private-key || secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}"
                         : '${{ secrets.app-private-key }}') === $authentication['with']['app-private-key']
                     && '${{ secrets.token }}' === $authentication['with']['token']
                     && '${{ github.token }}' === $authentication['with']['fallback-token']
@@ -1072,7 +1072,7 @@ verifyWorkflow(
 );
 ++$assertions;
 verifyWorkflow(
-    'Actions-R-Us/actions-tagger@v2'
+    'Actions-R-Us/actions-tagger@v2.0.3'
         === workflowStep($channelJob, 'Update The Released Major Branch')['uses']
         && [
             'token' => '${{ steps.channel-app.outputs.token }}',
@@ -1146,6 +1146,79 @@ try {
         );
         ++$assertions;
     }
+    $channelActivation = "const vars = { RELEASE_CHANNEL_PUBLICATION_ENABLED: process.env.FF_PUBLICATION_ENABLED };\n"
+        . "github.repository = 'php-fast-forward/changelog'; github.event = { release: { draft: false, prerelease: false } };\n"
+        . "core.setOutput('enabled', Boolean(" . $channelJob['if'] . '));';
+    foreach (['', 'false', 'true'] as $enabled) {
+        $result = workflowScriptGuard(
+            $channelActivation,
+            $channelDirectory,
+            ['FF_PUBLICATION_ENABLED' => $enabled],
+            [],
+            0,
+        );
+        verifyWorkflow(
+            ['enabled' => 'true' === $enabled] === $result['outputs'],
+            'Staged channel credentials must remain inactive until the explicit repository opt-in.',
+        );
+        ++$assertions;
+    }
+
+    // Evaluate the actual YAML credential expressions and then execute the auth boundary.
+    $publishJob = Yaml::parseFile($root . '/.github/workflows/changelog-publish.yml')['jobs']['changelog'];
+    $keyExpression = workflowStep($publishJob, 'Authenticate Trusted GitHub Operations')['with']['app-private-key'];
+    $expression = static fn(string $value): string => (string) preg_replace(
+        '/\b(inputs|secrets)\.([A-Za-z0-9_-]+)/',
+        '$1["$2"]',
+        substr($value, 3, -2),
+    );
+    foreach ([
+        ['', '', '', '', 'raw-token', 'staged-key', '', '', 'raw-token', 0],
+        ['', '', '', '', '', 'staged-key', '', '', '', 0],
+        ['legacy-id', '', 'legacy-key', 'unused-publisher-key', '', 'staged-key', 'legacy-id', 'legacy-key', '', 0],
+        [
+            'legacy-id',
+            'publisher-id',
+            'legacy-key',
+            'publisher-key',
+            'raw-token',
+            'staged-key',
+            'publisher-id',
+            'publisher-key',
+            '',
+            0,
+        ],
+        ['legacy-id', 'publisher-id', 'legacy-key', '', '', 'staged-key', 'publisher-id', 'staged-key', '', 0],
+        ['legacy-id', 'publisher-id', 'legacy-key', '', '', '', 'publisher-id', '', '', 1],
+    ] as [$legacyId, $publisherId, $legacyKey, $publisherKey, $token, $environmentKey, $expectedId, $expectedKey, $expectedToken, $status]) {
+        $script = 'let inputs = ' . json_encode([
+            'app-client-id' => $legacyId, 'publish-app-client-id' => $publisherId],
+            JSON_THROW_ON_ERROR,
+        )
+            . '; let secrets = ' . json_encode([
+                'app-private-key' => $legacyKey, 'publish-app-private-key' => $publisherKey, 'token' => $token],
+                JSON_THROW_ON_ERROR,
+            ) . ";\n"
+            . 'const id = ' . $expression($lifecycle['jobs']['publish']['with']['app-client-id']) . ";\n"
+            . 'const key = ' . $expression($lifecycle['jobs']['publish']['secrets']['app-private-key']) . ";\n"
+            . 'const token = ' . $expression($lifecycle['jobs']['publish']['secrets']['token']) . ";\n"
+            . 'inputs = { "app-client-id": id }; secrets = { "app-private-key": key, "RELEASE_CHANNEL_APP_PRIVATE_KEY": '
+            . json_encode($environmentKey, JSON_THROW_ON_ERROR) . " };\n"
+            . 'core.setOutput("id", id); core.setOutput("key", ' . $expression($keyExpression) . '); core.setOutput("token", token);';
+        $result = workflowScriptGuard($script, $channelDirectory, [], [], 0)['outputs'];
+        verifyWorkflow(
+            ['id' => $expectedId, 'key' => $expectedKey, 'token' => $expectedToken] === $result,
+            'Publication credentials must preserve one selected identity, ignore staged keys in token mode and never borrow a legacy key for a different App.',
+        );
+        workflowGuard($auth['runs']['steps'][0]['run'], $channelDirectory, [
+            'FF_AUTH_CLIENT_ID' => $result['id'], 'FF_AUTH_PRIVATE_KEY' => $result['key'],
+            'FF_AUTH_TOKEN' => $result['token'], 'FF_AUTH_REPOSITORY' => 'owner/repository',
+            'FF_AUTH_OPERATION' => 'publish', 'FF_AUTH_READ_ALERTS' => 'false',
+            'FF_AUTH_EVENT' => 'pull_request_target', 'FF_AUTH_ACTION' => 'closed',
+            'FF_AUTH_MERGED' => 'true', 'FF_AUTH_HEAD_REPOSITORY' => 'owner/repository',
+        ], $status);
+        $assertions += 2;
+    }
 } finally {
     $filesystem->remove($channelDirectory);
 }
@@ -1156,9 +1229,9 @@ verifyWorkflow(
     1 === preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', 'RELEASE_CHANNEL_APP_PRIVATE_KEY')
         && 0 === preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', 'app-private-key')
         && isset($publicationWorkflow['on']['workflow_call']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY'])
-        && '${{ secrets.publish-app-private-key }}'
+        && "\${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || '' }}"
             === $lifecycle['jobs']['publish']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']
-        && '${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY || secrets.app-private-key }}'
+        && "\${{ inputs.app-client-id != '' && (secrets.app-private-key || secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}"
             === workflowStep($publicationJob, 'Authenticate Trusted GitHub Operations')['with']['app-private-key'],
     'Environment secrets require a valid underscore name forwarded separately from logical workflow-call aliases.',
 );

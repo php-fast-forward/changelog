@@ -15,6 +15,7 @@ jobs:
     name: Update Released Major Branch
     if: >-
       github.repository == 'php-fast-forward/changelog' &&
+      vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' &&
       github.event.release.draft == false && github.event.release.prerelease == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -62,7 +63,7 @@ jobs:
 
       - name: Update The Released Major Branch
         if: steps.release.outputs.promote == 'true'
-        uses: Actions-R-Us/actions-tagger@v2
+        uses: Actions-R-Us/actions-tagger@v2.0.3
         with:
           token: ${{ steps.channel-app.outputs.token }}
           prefer_branch_releases: 'true'

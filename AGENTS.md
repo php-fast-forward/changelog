@@ -45,7 +45,7 @@ used across Fast Forward PHP packages.
   relevant invariants, observable effects and failure conditions.
 - Preserve unrelated work and stage only reviewed task files. External Actions
   use verified full version tags, as requested by the maintainer; the repository
-  channel workflow explicitly follows `Actions-R-Us/actions-tagger@v2` under the
+  channel workflow explicitly follows `Actions-R-Us/actions-tagger@v2.0.3` under the
   current reviewed exception. Consumers select
   a published full version, reviewed immutable commit or verified release channel;
   repository-local reusable calls test the caller's exact revision. Merging requires review and
