@@ -229,7 +229,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
                 || ! $this->github instanceof GitHubPublicTransportInterface || ! $this->github->usesPublicGitHub()) {
                 throw $failure;
             }
-            $this->git->acquireCommit($directory, $name, $head);
+            $this->git->acquireCommit($directory, $name, $head, $this->github->commitPack($name, $head));
             $resolved = $this->git->resolveRef($directory, $head);
             $renewed = [];
             if ($this->repository($name) !== $repository

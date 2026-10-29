@@ -276,16 +276,17 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
     }
 
     /**
-     * Fetches one API-verified GitHub head without changing local refs or the working tree.
+     * Imports an authenticated exact-head pack without exposing credentials to Git or changing refs.
      *
      * @param  string                   $directory  Consumer Git root receiving immutable objects.
      * @param  string                   $repository Verified owner/name that must match the local GitHub origin.
      * @param  string                   $sha        Complete independently corroborated original PR head.
-     * @return void                     No value; the caller rechecks the fetched commit before using its provenance.
+     * @param  string                   $pack       Credential-free complete pack obtained through the authenticated HTTP boundary.
+     * @return void                     No value; the caller rechecks the imported commit before using its provenance.
      * @throws InvalidArgumentException When an input is not a complete repository or commit identity.
      * @throws RuntimeException         When origin identity or the exact object acquisition cannot be verified.
      */
-    public function acquireCommit(string $directory, string $repository, string $sha): void
+    public function acquireCommit(string $directory, string $repository, string $sha, string $pack): void
     {
         if (1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)
             || 1 !== preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha)) {
@@ -299,10 +300,15 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
         ) || 0 !== strcasecmp($matches[1], $repository)) {
             throw new RuntimeException('Commit acquisition requires the selected GitHub repository origin.');
         }
-        $this->run($directory, [
-            'fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--',
-            'https://github.com/' . $repository . '.git', $sha,
-        ]);
+        if (! str_starts_with($pack, 'PACK') || strlen($pack) < 32 || strlen($pack) > 67_108_864) {
+            throw new RuntimeException('Git object acquisition requires a bounded complete pack.');
+        }
+        $process = $this->processes->create(['git', '-C', $directory, 'index-pack', '--stdin', '--strict']);
+        $process->setInput($pack);
+        $process->run();
+        if (! $process->isSuccessful()) {
+            throw new RuntimeException('Git object acquisition could not validate the imported pack.');
+        }
     }
 
     /**

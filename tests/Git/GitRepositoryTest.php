@@ -20,14 +20,15 @@ final class GitRepositoryTest extends TestCase
 {
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+    private const string PACK = 'PACKsynthetic-complete-pack-for-unit-tests';
+
     /** Only the corroborated repository and complete SHA reach Git; no ref destination is supplied. */
-    public function testAcquisitionFetchesOnlyTheExactHeadWithoutUpdatingRefs(): void
+    public function testAcquisitionImportsOnlyCredentialFreePackWithoutUpdatingRefs(): void
     {
         $this->repository([
             [['remote', 'get-url', 'origin'], 'git@github.com:owner/project.git'],
-            [['fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--',
-                'https://github.com/owner/project.git', self::SHA], ''],
-        ])->acquireCommit('/consumer', 'owner/project', self::SHA);
+            [['index-pack', '--stdin', '--strict'], '', true, '', 0, self::PACK],
+        ])->acquireCommit('/consumer', 'owner/project', self::SHA, self::PACK);
     }
 
     /** Unverified transport origins are refused before network access. */
@@ -36,7 +37,7 @@ final class GitRepositoryTest extends TestCase
     {
         $this->expectExceptionMessage('selected GitHub repository origin');
         $this->repository([[['remote', 'get-url', 'origin'], $origin ?? '']])->acquireCommit(
-            '/consumer', 'owner/project', self::SHA,
+            '/consumer', 'owner/project', self::SHA, self::PACK,
         );
     }
 
@@ -51,7 +52,7 @@ final class GitRepositoryTest extends TestCase
     public function testAcquisitionRejectsInvalidInputs(string $repository, string $sha): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->repository([])->acquireCommit('/consumer', $repository, $sha);
+        $this->repository([])->acquireCommit('/consumer', $repository, $sha, self::PACK);
     }
 
     /** Supplies invalid owner/name and non-immutable revisions. */
@@ -61,14 +62,21 @@ final class GitRepositoryTest extends TestCase
     }
 
     /** Network failures remain failures and cannot fabricate local provenance. */
-    public function testAcquisitionPropagatesFetchFailure(): void
+    public function testAcquisitionRefusesInvalidImport(): void
     {
-        $this->expectExceptionMessage('Git failed: unavailable');
+        $this->expectExceptionMessage('could not validate the imported pack');
         $this->repository([
             [['remote', 'get-url', 'origin'], 'https://github.com/owner/project.git'],
-            [['fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--',
-                'https://github.com/owner/project.git', self::SHA], '', false, 'unavailable'],
-        ])->acquireCommit('/consumer', 'owner/project', self::SHA);
+            [['index-pack', '--stdin', '--strict'], '', false, 'unavailable', 1, self::PACK],
+        ])->acquireCommit('/consumer', 'owner/project', self::SHA, self::PACK);
+    }
+
+    /** A malformed pack never reaches a local import process. */
+    public function testAcquisitionRejectsMalformedPack(): void
+    {
+        $this->expectExceptionMessage('bounded complete pack');
+        $this->repository([[['remote', 'get-url', 'origin'], 'https://github.com/owner/project.git']])
+            ->acquireCommit('/consumer', 'owner/project', self::SHA, 'invalid');
     }
 
     /** Origin inference reads only local Git configuration and never contacts a remote. */
@@ -711,6 +719,9 @@ final class GitRepositoryTest extends TestCase
                 self::assertSame(['git', '-C', '/consumer', ...$response[0]], $argv);
                 $process = $this->createMock(Process::class);
                 $success = $response[2] ?? true;
+                if (isset($response[5])) {
+                    $process->expects(self::once())->method('setInput')->with($response[5])->willReturnSelf();
+                }
                 $process->expects(self::once())->method('run')->willReturn($success ? 0 : 1);
                 $process->expects(self::once())->method('isSuccessful')->willReturn($success);
                 $process->method('getOutput')->willReturn($response[1]);

@@ -12,12 +12,138 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpClient\Exception\JsonException;
 use Symfony\Component\HttpClient\Exception\TransportException;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 #[CoversClass(GitHubClient::class)]
 final class GitHubClientTest extends TestCase
 {
+    /** Private acquisition authenticates canonical HTTPS only; no token enters the Git protocol body. */
+    public function testCommitPackKeepsAuthenticationInHttpHeaders(): void
+    {
+        $sha = str_repeat('a', 40);
+        $pack = 'PACK' . str_repeat('x', 28);
+        $calls = [];
+        $http = new MockHttpClient(function (string $method, string $url, array $options) use (
+            &$calls,
+            $sha,
+            $pack
+        ): MockResponse {
+            $calls[] = [$method, $url];
+            self::assertSame([
+                'Authorization: Basic ' . base64_encode('x-access-token:private-token')],
+                $options['normalized_headers']['authorization'],
+            );
+            self::assertSame(0, $options['max_redirects']);
+            self::assertStringNotContainsString('private-token', $url . ($options['body'] ?? ''));
+            $options['on_progress'](32);
+            if ('GET' === $method) {
+                self::assertSame('https://github.com/owner/project.git/info/refs?service=git-upload-pack', $url);
+                $bytes = "001e# service=git-upload-pack\n0000";
+                $type = 'advertisement';
+            } else {
+                self::assertSame('https://github.com/owner/project.git/git-upload-pack', $url);
+                $want = 'want ' . $sha . "\n";
+                self::assertSame(sprintf('%04x', strlen($want) + 4) . $want . "00000009done\n", $options['body']);
+                $bytes = "0008NAK\n" . $pack;
+                $type = 'result';
+            }
+
+            return new MockResponse($bytes, ['response_headers' => ['content-type' => 'application/x-git-upload-pack-' . $type]]);
+        });
+        self::assertSame($pack, new GitHubClient($http, 'private-token')->commitPack('owner/project', $sha));
+        self::assertCount(2, $calls);
+    }
+
+    /** Unverified identity, transport and credential inputs never make an HTTP request. */
+    #[TestWith(['other', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'https://api.github.com', 'token'])]
+    #[TestWith(['owner/project', 'main', 'https://api.github.com', 'token'])]
+    #[TestWith(['owner/..', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'https://api.github.com', 'token'])]
+    #[TestWith([
+        'owner/project',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'https://enterprise.test/api/v3',
+        'token',
+    ])]
+    #[TestWith(['owner/project', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'https://api.github.com', "bad\ntoken"])]
+    public function testCommitPackRejectsUnverifiedInputs(string $repo, string $sha, string $api, string $token): void
+    {
+        $http = $this->createMock(HttpClientInterface::class);
+        $http->expects(self::never())->method('request');
+        $this->expectExceptionMessage('verified public GitHub identities');
+        new GitHubClient($http, $token, $api)->commitPack($repo, $sha);
+    }
+
+    /** Authentication denial, redirects and unexpected media cannot masquerade as an object pack. */
+    #[TestWith([401, 'application/x-git-upload-pack-advertisement'])]
+    #[TestWith([302, 'application/x-git-upload-pack-advertisement'])]
+    #[TestWith([200, 'text/html'])]
+    public function testCommitPackRefusesHttpFailure(int $status, string $type): void
+    {
+        $http = new MockHttpClient(new MockResponse('private-token raw error', [
+            'http_code' => $status, 'response_headers' => ['content-type' => $type],
+        ]));
+        $this->expectExceptionMessage('HTTP evidence could not be verified');
+        new GitHubClient($http, 'private-token')->commitPack('owner/project', str_repeat('a', 40));
+    }
+
+    /** Invalid framing is refused before credential-free bytes can reach a Git subprocess. */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCommitPackRefusesMalformedWireEvidence(bool $result): void
+    {
+        $responses = [];
+        if ($result) {
+            $responses[] = new MockResponse("001e# service=git-upload-pack\n0000", [
+                'response_headers' => ['content-type' => 'application/x-git-upload-pack-advertisement'],
+            ]);
+        }
+        $responses[] = new MockResponse('bad response', [
+            'response_headers' => ['content-type' => 'application/x-git-upload-pack-' . ($result ? 'result' : 'advertisement')],
+        ]);
+        $this->expectExceptionMessage($result ? 'invalid complete pack' : 'invalid service discovery');
+        new GitHubClient(new MockHttpClient($responses))->commitPack('owner/project', str_repeat('a', 40));
+    }
+
+    /** Transport exceptions must never disclose token-bearing request details. */
+    public function testCommitPackRedactsTransportFailures(): void
+    {
+        $http = new MockHttpClient(static function (): never {
+            throw new TransportException('private-token request details');
+        });
+        $this->expectExceptionMessage('transport failed; details were withheld');
+        new GitHubClient($http, 'private-token')->commitPack('owner/project', str_repeat('a', 40));
+    }
+
+    /** Download progress is capped before an oversized response can be retained. */
+    public function testCommitPackRefusesOversizedDownloadProgress(): void
+    {
+        $http = new MockHttpClient(static function (string $method, string $url, array $options): never {
+            $options['on_progress'](67_108_865);
+
+            throw new RuntimeException('Unreachable');
+        });
+        $this->expectExceptionMessage('response limit');
+        new GitHubClient($http)->commitPack('owner/project', str_repeat('a', 40));
+    }
+
+    /** A transport that omits progress still cannot return an oversized response. */
+    public function testCommitPackRefusesOversizedResponse(): void
+    {
+        $response = $this->createStub(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn(200);
+        $response->method('getHeaders')->willReturn(
+            ['content-type' => ['application/x-git-upload-pack-advertisement']],
+        );
+        $response->method('getContent')->willReturn(str_repeat('x', 67_108_865));
+        $http = $this->createStub(HttpClientInterface::class);
+        $http->method('request')->willReturn($response);
+        $this->expectExceptionMessage('response limit');
+        new GitHubClient($http)->commitPack('owner/project', str_repeat('a', 40));
+    }
+
     /** Git acquisition can only use public GitHub when API evidence shares that trusted origin. */
     public function testPublicTransportIdentityIsExplicit(): void
     {

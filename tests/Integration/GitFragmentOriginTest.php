@@ -8,8 +8,7 @@ use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Filesystem\PackagePathResolver;
 use FastForward\Changelog\Git\GitRepository;
-use FastForward\Changelog\GitHub\GitHubClientInterface;
-use FastForward\Changelog\GitHub\GitHubPublicTransportInterface;
+use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Release\Reference\PullRequestReferenceResolver;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -20,6 +19,8 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\Process\Process;
 
 #[CoversNothing]
@@ -148,7 +149,9 @@ final class GitFragmentOriginTest extends TestCase
     }
 
     /** A full main-only clone lacks squash heads; exact acquisition restores proof without changing refs or files. */
-    public function testMissingSquashedHeadIsAcquiredOnlyAfterApiVerification(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testMissingSquashedHeadIsAcquiredOnlyAfterApiVerification(bool $denied): void
     {
         $this->git('switch', '-c', 'feature');
         $this->write(self::PATH, self::BYTES);
@@ -165,23 +168,16 @@ final class GitFragmentOriginTest extends TestCase
         $refs = $this->process(['git', '-C', $clone, 'show-ref']);
         $factory = new readonly class (
             $clone,
-            $this->directory,
             $this->environment,
         ) implements ProcessFactoryInterface {
             public function __construct(
                 private string $clone,
-                private string $remote,
                 private array $environment,
             ) {}
 
             public function create(array $command): Process
             {
-                // Only this synthetic GitHub URL is redirected to the disposable source repository.
-                if (in_array('fetch', $command, true)) {
-                    $key = array_search('https://github.com/owner/project.git', $command, true);
-                    TestCase::assertNotFalse($key);
-                    $command[$key] = $this->remote;
-                }
+                TestCase::assertStringNotContainsString('synthetic-private-token', implode(' ', $command));
 
                 return new Process($command, $this->clone, $this->environment);
             }
@@ -189,41 +185,86 @@ final class GitFragmentOriginTest extends TestCase
         $repo = ['id' => 42, 'node_id' => 'synthetic-node', 'full_name' => 'owner/project'];
         $pr = ['number' => 94, 'state' => 'closed', 'merged' => true, 'changed_files' => 1, 'commits' => 1,
             'head' => ['sha' => $head, 'ref' => 'feature'], 'base' => ['ref' => 'main', 'repo' => $repo]];
-        $github = $this->createStubForIntersectionOfInterfaces([
-            GitHubClientInterface::class,
-            GitHubPublicTransportInterface::class,
-        ]);
-        $github->method('usesPublicGitHub')->willReturn(true);
-        $github->method('request')->willReturnCallback(static fn(string $method, string $path): array => match ($path) {
-            '/repos/owner/project' => $repo,
-            '/repos/owner/project/pulls/94' => $pr,
-            '/graphql' => ['data' => ['repository' => ['id' => $repo['node_id'], 'nameWithOwner' => $repo['full_name'],
-                'pullRequest' => ['number' => 94, 'state' => 'MERGED', 'merged' => true, 'headRefOid' => $head,
-                    'headRefName' => 'feature', 'baseRefName' => 'main', 'mergeCommit' => ['oid' => $merge]]]]],
-            default => throw new RuntimeException('Unexpected synthetic API request'),
+        $http = new MockHttpClient(function (string $method, string $url, array $options) use (
+            $head,
+            $merge,
+            $repo,
+            $pr,
+            $denied
+        ): MockResponse {
+            self::assertStringNotContainsString('synthetic-private-token', $url);
+            if (str_starts_with($url, 'https://github.com/owner/project.git/')) {
+                self::assertSame([
+                    'Authorization: Basic ' . base64_encode('x-access-token:synthetic-private-token')],
+                    $options['normalized_headers']['authorization'],
+                );
+                self::assertSame(0, $options['max_redirects']);
+                if ($denied) {
+                    return new MockResponse('synthetic-private-token raw error', ['http_code' => 401]);
+                }
+                if ('GET' === $method) {
+                    $bytes = "001e# service=git-upload-pack\n0000"
+                        . $this->process(
+                            ['git', 'upload-pack', '--stateless-rpc', '--advertise-refs', $this->directory],
+                        );
+                    $type = 'advertisement';
+                } else {
+                    $want = 'want ' . $head . "\n";
+                    self::assertSame(sprintf('%04x', strlen($want) + 4) . $want . "00000009done\n", $options['body']);
+                    $bytes = $this->process(
+                        ['git', 'upload-pack', '--stateless-rpc', $this->directory],
+                        $options['body'],
+                    );
+                    $type = 'result';
+                }
+
+                return new MockResponse($bytes, ['response_headers' => ['content-type' => 'application/x-git-upload-pack-' . $type]]);
+            }
+            self::assertSame([
+                'Authorization: Bearer synthetic-private-token'],
+                $options['normalized_headers']['authorization'],
+            );
+            $path = substr($url, strlen('https://api.github.com'));
+            $path = explode('?', $path)[0];
+            $data = match ($path) {
+                '/repos/owner/project' => $repo,
+                '/repos/owner/project/pulls/94' => $pr,
+                '/graphql' => ['data' => ['repository' => ['id' => $repo['node_id'], 'nameWithOwner' => $repo['full_name'],
+                    'pullRequest' => ['number' => 94, 'state' => 'MERGED', 'merged' => true, 'headRefOid' => $head,
+                        'headRefName' => 'feature', 'baseRefName' => 'main', 'mergeCommit' => ['oid' => $merge]]]]],
+                '/repos/owner/project/commits/' . $merge . '/pulls' => [['number' => 94]],
+                '/repos/owner/project/pulls/94/commits' => [['sha' => $head]],
+                '/repos/owner/project/pulls/94/files' => [['filename' => self::PATH, 'status' => 'added',
+                    'sha' => hash('sha1', 'blob ' . strlen(self::BYTES) . "\0" . self::BYTES)]],
+                default => throw new RuntimeException('Unexpected synthetic API request'),
+            };
+
+            return new MockResponse(json_encode($data, JSON_THROW_ON_ERROR));
         });
-        $github->method('paginate')->willReturnCallback(static fn(string $path): array => match ($path) {
-            '/repos/owner/project/commits/' . $merge . '/pulls' => [['number' => 94]],
-            '/repos/owner/project/pulls/94/commits' => [['sha' => $head]],
-            '/repos/owner/project/pulls/94/files' => [['filename' => self::PATH, 'status' => 'added',
-                'sha' => hash('sha1', 'blob ' . strlen(self::BYTES) . "\0" . self::BYTES)]],
-            default => throw new RuntimeException('Unexpected synthetic API list'),
-        });
+        $github = new GitHubClient($http, 'synthetic-private-token');
         $resolver = new PullRequestReferenceResolver(
             new GitRepository($factory), $github, new PackagePathResolver($clone),
         );
-        $result = $resolver->resolve(new ReleaseOptions(
-            $clone, repository: 'owner/project', resolvePullRequests: true,
-        ), $merge, [new Changeset(
-            'fix.md', Category::Fixed, null, null, null, 'Exact current fragment.',
-            VersionImpact::Patch,
-        )]);
-        self::assertSame(94, $result[0]->pullRequest);
+        try {
+            $result = $resolver->resolve(new ReleaseOptions(
+                $clone, repository: 'owner/project', resolvePullRequests: true,
+            ), $merge, [new Changeset(
+                'fix.md', Category::Fixed, null, null, null, 'Exact current fragment.',
+                VersionImpact::Patch,
+            )]);
+            self::assertFalse($denied);
+            self::assertSame(94, $result[0]->pullRequest);
+        } catch (RuntimeException $failure) {
+            self::assertTrue($denied);
+            self::assertStringContainsString('details were withheld', $failure->getMessage());
+            self::assertStringNotContainsString('synthetic-private-token', $failure->getMessage());
+        }
         self::assertSame($refs, $this->process(['git', '-C', $clone, 'show-ref']));
         self::assertSame($merge, trim($this->process(['git', '-C', $clone, 'rev-parse', 'HEAD'])));
         self::assertSame('', $this->process(['git', '-C', $clone, 'status', '--porcelain']));
         self::assertSame(self::BYTES, file_get_contents($clone . '/' . self::PATH));
         self::assertFileDoesNotExist($clone . '/.git/FETCH_HEAD');
+        self::assertStringNotContainsString('synthetic-private-token', file_get_contents($clone . '/.git/config'));
     }
 
     /** A root PR can contain an implementation merge without being the fragment's own implementation. */
