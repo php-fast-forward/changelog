@@ -759,7 +759,8 @@ final class PullRequestReferenceResolverTest extends TestCase
             return $this->resolvedHead;
         });
         $git->method('acquireCommit')->willReturnCallback(
-            function (string $directory, string $repository, string $sha): void {
+            function (string $directory, string $repository, string $sha, string $pack): void {
+                self::assertSame('PACKsynthetic-complete-pack-for-unit-tests', $pack);
                 $this->calls[] = ['git.acquire', $directory, $repository, $sha];
                 if ($this->acquisitionFailure) {
                     throw new RuntimeException('Fetch failed');
@@ -829,6 +830,7 @@ final class PullRequestReferenceResolverTest extends TestCase
             [GitHubClientInterface::class, GitHubPublicTransportInterface::class],
         );
         $github->method('usesPublicGitHub')->willReturn($this->publicTransport);
+        $github->method('commitPack')->willReturn('PACKsynthetic-complete-pack-for-unit-tests');
         $github->method('paginate')->willReturnCallback(function (string $path): array {
             $this->calls[] = ['github.paginate', $path];
             if (str_ends_with($path, '/files')) {
