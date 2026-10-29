@@ -98,7 +98,7 @@ on:
     secrets:
 
       publish-app-private-key:
-        description: Optional App key for publication only; alternatively supply app-private-key in publish-environment.
+        description: Optional App key for publication only; alternatively supply RELEASE_CHANNEL_APP_PRIVATE_KEY in publish-environment.
         required: false
 
       app-private-key:
@@ -308,6 +308,7 @@ jobs:
     secrets:
       token: ${{ inputs.publish-app-client-id == '' && secrets.token || '' }}
       app-private-key: ${{ secrets.publish-app-private-key || secrets.app-private-key }}
+      RELEASE_CHANNEL_APP_PRIVATE_KEY: ${{ secrets.publish-app-private-key }}
 
   report:
     name: Explain Version And Publication Results

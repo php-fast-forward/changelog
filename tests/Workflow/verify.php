@@ -599,6 +599,7 @@ foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-p
                         && '${{ inputs.publish-environment }}' === $job['with']['environment']
                         && '${{ secrets.publish-app-private-key || secrets.app-private-key }}'
                             === $job['secrets']['app-private-key']
+                        && '${{ secrets.publish-app-private-key }}' === $job['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']
                         && "\${{ inputs.publish-app-client-id == '' && secrets.token || '' }}"
                             === $job['secrets']['token'],
                     'Publication-only App credentials must not change the other lifecycle operations.',
@@ -618,7 +619,9 @@ foreach (['changelog', 'changelog-dependabot', 'changelog-history', 'changelog-p
             $operation = 'changelog-pr-status' === $entrypoint ? $name : substr($entrypoint, strlen('changelog-'));
             verifyWorkflow(
                 '${{ inputs.app-client-id }}' === $authentication['with']['app-client-id']
-                    && '${{ secrets.app-private-key }}' === $authentication['with']['app-private-key']
+                    && ('changelog-publish' === $entrypoint
+                        ? '${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY || secrets.app-private-key }}'
+                        : '${{ secrets.app-private-key }}') === $authentication['with']['app-private-key']
                     && '${{ secrets.token }}' === $authentication['with']['token']
                     && '${{ github.token }}' === $authentication['with']['fallback-token']
                     && $operation === $authentication['with']['operation']
@@ -1077,7 +1080,7 @@ verifyWorkflow(
         ] === workflowStep($channelJob, 'Update The Released Major Branch')['with']
         && [
             'client-id' => '${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}',
-            'private-key' => '${{ secrets.app-private-key }}',
+            'private-key' => '${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}',
             'owner' => 'php-fast-forward', 'repositories' => 'changelog',
             'permission-contents' => 'write', 'permission-workflows' => 'write',
             'skip-token-revoke' => 'false',
@@ -1126,13 +1129,12 @@ try {
     $activation = sprintf(
         "const vars = { RELEASE_CHANNEL_PUBLICATION_ENABLED: process.env.FF_PUBLICATION_ENABLED };
 "
-        . "const secrets = { 'app-private-key': 'synthetic-staged-publisher-key' };
+        . "const secrets = { RELEASE_CHANNEL_APP_PRIVATE_KEY: 'synthetic-staged-publisher-key' };
 "
         . "core.setOutput('client-id', %s); core.setOutput('environment', %s); core.setOutput('key-enabled', Boolean(%s));",
         substr($repositoryLifecycle['with']['publish-app-client-id'], 3, -2),
         substr($repositoryLifecycle['with']['publish-environment'], 3, -2),
-        str_replace('secrets.app-private-key', "secrets['app-private-key']",
-            substr($repositoryLifecycle['secrets']['publish-app-private-key'], 3, -2)),
+        substr($repositoryLifecycle['secrets']['publish-app-private-key'], 3, -2),
     );
     foreach (['', 'false', 'true'] as $enabled) {
         $result = workflowScriptGuard($activation, $channelDirectory, ['FF_PUBLICATION_ENABLED' => $enabled], [], 0);
@@ -1151,10 +1153,23 @@ try {
 $publicationWorkflow = Yaml::parseFile($root . '/.github/workflows/changelog-publish.yml');
 $publicationJob = $publicationWorkflow['jobs']['changelog'];
 verifyWorkflow(
+    1 === preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', 'RELEASE_CHANNEL_APP_PRIVATE_KEY')
+        && 0 === preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', 'app-private-key')
+        && isset($publicationWorkflow['on']['workflow_call']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY'])
+        && '${{ secrets.publish-app-private-key }}'
+            === $lifecycle['jobs']['publish']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']
+        && '${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY || secrets.app-private-key }}'
+            === workflowStep($publicationJob, 'Authenticate Trusted GitHub Operations')['with']['app-private-key'],
+    'Environment secrets require a valid underscore name forwarded separately from logical workflow-call aliases.',
+);
+++$assertions;
+
+verifyWorkflow(
     '' === $lifecycle['on']['workflow_call']['inputs']['publish-app-client-id']['default']
         && '' === $lifecycle['on']['workflow_call']['inputs']['publish-environment']['default']
         && '' === $publicationWorkflow['on']['workflow_call']['inputs']['environment']['default']
         && '${{ inputs.environment }}' === $publicationJob['environment']
+        && false === $publicationWorkflow['on']['workflow_call']['secrets']['RELEASE_CHANNEL_APP_PRIVATE_KEY']['required']
         && ! isset(workflowStep($publicationJob, 'Authenticate Trusted GitHub Operations')['with']['automation-actor'])
         && '${{ inputs.automation-actor }}'
             === workflowStep($publicationJob, 'Run The Shared Publish Action')['with']['automation-actor']

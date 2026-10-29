@@ -6,7 +6,7 @@ on:
     inputs:
 
       environment:
-        description: Optional protected environment; its app-private-key secret is used only by this publication job.
+        description: Optional protected environment; its RELEASE_CHANNEL_APP_PRIVATE_KEY secret is used only by this publication job.
         type: string
         default: ''
 
@@ -119,6 +119,10 @@ on:
         required: false
         default: false
     secrets:
+
+      RELEASE_CHANNEL_APP_PRIVATE_KEY:
+        description: Optional environment-scoped publication key; environment secret names require underscores.
+        required: false
 
       app-private-key:
         description: Optional GitHub App private key; mutually exclusive with token.
@@ -238,7 +242,7 @@ jobs:
         uses: ./.changelog-runtime/.github/actions/github-auth
         with:
           app-client-id: ${{ inputs.app-client-id }}
-          app-private-key: ${{ secrets.app-private-key }}
+          app-private-key: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY || secrets.app-private-key }}
           token: ${{ secrets.token }}
           fallback-token: ${{ github.token }}
           repository: ${{ inputs.repository || github.repository }}

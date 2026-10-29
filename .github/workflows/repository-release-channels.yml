@@ -53,7 +53,7 @@ jobs:
         uses: actions/create-github-app-token@v3.3.0
         with:
           client-id: ${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}
-          private-key: ${{ secrets.app-private-key }}
+          private-key: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}
           owner: php-fast-forward
           repositories: changelog
           permission-contents: write

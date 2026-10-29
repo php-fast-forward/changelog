@@ -58,7 +58,7 @@ jobs:
       publish-environment: ${{ vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' && 'release-channels' || '' }}
     secrets:
       token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
-      publish-app-private-key: ${{ vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' && secrets.app-private-key || '' }}
+      publish-app-private-key: ${{ vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' && secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY || '' }}
 
   image:
     name: Publish Docker CLI
