@@ -37,7 +37,7 @@ export function classifyDiff(raw) {
     if (/^\.changelog\/[A-Za-z0-9_-]+\.md$/.test(path) || [
       'CHANGELOG.md', 'AGENTS.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
       'SECURITY.md', 'SUPPORT.md', 'scripts/README.md',
-      '.github/PULL_REQUEST_TEMPLATE.md', '.github/update-release-channels.md',
+      '.github/PULL_REQUEST_TEMPLATE.md',
     ].includes(path)) {
       continue;
     }

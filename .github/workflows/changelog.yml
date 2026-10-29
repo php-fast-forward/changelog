@@ -5,6 +5,16 @@ on:
   workflow_call:
     inputs:
 
+      publish-app-client-id:
+        description: Optional App client ID for publication only; other lifecycle operations keep their credentials and Bot identity.
+        type: string
+        default: ''
+
+      publish-environment:
+        description: Optional protected environment for publication credentials.
+        type: string
+        default: ''
+
       app-client-id:
         description: Optional GitHub App client ID; requires app-private-key and the matching automation-actor.
         type: string
@@ -86,6 +96,10 @@ on:
         type: boolean
         default: false
     secrets:
+
+      publish-app-private-key:
+        description: Optional App key for publication only; alternatively supply RELEASE_CHANNEL_APP_PRIVATE_KEY in publish-environment.
+        required: false
 
       app-private-key:
         description: Optional GitHub App private key; mutually exclusive with token.
@@ -275,7 +289,8 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/changelog-publish.yml
     with:
-      app-client-id: ${{ inputs.app-client-id }}
+      app-client-id: ${{ inputs.publish-app-client-id || inputs.app-client-id }}
+      environment: ${{ inputs.publish-environment }}
       runs-on: ${{ inputs.runs-on }}
       pull-request: ${{ github.event.pull_request.number }}
       target-sha: ${{ github.event.pull_request.merge_commit_sha }}
@@ -291,8 +306,9 @@ jobs:
       resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       dry-run: ${{ inputs.dry-run }}
     secrets:
-      token: ${{ secrets.token }}
-      app-private-key: ${{ secrets.app-private-key }}
+      token: ${{ inputs.publish-app-client-id == '' && secrets.token || '' }}
+      app-private-key: ${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || inputs.publish-app-client-id == '' && secrets.app-private-key || '' }}
+      RELEASE_CHANNEL_APP_PRIVATE_KEY: ${{ inputs.publish-app-client-id != '' && secrets.publish-app-private-key || '' }}
 
   report:
     name: Explain Version And Publication Results

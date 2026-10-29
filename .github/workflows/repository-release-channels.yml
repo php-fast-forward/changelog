@@ -1,33 +1,8 @@
 name: 'Repository: Release Channels'
 
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: 'Existing published stable release tag, such as v0.1.0.'
-        type: string
-        required: true
-      expected-sha:
-        description: 'Full commit SHA of the existing release tag.'
-        type: string
-        required: true
-    secrets:
-      token:
-        description: 'Optional approved token for updating refs at released commits.'
-        required: false
-      CHANGELOG_TOKEN:
-        description: 'Optional configured changelog token; the caller token takes precedence.'
-        required: false
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing published stable release tag, such as v0.1.0.'
-        type: string
-        required: true
-      expected-sha:
-        description: 'Full commit SHA of the existing release tag.'
-        type: string
-        required: true
+  release:
+    types: [published, edited]
 
 permissions: {}
 
@@ -38,72 +13,58 @@ concurrency:
 jobs:
   channel:
     name: Update Released Major Branch
+    if: >-
+      github.repository == 'php-fast-forward/changelog' &&
+      vars.RELEASE_CHANNEL_PUBLICATION_ENABLED == 'true' &&
+      github.event.release.draft == false && github.event.release.prerelease == false
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+    environment: release-channels
     permissions:
-      contents: write
+      contents: read
     steps:
-      - name: Require A Trusted Repository Workflow
-        shell: bash
+      - name: Select The Published Release Channels
+        id: release
+        uses: actions/github-script@v9.0.0
         env:
-          FF_REPOSITORY: ${{ github.repository }}
-          FF_RUNTIME_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
-          FF_RUNTIME_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
-          FF_EVENT: ${{ github.event_name }}
-          FF_REF: ${{ github.ref }}
-          FF_ACTION: ${{ github.event.action }}
-          FF_MERGED: ${{ github.event.pull_request.merged }}
-          FF_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          FF_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-          FF_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
-          FF_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-          FF_EXPECTED_SHA: ${{ inputs.expected-sha }}
-        run: |
-          set -euo pipefail
-          if [[ "$FF_REPOSITORY" != php-fast-forward/changelog \
-              || "$FF_RUNTIME_REPOSITORY" != "$FF_REPOSITORY" \
-              || ! "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]; then
-            echo '::error::Release channels belong only to the canonical repository.'
-            exit 1
-          fi
-          if [[ "$FF_EVENT" == workflow_dispatch && "$FF_REF" == refs/heads/main ]]; then
-            exit 0
-          fi
-          if [[ "$FF_EVENT" != pull_request_target || "$FF_ACTION" != closed \
-              || "$FF_MERGED" != true || "$FF_HEAD_REPOSITORY" != "$FF_REPOSITORY" \
-              || "$FF_HEAD_BRANCH" != changelog/version || "$FF_BASE_BRANCH" != main \
-              || "$FF_MERGE_SHA" != "$FF_EXPECTED_SHA" ]]; then
-            echo '::error::Use verified managed-merge publication or manual recovery from main.'
-            exit 1
-          fi
-
-      - name: Check Out The Trusted Workflow Revision
-        uses: actions/checkout@v7.0.1
+          FF_RELEASE_TAG: ${{ github.event.release.tag_name }}
         with:
-          # Bind the helper to this exact trusted workflow implementation, never a PR head.
-          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
-          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
-          persist-credentials: false
+          script: |
+            const tag = process.env.FF_RELEASE_TAG;
+            const version = name => {
+              const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(name);
+              return match && match[0] === name ? match.slice(1).map(BigInt) : null;
+            };
+            const selected = version(tag);
+            if (!selected) throw new Error('The release version cannot be compared.');
+            const tags = await github.paginate(github.rest.repos.listTags, { ...context.repo, per_page: 100 });
+            const compare = (left, right) => {
+              for (let index = 0; index < 3; ++index) {
+                if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
+              }
+              return 0;
+            };
+            const stable = tags.map(item => version(item.name)).filter(Boolean);
+            core.setOutput('promote', !stable.some(item => item[0] === selected[0] && compare(item, selected) > 0));
+            core.setOutput('latest', !stable.some(item => compare(item, selected) > 0));
 
-      - name: Set Up PHP
-        uses: shivammathur/setup-php@2.37.1
+      - name: Create The Channel App Token
+        id: channel-app
+        if: steps.release.outputs.promote == 'true'
+        uses: actions/create-github-app-token@v3.3.0
         with:
-          php-version: '8.5'
-          coverage: none
-          tools: composer:v2
+          client-id: ${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}
+          owner: php-fast-forward
+          repositories: changelog
+          permission-contents: write
+          permission-workflows: write
+          skip-token-revoke: 'false'
 
-      - name: Install The Locked Runtime Without Plugins Or Scripts
-        shell: bash
-        env:
-          COMPOSER_HOME: ${{ runner.temp }}/release-channel-composer-home
-          COMPOSER_CACHE_DIR: ${{ runner.temp }}/release-channel-composer-cache
-        run: composer install --no-dev --no-plugins --no-scripts --no-interaction --prefer-dist --no-progress
-
-      - name: Advance The Verified Released Major Branch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.token || secrets.CHANGELOG_TOKEN || github.token }}
-          FF_REPOSITORY: ${{ github.repository }}
-          FF_TAG: ${{ inputs.tag }}
-          FF_EXPECTED_SHA: ${{ inputs.expected-sha }}
-        run: php .github/update-release-channels.php "$FF_REPOSITORY" "$FF_TAG" "$FF_EXPECTED_SHA"
+      - name: Update The Released Major Branch
+        if: steps.release.outputs.promote == 'true'
+        uses: Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb # v2.0.3
+        with:
+          token: ${{ steps.channel-app.outputs.token }}
+          prefer_branch_releases: 'true'
+          publish_latest_tag: ${{ steps.release.outputs.latest }}

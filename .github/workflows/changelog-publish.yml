@@ -5,6 +5,11 @@ on:
   workflow_call:
     inputs:
 
+      environment:
+        description: Optional protected environment; its RELEASE_CHANNEL_APP_PRIVATE_KEY secret is used only by this publication job.
+        type: string
+        default: ''
+
       app-client-id:
         description: Optional GitHub App client ID; requires app-private-key.
         type: string
@@ -115,6 +120,10 @@ on:
         default: false
     secrets:
 
+      RELEASE_CHANNEL_APP_PRIVATE_KEY:
+        description: Optional environment-scoped publication key; environment secret names require underscores.
+        required: false
+
       app-private-key:
         description: Optional GitHub App private key; mutually exclusive with token.
         required: false
@@ -155,6 +164,7 @@ jobs:
     name: Publish Changelog
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 15
+    environment: ${{ inputs.environment }}
     permissions:
       contents: write
       pull-requests: read
@@ -232,13 +242,14 @@ jobs:
         uses: ./.changelog-runtime/.github/actions/github-auth
         with:
           app-client-id: ${{ inputs.app-client-id }}
-          app-private-key: ${{ secrets.app-private-key }}
+          app-private-key: ${{ secrets.app-private-key || (inputs.app-client-id != '' && secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY) || '' }}
           token: ${{ secrets.token }}
           fallback-token: ${{ github.token }}
           repository: ${{ inputs.repository || github.repository }}
           operation: publish
           base-branch: ${{ inputs.base-branch }}
-          automation-actor: ${{ inputs.automation-actor }}
+          # The publisher App may differ from the Bot that authored the version PR.
+          # The publish operation below still verifies that original Bot ownership.
 
       - name: Check Out Consumer Data
         uses: actions/checkout@v6.1.0

@@ -50,6 +50,9 @@ input absent from a workflow cannot be passed to it. “All” means all seven a
 | `automation-actor` | string | `github-actions[bot]` | Lifecycle, Check, Feedback, Version, Publish | Expected authenticated Bot for signed managed transactions. A name alone grants no authority. |
 | `waiver-label` | string | `changelog-not-required` | Lifecycle, Check, Feedback | Contribution waiver label; requires a verified current maintainer's grant. |
 | `maintenance-label` | string | `changelog-maintenance` | Lifecycle, Check, Feedback | History-maintenance label; requires a verified current maintainer's grant. |
+| `publish-app-client-id` | string | `''` | Lifecycle | Optional separate App Client ID for publication only; preserves other operations and managed-PR ownership. |
+| `publish-environment` | string | `''` | Lifecycle | Optional environment assigned only to the publication job. |
+| `environment` | string | `''` | Publish | Optional publication environment; callers explicitly forward its declared `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret. |
 | `app-client-id` | string | `''` | Lifecycle, Feedback, Dependabot, Version, Publish, History | Optional GitHub App Client ID, paired with `app-private-key`. |
 
 Lifecycle and Feedback work at repository root with the built-in template; they
@@ -117,10 +120,13 @@ differs from the low-level History Action's default.
 | Secret | Required | Applies to | Meaning |
 | --- | --- | --- | --- |
 | `token` | No | All | Existing authorized Bot/App token. Empty uses `github.token`; Lifecycle's PR-head Check always uses its ordinary read-only token. |
+| `publish-app-private-key` | No | Lifecycle | Optional key for the publication-only App; other operations retain their credentials. An explicitly forwarded `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret can supply the publication job instead. |
+| `RELEASE_CHANNEL_APP_PRIVATE_KEY` | No | Publish | Valid underscore-named environment secret, explicitly forwarded by Lifecycle; used only when an App client ID is selected and no explicit logical `app-private-key` is supplied. The explicit key takes precedence when both are supplied. |
 | `app-private-key` | No | All except Check | GitHub App private key paired with `app-client-id`; each trusted job creates its own installation token. |
 
 Use either an existing `token` or the App pair, never both. For managed PRs,
-`automation-actor` must match the authenticated Bot. Keys and installation tokens
+`automation-actor` must match the Bot creating managed PRs. A publication-only
+App may differ: publication still verifies the original PR author. Keys and installation tokens
 stay inside their job, not workflow outputs. An App can trigger downstream PR
 CI under GitHub's token rules; see the [credential setup](github-app.md).
 

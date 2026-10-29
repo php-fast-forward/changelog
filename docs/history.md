@@ -195,6 +195,19 @@ That head's byte-introducing commit must belong to the complete PR commit delta;
 a pre-existing base commit does not establish implementation by this PR.
 The head's first-parent byte introduction must be its own change: importing the
 same bytes from a merge side parent does not establish implementation provenance.
+A main-only checkout can lack the original head after a squash merge. Once the
+repository, merged PR/head and complete file/commit deltas are corroborated, the
+resolver may acquire that exact SHA from the matching repository hosted on github.com.
+Authentication stays in the HTTP adapter: HTTPS service discovery and an exact-head
+Git upload-pack request use the supplied token with redirects disabled. The bounded
+64 MiB response is imported by local `git index-pack` over stdin; credentials never
+reach Git, its argv, environment, config, credential helpers or persisted files.
+It updates only the local object database, without changing refs, `FETCH_HEAD`,
+the index or managed files, including during previews. It then rechecks the exact
+local commit and the repository/PR API identities before proving provenance.
+A failed fetch or changed identity still refuses preparation. Existing local
+Enterprise heads remain supported; acquisition of missing Enterprise heads is
+refused because their Git transport host is not verified by this capability.
 Titles, branch names and commit prose do not establish that origin.
 Explicit PR, issue and author metadata remains authoritative.
 Discovery adds no author, issue or commit link.

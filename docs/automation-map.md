@@ -51,7 +51,7 @@ contracts. These names distinguish ownership without changing consumer paths.
 | [`repository-documentation.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-documentation.yml) | Read-only PR, push and manual builds of Markdown guides and the phpDocumentor API; uploads a site artifact without publishing Pages or Wiki. |
 | [`repository-impact.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-impact.yml) | Internal read-only helper for tests and documentation: classifies the complete immutable PR diff without hiding required checks. |
 | [`repository-changelog.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-changelog.yml) | One caller for this package's contribution checks, trusted PR feedback, Dependabot fragments, version preparation and approved-merge publication. |
-| [`repository-release-channels.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-release-channels.yml) | Advance a major branch only to a verified published release; supports explicit recovery with tag and SHA. |
+| [`repository-release-channels.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-release-channels.yml) | Select and promote the matching major branch with actions-tagger pinned to the reviewed v2.0.3 commit on published/edited stable releases; latest uses the upstream tag. The repository opt-in gates access to the configured environment. |
 
 [`repository-image.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) also uses `workflow_call`,
 but is an internal release step for this product's GHCR image. Its inputs bind
@@ -75,16 +75,20 @@ Windows integration uploads JUnit timings for measured performance investigation
 The internal caller separates read-only PR checks from trusted write events.
 Its `Check Contribution / Check Changelog` status is a consumer protection
 setting; skipped jobs do not remove the caller's permission requirements.
-Only successful publication outputs can start the internal image and release-channel jobs.
-Their published SHA must match the approved merged event; preparation alone starts neither.
+Only successful publication outputs can start the internal image job; its published
+SHA must match the approved merged event. Channel promotion instead receives a real
+published/edited stable release event. Publication with GITHUB_TOKEN does not emit a new
+workflow run; channel activation requires the separately reviewed credential route.
 
 Version and publication retain their shared repository/base lock inside the
 public operations. Dependabot and feedback have PR-specific locks; the image
 has a tag-specific lock and rechecks its exact source. The caller adds no outer
 lock with a nested operation's group: that could make a job wait for its own
 workflow. Only the read-only check retains the caller's cancellation group.
-Release channels have a separate repository lock and an atomic old-SHA condition.
-See [released branches and recovery](self-changelog.md).
+Release channels have a separate repository lock; the Marketplace action uses
+force-updated major branches and an optional latest tag without an atomic
+old-SHA condition. A short SDK selector skips stale majors and gates latest by
+the greatest full stable tag. See [release channels](self-changelog.md#released-major-branches-and-latest).
 
 ## Parallel maintenance lines
 

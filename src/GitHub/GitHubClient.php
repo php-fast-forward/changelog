@@ -20,7 +20,7 @@ use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /** Sends explicit GitHub API requests with bounded pagination and redacted failures. */
-final readonly class GitHubClient implements GitHubClientInterface
+final readonly class GitHubClient implements GitHubClientInterface, GitHubPublicTransportInterface
 {
     /**
      * Injects the transport and explicit API settings; no host or network state is read here.
@@ -40,6 +40,98 @@ final readonly class GitHubClient implements GitHubClientInterface
         private string $apiUrl = 'https://api.github.com',
         private int $maxPages = 100,
     ) {}
+
+    /**
+     * Binds optional public Git object acquisition to this adapter's trusted API origin.
+     *
+     * @return bool Whether API evidence was obtained through the canonical public GitHub origin.
+     */
+    public function usesPublicGitHub(): bool
+    {
+        return 'https://api.github.com' === rtrim($this->apiUrl, '/');
+    }
+
+    /**
+     * Keeps Git credentials in HTTP headers while requesting only the independently verified original head.
+     *
+     * Native Git authentication would expose the token to Git or configured credential helpers,
+     * contrary to ProcessFactory's HTTP-only credential boundary. This single smart-HTTP operation
+     * requests no haves, shallow history, thin pack or side-band channels; Git validates the resulting pack.
+     *
+     * @param  string           $repository Verified github.com owner/name, never a remote URL.
+     * @param  string           $sha        Complete original PR head corroborated by the resolver's REST and GraphQL evidence.
+     * @return string           Complete credential-free pack for local index-pack import.
+     * @throws RuntimeException When inputs, HTTP or the expected upload-pack framing cannot be verified.
+     * @see https://git-scm.com/docs/http-protocol
+     */
+    public function commitPack(string $repository, string $sha): string
+    {
+        if (! $this->usesPublicGitHub()
+            || 1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)
+            || [] !== array_intersect(['.', '..'], explode('/', $repository))
+            || 1 !== preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha)
+            || 1 === preg_match('/[\x00-\x20\x7f]/', $this->token)) {
+            throw new RuntimeException('Git object acquisition requires verified public GitHub identities.');
+        }
+        $url = 'https://github.com/' . $repository . '.git/';
+        $discovery = $this->gitExchange('GET', $url . 'info/refs?service=git-upload-pack', 'advertisement');
+        if (! str_starts_with($discovery, "001e# service=git-upload-pack\n0000")) {
+            throw new RuntimeException('Git object acquisition received invalid service discovery.');
+        }
+        $want = 'want ' . $sha . "\n";
+        $body = sprintf('%04x', strlen($want) + 4) . $want . "00000009done\n";
+        $response = $this->gitExchange('POST', $url . 'git-upload-pack', 'result', $body);
+        if (! str_starts_with($response, "0008NAK\nPACK") || strlen($response) < 40) {
+            throw new RuntimeException('Git object acquisition received an invalid complete pack response.');
+        }
+
+        return substr($response, 8);
+    }
+
+    /**
+     * Exchanges one bounded smart-HTTP message without redirects, credential persistence or raw diagnostics.
+     *
+     * @param  string           $method Explicit discovery GET or exact-head POST.
+     * @param  string           $url    Canonical public GitHub repository endpoint built only from verified inputs.
+     * @param  string           $type   Expected upload-pack advertisement or result media type.
+     * @param  ?string          $body   Credential-free pkt-line negotiation, absent for discovery.
+     * @return string           Complete response bounded to 64 MiB; empty, error and redirect responses are refused.
+     * @throws RuntimeException When HTTP, response size or media type cannot be verified.
+     */
+    private function gitExchange(string $method, string $url, string $type, ?string $body = null): string
+    {
+        $headers = ['Accept' => 'application/x-git-upload-pack-' . $type];
+        if ('' !== $this->token) {
+            $headers['Authorization'] = 'Basic ' . base64_encode('x-access-token:' . $this->token);
+        }
+        if (null !== $body) {
+            $headers['Content-Type'] = 'application/x-git-upload-pack-request';
+        }
+        try {
+            $response = $this->http->request($method, $url, [
+                'headers' => $headers, 'body' => $body, 'max_redirects' => 0,
+                'on_progress' => static function (int $downloaded): void {
+                    if ($downloaded > 67_108_864) {
+                        throw new RuntimeException('Git object acquisition exceeded its response limit.');
+                    }
+                },
+            ]);
+            if (200 !== $response->getStatusCode()
+                || ($response->getHeaders(
+                    false,
+                )['content-type'][0] ?? '') !== 'application/x-git-upload-pack-' . $type) {
+                throw new RuntimeException('Git object acquisition HTTP evidence could not be verified.');
+            }
+            $bytes = $response->getContent(false);
+            if (strlen($bytes) > 67_108_864) {
+                throw new RuntimeException('Git object acquisition exceeded its response limit.');
+            }
+
+            return $bytes;
+        } catch (ExceptionInterface) {
+            throw new RuntimeException('Git object acquisition transport failed; details were withheld.');
+        }
+    }
 
     /**
      * Executes one request and returns only its decoded JSON value.

@@ -8,11 +8,13 @@ use FastForward\Changelog\Automation\Policy\GitHubEvidence;
 use FastForward\Changelog\Changeset\Category;
 use FastForward\Changelog\Changeset\Changeset;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
+use FastForward\Changelog\Git\GitCommitAcquirerInterface;
 use FastForward\Changelog\Git\GitFragmentOriginReaderInterface;
 use FastForward\Changelog\Git\GitFragmentProvenanceReaderInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClient;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubPublicTransportInterface;
 use FastForward\Changelog\Release\Reference\PullRequestReferenceResolver;
 use FastForward\Changelog\Release\ReleaseOptions;
 use FastForward\Changelog\Version\VersionImpact;
@@ -670,14 +672,102 @@ final class PullRequestReferenceResolverTest extends TestCase
         $this->fixture(new GitHubClient($http))->resolve($this->options(), self::BASE, [$this->change()]);
     }
 
+    /** Missing squash heads can be acquired only through the optional verified-commit boundary. */
+    public function testMissingHeadIsAcquiredAndRecheckedBeforeProvenance(): void
+    {
+        $this->missingHead = true;
+        self::assertSame(
+            108,
+            $this->fixture()->resolve($this->options(), self::BASE, [$this->change()])[0]->pullRequest,
+        );
+        self::assertContains(['git.acquire', '/repo', 'owner/project', self::HEAD], $this->calls);
+    }
+
+    /** A failed fetch cannot turn unavailable proof into an accepted reference. */
+    public function testFailedAcquisitionRefusesResolution(): void
+    {
+        $this->missingHead = true;
+        $this->acquisitionFailure = true;
+        $this->expectExceptionMessage('details were withheld');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    /** An acquired object must still resolve to the API-verified exact SHA. */
+    public function testAcquiredMismatchingCommitRefusesResolution(): void
+    {
+        $this->missingHead = true;
+        $this->resolvedHead = self::BASE;
+        $this->expectExceptionMessage('details were withheld');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    /** API authority must still agree after object acquisition. */
+    public function testChangedApiEvidenceAfterAcquisitionRefusesResolution(): void
+    {
+        $this->missingHead = true;
+        $this->changedAfterAcquisition = true;
+        $this->expectExceptionMessage('details were withheld');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    /** A corroborated but different PR head after acquisition cannot replace the original selection. */
+    public function testChangedPrHeadAfterAcquisitionRefusesResolution(): void
+    {
+        $this->missingHead = true;
+        $this->changedPrAfterAcquisition = true;
+        $this->expectExceptionMessage('details were withheld');
+        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+    }
+
+    /** Enterprise API evidence cannot authorize acquisition from the public GitHub transport. */
+    public function testMissingEnterpriseHeadIsRefusedWithoutAcquisition(): void
+    {
+        $this->missingHead = true;
+        $this->publicTransport = false;
+        try {
+            $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+            self::fail('Expected unavailable provenance refusal.');
+        } catch (RuntimeException $failure) {
+            self::assertStringContainsString('details were withheld', $failure->getMessage());
+            self::assertSame([], $this->callsOf('git.acquire'));
+        }
+    }
+
+    private bool $publicTransport = true;
+    private bool $missingHead = false;
+    private bool $changedPrAfterAcquisition = false;
+    private bool $changedAfterAcquisition = false;
+    private bool $acquired = false;
+    private bool $acquisitionFailure = false;
+    private string $resolvedHead = self::HEAD;
+
     private function fixture(?GitHubClientInterface $client = null): PullRequestReferenceResolver
     {
         $git = $this->createStubForIntersectionOfInterfaces(
             [
                 GitRepositoryInterface::class,
+                GitCommitAcquirerInterface::class,
                 GitFragmentOriginReaderInterface::class,
                 GitFragmentProvenanceReaderInterface::class,
             ],
+        );
+        $git->method('resolveRef')->willReturnCallback(function (): string {
+            if ($this->missingHead) {
+                throw new RuntimeException('Missing original head');
+            }
+
+            return $this->resolvedHead;
+        });
+        $git->method('acquireCommit')->willReturnCallback(
+            function (string $directory, string $repository, string $sha, string $pack): void {
+                self::assertSame('PACKsynthetic-complete-pack-for-unit-tests', $pack);
+                $this->calls[] = ['git.acquire', $directory, $repository, $sha];
+                if ($this->acquisitionFailure) {
+                    throw new RuntimeException('Fetch failed');
+                }
+                $this->missingHead = false;
+                $this->acquired = true;
+            },
         );
         $git->method('repositoryRoot')->willReturnCallback(function (string $directory): string {
             self::assertSame('/repo/project', $directory);
@@ -736,7 +826,11 @@ final class PullRequestReferenceResolverTest extends TestCase
             fn(string $path, string $base): string => $this->relativePath ?? substr($path, strlen($base) + 1),
         );
         $paths->method('isAbsolute')->willReturnCallback(static fn(string $path): bool => str_starts_with($path, '/'));
-        $github = $this->createStub(GitHubClientInterface::class);
+        $github = $this->createStubForIntersectionOfInterfaces(
+            [GitHubClientInterface::class, GitHubPublicTransportInterface::class],
+        );
+        $github->method('usesPublicGitHub')->willReturn($this->publicTransport);
+        $github->method('commitPack')->willReturn('PACKsynthetic-complete-pack-for-unit-tests');
         $github->method('paginate')->willReturnCallback(function (string $path): array {
             $this->calls[] = ['github.paginate', $path];
             if (str_ends_with($path, '/files')) {
@@ -763,6 +857,25 @@ final class PullRequestReferenceResolverTest extends TestCase
                     self::assertStringNotContainsString('databaseId', $body['query']);
                     self::assertSame('owner', $body['variables']['owner']);
                     self::assertSame('project', $body['variables']['name']);
+                }
+
+                if ($this->acquired && $this->changedPrAfterAcquisition) {
+                    if ('/repos/owner/project/pulls/108' === $path) {
+                        $changed = $this->pr();
+                        $changed['head']['sha'] = self::BASE;
+
+                        return $changed;
+                    }
+                    if ('/graphql' === $path) {
+                        $changed = $this->graph();
+                        $changed['data']['repository']['pullRequest']['headRefOid'] = self::BASE;
+
+                        return $changed;
+                    }
+                }
+
+                if ($this->acquired && $this->changedAfterAcquisition && '/repos/owner/project' === $path) {
+                    return [...$this->repository(), 'id' => 999];
                 }
 
                 if (array_key_exists($method . ' ' . $path, $this->responses)) {

@@ -70,6 +70,70 @@ action's default revocation at job completion. PR-head checks continue to use
 the ordinary read-only token and do not receive the App key. Trusted code must
 not execute a PR's scripts or PHP templates with the key present.
 
+## A separate App for publication only
+
+A caller can retain its existing PR author and credentials while using a different
+App to publish the verified release. The lifecycle accepts optional
+`publish-app-client-id`, `publish-environment` and secret
+`publish-app-private-key`. They affect only the publication job. That job requests
+Contents write and Pull requests read; it still passes the original
+`automation-actor` to the publication service to verify the managed PR.
+
+The names `app-private-key` and `publish-app-private-key` are logical workflow-call
+aliases. They cannot be used as repository/environment secret names: those names
+must contain only letters, digits and underscores. For protected-environment
+publication use `RELEASE_CHANNEL_APP_PRIVATE_KEY`, explicitly forwarded under
+that name to the nested publication workflow.
+
+The individual publication reusable also accepts `environment`. If selected,
+its `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret supplies a key only when
+an App client ID is selected and no explicit logical `app-private-key` is supplied.
+A staged environment key is ignored in token mode. Publication-only keys are
+forwarded only with `publish-app-client-id`, keeping the legacy App/key pair intact; callers
+must explicitly forward the declared secret through the reusable chain. The
+repository's own caller demonstrates this route. Environment policy, App use and
+secret provisioning require separate authorization; optional inputs do not grant
+that authority. This feature must be present in the consumer's verified selected
+Changelog release before adding the new inputs.
+
+### Adoption order for automatic release-channel promotion
+
+Adding an `on: release` channel workflow does not change the publisher's
+credentials. A release created using `github.token` does not start that second
+workflow. The lifecycle caller must explicitly select the publication-only App.
+Use a nonempty, verified public client ID; an empty optional ID retains the
+normal built-in-token behavior. With a configured ID but a missing key, App
+authentication fails before publication instead of falling back silently.
+
+1. Inspect the **actual referenced revision** of `changelog.yml`: it must declare
+   `publish-app-client-id`, `publish-environment` and the optional
+   `publish-app-private-key` secret, and forward them to the publication job.
+   The previously published Changelog channel commit
+   `203db95e68fc974e95ba1a921f08d01f88851be1` does not provide this API. Do not
+   send the new inputs to that revision merely because its selector is `@v0`.
+2. Review the provider change and the consumer caller together. A consumer patch
+   can qualify an explicit immutable candidate SHA that actually has the API;
+   label it as an unpublished candidate, not as a verified stable release. Before
+   stable adoption, the maintainer merges/releases the compatible Changelog
+   contract and selects that verified revision. Do not invent a future tag or
+   assume the moving channel has already advanced.
+3. Separately approve and provision the publication environment, declared
+   `RELEASE_CHANNEL_APP_PRIVATE_KEY` environment secret, repository-scoped App use and relevant policies.
+   Forward the declared secret through both reusable calls. For this repository's
+   own caller, `RELEASE_CHANNEL_PUBLICATION_ENABLED=true` is set after the
+   approved configuration is staged; otherwise its previous publication
+   credential route remains active. The optional API does not provision
+   credentials or authorize channel writes.
+4. Merge the separately reviewed consumer caller only after its selected provider
+   and configuration prerequisites are satisfied. Its next separately authorized
+   managed-version-PR merge can publish through the App and emit a real release
+   event. A green caller PR is not evidence of live event delivery. Do not rerun,
+   edit or republish an existing release just to test the integration.
+
+Publication-only inputs leave version preparation, feedback credentials and the
+configured managed-PR author unchanged. An App key is needed only by the
+publishing repository; consumers of the library or `@v0` do not receive it.
+
 ## Adopting an App after an existing version PR
 
 Changing `automation-actor` does not transfer an existing PR's creator to the
