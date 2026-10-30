@@ -194,11 +194,13 @@ final class AutomaticPullRequestReferenceTest extends TestCase
             $application->setAutoExit(false);
             $tester = new ApplicationTester($application);
             if ($stacked) {
-                self::assertSame(1, $tester->run([
+                self::assertSame(0, $tester->run([
                     'command' => 'status', '--cwd' => $root, '--repository' => 'owner/fixture',
                     '--source' => 'tags', '--resolve-pull-requests' => 'true', '--no-interaction' => true,
                 ]));
-                self::assertStringContainsString('explicit pull_request', $tester->getDisplay());
+                $integrationSummary = json_decode($tester->getDisplay(), true, 512, JSON_THROW_ON_ERROR);
+                self::assertStringNotContainsString('/pull/41', $integrationSummary['notes']);
+                self::assertStringContainsString('Keeps the authored fragment intact.', $integrationSummary['notes']);
                 self::assertSame($history, file_get_contents($root . '/CHANGELOG.md'));
                 self::assertSame($fragment, file_get_contents($root . '/.changelog/auto-pr.md'));
                 // Complete association evidence for the actual implementation can still be proved at the shared merge.

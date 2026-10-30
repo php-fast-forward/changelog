@@ -302,6 +302,46 @@ final class GitFragmentOriginTest extends TestCase
         self::assertFalse($repository->fragmentHasDirectOrigin($directory, $originalUmbrella, self::PATH, $hash));
         self::assertFalse($repository->fragmentHasDirectOrigin($directory, $umbrellaHead, self::PATH, $hash));
         self::assertFalse($repository->fragmentHasDirectOrigin($directory, $merge, self::PATH, $hash));
+
+        $repo = ['id' => 42, 'node_id' => 'synthetic-node', 'full_name' => 'owner/project'];
+        $pr = ['number' => 94, 'state' => 'closed', 'merged' => true, 'changed_files' => 1, 'commits' => 4,
+            'head' => ['sha' => $umbrellaHead, 'ref' => 'umbrella'], 'base' => ['ref' => 'main', 'repo' => $repo]];
+        $http = new MockHttpClient(static function (string $method, string $url) use (
+            $repo, $pr, $merge, $prefix, $originalUmbrella, $implementation, $implementationHead, $umbrellaHead,
+        ): MockResponse {
+            $path = explode('?', substr($url, strlen('https://api.github.com')))[0];
+            $data = match ($path) {
+                '/repos/owner/project' => $repo,
+                '/repos/owner/project/commits/' . $merge . '/pulls' => [['number' => 94]],
+                '/repos/owner/project/pulls/94' => $pr,
+                '/graphql' => ['data' => ['repository' => ['id' => $repo['node_id'], 'nameWithOwner' => $repo['full_name'],
+                    'pullRequest' => ['number' => 94, 'state' => 'MERGED', 'merged' => true, 'headRefOid' => $umbrellaHead,
+                        'headRefName' => 'umbrella', 'baseRefName' => 'main', 'mergeCommit' => ['oid' => $merge]]]]],
+                '/repos/owner/project/pulls/94/files' => [['filename' => $prefix . self::PATH, 'status' => 'added',
+                    'sha' => hash('sha1', 'blob ' . strlen(self::BYTES) . "\0" . self::BYTES)]],
+                '/repos/owner/project/pulls/94/commits' => array_map(static fn(string $sha): array => ['sha' => $sha],
+                    [$originalUmbrella, $implementation, $implementationHead, $umbrellaHead]),
+                default => throw new RuntimeException('Unexpected synthetic API request'),
+            };
+
+            return new MockResponse(json_encode($data, JSON_THROW_ON_ERROR));
+        });
+        $change = new Changeset(
+            'fix.md',
+            Category::Fixed,
+            null,
+            null,
+            null,
+            'Exact current fragment.',
+            VersionImpact::Patch,
+        );
+        $resolver = new PullRequestReferenceResolver(
+            $repository, new GitHubClient($http, 'synthetic-token'), new PackagePathResolver($directory),
+        );
+        self::assertSame([$change], $resolver->resolve(new ReleaseOptions(
+            $directory, repository: 'owner/project', resolvePullRequests: true,
+        ), $merge, [$change]));
+        self::assertNull($change->pullRequest);
         $this->write($prefix . self::PATH, 'Untracked edits cannot change immutable attribution.');
         self::assertFalse($repository->fragmentHasDirectOrigin($directory, $umbrellaHead, self::PATH, $hash));
     }

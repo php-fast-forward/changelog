@@ -182,16 +182,19 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
                         $path,
                         hash('sha256', $blob),
                     );
-                    if (null === $headOrigin || ! isset($commits[$number][$headOrigin])
-                        || ! $this->git->fragmentHasDirectOrigin(
-                            $directory,
-                            $pr['head']['sha'],
-                            $path,
-                            hash('sha256', $blob),
-                        )) {
+                    if (null === $headOrigin || ! isset($commits[$number][$headOrigin])) {
                         throw new RuntimeException(
                             'The associated integration PR does not prove direct implementation.',
                         );
+                    }
+                    if (! $this->git->fragmentHasDirectOrigin(
+                        $directory,
+                        $pr['head']['sha'],
+                        $path,
+                        hash('sha256', $blob),
+                    )) {
+                        // A complete negative proof excludes this integrator, not the release itself.
+                        continue;
                     }
                     $references[$index][] = $number;
                 }
