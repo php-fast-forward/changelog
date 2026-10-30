@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-30
+
+### Changed
+
+- Replaces the repository-only PHP channel updater and its manual SHA dispatch with
+  actions-tagger pinned to the reviewed v2.0.3 commit for published/edited stable releases. A short inline selector
+  prevents stale releases from regressing major branches and gates the latest tag
+  across majors. Concrete version tags remain separate and immutable; App,
+  environment and ruleset activation still require separate approval.
+
+### Fixed
+
+- Recovers missing original pull-request heads after squash merges by fetching only API-verified exact commits from the matching GitHub repository through authenticated HTTP, keeping credentials out of Git processes and persisted configuration, before rechecking implementation provenance. Failed acquisition or mismatched evidence still refuses version preparation without writing managed files.
+- Preserves explicit publication App keys so incomplete credentials fail closed
+  before token fallback. Checks the paginated tag endpoint in channel fixtures and
+  clarifies the provisioned publication environment state.
+
+  ([#78](https://github.com/php-fast-forward/changelog/pull/78))
+
+- Allows version preparation after a verified integration PR imports a fragment
+  from another branch. The integrator receives no inferred implementation link;
+  missing, contradictory or ambiguous provenance still refuses preparation.
+
+  ([#79](https://github.com/php-fast-forward/changelog/pull/79))
+
+- Require automatic fragment PR references to prove the implementation's exact changed bytes at its original head. Refuse umbrella stack attribution and incomplete file evidence with an explicit metadata/maintenance diagnostic, preserving explicit references and independent publication recomputation. Custom Git adapters enabling automatic PR resolution must also provide the new optional fragment-provenance capability. ([#73](https://github.com/php-fast-forward/changelog/pull/73))
+- Reduce redundant disposable Git publication transactions and run Windows integration partitions in parallel while preserving every Markdown planning regression and native publication scenario. Isolate the stacked-PR fixture from host Git line-ending settings, and preserve the required aggregate check, live failure details and incremental per-test diagnostics for interrupted Windows runs. ([#75](https://github.com/php-fast-forward/changelog/pull/75))
+
 ## [0.4.1] - 2026-10-25
 
 ### Changed
@@ -93,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable fast-forward-changelog agent skill, consumer examples, focused guides and browsable phpDocumentor API documentation. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 - One managed version PR with configurable titles, deterministic consolidation and recoverable transactions, updating readable history and removing consumed fragments without adding tracked plan files. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 
+[0.5.0]: https://github.com/php-fast-forward/changelog/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/php-fast-forward/changelog/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/php-fast-forward/changelog/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/php-fast-forward/changelog/compare/v0.2.1...v0.3.0
