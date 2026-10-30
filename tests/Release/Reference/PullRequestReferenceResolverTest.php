@@ -47,6 +47,8 @@ final class PullRequestReferenceResolverTest extends TestCase
     private array $associations = [['number' => 108]];
     private array $lists = [];
     private bool $directOrigin = true;
+    private array $directOriginResults = [];
+    private ?RuntimeException $provenanceFailure = null;
     private ?string $origin = self::ORIGIN;
     private ?string $headOrigin = self::ORIGIN;
     private array $blobs = [];
@@ -308,9 +310,33 @@ final class PullRequestReferenceResolverTest extends TestCase
     public function testStackIntegrationCannotMasqueradeAsImplementation(): void
     {
         $this->directOrigin = false;
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('explicit pull_request fragment metadata');
-        $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+        $change = $this->change();
+        self::assertSame([$change], $this->fixture()->resolve($this->options(), self::BASE, [$change]));
+        self::assertNull($change->pullRequest);
+    }
+
+    /** Excluding a proved integrator must not hide another independently qualified implementation candidate. */
+    public function testNegativeIntegrationProofStillAllowsAQualifiedCandidate(): void
+    {
+        $this->associations = [['number' => 108], ['number' => 109]];
+        $this->directOriginResults = [false, true];
+        $result = $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+
+        self::assertSame(109, $result[0]->pullRequest);
+        self::assertCount(2, $this->callsOf('git.provenance'));
+    }
+
+    /** An unavailable provenance proof is an error, never a negative candidate or an empty reference list. */
+    public function testProvenanceFailureStillRefusesAndRedacts(): void
+    {
+        $this->provenanceFailure = new RuntimeException('synthetic-private-path-or-token');
+        try {
+            $this->fixture()->resolve($this->options(), self::BASE, [$this->change()]);
+            self::fail('Unavailable proof must refuse preparation.');
+        } catch (RuntimeException $failure) {
+            self::assertStringContainsString('explicit pull_request', $failure->getMessage());
+            self::assertStringNotContainsString('synthetic-private-path-or-token', $failure->getMessage());
+        }
     }
 
     public function testOriginalPrHeadWithoutTheFragmentDoesNotSupplyImplementationEvidence(): void
@@ -815,7 +841,13 @@ final class PullRequestReferenceResolverTest extends TestCase
                 self::assertSame(hash('sha256', self::BLOB), $hash);
                 $this->calls[] = ['git.provenance', $head, $path];
 
-                return $this->directOrigin;
+                if (null !== $this->provenanceFailure) {
+                    throw $this->provenanceFailure;
+                }
+
+                return [] === $this->directOriginResults ? $this->directOrigin : array_shift(
+                    $this->directOriginResults,
+                );
             },
         );
         $paths = $this->createStub(PackagePathResolverInterface::class);

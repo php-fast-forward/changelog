@@ -230,9 +230,14 @@ PR, rather than an umbrella PR that merely integrates other contributions.
 GitHub can report a shared merge SHA for several stacked PRs and associate an
 implementation commit only with the umbrella PR. Neither association nor shared
 merge ancestry alone establishes the implementation. The resolver does not scan
-every closed PR or guess a replacement number. If an associated merged PR cannot
-prove its own exact-byte change, preparation fails with an explicit diagnostic.
-Unavailable original head objects also fail rather than weaken the proof.
+every closed PR or guess a replacement number. After verifying the repository,
+merge identity, complete file/commit deltas and original head, a complete Git
+proof that the exact bytes came from a merge side parent excludes that integrator
+from attribution. If no candidate qualifies, preparation continues without adding
+a PR link; it does not invent a reference to the nested contribution. Missing,
+contradictory or unavailable evidence still refuses preparation, as do multiple
+qualified PRs. Unavailable original head objects also fail rather than weaken
+the proof.
 
 When the implementation PR is known, record `pull_request: 26` (using the actual
 reviewed number) in that fragment. This explicit route bypasses automatic origin
