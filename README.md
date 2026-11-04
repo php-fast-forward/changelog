@@ -159,7 +159,7 @@ Add one fragment per observable change and run `composer check` before a PR.
 
 ## 🛡 License
 
-MIT © 2026 [Felipe Sayao Lobato Abreu](https://github.com/coisa). See [LICENSE](LICENSE).
+MIT © 2026 [Felipe Sayao Lobato Abreu](https://github.com/artificenerd). See [LICENSE](LICENSE).
 
 ## 🔗 Links
 
