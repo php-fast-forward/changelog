@@ -2,6 +2,7 @@ import { isDeepStrictEqual as equal } from 'node:util';
 
 const assert = (condition, reason) => { if (!condition) throw new Error(reason); };
 const stable = (version) => {
+  assert(typeof version === 'string', 'Versions must be strings.');
   const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
   assert(match, 'Only complete stable SemVer versions are supported.');
   return match.slice(1).map(BigInt);
@@ -50,6 +51,11 @@ export function proveComposer(before, after) {
   const changes = [];
   for (const side of [before, after]) {
     assert(object(side.manifest) && object(side.lock), 'Manifest and lock must be objects.');
+    for (const section of ['require', 'require-dev']) {
+      assert(object(side.manifest[section] ?? {})
+        && Object.values(side.manifest[section] ?? {}).every((constraint) => typeof constraint === 'string'),
+      'Composer dependency constraints must all be strings.');
+    }
     for (const section of ['packages', 'packages-dev']) {
       assert(Array.isArray(side.lock[section]), 'Both lock package sections are required.');
     }
@@ -81,6 +87,8 @@ export function proveComposer(before, after) {
         if (key === 'source') assert(a[key].url === b[key].url, 'Source repository changed.');
         else {
           assert(typeof a[key].url === 'string' && typeof b[key].url === 'string', 'Distribution URL is missing.');
+          assert(a[key].url.includes(a[key].reference) && b[key].url.includes(b[key].reference),
+            'Each distribution URL must embed its own immutable reference; static URLs are unsupported.');
           assert(a[key].url.replace(a[key].reference, '{ref}') === b[key].url.replace(b[key].reference, '{ref}'),
             'Distribution origin or URL structure changed.');
         }

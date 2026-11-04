@@ -38,8 +38,10 @@ package membership, order, names, sections and unknown metadata are validated.
 Every changed locked dependency must move forward within the same stable major
 and minor. Changes to scripts, dependency requirements, platform settings,
 repositories, plugins or other metadata block. Source origin remains unchanged;
-distribution URLs may change only their immutable reference. Both references must
-agree. This is provenance evidence, not proof that upstream code is safe.
+distribution URLs must embed their own immutable reference and may change only
+that reference. Static distribution URLs block even with a declared checksum;
+checksum-based archive verification is outside this evaluator’s supported proof.
+Both references must agree. This is provenance evidence, not proof that upstream code is safe.
 
 Direct `require`/`require-dev` packages support exact, caret or tilde full stable
 versions conservatively within the constraint's major/minor floor. A changed
@@ -112,6 +114,7 @@ on:
 permissions: {}
 jobs:
   evaluate:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     permissions:
       contents: read
       pull-requests: read
@@ -126,7 +129,9 @@ jobs:
 ```
 
 The example is deliberately not an installable consumer file. Its SHA and App IDs
-are placeholders. Dependabot PR tokens are read-only, which is sufficient here.
+are placeholders. The caller skips ordinary PR authors; the evaluator still
+verifies Dependabot login, numeric ID and Bot type independently. Dependabot PR
+tokens are read-only, which is sufficient here.
 An early run may block while checks are pending; rerun evaluation after they
 finish. A rerun keeps its original event snapshot and blocks if HEAD/base moved.
 The verified pilot has npm dependencies in `stacks/services/evolution/mcp`

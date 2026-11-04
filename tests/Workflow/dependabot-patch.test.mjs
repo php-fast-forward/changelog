@@ -264,3 +264,36 @@ test('immutable trees reject unrelated file deletion and mode-only changes', asy
     await assert.rejects(run(f), /full immutable HEAD\/base delta/);
   }
 });
+
+for (const [name, mutate] of [
+  ['base array lock version', (f) => { f.before.lock.packages[0].version = ['v1.2.3']; }],
+  ['head array lock version', (f) => { f.after.lock.packages[0].version = ['v1.2.4']; }],
+  ['base array manifest constraint', (f) => {
+    f.before.manifest.require['vendor/pkg'] = ['^1.2.3']; f.after.manifest.require['vendor/pkg'] = '^1.2.4';
+  }],
+  ['head array manifest constraint', (f) => { f.after.manifest.require['vendor/pkg'] = ['^1.2.4']; }],
+]) test(`Composer rejects ${name}`, () => {
+  const f = fixture(); mutate(f); assert.throws(() => proveComposer(f.before, f.after));
+});
+for (const checksum of ['', 'arbitrary-checksum', 'a'.repeat(40)]) {
+  test(`Composer rejects static distribution URL with checksum ${checksum || '(empty)'}`, () => {
+    const f = fixture();
+    for (const side of ['before', 'after']) Object.assign(f[side].lock.packages[0].dist, {
+      url: 'https://repo.example/vendor/pkg.zip', shasum: checksum,
+    });
+    assert.throws(() => proveComposer(f.before, f.after));
+  });
+}
+
+test('documented caller skips ordinary PRs and admits Dependabot for full evaluator identity checks', async () => {
+  const { readFileSync } = await import('node:fs');
+  const guide = readFileSync(new URL('../../docs/dependabot-patch.md', import.meta.url), 'utf8');
+  const caller = guide.match(/```yaml\n([\s\S]*?)\n```/)[1];
+  const condition = caller.match(/^    if: (.+)$/m)?.[1];
+  assert.equal(condition, "github.event.pull_request.user.login == 'dependabot[bot]'");
+  const jobRuns = new Function('github', `return (${condition});`);
+  assert.equal(jobRuns({ event: { pull_request: { user: { login: 'contributor' } } } }), false);
+  assert.equal(jobRuns({ event: { pull_request: { user: { login: 'dependabot[bot]' } } } }), true);
+  const f = sdkFixture(); f.pr.user.id = 1;
+  await assert.rejects(run(f), /official Dependabot identity/);
+});
