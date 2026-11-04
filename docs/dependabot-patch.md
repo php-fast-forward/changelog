@@ -22,10 +22,13 @@ The caller chooses `ecosystem: npm` (default) or `composer`, plus a single safe
 supports `package-lock.json` v3, matching root manifest requirements and direct
 root `node_modules` entries, including scoped packages. Every changed package
 must have stable numeric versions, a matching registry.npmjs.org package tarball,
-SHA-512 integrity and unchanged non-version metadata. Requirements, install-script
-flags, links, workspaces, graph changes, nested/transitive updates, aliases and
-nonstandard registries block. Exact manifest versions and corresponding lock
-PATCH changes are supported, as are conservative caret/tilde lock-only updates.
+SHA-512 integrity and unchanged non-version metadata. Changes to requirements or
+install-script flags block. Links, workspaces, graph changes, nested/transitive
+updates, aliases and nonstandard registries block. A preexisting unchanged
+`hasInstallScript: true` flag does not block a PATCH candidate. Trusted artifact
+and security review must inspect the install scripts and their effects before
+any separately authorized execution. Exact manifest versions and corresponding
+lock PATCH changes are supported, as are conservative caret/tilde lock-only updates.
 Integrity proves the locked tarball identity, not code safety. The SHA-512 digest
 is not fetched/recomputed by this evaluator; trusted security review must inspect
 that artifact.

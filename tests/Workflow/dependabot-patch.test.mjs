@@ -297,3 +297,14 @@ test('documented caller skips ordinary PRs and admits Dependabot for full evalua
   const f = sdkFixture(); f.pr.user.id = 1;
   await assert.rejects(run(f), /official Dependabot identity/);
 });
+
+
+test('npm unchanged install-script flag permits candidate evidence but flag changes block', () => {
+  const f = npmFixture();
+  for (const side of ['before', 'after']) f[side].lock.packages['node_modules/example'].hasInstallScript = true;
+  assert.equal(proveNpm(f.before, f.after).length, 1);
+  f.after.lock.packages['node_modules/example'].hasInstallScript = false;
+  assert.throws(() => proveNpm(f.before, f.after), /metadata changed/);
+  delete f.after.lock.packages['node_modules/example'].hasInstallScript;
+  assert.throws(() => proveNpm(f.before, f.after), /metadata changed/);
+});
