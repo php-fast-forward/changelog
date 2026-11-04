@@ -80,3 +80,13 @@ after checkout, preserving the original provenance rejection assertion.
 These checks do not execute GitHub's scheduler, Docker runner, token-permission
 model, sticky comment action or required-status settings in a consumer. A pilot
 repository must verify those effective platform behaviors before release.
+
+The Dependabot PATCH fixtures (`dependabot-patch.test.mjs`) exercise the actual
+read-only npm/Composer proof module with synthetic SDK responses: official bot
+identity, immutable HEAD/base and Git modes, complete file scope, exact/scoped
+npm and Composer patches, mixed groups, metadata/graph changes, transitive and
+prerelease rejection, check App identity, stale snapshots, API failures and
+execution refusal. The runner also evaluates the workflow's actual github-script
+step. Run independently with `node --test tests/Workflow/dependabot-patch.test.mjs`;
+the full `composer test:workflows` supplies the inline script for that last case.
+No network request, merge, publication or consumer installation is performed.

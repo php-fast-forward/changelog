@@ -350,8 +350,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    13 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and six repository workflows must remain distinct.',
+    14 === count(glob($root . '/.github/workflows/*.yml')),
+    'The eight public contracts and six repository workflows must remain distinct.',
 );
 $assertions += 6;
 
@@ -1442,6 +1442,24 @@ $impactFixtures->setTimeout(30);
 $impactFixtures->mustRun();
 echo $impactFixtures->getOutput();
 $assertions += 9;
+
+$patchWorkflow = Yaml::parseFile($root . '/.github/workflows/dependabot-patch.yml');
+verifyWorkflow(false === $patchWorkflow['on']['workflow_call']['inputs']['opt-in']['default']
+    && 'evaluate' === $patchWorkflow['on']['workflow_call']['inputs']['mode']['default']
+    && ['contents' => 'read', 'pull-requests' => 'read', 'checks' => 'read'] === $patchWorkflow['jobs']['evaluate']['permissions']
+    && ! isset($patchWorkflow['on']['workflow_call']['secrets']),
+    'Dependabot evaluation must default to opt-out and expose no write permissions or secrets.');
+$patchFixtures = new Process(['node', '--test', $root . '/tests/Workflow/dependabot-patch.test.mjs'], $root, [
+    'GITHUB_TOKEN' => false, 'GH_TOKEN' => false,
+    'FF_PATCH_SCRIPT' => workflowStep(
+        $patchWorkflow['jobs']['evaluate'],
+        'Evaluate The Exact Dependency Delta',
+    )['with']['script'],
+]);
+$patchFixtures->setTimeout(30);
+$patchFixtures->mustRun();
+echo $patchFixtures->getOutput();
+++$assertions;
 
 echo json_encode(['status' => 'passed', 'workflow_cases' => $assertions, 'network_requests' => 0,
     'publication' => false, 'consumer_installation' => false], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
