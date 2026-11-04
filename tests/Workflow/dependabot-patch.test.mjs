@@ -68,7 +68,9 @@ function sdkFixture() {
       const content = JSON.stringify(request.path === 'composer.json' ? side.manifest : side.lock);
       return { data: { type: 'file', encoding: 'base64', size: Buffer.byteLength(content), content: Buffer.from(content).toString('base64') } };
     } },
-    git: { getCommit: async () => ({ data: { tree: { sha } } }), getTree: async () => ({ data: tree }) },
+    git: { getCommit: async (request) => ({ data: { tree: { sha: request.commit_sha } } }),
+      getTree: async (request) => ({ data: { ...tree, tree: tree.tree.map((entry) => ({ ...entry,
+        sha: entry.path.includes('lock') ? request.tree_sha : 'c'.repeat(40) })) } }) },
     checks: { listForRef: async () => runs },
   };
   return { f, pr, context, checks, runs, files, tree, requests, github: { rest, paginate: async (fn, request) => fn(request) } };
@@ -223,3 +225,42 @@ for (const key of ['workspaces', 'overrides', 'optionalDependencies', 'peerDepen
     assert.throws(() => proveNpm(f.before, f.after));
   });
 }
+
+
+test('JSON proof rejects numeric coercion that could hide a nondependency metadata change', () => {
+  for (const token of ['9007199254740992', '9007199254740993', '1.00000000000000001', '1e0', '-0', '1e999']) {
+    assert.throws(() => parseJson('{"limit":' + token + '}'));
+  }
+  assert.deepEqual(parseJson('{"limit":9007199254740991}'), { limit: Number.MAX_SAFE_INTEGER });
+});
+test('npm dependency constraints cannot be arrays or other coerced values', () => {
+  const f = npmFixture();
+  f.after.manifest.dependencies.example = ['1.2.4'];
+  f.after.lock.packages[''].dependencies.example = ['1.2.4'];
+  assert.throws(() => proveNpm(f.before, f.after));
+});
+
+
+test('immutable trees reject an ABA listFiles snapshot hiding unrelated code', async () => {
+  const f = sdkFixture(); f.pr.changed_files = 2;
+  f.files.push({ filename: 'composer.json', status: 'modified' });
+  const getTree = f.github.rest.git.getTree;
+  f.github.rest.git.getTree = async (request) => {
+    const result = await getTree(request);
+    if (request.tree_sha === head) result.data.tree.push({ path: 'src/evil.php', type: 'blob', mode: '100644', sha: head });
+    return result;
+  };
+  await assert.rejects(run(f), /full immutable HEAD\/base delta/);
+});
+test('immutable trees reject unrelated file deletion and mode-only changes', async () => {
+  for (const kind of ['deletion', 'mode']) {
+    const f = sdkFixture(); const getTree = f.github.rest.git.getTree;
+    f.github.rest.git.getTree = async (request) => {
+      const result = await getTree(request);
+      if (request.tree_sha === sha || kind === 'mode') result.data.tree.push({ path: 'src/existing.php', type: 'blob',
+        mode: request.tree_sha === head ? '100755' : '100644', sha });
+      return result;
+    };
+    await assert.rejects(run(f), /full immutable HEAD\/base delta/);
+  }
+});

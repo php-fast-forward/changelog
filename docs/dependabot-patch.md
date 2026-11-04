@@ -31,7 +31,9 @@ is not fetched/recomputed by this evaluator; trusted security review must inspec
 that artifact.
 
 Composer supports modified `composer.lock` and optionally `composer.json`.
-Both files must be regular non-executable Git blobs. Complete bounded JSON,
+Both files must be regular non-executable Git blobs. Duplicate JSON keys and
+noncanonical/unsafe numeric tokens block rather than losing evidence to parser
+coercion. Dependency constraints must be strings. Complete bounded JSON,
 package membership, order, names, sections and unknown metadata are validated.
 Every changed locked dependency must move forward within the same stable major
 and minor. Changes to scripts, dependency requirements, platform settings,
@@ -53,8 +55,12 @@ Dependabot commit metadata are never PATCH evidence.
 At least two distinct check names with expected GitHub App IDs must be configured
 for independent code review and security/deployment viability inspection. Each
 must occur exactly once, succeed, complete and match the exact HEAD. Skipped,
-neutral, missing, pending, spoofed and ambiguous results block. The PR identity is
-read again after inspection to reject a concurrent HEAD/base change. Check names
+neutral, missing, pending, spoofed and ambiguous results block. The complete
+immutable base and HEAD Git trees must differ only at the selected
+manifest/lock paths, including modes, additions and deletions. Mutable PR file
+listings are supplementary; an A→B→A ref race cannot hide unrelated code. The PR
+identity is read again after inspection to reject a concurrent HEAD/base change.
+Check names
 alone do not prove security or review quality: their trusted producers must
 inspect the exact HEAD **and base**, upstream code, advisories, deployment
 compatibility and downstream effects. This evaluator cannot attest that semantic
@@ -140,7 +146,7 @@ Do not broaden support by accepting title labels.
    real supported patch and a mixed/unknown case without merging. Record exact
    workflow, HEAD/base, report and check identities. A candidate is not permission.
 3. Obtain coordinator acceptance of the shared lease/fencing interface with n8n
-   and the correction Sentinela (task `01a1a650-31c4-73a7-bb56-39b4db2d40ee`).
+   and the correction coordinator.
    There is currently **no accepted lock interface**. A boolean executor selector
    or GitHub Actions concurrency group does not exclude n8n or another service.
 4. Implement and test atomic lease acquisition, monotonically increasing fence,

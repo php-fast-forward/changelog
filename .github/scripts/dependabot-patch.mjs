@@ -35,6 +35,9 @@ export function parseJson(text) {
     } else if (token === '[') {
       if (tokens[cursor] !== ']') do { value(); } while (tokens[cursor] === ',' && ++cursor);
       assert(tokens[cursor++] === ']', 'Invalid JSON array.');
+    } else if (/^-?\d/.test(token)) {
+      assert(Number.isSafeInteger(Number(token)) && String(Number(token)) === token,
+        'Noncanonical or unsafe JSON numeric values require manual review.');
     }
   };
   value();
@@ -127,6 +130,9 @@ export function proveNpm(before, after) {
       && !Object.hasOwn(side.manifest, 'optionalDependencies') && !Object.hasOwn(side.manifest, 'peerDependencies'),
     'Workspaces, overrides and optional/peer root dependencies require manual review.');
     for (const section of ['dependencies', 'devDependencies']) {
+      assert(object(side.manifest[section] ?? {})
+        && Object.values(side.manifest[section] ?? {}).every((constraint) => typeof constraint === 'string'),
+      'npm dependency constraints must all be strings.');
       assert(equal(side.manifest[section] ?? {}, side.lock.packages[''][section] ?? {}),
         'Root lock and manifest dependencies disagree.');
     }
@@ -162,6 +168,8 @@ export function proveNpm(before, after) {
       'Only matching npm registry package tarballs with SHA-512 integrity are supported.');
     }
     const section = sections[0];
+    assert(typeof before.manifest[section]?.[name] === 'string'
+      && typeof after.manifest[section]?.[name] === 'string', 'npm dependency constraints must be strings.');
     const oldConstraint = /^(\^|~|)(\d+\.\d+\.\d+)$/.exec(before.manifest[section]?.[name]);
     const newConstraint = /^(\^|~|)(\d+\.\d+\.\d+)$/.exec(after.manifest[section]?.[name]);
     assert(oldConstraint && newConstraint && oldConstraint[1] === newConstraint[1], 'Ambiguous npm constraints.');
@@ -218,6 +226,7 @@ export async function evaluate({ github, context, optedIn, mode, checks, ecosyst
     && file.status === 'modified' && !file.previous_filename)
     && new Set(files.map((file) => file.filename)).size === files.length
     && files.some((file) => file.filename === lockPath), 'Unsupported file, rename or missing lock.');
+  const immutableTrees = [];
   for (const ref of [pr.base.sha, pr.head.sha]) {
     const commit = (await github.rest.git.getCommit({ ...context.repo, commit_sha: ref })).data;
     const tree = (await github.rest.git.getTree({ ...context.repo, tree_sha: commit.tree.sha, recursive: '1' })).data;
@@ -225,7 +234,19 @@ export async function evaluate({ github, context, optedIn, mode, checks, ecosyst
       const entries = tree.tree.filter((entry) => entry.path === path);
       return entries.length === 1 && entries[0].type === 'blob' && entries[0].mode === '100644';
     }), 'Manifest and lock must be complete regular non-executable Git blobs.');
+    const entries = tree.tree.filter((entry) => entry.type !== 'tree');
+    assert(entries.every((entry) => typeof entry.path === 'string' && /^[a-f0-9]{40}$/.test(entry.sha))
+      && new Set(entries.map((entry) => entry.path)).size === entries.length, 'Incomplete immutable Git entries.');
+    immutableTrees.push(new Map(entries.map((entry) => [entry.path, {
+      sha: entry.sha, type: entry.type, mode: entry.mode,
+    }])));
   }
+  const [baseTree, headTree] = immutableTrees;
+  const changedPaths = [...new Set([...baseTree.keys(), ...headTree.keys()])]
+    .filter((path) => !equal(baseTree.get(path), headTree.get(path)));
+  assert(changedPaths.length > 0 && changedPaths.length <= 2 && changedPaths.includes(lockPath)
+    && changedPaths.every((path) => [manifestPath, lockPath].includes(path)),
+  'The full immutable HEAD/base delta contains an unsupported change.');
   const data = async (ref, path) => {
     const response = (await github.rest.repos.getContent({ ...context.repo, ref, path })).data;
     assert(response.type === 'file' && response.encoding === 'base64' && response.size <= 1024 * 1024,
