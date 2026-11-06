@@ -1382,6 +1382,47 @@ foreach ([$repositoryCi, $repositoryDocumentation] as $workflow) {
         'Required workflow contexts must remain present on editorial and release PRs.',
     );
 }
+$minimumJob = $repositoryCi['jobs']['component-compatibility'];
+$minimumStep = workflowStep($minimumJob, 'Resolve The Compatible Minimum Graph');
+verifyWorkflow(
+    ['7.4', '8.0', '8.1'] === $minimumJob['strategy']['matrix']['components']
+        && '${{ matrix.components }}' === $minimumStep['env']['SYMFONY_COMPONENT_VERSION']
+        && '${{ matrix.components == \'8.0\' && \'7.4\' || matrix.components }}'
+            === $minimumStep['env']['SYMFONY_SECURITY_COMPONENT_VERSION'],
+    'Retain the legacy compatibility checks and add the patched 8.1 family.',
+);
+++$assertions;
+foreach (['7.4', '8.0', '8.1'] as $family) {
+    $minimum = new Process([
+        'bash',
+        '-e',
+        '-c',
+        'composer() { printf "%s\\n" "$@"; }' . "\n" . $minimumStep['run'],
+    ], $root, [
+        'SYMFONY_COMPONENT_VERSION' => $family,
+        'SYMFONY_SECURITY_COMPONENT_VERSION' => '8.0' === $family ? '7.4' : $family,
+        'BASH_ENV' => false, 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false,
+    ]);
+    $minimum->setTimeout(10);
+    verifyWorkflow(0 === $minimum->run(), 'Execute the actual minimum resolution command.');
+    $arguments = explode("\n", trim($minimum->getOutput()));
+    foreach (['filesystem', 'http-client', 'validator', 'yaml', 'finder', 'lock', 'process'] as $component) {
+        $selected = '8.0' === $family && in_array($component, ['filesystem', 'http-client', 'validator', 'yaml'], true)
+            ? '7.4' : $family;
+        verifyWorkflow(
+            in_array('--with=symfony/' . $component . ':' . $selected . '.*', $arguments, true),
+            'The actual command must preserve unaffected minimums and select patched component families.',
+        );
+        ++$assertions;
+    }
+    verifyWorkflow(
+        in_array('--prefer-lowest', $arguments, true)
+            && ! in_array('--no-security-blocking', $arguments, true)
+            && ! in_array('--ignore-platform-reqs', $arguments, true),
+        'Minimum resolution must preserve dependency policy and platform checks.',
+    );
+    ++$assertions;
+}
 foreach (['packaging', 'component-compatibility', 'tests'] as $jobName) {
     $job = $repositoryCi['jobs'][$jobName];
     verifyWorkflow(
