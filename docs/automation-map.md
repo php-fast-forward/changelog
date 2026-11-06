@@ -7,7 +7,7 @@ event workflows, and implementation actions.
 
 ## Consumer entrypoint and optional operations
 
-All seven public reusable paths remain stable:
+The seven changelog lifecycle paths remain stable; PATCH evaluation and execution are separate opt-in contracts:
 
 | Reusable workflow | Responsibility |
 | --- | --- |
@@ -17,6 +17,8 @@ All seven public reusable paths remain stable:
 | [`changelog-dependabot.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-dependabot.yml) | Verified dependency metadata and a deterministic dependency-update fragment. |
 | [`changelog-version.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-version.yml) | Create or synchronize the single reviewable version PR. |
 | [`changelog-publish.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-publish.yml) | Verify and publish the exact approved consolidation commit. |
+| [`dependabot-automerge.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/dependabot-automerge.yml) | Opt-in PATCH execution with live gates and native exclusive-App protection; no consumer activation. |
+| [`dependabot-patch.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/dependabot-patch.yml) | Read-only npm/Composer PATCH candidate evidence; no approval or merge execution. |
 | [`changelog-history.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-history.yml) | Preview or apply backfill/format maintenance on the disposable runner; creates no commit, push or PR. |
 
 The six individual operations are available for advanced composition; ordinary
@@ -178,3 +180,15 @@ downloads and Composer dist can use the same source archive; see
 ---
 
 [Documentation index](index.md)
+
+## Optional dependency PATCH evaluation
+
+The opt-in [Dependabot PATCH evaluator](dependabot-patch.md) is a separate
+read-only reusable (`dependabot-patch.yml`). It supports conservative npm v3 and
+Composer manifest/lock proof and exact-HEAD review/security checks. It never
+merges or approves PRs. Execution remains blocked pending accepted shared
+lease/fencing with the separately developed n8n/App executor. Initial adoption
+is limited to a separately approved `mentordosnerds/infrastructure` pilot.
+
+The separate opt-in [PATCH execution reusable](dependabot-execution.md) adds live
+gates and a native exclusive-App boundary; no production caller is installed.

@@ -80,3 +80,22 @@ after checkout, preserving the original provenance rejection assertion.
 These checks do not execute GitHub's scheduler, Docker runner, token-permission
 model, sticky comment action or required-status settings in a consumer. A pilot
 repository must verify those effective platform behaviors before release.
+
+The Dependabot PATCH fixtures (`dependabot-patch.test.mjs`) exercise the actual
+read-only npm/Composer proof module with synthetic SDK responses: official bot
+identity, immutable HEAD/base and Git modes, complete file scope, exact/scoped
+npm and Composer patches, mixed groups, metadata/graph changes, transitive and
+prerelease rejection, check App identity, stale snapshots, API failures and
+execution refusal. The runner also evaluates the workflow's actual github-script
+step. Run independently with `node --test tests/Workflow/dependabot-patch.test.mjs`;
+the full `composer test:workflows` supplies the inline script for that last case.
+No network request, merge, publication or consumer installation is performed.
+
+PATCH execution fixtures extend the evaluator suite through actual native-boundary,
+SDK gate and merge adapters with synthetic responses. They test successful merges,
+repair handoff, ownership mismatch, reconciliation, managed-version exact-delta
+proof and publication authority. The release fixture also runs the real trusted
+CLI in a disposable clean Git repository. No consumer script, real merge, token
+mint, credential change or publication occurs. The PHP runner supplies both inline
+workflow scripts and the trusted-event guard; standalone Node runs explicitly skip
+those injected-script cases.

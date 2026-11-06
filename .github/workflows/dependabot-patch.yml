@@ -1,0 +1,74 @@
+name: 'Reusable: Dependabot PATCH Evaluation'
+on:
+  workflow_call:
+    inputs:
+      ecosystem:
+        description: npm (lock v3) or composer; all other ecosystems block.
+        type: string
+        default: npm
+      directory:
+        description: Single dependency directory relative to the consumer root.
+        type: string
+        default: '.'
+      opt-in:
+        description: Explicit repository adoption; never inferred from organization membership.
+        type: boolean
+        default: false
+      mode:
+        description: evaluate only; execute fails closed until coordinated fencing exists.
+        type: string
+        default: evaluate
+      review-security-checks:
+        description: JSON array of at least two distinct successful HEAD checks with name and trusted app_id.
+        type: string
+        default: '[]'
+    outputs:
+      report:
+        description: Candidate evidence only; never a merge authorization.
+        value: ${{ jobs.evaluate.outputs.report }}
+permissions: {}
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    outputs:
+      report: ${{ steps.evaluate.outputs.report }}
+    steps:
+      - name: Require The Immutable Called Runtime
+        shell: bash
+        env:
+          FF_RUNTIME_REPOSITORY: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          FF_RUNTIME_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: |
+          set -euo pipefail
+          [[ -n "$FF_RUNTIME_REPOSITORY" && "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+      - name: Check Out Only The Trusted Runtime
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Evaluate The Exact Dependency Delta
+        id: evaluate
+        uses: actions/github-script@v8.0.0
+        env:
+          FF_OPT_IN: ${{ inputs.opt-in }}
+          FF_MODE: ${{ inputs.mode }}
+          FF_ECOSYSTEM: ${{ inputs.ecosystem }}
+          FF_DIRECTORY: ${{ inputs.directory }}
+          FF_CHECKS: ${{ inputs.review-security-checks }}
+        with:
+          script: |
+            const { evaluate } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-patch.mjs`);
+            const report = await evaluate({ github, context,
+              optedIn: process.env.FF_OPT_IN === 'true', mode: process.env.FF_MODE,
+              ecosystem: process.env.FF_ECOSYSTEM, directory: process.env.FF_DIRECTORY,
+              checks: JSON.parse(process.env.FF_CHECKS) });
+            core.setOutput('report', JSON.stringify(report));
+            await core.summary.addHeading('Dependabot PATCH evaluation')
+              .addCodeBlock(JSON.stringify(report, null, 2), 'json').write();

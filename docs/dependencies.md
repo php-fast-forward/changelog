@@ -8,7 +8,8 @@ separate from the application's graph.
 | --- | --- |
 | PHP | `^8.5`, including when the CLI is run through CPX. |
 | Symfony Console | `^8.1`; interactive `Ask` uses its `constraints` argument. |
-| Other Symfony components | `^7.4 || ^8.0`; filesystem, discovery, HTTP, locks, process and validation boundaries. |
+| Symfony Filesystem, HTTP Client, Validator and YAML | `^7.4.23 || ^8.1.11`; excludes the vulnerable 8.0 family and earlier unpatched releases. |
+| Other Symfony components | `^7.4 || ^8.0`; discovery, locks and process boundaries. |
 | Fast Forward Container / Config | `~1.6.0` / `^1.7`; composition and optional explicit settings. |
 
 The [manifest](https://github.com/php-fast-forward/changelog/blob/main/composer.json)
@@ -53,11 +54,22 @@ disabled to make the compatibility checks pass.
 
 The native PHP 8.5 matrix tests the maximum locked graph on Linux, ARM and
 Windows. Separate component jobs minimize all runtime requirements and their
-transitive dependencies for the supported 7.4 and 8.0 component families while
+transitive dependencies for the supported 7.4, mixed 8.0 and 8.1 component families while
 retaining the locked development test toolchain. Console retains its own 8.1
-minimum, and the development YAML parser retains its own compatible minimum. Those jobs
+minimum. Those jobs
 run the unit and real Git/HTTP integration suites, CLI discovery and the complete
 provider-based contribution recipe; PHP and PHPUnit deprecations fail the jobs.
+The existing `Symfony 8.0 Component Minimums` check uses the patched 7.4 branch
+for Filesystem, HTTP Client, Validator and YAML alongside the unaffected 8.0 components.
+There is no secure homogeneous 8.0 graph for these four components: upstream
+advisories affect every 8.0 release, with fixes in 7.4.23 and 8.1.11. See the
+[Filesystem advisory](https://github.com/symfony/symfony/security/advisories/GHSA-6prc-h956-hxjq),
+HTTP Client [credential scope](https://github.com/symfony/symfony/security/advisories/GHSA-gq53-v8w2-gjhj)
+and [DNS rebinding](https://github.com/symfony/symfony/security/advisories/GHSA-c7hm-wqwp-f9v8) advisories,
+the [Validator advisory](https://github.com/symfony/symfony/security/advisories/GHSA-4qpf-57w4-m3wc)
+and the [YAML advisory](https://github.com/symfony/symfony/security/advisories/GHSA-hwfg-qwvh-2wfx).
+The 8.1 job additionally verifies the corrected 8.x family. Advisory blocking
+remains active in every resolution; no alert is ignored for compatibility testing.
 The separate fresh Composer packaging jobs still resolve complete highest and
 lowest consumer runtime graphs without development dependencies.
 
