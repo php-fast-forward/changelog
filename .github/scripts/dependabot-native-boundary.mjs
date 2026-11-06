@@ -40,4 +40,3 @@ export function nativeGitHubBoundary({ authenticate, executor = 'github-actions'
     } });
   } };
 }
-
