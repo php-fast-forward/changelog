@@ -1,5 +1,9 @@
 # Dependabot PATCH evaluation and coordinated rollout
 
+For the separate execution implementation and its native exclusion/runtime
+prerequisites, see [PATCH execution](dependabot-execution.md). This page describes
+the preserved read-only evaluator, whose `execute` mode remains unsupported.
+
 `.github/workflows/dependabot-patch.yml` is an opt-in, read-only reusable workflow.
 Its default is `opt-in: false`, `mode: evaluate`. It returns candidate evidence,
 **never merge authority**. `mode: execute` fails before API inspection. No token

@@ -350,8 +350,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    14 === count(glob($root . '/.github/workflows/*.yml')),
-    'The eight public contracts and six repository workflows must remain distinct.',
+    15 === count(glob($root . '/.github/workflows/*.yml')),
+    'The nine public contracts and six repository workflows must remain distinct.',
 );
 $assertions += 6;
 
@@ -1444,19 +1444,34 @@ echo $impactFixtures->getOutput();
 $assertions += 9;
 
 $patchWorkflow = Yaml::parseFile($root . '/.github/workflows/dependabot-patch.yml');
+$executionWorkflow = Yaml::parseFile($root . '/.github/workflows/dependabot-automerge.yml');
 verifyWorkflow(false === $patchWorkflow['on']['workflow_call']['inputs']['opt-in']['default']
     && 'evaluate' === $patchWorkflow['on']['workflow_call']['inputs']['mode']['default']
     && ['contents' => 'read', 'pull-requests' => 'read', 'checks' => 'read'] === $patchWorkflow['jobs']['evaluate']['permissions']
     && ! isset($patchWorkflow['on']['workflow_call']['secrets']),
     'Dependabot evaluation must default to opt-out and expose no write permissions or secrets.');
-$patchFixtures = new Process(['node', '--test', $root . '/tests/Workflow/dependabot-patch.test.mjs'], $root, [
-    'GITHUB_TOKEN' => false, 'GH_TOKEN' => false,
-    'FF_PATCH_SCRIPT' => workflowStep(
-        $patchWorkflow['jobs']['evaluate'],
-        'Evaluate The Exact Dependency Delta',
-    )['with']['script'],
-]);
-$patchFixtures->setTimeout(30);
+verifyWorkflow(false === $executionWorkflow['on']['workflow_call']['inputs']['opt-in']['default']
+    && 'evaluate' === $executionWorkflow['on']['workflow_call']['inputs']['mode']['default']
+    && ['contents' => 'read', 'pull-requests' => 'read', 'checks' => 'read'] === $executionWorkflow['jobs']['advance']['permissions']
+    && ['workflow_call'] === array_keys($executionWorkflow['on']),
+    'Execution must be opt-in and retain a read-only default job token without installing an event consumer.');
+$patchFixtures = new Process(['node', '--test', $root . '/tests/Workflow/dependabot-execution.test.mjs',
+    $root . '/tests/Workflow/dependabot-gates.test.mjs', $root . '/tests/Workflow/dependabot-release.test.mjs'], $root, [
+        'GITHUB_TOKEN' => false, 'GH_TOKEN' => false,
+        'FF_EXEC_SCRIPT' => workflowStep(
+            $executionWorkflow['jobs']['advance'],
+            'Advance One Verified Update',
+        )['with']['script'],
+        'FF_EXEC_GUARD' => workflowStep(
+            $executionWorkflow['jobs']['advance'],
+            'Require Trusted Default-Branch Invocation',
+        )['run'],
+        'FF_PATCH_SCRIPT' => workflowStep(
+            $patchWorkflow['jobs']['evaluate'],
+            'Evaluate The Exact Dependency Delta',
+        )['with']['script'],
+    ]);
+$patchFixtures->setTimeout(180);
 $patchFixtures->mustRun();
 echo $patchFixtures->getOutput();
 ++$assertions;

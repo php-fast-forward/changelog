@@ -7,7 +7,7 @@ event workflows, and implementation actions.
 
 ## Consumer entrypoint and optional operations
 
-The seven changelog lifecycle paths remain stable; PATCH evaluation is a separate opt-in contract:
+The seven changelog lifecycle paths remain stable; PATCH evaluation and execution are separate opt-in contracts:
 
 | Reusable workflow | Responsibility |
 | --- | --- |
@@ -17,6 +17,7 @@ The seven changelog lifecycle paths remain stable; PATCH evaluation is a separat
 | [`changelog-dependabot.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-dependabot.yml) | Verified dependency metadata and a deterministic dependency-update fragment. |
 | [`changelog-version.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-version.yml) | Create or synchronize the single reviewable version PR. |
 | [`changelog-publish.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-publish.yml) | Verify and publish the exact approved consolidation commit. |
+| [`dependabot-automerge.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/dependabot-automerge.yml) | Opt-in PATCH execution with live gates and native exclusive-App protection; no consumer activation. |
 | [`dependabot-patch.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/dependabot-patch.yml) | Read-only npm/Composer PATCH candidate evidence; no approval or merge execution. |
 | [`changelog-history.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/changelog-history.yml) | Preview or apply backfill/format maintenance on the disposable runner; creates no commit, push or PR. |
 
@@ -188,3 +189,6 @@ Composer manifest/lock proof and exact-HEAD review/security checks. It never
 merges or approves PRs. Execution remains blocked pending accepted shared
 lease/fencing with the separately developed n8n/App executor. Initial adoption
 is limited to a separately approved `mentordosnerds/infrastructure` pilot.
+
+The separate opt-in [PATCH execution reusable](dependabot-execution.md) adds live
+gates and a native exclusive-App boundary; no production caller is installed.

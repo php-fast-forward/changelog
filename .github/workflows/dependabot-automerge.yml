@@ -1,0 +1,116 @@
+name: 'Reusable: Dependabot PATCH Execution'
+on:
+  workflow_call:
+    inputs:
+      pull-request:
+        type: number
+        required: true
+      opt-in:
+        type: boolean
+        default: false
+      mode:
+        type: string
+        default: evaluate
+      ecosystem:
+        type: string
+        default: npm
+      directory:
+        type: string
+        default: '.'
+      review-security-checks:
+        type: string
+        default: '[]'
+      pair-checks:
+        description: Trusted security/viability checks on the exact test-merge commit.
+        type: string
+        default: '[]'
+      app-client-id:
+        type: string
+        default: ''
+    outputs:
+      result:
+        description: Explicit evaluated/waiting/blocked/repair/merge/reconciliation state.
+        value: ${{ jobs.advance.outputs.result }}
+    secrets:
+      app-private-key:
+        required: false
+permissions: {}
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      result: ${{ steps.operation.outputs.result }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - name: Require Trusted Default-Branch Invocation
+        env:
+          FF_EVENT: ${{ github.event_name }}
+          FF_REF: ${{ github.ref }}
+          FF_DEFAULT: ${{ github.event.repository.default_branch }}
+          FF_RUNTIME_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          FF_RUNTIME_REPO: ${{ fromJSON(toJSON(job)).workflow_repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$FF_EVENT" =~ ^(workflow_dispatch|workflow_run)$ && "$FF_REF" == "refs/heads/$FF_DEFAULT" ]]
+          [[ -n "$FF_RUNTIME_REPO" && "$FF_RUNTIME_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - name: Check Out Only Trusted Runtime
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Mint Token From An Already Approved Installation
+        id: app
+        if: inputs.opt-in && inputs.mode == 'execute' && inputs.app-client-id != ''
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-checks: read
+          permission-administration: read
+          permission-variables: read
+          skip-token-revoke: 'false'
+      - name: Advance One Verified Update
+        id: operation
+        uses: actions/github-script@v8.0.0
+        env:
+          FF_NUMBER: ${{ inputs.pull-request }}
+          FF_OPT_IN: ${{ inputs.opt-in }}
+          FF_MODE: ${{ inputs.mode }}
+          FF_ECOSYSTEM: ${{ inputs.ecosystem }}
+          FF_DIRECTORY: ${{ inputs.directory }}
+          FF_CHECKS: ${{ inputs.review-security-checks }}
+          FF_PAIR_CHECKS: ${{ inputs.pair-checks }}
+          FF_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        with:
+          github-token: ${{ steps.app.outputs.token || github.token }}
+          script: |
+            const { advanceDependencyUpdate } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-execution.mjs`);
+            const { nativeGitHubBoundary } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-native-boundary.mjs`);
+            const number = Number(process.env.FF_NUMBER);
+            if (!Number.isSafeInteger(number) || number < 1) throw Error('Invalid PR number.');
+            const pr = (await github.rest.pulls.get({ ...context.repo, pull_number: number })).data;
+            if (context.eventName === 'workflow_run' && context.payload.workflow_run?.head_sha !== pr.head.sha) throw Error('Stale workflow-run snapshot.');
+            const snapshot = { ...context, eventName: 'pull_request', payload: {
+              repository: { full_name: `${context.repo.owner}/${context.repo.repo}` }, pull_request: pr } };
+            const policy = { optIn: process.env.FF_OPT_IN === 'true', mode: process.env.FF_MODE,
+              ecosystem: process.env.FF_ECOSYSTEM, directory: process.env.FF_DIRECTORY,
+              checks: JSON.parse(process.env.FF_CHECKS), pairChecks: JSON.parse(process.env.FF_PAIR_CHECKS), executor: 'github-actions' };
+            let boundary;
+            if (process.env.FF_APP_SLUG) {
+              const app = (await github.rest.apps.getBySlug({ app_slug: process.env.FF_APP_SLUG })).data;
+              boundary = nativeGitHubBoundary({ authenticate: async () => ({ github, appId: app.id }) });
+            }
+            const result = await advanceDependencyUpdate({ github, context: snapshot, policy, boundary });
+            core.setOutput('result', JSON.stringify(result));
+            await core.summary.addCodeBlock(JSON.stringify(result, null, 2), 'json').write();

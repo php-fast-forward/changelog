@@ -308,3 +308,5 @@ test('npm unchanged install-script flag permits candidate evidence but flag chan
   delete f.after.lock.packages['node_modules/example'].hasInstallScript;
   assert.throws(() => proveNpm(f.before, f.after), /metadata changed/);
 });
+
+export { sdkFixture };

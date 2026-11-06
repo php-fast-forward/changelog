@@ -90,3 +90,12 @@ execution refusal. The runner also evaluates the workflow's actual github-script
 step. Run independently with `node --test tests/Workflow/dependabot-patch.test.mjs`;
 the full `composer test:workflows` supplies the inline script for that last case.
 No network request, merge, publication or consumer installation is performed.
+
+PATCH execution fixtures extend the evaluator suite through actual native-boundary,
+SDK gate and merge adapters with synthetic responses. They test successful merges,
+repair handoff, ownership mismatch, reconciliation, managed-version exact-delta
+proof and publication authority. The release fixture also runs the real trusted
+CLI in a disposable clean Git repository. No consumer script, real merge, token
+mint, credential change or publication occurs. The PHP runner supplies both inline
+workflow scripts and the trusted-event guard; standalone Node runs explicitly skip
+those injected-script cases.
