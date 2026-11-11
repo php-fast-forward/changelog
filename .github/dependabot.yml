@@ -13,6 +13,7 @@ updates:
       - github-actions
   - package-ecosystem: composer
     directory: /
+    versioning-strategy: increase
     schedule:
       interval: weekly
     groups:
