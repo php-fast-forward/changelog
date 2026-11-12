@@ -26,7 +26,7 @@ jobs:
         with:
           php-version: '8.5'
           extensions: curl, iconv, mbstring, phar, zlib
-          tools: composer:2.10.3
+          tools: composer:v2, box:4.7.1
           coverage: none
       - name: Install locked runtime dependencies only
         env:
@@ -34,15 +34,11 @@ jobs:
         run: |
           composer install --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative --no-interaction --no-progress
           composer check-platform-reqs --no-dev
-      - name: Download isolated Box 4.7.1
-        run: |
-          curl --fail --location --silent --show-error https://github.com/box-project/box/releases/download/4.7.1/box.phar -o "$RUNNER_TEMP/box.phar"
-          echo "aedabb38bad96a90868603f118956c3faa662b545c06be66df1b145aba703c0a  $RUNNER_TEMP/box.phar" | sha256sum --check
       - name: Build and verify the exact artifact
         run: |
-          php "$RUNNER_TEMP/box.phar" validate --ignore-recommendations-and-warnings box.json
-          php -d phar.readonly=0 "$RUNNER_TEMP/box.phar" compile --no-restart --no-parallel -c box.json
-          php "$RUNNER_TEMP/box.phar" verify dist/changelog
+          box validate --ignore-recommendations-and-warnings box.json
+          box compile --no-parallel --sort-compiled-files --config=box.json
+          box verify dist/changelog
           php tests/Phar/verify.php
       - uses: actions/upload-artifact@v7.0.2
         with:

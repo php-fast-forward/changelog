@@ -12,7 +12,8 @@ once. The bundled libraries occupy bytes inside the archive as well as any
 separate source installation. Box stays outside the dependency graph.
 
 The qualification workflow installs the reviewed production lock with plugins
-and scripts disabled, downloads official Box 4.7.1 with its SHA-256 digest, builds
+and scripts disabled, provisions `composer:v2, box:4.7.1` through the same
+`shivammathur/setup-php` integration as Code Standards, builds
 `dist/changelog`, runs Box verification and disposable command tests, then
 uploads that exact artifact. It has read-only permissions, no autocommit and no
 release operation. Changes to artifact inputs or this packaging surface, or an
@@ -29,9 +30,9 @@ Build manually with an isolated Box executable:
 
 ```sh
 composer install --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative
-php /path/to/box.phar validate --ignore-recommendations-and-warnings box.json
-php -d phar.readonly=0 /path/to/box.phar compile --no-restart --no-parallel -c box.json
-php /path/to/box.phar verify dist/changelog
+box validate --ignore-recommendations-and-warnings box.json
+box compile --no-parallel --sort-compiled-files --config=box.json
+box verify dist/changelog
 php tests/Phar/verify.php
 ```
 
