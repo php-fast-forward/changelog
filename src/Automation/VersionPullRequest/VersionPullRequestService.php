@@ -20,10 +20,12 @@ use FastForward\Changelog\Automation\Policy\PullRequestPolicyInterface;
 use FastForward\Changelog\Automation\VersionPullRequest\Factory\VersionPullRequestInputFactoryInterface;
 use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitRepositoryInterface;
+use FastForward\Changelog\GitHub\GitHubBlobTransportInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
 use FastForward\Changelog\History\Factory\HistoryReleaseFactoryInterface;
 use FastForward\Changelog\History\HistoryCodecInterface;
 use FastForward\Changelog\Release\Factory\ReleasePlanFactoryInterface;
+use FastForward\Changelog\Release\GeneratedFileEvidence;
 use FastForward\Changelog\Release\PendingPublicationException;
 use FastForward\Changelog\Release\ReceiptCodecInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
@@ -61,6 +63,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
      *                                                               provenance and endings.
      * @param ReleasePlanFactoryInterface             $plans         Constructor that binds transaction inputs, output bytes and receipt
      *                                                               identity.
+     * @param ?GeneratedFileEvidence                  $generated     Proves selected prepared bytes and existing source-base modes before the native owned transaction.
      */
     public function __construct(
         private GitHubClientInterface $github,
@@ -75,6 +78,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
         private TemplateResolverInterface $templates,
         private HistoryReleaseFactoryInterface $releases,
         private ReleasePlanFactoryInterface $plans,
+        private ?GeneratedFileEvidence $generated = null,
     ) {}
 
     /**
@@ -178,8 +182,8 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $this->inputEvidence->validate($plan);
             $this->preflight($options, $input, $base, $head);
             $treeSha = $this->baseTree($repo, $base);
-            $tree = $this->plannedTree($options, $plan, $data);
             $writing = true;
+            $tree = $this->plannedTree($options, $plan, $data);
             $newTree = $this->createTree($repo, $treeSha, $tree);
 
             if ($newTree === $treeSha) {
@@ -239,7 +243,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
     }
 
     /**
-     * Describes only the central output and the exact consumed fragment deletions.
+     * Describes central output and fragment deletions, uploading only explicitly proved generated blobs.
      *
      * @param  ReleaseOptions                  $options Trusted consumer paths, rendering settings and repository selection for this
      *                                                  operation.
@@ -257,6 +261,31 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
 
         foreach ($data['consumed'] as $path => $hash) {
             $tree[] = ['path' => $path, 'mode' => '100644', 'type' => 'blob', 'sha' => null];
+        }
+        foreach (null === $plan->nextVersion ? [] : $plan->generatedFiles as $path => $digest) {
+            if (null === $this->generated || ! $this->github instanceof GitHubBlobTransportInterface) {
+                throw new VersionPullRequestException(
+                    'Generated output requires the native bounded Git blob transport.',
+                );
+            }
+            $bytes = $this->generated->contents($options, $path);
+            $this->require(
+                hash_equals($digest, hash('sha256', $bytes)),
+                'Prepared generated output changed after planning.',
+            );
+            $identity = hash_init('sha1');
+            hash_update($identity, 'blob ' . strlen($bytes) . "\0");
+            hash_update($identity, $bytes);
+            $sha = hash_final($identity);
+            $baseBlob = $this->generated->baseBlob($options, $plan->baseSha, $path);
+            $tree[] = ['path' => $path, 'mode' => $this->generated->mode(
+                $options,
+                $plan->baseSha,
+                $path,
+            ), 'type' => 'blob', 'sha' => $sha === $baseBlob ? $baseBlob : $this->github->createBlob(
+                $options->repository,
+                $bytes,
+            )];
         }
 
         return $tree;
@@ -727,7 +756,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             'The existing managed changelog could not be read at its verified head.',
         );
 
-        if (hash('sha256', $contents) !== $evidence['Output']) {
+        if (ReleasePlan::outputHash($contents, $plan->generatedFiles) !== $evidence['Output']) {
             return $plan;
         }
         $this->inputEvidence->validateTemplate($plan->options, $plan->baseSha);
@@ -766,6 +795,7 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
             $this->history->notes($this->history->parse($candidateContents, $template), $plan->nextVersion),
             $plan->receiptPath,
             $plan->originalReceipt,
+            ...([] === $plan->generatedFiles ? [] : ['generatedFiles' => $plan->generatedFiles]),
         );
 
         return $candidate->id === $evidence['Plan'] && $candidate->changelogContents === $contents ? $candidate : $plan;
@@ -918,6 +948,10 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 $data['consumed'],
             )
             . "\n\nUpdates the changelog and removes the consumed fragments."
+            . ([] === $plan->generatedFiles ? '' : "\nGenerated files: `" . implode(
+                '`, `',
+                array_keys($plan->generatedFiles),
+            ) . '`.')
             . "\nPreparing this PR does not publish a tag or release."
             . "\nAfter the approved merge, the full lifecycle publishes its tag and GitHub release by default."
             . "\nAn explicit `publish: false` creates neither; later plans still continue from the consolidated history."

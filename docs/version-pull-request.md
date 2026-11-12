@@ -21,7 +21,8 @@ consumed hashes at that source commit. It never plans from an existing version
 branch, so updating a PR cannot bump its prepared version again.
 
 The generated tree starts from the fresh base tree. It updates only
-`CHANGELOG.md` and removes the validated consumed fragments. It adds no plan
+`CHANGELOG.md` and removes the validated consumed fragments by default. An
+explicit generated-file policy may add the replacements described below. It adds no plan
 file to `.changelog/` or elsewhere. Maintenance updates only the central file.
 Local recovery journals are outside the versioned tree.
 
@@ -67,6 +68,37 @@ An unchanged plan produces no additional commit. An uncertain PR creation is
 recovered by querying the exclusive branch. Empty plans create no empty commit
 or PR. Dry runs make no GitHub writes.
 
+## Generated release files
+
+`generated-files: '["dist/code-standards"]'` explicitly selects existing regular
+source-base files whose prepared replacements belong in this same version PR.
+The GitHub CLI equivalent is `--generated-files='["dist/code-standards"]'`.
+The default is `[]`; configuration must match in version, check, PR feedback and
+publication. New paths, symlinks, submodules, changed file modes and changes
+outside the selected paths remain forbidden. History-only maintenance does not
+replace generated files.
+
+Build and qualify the artifact in a read-only job from the immutable planned
+base, then place the exact tested bytes over their selected checkout paths before
+the native version action. Changelog does not build artifacts, execute generated
+bytes or run project hooks. The existing freshness check rejects a base that
+advanced while the build ran. The native writer includes generated blobs,
+history and fragment deletions in one signed Bot commit; do not append a separate
+manual or App autocommit to its managed branch.
+
+The plan and machine summary include selected paths and SHA-256 identities;
+the PR body lists the generated files for review. No manifest or fifth trailer
+is added. `Changelog-Output` binds the central history hash and the sorted generated
+path/hash map; with the empty policy it retains the original central hash.
+Ownership reconstructs actual bytes using immutable trees and bounded raw blob
+streams. Publication reconstructs committed bytes again and retains complete
+head/merge tree equality, so merging unrelated source changes beside an older
+executable is rejected. Each file keeps the existing 64 MiB bound.
+
+The PHP `GitRepositoryInterface::releaseMetadata()` and
+`ReleasePlanFactoryInterface::create()` accept an additional optional generated
+argument. Existing callers remain valid; custom implementations must accept the
+extended signatures. Existing empty-policy receipts and fingerprints are unchanged.
 ## Title customization
 
 The default title is `chore(release): {repository} v{current_version} → v{next_version}`.

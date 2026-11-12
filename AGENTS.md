@@ -156,8 +156,11 @@ used across Fast Forward PHP packages.
   files or change machine/CI output as an incidental command effect.
 - Ordinary contributions add unique fragments. Approved consolidation consumes
   only its validated set and updates the single central history through services.
-- Release PRs update the central history and delete consumed fragments; they
-  MUST NOT introduce technical plan files or generated metadata comments.
+- Release PRs update the central history and delete consumed fragments. Explicit
+  `generated-files` opt-in may also replace existing regular source-base files in
+  that same signed Bot commit, with exact hashes and preserved modes verified by
+  ownership and publication. The default scope remains history and deletions.
+  Release PRs MUST NOT introduce technical plan files or generated metadata comments.
 - Recovery journals stay outside the versioned tree and are removed on success.
   Privileged automation verifies its trusted context and committed Git evidence.
 

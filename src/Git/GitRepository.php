@@ -18,6 +18,7 @@ namespace FastForward\Changelog\Git;
 
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Release\ReleaseMetadataParser;
+use FastForward\Changelog\Release\ReleasePlan;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -101,17 +102,19 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
     /**
      * Returns only complete scalar evidence whose generated output matches the exact approved central blob.
      *
-     * @param  string                   $directory     Explicit consumer directory used for repository or fragment operations.
-     * @param  string                   $reference     Git revision to resolve within the explicit consumer repository.
-     * @param  string                   $changelogFile Canonical project-relative path of the single central history blob.
+     * @param  string                   $directory      Explicit consumer directory used for repository or fragment operations.
+     * @param  string                   $reference      Git revision to resolve within the explicit consumer repository.
+     * @param  string                   $changelogFile  Canonical project-relative path of the single central history blob.
      * @return ?array                   Unique complete transaction trailers matching the approved central blob, or null when absent.
      * @throws RuntimeException         When Git execution or the returned immutable repository evidence cannot be verified.
      * @throws InvalidArgumentException When a supplied revision cannot be accepted before the immutable Git query.
+     * @param  list<string>             $generatedFiles Explicit existing generated paths whose committed bytes join the approved output fingerprint.
      */
     public function releaseMetadata(
         string $directory,
         string $reference,
         string $changelogFile = 'CHANGELOG.md',
+        array $generatedFiles = [],
     ): ?array {
         $sha = $this->resolveRef($directory, $reference);
         $direct = $this->metadata->parse($this->run($directory, ['show', '-s', '--format=%B', $sha, '--']));
@@ -120,7 +123,23 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
         if (null === $central) {
             return null;
         }
-        $output = hash('sha256', $central);
+        $generated = [];
+        foreach ($generatedFiles as $path) {
+            $files = $this->filesAt($directory, $sha, $path);
+            $bytes = $this->readFileAt($directory, $sha, $path);
+            if (1 !== count($files) || ($files[0]['path'] ?? null) !== $path || ! in_array(
+                $files[0]['mode'] ?? null,
+                ['100644', '100755'],
+                true,
+            )
+                || null === $bytes || strlen($bytes) > 67_108_864) {
+                throw new RuntimeException(
+                    'Generated release metadata requires exact bounded regular committed files.',
+                );
+            }
+            $generated[$path] = hash('sha256', $bytes);
+        }
+        $output = ReleasePlan::outputHash($central, $generated);
 
         if (null !== $direct) {
             if (! hash_equals($direct['output_sha256'], $output)) {

@@ -30,6 +30,7 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         'template' => 'keep-a-changelog', 'baseRef' => 'HEAD',
         'tagPrefix' => 'v', 'repository' => null, 'source' => 'auto',
         'resolvePullRequests' => false,
+        'generatedFiles' => [],
     ];
 
     /**
@@ -60,6 +61,24 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         }
         $settings = array_replace(self::DEFAULTS, $values);
         foreach ($settings as $name => $value) {
+            if ('generatedFiles' === $name) {
+                if (! is_array($value) || ! array_is_list($value)) {
+                    throw new InvalidArgumentException('Generated files must be an explicit list of canonical paths.');
+                }
+                foreach ($value as $path) {
+                    if (! is_string($path) || '' === $path || $this->paths->isAbsolute($path)
+                        || str_contains($path, '\\') || str_contains($path, "\0") || str_starts_with($path, '-')
+                        || [] !== array_intersect(explode('/', $path), ['', '.', '..', '.git'])) {
+                        throw new InvalidArgumentException('Generated files require canonical project-relative paths.');
+                    }
+                }
+                if (count($value) !== count(array_unique($value))) {
+                    throw new InvalidArgumentException('Generated file paths must be unique.');
+                }
+                sort($settings['generatedFiles'], SORT_STRING);
+
+                continue;
+            }
             if ('resolvePullRequests' === $name) {
                 if (! is_bool($value)) {
                     throw new InvalidArgumentException('Setting resolvePullRequests must be a boolean.');
@@ -86,6 +105,17 @@ final readonly class ReleaseOptionsFactory implements ReleaseOptionsFactoryInter
         }
         $changelogNamespace = strtolower($settings['changelogFile']);
         $fragmentNamespace = strtolower($settings['fragmentDirectory']);
+        foreach ($settings['generatedFiles'] as $path) {
+            if (strtolower($path) === $changelogNamespace || str_starts_with(
+                strtolower($path),
+                $fragmentNamespace . '/',
+            )
+                || strtolower($path) === $fragmentNamespace) {
+                throw new InvalidArgumentException(
+                    'Generated files must stay outside changelog and fragment ownership.',
+                );
+            }
+        }
         if ($changelogNamespace === $fragmentNamespace
             || str_starts_with($changelogNamespace, $fragmentNamespace . '/')) {
             throw new InvalidArgumentException(

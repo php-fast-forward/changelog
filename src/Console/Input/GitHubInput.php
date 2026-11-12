@@ -21,6 +21,10 @@ use Symfony\Component\Console\Attribute\Option;
 /** Maps explicit automation flags without reading runner environment or credentials. */
 final class GitHubInput
 {
+    #[Option(
+        description: 'JSON array of existing regular files included only in owned GitHub version/check/publication operations.',
+    )]
+    public ?string $generatedFiles = null;
     #[MapInput]
     public ReleaseInput $release;
 

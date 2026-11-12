@@ -117,6 +117,7 @@ require_once __DIR__ . '/Fixture/runtime.php';
 #[UsesClass(\FastForward\Changelog\Installation\WorkflowReleaseResolver::class)]
 #[UsesClass(\FastForward\Changelog\Installation\ComposerSkillInstaller::class)]
 #[UsesClass(\FastForward\Changelog\Installation\VerifiedSkillManagerRuntime::class)]
+#[\PHPUnit\Framework\Attributes\UsesClass(\FastForward\Changelog\Release\GeneratedFileEvidence::class)]
 final class ChangelogServiceProviderTest extends TestCase
 {
     /** Installation factories construct bounded public discovery and create-only I/O without executing either. */

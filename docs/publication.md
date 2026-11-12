@@ -96,7 +96,7 @@ adds this contextual operation without changing `PublicationServiceInterface`.
 The publisher verifies that GitHub links this closed, merged managed PR to both
 exact identities, in the configured repository and branches, under the configured
 Bot creator. The existing ownership policy verifies the head's Bot signature,
-transaction settings and complete central-history-plus-fragment-deletions scope.
+transaction settings and complete central-history-plus-fragment-deletions scope,\nplus explicitly configured [generated replacements](version-pull-request.md#generated-release-files).
 
 REST remains pinned to `2026-03-10`, which removes `merge_commit_sha` from PR
 responses. A fixed GraphQL query independently binds `mergeCommit.oid` to `M`,

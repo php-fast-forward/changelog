@@ -55,14 +55,23 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         if (! is_array($data) || array_is_list($data) || ! array_key_exists('id', $data)) {
             throw new InvalidArgumentException('Release receipt must be an object with an id.');
         }
-        preg_match_all('~"(?:\\\\.|[^"\\\\])*"\s*:~', $contents, $keys);
-        $seen = [];
-        foreach ($keys[0] as $key) {
-            $name = json_decode(rtrim(substr($key, 0, strrpos($key, ':'))), flags: JSON_THROW_ON_ERROR);
-            if (isset($seen[$name])) {
-                throw new InvalidArgumentException('Duplicate release receipt key: ' . $name);
+        // JSON has already been parsed; tokenize only object boundaries and string keys,
+        // ignoring braces/colons inside string values and allowing keys in distinct objects.
+        preg_match_all('~"(?:\\\\.|[^"\\\\])*"(?:\s*:)?|[{}]~', $contents, $tokens);
+        $objects = [];
+        foreach ($tokens[0] as $token) {
+            if ('{' === $token) {
+                $objects[] = [];
+            } elseif ('}' === $token) {
+                array_pop($objects);
+            } elseif (str_ends_with($token, ':')) {
+                $name = json_decode(rtrim(substr($token, 0, -1)), flags: JSON_THROW_ON_ERROR);
+                $scope = array_key_last($objects);
+                if (isset($objects[$scope][$name])) {
+                    throw new InvalidArgumentException('Duplicate release receipt key: ' . $name);
+                }
+                $objects[$scope][$name] = true;
             }
-            $seen[$name] = true;
         }
         $id = $data['id'];
         unset($data['id']);
@@ -121,6 +130,26 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
         $this->assertContentHashes($evidence);
         $this->assertHistoricalVersions($evidence);
         $this->assertConsumedFragments($evidence);
+        if (array_key_exists('generated_files', $evidence)) {
+            if (! is_array($evidence['generated_files']) || [] === $evidence['generated_files'] || array_is_list(
+                $evidence['generated_files'],
+            )) {
+                throw new InvalidArgumentException('Generated files must be a nonempty canonical path/hash map.');
+            }
+            foreach ($evidence['generated_files'] as $path => $hash) {
+                if (! is_string($path) || ! $this->relativePath($path)
+                    || $path === $evidence['changelog_file'] || str_starts_with(
+                        $path,
+                        $evidence['fragment_directory'] . '/',
+                    )
+                    || ! is_string($hash) || 1 !== preg_match(self::HASH, $hash)) {
+                    throw new InvalidArgumentException(
+                        'Generated files require canonical independent paths and SHA-256 hashes.',
+                    );
+                }
+            }
+            ksort($evidence['generated_files'], SORT_STRING);
+        }
 
         ksort($evidence['consumed'], SORT_STRING);
 
@@ -136,7 +165,10 @@ final readonly class ReceiptCodec implements ReceiptCodecInterface
      */
     private function assertSchema(array $evidence): void
     {
-        if ([] !== array_diff(array_keys($evidence), [...self::FIELDS, 'resolve_pull_requests']) || [] !== array_diff(
+        if ([] !== array_diff(
+            array_keys($evidence),
+            [...self::FIELDS, 'resolve_pull_requests', 'generated_files'],
+        ) || [] !== array_diff(
             self::FIELDS,
             array_keys($evidence),
         )) {

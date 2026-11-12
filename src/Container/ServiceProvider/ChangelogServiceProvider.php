@@ -256,6 +256,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 GitHubClientInterface::class,
                 Release\ReleaseMetadataParser::class,
                 History\HistoryReferenceBuilder::class,
+                generated: Release\GeneratedFileEvidence::class,
             ),
             Validator\ChangesetValidatorInterface::class => new AliasFactory(
                 Validator\ChangesetValidator::class,
