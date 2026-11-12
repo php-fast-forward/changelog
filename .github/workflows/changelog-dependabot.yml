@@ -187,7 +187,7 @@ jobs:
           fi
 
       - name: Check Out The Called Workflow Runtime
-        uses: actions/checkout@v6.1.0
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
@@ -208,7 +208,7 @@ jobs:
           read-dependabot-alerts: ${{ inputs.security-alert-numbers != '' && inputs.security-alert-numbers != '[]' }}
 
       - name: Check Out Consumer Data
-        uses: actions/checkout@v6.1.0
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ inputs.repository || github.repository }}
           ref: ${{ github.event.pull_request.base.sha }}
@@ -219,7 +219,7 @@ jobs:
 
       - name: Collect Verified Dependabot Metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2.5.0
+        uses: dependabot/fetch-metadata@v3.1.0
         with:
           github-token: ${{ steps.auth.outputs.token }}
           skip-verification: 'false'

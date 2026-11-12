@@ -149,7 +149,7 @@ jobs:
           fi
 
       - name: Check Out The Called Workflow Runtime
-        uses: actions/checkout@v6.1.0
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ fromJSON(toJSON(job)).workflow_repository }}
           ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
@@ -170,7 +170,7 @@ jobs:
           base-branch: ${{ inputs.base-branch }}
 
       - name: Check Out Consumer Data
-        uses: actions/checkout@v6.1.0
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ inputs.repository || github.repository }}
           ref: refs/heads/${{ inputs.base-branch }}

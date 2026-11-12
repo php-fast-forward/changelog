@@ -313,7 +313,7 @@ jobs:
 
       - name: Create Or Update One Changelog Comment
         if: steps.fresh.outputs.current == 'true'
-        uses: marocchino/sticky-pull-request-comment@v2.9.4
+        uses: marocchino/sticky-pull-request-comment@v3.0.5
         with:
           GITHUB_TOKEN: ${{ steps.auth.outputs.token }}
           number: ${{ inputs.pull-request }}
