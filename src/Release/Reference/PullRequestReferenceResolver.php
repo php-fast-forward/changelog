@@ -22,8 +22,11 @@ use FastForward\Changelog\Filesystem\PackagePathResolverInterface;
 use FastForward\Changelog\Git\GitCommitAcquirerInterface;
 use FastForward\Changelog\Git\GitFragmentOriginReaderInterface;
 use FastForward\Changelog\Git\GitFragmentProvenanceReaderInterface;
+use FastForward\Changelog\Git\GitObjectScope;
+use FastForward\Changelog\Git\GitRepository;
 use FastForward\Changelog\Git\GitRepositoryInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\GitHub\GitHubFilteredTransportInterface;
 use FastForward\Changelog\GitHub\GitHubPublicTransportInterface;
 use FastForward\Changelog\Release\ReleaseOptions;
 use InvalidArgumentException;
@@ -39,11 +42,13 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      * @param GitRepositoryInterface       $git    Immutable blobs and ancestry; origin discovery is an optional additional capability.
      * @param GitHubClientInterface        $github Scoped REST/GraphQL transport with complete, bounded pagination.
      * @param PackagePathResolverInterface $paths  Pure mapping between consumer paths and the Git worktree root.
+     * @param ?GitObjectScope              $scope  Optional native private-object scope; three-argument and custom-boundary callers retain complete-pack behavior.
      */
     public function __construct(
         private GitRepositoryInterface $git,
         private GitHubClientInterface $github,
         private PackagePathResolverInterface $paths,
+        private ?GitObjectScope $scope = null,
     ) {}
 
     /**
@@ -55,7 +60,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      *
      * All caches belong to this invocation. Operational failures are redacted and never
      * downgraded to an empty association list; no fragment or remote object is modified.
-     * Missing verified PR heads may populate local Git objects.
+     * Native filtered acquisition uses a private object directory removed after the invocation; legacy adapters may populate complete local Git objects.
      *
      * @param  ReleaseOptions           $options        Trusted consumer paths, explicit repository and opt-in resolution policy.
      * @param  ?string                  $baseSha        Immutable source base, or null when no committed origin is available.
@@ -91,7 +96,19 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         }
 
         try {
-            $references = $this->references($options, $baseSha, $changesets, $acceptedHashes);
+            $references = null !== $this->scope && $this->git instanceof GitRepository
+                && $this->github instanceof GitHubFilteredTransportInterface && $this->github->usesPublicGitHub()
+                ? $this->scope->run(
+                    $this->git->repositoryRoot($options->workingDirectory),
+                    fn(GitRepository $scoped): array => $this->references(
+                        $options,
+                        $baseSha,
+                        $changesets,
+                        $acceptedHashes,
+                        $scoped,
+                    ),
+                )
+                : $this->references($options, $baseSha, $changesets, $acceptedHashes);
         } catch (Throwable) {
             throw new RuntimeException(
                 'Automatic implementation PR provenance could not be verified; details were withheld. '
@@ -127,6 +144,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      * @param  string               $baseSha        Complete immutable commit from which fragment blobs are selected.
      * @param  list<Changeset>      $changesets     Validated records; explicit references require no origin lookup.
      * @param  array<string,string> $acceptedHashes Accepted source inventory, or an empty map for committed reconstruction.
+     * @param  ?GitRepository       $headGit        Private native view for original-head proofs, or null for the existing Git boundary.
      * @return array<int,list<int>> Unique proved PR numbers indexed by the original fragment position.
      * @throws RuntimeException     When any selected Git or GitHub evidence cannot be corroborated.
      */
@@ -135,6 +153,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         string $baseSha,
         array $changesets,
         array $acceptedHashes,
+        ?GitRepository $headGit = null,
     ): array {
         $directory = $this->git->repositoryRoot($options->workingDirectory);
         $origins = $this->origins($options, $directory, $baseSha, $changesets, $acceptedHashes);
@@ -173,10 +192,18 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
                     }
                     $commits[$number] ??= $this->implementationCommits($options->repository, $number, $pr);
                     if (! isset($heads[$number])) {
-                        $this->ensureHead($directory, $options->repository, $repository, $number, $pr, $merge);
+                        $this->ensureHead(
+                            $directory,
+                            $options->repository,
+                            $repository,
+                            $number,
+                            $pr,
+                            $merge,
+                            $headGit,
+                        );
                         $heads[$number] = true;
                     }
-                    $headOrigin = $this->git->fragmentOrigin(
+                    $headOrigin = ($headGit ?? $this->git)->fragmentOrigin(
                         $directory,
                         $pr['head']['sha'],
                         $path,
@@ -187,7 +214,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
                             'The associated integration PR does not prove direct implementation.',
                         );
                     }
-                    if (! $this->git->fragmentHasDirectOrigin(
+                    if (! ($headGit ?? $this->git)->fragmentHasDirectOrigin(
                         $directory,
                         $pr['head']['sha'],
                         $path,
@@ -213,6 +240,7 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
      * @param  int              $number     Verified merged candidate PR number.
      * @param  array            $pr         Original corroborated REST PR record.
      * @param  string           $merge      Original corroborated merge commit.
+     * @param  ?GitRepository   $scoped     Optional private native view, never a consumer partial-clone configuration.
      * @return void             No value; only the exact verified head may proceed to provenance checks.
      * @throws RuntimeException When acquisition is unavailable, fails or disagrees with renewed API evidence.
      */
@@ -223,17 +251,28 @@ final readonly class PullRequestReferenceResolver implements PullRequestReferenc
         int $number,
         array $pr,
         string $merge,
+        ?GitRepository $scoped = null,
     ): void {
         $head = $pr['head']['sha'];
+        $git = $scoped ?? $this->git;
         try {
-            $resolved = $this->git->resolveRef($directory, $head);
+            $resolved = $git->resolveRef($directory, $head);
         } catch (RuntimeException $failure) {
-            if (! $this->git instanceof GitCommitAcquirerInterface
-                || ! $this->github instanceof GitHubPublicTransportInterface || ! $this->github->usesPublicGitHub()) {
-                throw $failure;
+            if (null !== $scoped && $this->github instanceof GitHubFilteredTransportInterface) {
+                $scoped->acquireFilteredCommit(
+                    $directory,
+                    $name,
+                    $head,
+                    $this->github->filteredCommitPack($name, $head),
+                );
+            } else {
+                if (!$this->git instanceof GitCommitAcquirerInterface
+                    || !$this->github instanceof GitHubPublicTransportInterface || !$this->github->usesPublicGitHub()) {
+                    throw $failure;
+                }
+                $this->git->acquireCommit($directory, $name, $head, $this->github->commitPack($name, $head));
             }
-            $this->git->acquireCommit($directory, $name, $head, $this->github->commitPack($name, $head));
-            $resolved = $this->git->resolveRef($directory, $head);
+            $resolved = $git->resolveRef($directory, $head);
             $renewed = [];
             if ($this->repository($name) !== $repository
                 || $this->mergedCommit($name, $repository, $number, $renewed) !== $merge

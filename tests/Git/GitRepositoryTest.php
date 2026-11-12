@@ -19,6 +19,49 @@ use Symfony\Component\Process\Process;
 #[\PHPUnit\Framework\Attributes\UsesClass(\FastForward\Changelog\Release\ReleasePlan::class)]
 final class GitRepositoryTest extends TestCase
 {
+    /** Partial packs cannot enter the ordinary consumer object database through this adapter. */
+    public function testFilteredAcquisitionRequiresPrivateScope(): void
+    {
+        $this->expectExceptionMessage('requires a private object scope');
+        $this->repository([])->acquireFilteredCommit('/consumer', 'owner/project', self::SHA, self::PACK);
+    }
+
+    /** Native fsck validates objects and the separate metadata walk requires every parent and tree. */
+    public function testFilteredAcquisitionRetainsCompleteMetadataValidation(): void
+    {
+        $this->repository([
+            [['remote', 'get-url', 'origin'], 'https://github.com/owner/project.git'],
+            [['index-pack', '--stdin', '--fsck-objects', '--promisor'], "pack\tverified\n", true, '', 0, self::PACK],
+            [['rev-list', '--objects', '--filter=blob:none', '--missing=error', self::SHA, '--'], 'metadata'],
+        ], true)->acquireFilteredCommit('/consumer', 'owner/project', self::SHA, self::PACK);
+    }
+
+    /** Object parse failures stop before connectivity is claimed. */
+    public function testFilteredAcquisitionRejectsInvalidObjects(): void
+    {
+        $this->expectExceptionMessage('Filtered Git objects could not be validated');
+        $this->repository([
+            [['remote', 'get-url', 'origin'], 'https://github.com/owner/project.git'],
+            [['index-pack', '--stdin', '--fsck-objects', '--promisor'], '', false, 'invalid object', 128, self::PACK],
+        ], true)->acquireFilteredCommit('/consumer', 'owner/project', self::SHA, self::PACK);
+    }
+
+    /** A valid pack with a missing commit or tree cannot prove complete ancestry. */
+    public function testFilteredAcquisitionRejectsIncompleteMetadata(): void
+    {
+        $this->expectExceptionMessage('Git failed: missing parent or tree');
+        $this->repository([
+            [['remote', 'get-url', 'origin'], 'https://github.com/owner/project.git'],
+            [['index-pack', '--stdin', '--fsck-objects', '--promisor'], "pack\tverified\n", true, '', 0, self::PACK],
+            [[
+                'rev-list', '--objects', '--filter=blob:none', '--missing=error', self::SHA, '--'],
+                '',
+                false,
+                'missing parent or tree',
+                128,
+            ],
+        ], true)->acquireFilteredCommit('/consumer', 'owner/project', self::SHA, self::PACK);
+    }
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
     private const string PACK = 'PACKsynthetic-complete-pack-for-unit-tests';
@@ -738,7 +781,7 @@ final class GitRepositoryTest extends TestCase
         return [['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], self::SHA . "\n"];
     }
 
-    private function repository(array $responses): GitRepository
+    private function repository(array $responses, bool $quarantined = false): GitRepository
     {
         $factory = $this->createMock(ProcessFactoryInterface::class);
         $index = 0;
@@ -761,6 +804,6 @@ final class GitRepositoryTest extends TestCase
             },
         );
 
-        return new GitRepository($factory);
+        return new GitRepository($factory, quarantined: $quarantined);
     }
 }

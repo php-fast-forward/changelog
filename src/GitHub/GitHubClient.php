@@ -21,7 +21,7 @@ use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /** Sends explicit GitHub API requests with bounded pagination and redacted failures. */
-final readonly class GitHubClient implements GitHubClientInterface, GitHubPublicTransportInterface, GitHubBlobTransportInterface
+final readonly class GitHubClient implements GitHubClientInterface, GitHubFilteredTransportInterface, GitHubBlobTransportInterface
 {
     /**
      * Injects the transport and explicit API settings; no host or network state is read here.
@@ -157,6 +157,33 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubPublic
      */
     public function commitPack(string $repository, string $sha): string
     {
+        return $this->acquirePack($repository, $sha, false);
+    }
+
+    /**
+     * Requests complete commits/trees and blobs smaller than 1 MiB, including Git attributes needed for fsck.
+     *
+     * @param  string           $repository Independently verified public GitHub owner/name.
+     * @param  string           $sha        Complete independently corroborated original PR head.
+     * @return string           Filtered Git pack without changing the 64 MiB transfer cap or allowing shallow history.
+     * @throws RuntimeException When filtering or the existing authenticated bounded protocol cannot be proved.
+     */
+    public function filteredCommitPack(string $repository, string $sha): string
+    {
+        return $this->acquirePack($repository, $sha, true);
+    }
+
+    /**
+     * Shares the established credential and framing policy while explicitly selecting native partial-fetch mode.
+     *
+     * @param  string           $repository Verified public GitHub owner/name, never a URL.
+     * @param  string           $sha        Complete exact PR head previously corroborated by both APIs.
+     * @param  bool             $filtered   Whether the server must advertise and apply the bounded blob-size filter.
+     * @return string           Native complete or filtered pack bytes with identical response limits.
+     * @throws RuntimeException When source identity, capabilities, HTTP or pack framing cannot be verified.
+     */
+    private function acquirePack(string $repository, string $sha, bool $filtered): string
+    {
         if (! $this->usesPublicGitHub()
             || 1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)
             || [] !== array_intersect(['.', '..'], explode('/', $repository))
@@ -169,8 +196,21 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubPublic
         if (! str_starts_with($discovery, "001e# service=git-upload-pack\n0000")) {
             throw new RuntimeException('Git object acquisition received invalid service discovery.');
         }
-        $want = 'want ' . $sha . "\n";
-        $body = sprintf('%04x', strlen($want) + 4) . $want . "00000009done\n";
+        if ($filtered) {
+            $separator = strpos($discovery, "\0");
+            $line = false === $separator ? false : strtok(substr($discovery, $separator + 1), "\n");
+            $capabilities = is_string($line) ? explode(' ', $line) : [];
+            if (!in_array('filter', $capabilities, true)) {
+                throw new RuntimeException('GitHub did not advertise native pack filtering.');
+            }
+        }
+        $want = 'want ' . $sha . ($filtered ? ' filter' : '') . "\n";
+        $body = sprintf('%04x', strlen($want) + 4) . $want;
+        if ($filtered) {
+            $filter = "filter blob:limit=1048576\n";
+            $body .= sprintf('%04x', strlen($filter) + 4) . $filter;
+        }
+        $body .= "00000009done\n";
         $response = $this->gitExchange('POST', $url . 'git-upload-pack', 'result', $body);
         if (! str_starts_with($response, "0008NAK\nPACK") || strlen($response) < 40) {
             throw new RuntimeException('Git object acquisition received an invalid complete pack response.');
