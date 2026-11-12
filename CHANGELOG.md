@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   ([#84](https://github.com/php-fast-forward/changelog/pull/84))
 
+### Changed
+
+- Group Dependabot dependency updates by ecosystem and dependency type.
+
+  Raise the minimum requirement of directly updated Composer dependencies in Dependabot version updates.
+
+  ([#83](https://github.com/php-fast-forward/changelog/pull/83))
+
 ### Fixed
 
 - Preserve automatic fragment pull-request references when original PR history
