@@ -53,13 +53,23 @@ disabled to make the compatibility checks pass.
 
 The native PHP 8.5 matrix tests the maximum locked graph on Linux, ARM and
 Windows. Separate component jobs minimize all runtime requirements and their
-transitive dependencies for the supported 7.4 and 8.0 component families while
+transitive dependencies for the maintained 7.4 and 8.1 component families while
 retaining the locked development test toolchain. Console retains its own 8.1
 minimum, and the development YAML parser retains its own compatible minimum. Those jobs
 run the unit and real Git/HTTP integration suites, CLI discovery and the complete
 provider-based contribution recipe; PHP and PHPUnit deprecations fail the jobs.
 The separate fresh Composer packaging jobs still resolve complete highest and
 lowest consumer runtime graphs without development dependencies.
+Symfony 8.0 reached end of support in July 2026; its components cannot satisfy
+the current security advisories. The 8.1 component job keeps Composer advisory
+blocking enabled and selects the first permitted patched graph (currently
+8.1.11 for filesystem, HTTP client and validator). The manifest's `^8.0` range
+already permits 8.1, so no runtime constraint or PHP-platform change is needed.
+See [Symfony 8.0 support](https://symfony.com/releases/8.0) and the upstream
+[filesystem](https://github.com/symfony/symfony/security/advisories/GHSA-6prc-h956-hxjq),
+[HTTP scoping](https://github.com/symfony/symfony/security/advisories/GHSA-gq53-v8w2-gjhj),
+[HTTP DNS](https://github.com/symfony/symfony/security/advisories/GHSA-c7hm-wqwp-f9v8)
+and [validator](https://github.com/symfony/symfony/security/advisories/GHSA-4qpf-57w4-m3wc) advisories.
 
 ## Contributor builds and development tools
 

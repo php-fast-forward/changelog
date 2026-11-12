@@ -47,6 +47,11 @@ inputs:
     required: false
     default: "auto"
 
+  generated-files:
+    description: 'JSON array of existing tracked file paths allowed as generated release outputs.'
+    required: false
+    default: '[]'
+
   resolve-pull-requests:
     description: "Resolve missing fragment PR references from verified Git and GitHub evidence."
     required: false
@@ -125,6 +130,7 @@ runs:
     - "--tag-prefix=${{ inputs.tag-prefix }}"
     - "--repository=${{ inputs.repository }}"
     - "--source=${{ inputs.source }}"
+    - "--generated-files=${{ inputs.generated-files }}"
     - "--resolve-pull-requests=${{ inputs.resolve-pull-requests }}"
     - "--base-branch=${{ inputs.base-branch }}"
     - "--managed-branch=${{ inputs.managed-branch }}"

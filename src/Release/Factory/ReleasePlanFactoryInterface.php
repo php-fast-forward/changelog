@@ -39,7 +39,8 @@ interface ReleasePlanFactoryInterface
      * @param string|null          $originalReceipt    Exact journal bytes accepted before this transaction, or null when absent.
      * @param bool                 $resuming           Whether this plan restores a saved transaction instead of calculating a fresh one.
      *
-     * @return ReleasePlan Deterministic transaction binding supplied settings, accepted byte hashes and exact resulting history.
+     * @return ReleasePlan          Deterministic transaction binding supplied settings, accepted byte hashes and exact resulting history.
+     * @param  array<string,string> $generatedFiles Exact selected generated paths and SHA-256 identities; empty preserves legacy plan evidence.
      */
     public function create(
         ReleaseOptions $options,
@@ -56,6 +57,7 @@ interface ReleasePlanFactoryInterface
         string $receiptPath,
         ?string $originalReceipt,
         bool $resuming = false,
+        array $generatedFiles = [],
     ): ReleasePlan;
     /**
      * Restores a validated receipt without generating new identity or treating remaining fragments as a new release.

@@ -71,9 +71,9 @@ PR can then consume the complete pending set. See [version PR recovery](version-
 ## Git automation and publication
 
 Version automation builds its tree from the fresh approved source base and
-changes only the central document and consumed-fragment deletion entries.
+changes the central document and consumed-fragment deletion entries, plus any\nexplicitly configured [generated replacements](version-pull-request.md#generated-release-files).
 The signed Bot commit records scalar trailers for its source base, plan ID,
-resulting central hash and option fingerprint. There is no JSON file in that
+resulting output hash and option fingerprint. There is no JSON file in that
 tree. PR titles, bodies, branch names and copied trailers confer no authority.
 
 Managed-PR policy independently verifies Bot identity, signature, ancestry,

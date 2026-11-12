@@ -20,6 +20,8 @@ use RuntimeException;
 #[UsesClass(GitHubEvidence::class)]
 #[UsesClass(PullRequestAuthorization::class)]
 #[UsesClass(ReleaseOptions::class)]
+#[\PHPUnit\Framework\Attributes\UsesClass(\FastForward\Changelog\Release\ReleasePlan::class)]
+#[UsesClass(\FastForward\Changelog\Release\GeneratedFileEvidence::class)]
 final class PullRequestPolicyTest extends TestCase
 {
     use PolicyFixtureTrait;
@@ -508,6 +510,46 @@ final class PullRequestPolicyTest extends TestCase
         self::assertTrue($this->policy($responses, [], $data)->inspectHead($this->options(), str_repeat('a', 40)));
     }
 
+    /** Only explicitly selected generated modifications join the owned scope; removals remain forbidden. */
+    #[TestWith(['modified', true])]
+    #[TestWith(['removed', false])]
+    public function testGeneratedScopeRequiresActualRemoteBytes(string $status, bool $accepted): void
+    {
+        [$responses, $data] = $this->managed();
+        $head = str_repeat('a', 40);
+        $base = str_repeat('b', 40);
+        $options = new ReleaseOptions('/consumer', repository: 'owner/project', generatedFiles: ['dist/tool']);
+        $message = "release\n\nChangelog-Plan: " . $data['id'] . "\nChangelog-Base: " . $base
+            . "\nChangelog-Output: " . \FastForward\Changelog\Release\ReleasePlan::outputHash(
+                'history',
+                ['dist/tool' => hash('sha256', 'binary'),
+                ])
+            . "\nChangelog-Options: " . $options->evidenceHash();
+        $responses['/repos/owner/project/commits/' . $head]['commit']['message'] = $message;
+        $responses['/repos/owner/project/compare/' . $base . '...' . $head]['files'][] = ['filename' => 'dist/tool', 'status' => $status];
+        foreach ([$base, $head] as $sha) {
+            $responses['/repos/owner/project/git/commits/' . $sha] = ['tree' => ['sha' => str_repeat('d', 40)]];
+        }
+        $responses['/repos/owner/project/git/trees/' . str_repeat('d', 40)] = ['sha' => str_repeat(
+            'd',
+            40,
+        ), 'truncated' => false, 'tree' => [['path' => 'dist', 'type' => 'tree', 'sha' => str_repeat(
+            'e',
+            40,
+        )]]];
+        $responses['/repos/owner/project/git/trees/' . str_repeat('e', 40)] = ['sha' => str_repeat(
+            'e',
+            40,
+        ), 'truncated' => false, 'tree' => [['path' => 'tool', 'type' => 'blob', 'mode' => '100755', 'sha' => str_repeat(
+            'f',
+            40,
+        ), 'size' => 6]]];
+        $responses['/repos/owner/project/contents/.changelog?ref=' . $base] = [];
+        self::assertSame(
+            $accepted,
+            $this->policy($responses, generated: true)->inspectHead($options, $head, baseSha: $base),
+        );
+    }
     private function options(): ReleaseOptions
     {
         return new ReleaseOptions('/consumer', repository: 'owner/project');
@@ -517,6 +559,7 @@ final class PullRequestPolicyTest extends TestCase
         array $responses,
         array|RuntimeException $timeline = [],
         array|RuntimeException $data = [],
+        bool $generated = false,
     ): PullRequestPolicy {
         $commitPath = '/repos/owner/project/commits/' . str_repeat('a', 40);
         if ($data instanceof RuntimeException) {
@@ -545,7 +588,14 @@ final class PullRequestPolicyTest extends TestCase
                 );
             }
         }
-        $github = $this->createStub(GitHubClientInterface::class);
+        $github = $generated ? $this->createStubForIntersectionOfInterfaces(
+            [GitHubClientInterface::class, \FastForward\Changelog\GitHub\GitHubBlobTransportInterface::class],
+        ) : $this->createStub(
+            GitHubClientInterface::class,
+        );
+        if ($generated) {
+            $github->method('blobDigest')->willReturn(hash('sha256', 'binary'));
+        }
         $github->method('request')->willReturnCallback(function (string $method, string $path, ?array $body = null) use (
             $responses
         ): ?array {
@@ -563,7 +613,21 @@ final class PullRequestPolicyTest extends TestCase
             $github->method('paginate')->willReturn($timeline);
         }
 
-        return new PullRequestPolicy($github);
+        return new PullRequestPolicy(
+            $github,
+            generated: $generated ? new \FastForward\Changelog\Release\GeneratedFileEvidence(
+                $this->createStub(
+                    \FastForward\Changelog\Git\GitRepositoryInterface::class,
+                ),
+                $this->createStub(
+                    \FastForward\Changelog\Filesystem\ManagedFileStoreInterface::class,
+                ),
+                $this->createStub(
+                    \FastForward\Changelog\Filesystem\PackagePathResolverInterface::class,
+                ),
+                $github,
+            ) : null,
+        );
     }
 
     /** Models GitHub's signed App/Bot commits with its canonical web-flow committer. */

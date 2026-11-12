@@ -55,6 +55,11 @@ on:
         type: string
         default: 'auto'
 
+      generated-files:
+        description: 'JSON array of existing tracked file paths allowed as generated release outputs.'
+        type: string
+        default: '[]'
+
       resolve-pull-requests:
         description: 'PR-resolution setting for ownership checks; no fragment origin lookup occurs.'
         type: boolean
@@ -229,6 +234,7 @@ jobs:
           locale: ${{ inputs.locale }}
           tag-prefix: ${{ inputs.tag-prefix }}
           source: ${{ inputs.source }}
+          generated-files: ${{ inputs.generated-files }}
           resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           managed-branch: ${{ inputs.managed-branch }}
           automation-actor: ${{ inputs.automation-actor }}

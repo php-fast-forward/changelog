@@ -85,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        components: ['7.4', '8.0']
+        components: ['7.4', '8.1']
 
     steps:
       - name: Require A Complete Validation Decision

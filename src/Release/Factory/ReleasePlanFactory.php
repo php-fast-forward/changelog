@@ -51,7 +51,8 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
      * @param string|null          $originalReceipt    Exact journal bytes accepted before this transaction, or null when absent.
      * @param bool                 $resuming           Whether this plan restores a saved transaction instead of calculating a fresh one.
      *
-     * @return ReleasePlan Deterministic transaction binding supplied settings, accepted byte hashes and exact resulting history.
+     * @return ReleasePlan          Deterministic transaction binding supplied settings, accepted byte hashes and exact resulting history.
+     * @param  array<string,string> $generatedFiles Exact selected generated paths and SHA-256 identities; empty preserves legacy plan evidence.
      */
     public function create(
         ReleaseOptions $options,
@@ -68,7 +69,18 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
         string $receiptPath,
         ?string $originalReceipt,
         bool $resuming = false,
+        array $generatedFiles = [],
     ): ReleasePlan {
+        $selected = array_keys($generatedFiles);
+        sort($selected, SORT_STRING);
+        $allowed = $options->generatedFiles;
+        sort($allowed, SORT_STRING);
+        if ($selected !== $allowed) {
+            throw new \InvalidArgumentException(
+                'Generated release output must exactly match its explicit selected paths.',
+            );
+        }
+        ksort($generatedFiles, SORT_STRING);
         ksort($consumed, SORT_STRING);
         $relativeConsumed = [];
         foreach ($consumed as $path => $hash) {
@@ -87,6 +99,9 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
         ];
         if ($options->resolvePullRequests) {
             $evidence['resolve_pull_requests'] = true;
+        }
+        if ([] !== $generatedFiles) {
+            $evidence['generated_files'] = $generatedFiles;
         }
         $receiptContents = $this->codec->encode($evidence);
         $receipt = $this->codec->decode($receiptContents);
@@ -108,6 +123,7 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
             $originalReceipt,
             $receiptContents,
             $resuming,
+            $generatedFiles,
         );
     }
 
@@ -155,6 +171,7 @@ final readonly class ReleasePlanFactory implements ReleasePlanFactoryInterface
             $rawReceipt,
             $rawReceipt,
             true,
+            $data['generated_files'] ?? [],
         );
     }
 }

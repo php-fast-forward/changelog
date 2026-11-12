@@ -50,6 +50,11 @@ on:
         type: string
         default: 'auto'
 
+      generated-files:
+        description: 'JSON array of existing tracked file paths allowed as generated release outputs.'
+        type: string
+        default: '[]'
+
       resolve-pull-requests:
         description: 'Resolve verified fragment PR references during versioning and publication.'
         type: boolean
@@ -149,6 +154,7 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
       managed-branch: ${{ inputs.managed-branch }}
+      generated-files: ${{ inputs.generated-files }}
       resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       automation-actor: ${{ inputs.automation-actor }}
       waiver-label: ${{ inputs.waiver-label }}
@@ -205,6 +211,7 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
       managed-branch: ${{ inputs.managed-branch }}
+      generated-files: ${{ inputs.generated-files }}
       resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       automation-actor: ${{ inputs.automation-actor }}
       waiver-label: ${{ inputs.waiver-label }}
@@ -237,6 +244,7 @@ jobs:
       locale: ${{ inputs.locale }}
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
+      generated-files: ${{ inputs.generated-files }}
       resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       dry-run: ${{ inputs.dry-run }}
     secrets:
@@ -267,6 +275,7 @@ jobs:
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
       managed-branch: ${{ inputs.managed-branch }}
+      generated-files: ${{ inputs.generated-files }}
       resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       automation-actor: ${{ inputs.automation-actor }}
       waiver-label: ${{ inputs.waiver-label }}
@@ -303,6 +312,7 @@ jobs:
       locale: ${{ inputs.locale }}
       tag-prefix: ${{ inputs.tag-prefix }}
       source: ${{ inputs.source }}
+      generated-files: ${{ inputs.generated-files }}
       resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
       dry-run: ${{ inputs.dry-run }}
     secrets:

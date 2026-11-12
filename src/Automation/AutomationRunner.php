@@ -42,6 +42,7 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
         'changelog-file' => 'changelogFile', 'locale' => 'locale', 'template' => 'template',
         'base-ref' => 'baseRef', 'tag-prefix' => 'tagPrefix', 'repository' => 'repository', 'source' => 'source',
         'resolve-pull-requests' => 'resolvePullRequests',
+        'generated-files' => 'generatedFiles',
     ];
 
     private const array OPERATION_INPUTS = [
@@ -157,9 +158,21 @@ final readonly class AutomationRunner implements AutomationRunnerInterface
 
         foreach (self::SETTINGS as $input => $property) {
             if (array_key_exists($input, $inputs)) {
-                $settings[$property] = 'resolvePullRequests' === $property
-                    ? $this->boolean($inputs, $input) : $this->text($inputs, $input);
+                $settings[$property] = match ($property) {
+                    'resolvePullRequests' => $this->boolean($inputs, $input),
+                    'generatedFiles' => json_decode($this->text($inputs, $input), true, flags: JSON_THROW_ON_ERROR),
+                    default => $this->text($inputs, $input),
+                };
             }
+        }
+        if ([] !== ($settings['generatedFiles'] ?? []) && ! in_array(
+            $operation,
+            ['version', 'check', 'pr-status', 'publish'],
+            true,
+        )) {
+            throw new InvalidArgumentException(
+                'Generated files are supported only by owned GitHub version, check and publication operations.',
+            );
         }
         $options = $this->options->create($settings);
 

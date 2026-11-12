@@ -54,6 +54,22 @@ use RuntimeException;
 #[UsesClass(PublicationResult::class)]
 final class AutomationRunnerTest extends TestCase
 {
+    /** Generated output is an explicit JSON policy limited to owned GitHub operations. */
+    public function testGeneratedSelectionIsParsedAndUnsupportedOperationsAreRejected(): void
+    {
+        $factory = $this->createMock(ReleaseOptionsFactoryInterface::class);
+        $factory->expects(self::once())->method('create')->with(['generatedFiles' => ['dist/tool']])->willReturn(
+            $this->options(),
+        );
+        $checks = $this->createStub(CheckServiceInterface::class);
+        $checks->method('check')->willReturn(new ValidationReport([], [], false));
+        $this->runner(['options' => $factory, 'checks' => $checks])->run(
+            'check',
+            ['generated-files' => '["dist/tool"]', 'since' => 'BASE'],
+        );
+        $this->expectExceptionMessage('supported only by owned GitHub');
+        $this->runner([], false)->run('history', ['generated-files' => '["dist/tool"]']);
+    }
     /** PR feedback uses the same validated options and explicit snapshot/authority settings. */
     #[Test]
     public function pullRequestFeedbackMapsTheExactSnapshot(): void

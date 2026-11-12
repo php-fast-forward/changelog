@@ -38,6 +38,7 @@ final readonly class ReleasePlan
      * @param string|null          $originalReceipt    Exact journal bytes accepted before this transaction, or null when absent.
      * @param string               $receiptContents    Canonical serialized journal bytes for the planned transaction.
      * @param bool                 $resuming           Whether this plan restores a saved transaction instead of calculating a fresh one.
+     * @param array<string,string> $generatedFiles     Canonical generated paths with SHA-256 content identities, never binary payloads.
      */
     public function __construct(
         public ReleaseOptions $options,
@@ -56,6 +57,7 @@ final readonly class ReleasePlan
         public ?string $originalReceipt,
         public string $receiptContents,
         public bool $resuming = false,
+        public array $generatedFiles = [],
     ) {}
 
     /**
@@ -87,7 +89,10 @@ final readonly class ReleasePlan
             return [];
         }
 
-        return [$this->changelogPath, ...array_keys($this->consumed)];
+        return [$this->changelogPath, ...array_keys($this->consumed), ...array_map(
+            fn(string $path): string => rtrim($this->options->workingDirectory, '/') . '/' . $path,
+            null === $this->nextVersion ? [] : array_keys($this->generatedFiles),
+        )];
     }
 
     /**
@@ -100,8 +105,34 @@ final readonly class ReleasePlan
     public function commitMessage(string $title = 'chore: update changelog'): ?string
     {
         return null === $this->baseSha ? null : $title . "\n\nChangelog-Plan: " . $this->id
-            . "\nChangelog-Base: " . $this->baseSha . "\nChangelog-Output: " . hash('sha256', $this->changelogContents)
+            . "\nChangelog-Base: " . $this->baseSha . "\nChangelog-Output: " . self::outputHash(
+                $this->changelogContents,
+                $this->generatedFiles,
+            )
             . "\nChangelog-Options: " . $this->options->evidenceHash();
+    }
+
+    /**
+     * Retains legacy history-only identities while binding opted-in generated outputs to the same trailer.
+     *
+     * @param  string               $contents       Exact central-history bytes.
+     * @param  array<string,string> $generatedFiles Canonical generated file paths and SHA-256 content hashes.
+     * @return string               Deterministic output fingerprint; no payload bytes or new commit protocol are introduced.
+     */
+    public static function outputHash(string $contents, array $generatedFiles = []): string
+    {
+        if ([] === $generatedFiles) {
+            return hash('sha256', $contents);
+        }
+        ksort($generatedFiles, SORT_STRING);
+
+        return hash(
+            'sha256',
+            json_encode(['changelog' => hash(
+                'sha256',
+                $contents,
+            ), 'generated_files' => $generatedFiles], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+        );
     }
 
     /**
@@ -118,6 +149,7 @@ final readonly class ReleasePlan
             'historical_versions' => $this->historicalVersions, 'notes' => $this->notes,
             'affected_files' => $this->affectedFiles(), 'resuming' => $this->resuming,
             'commit_message' => $this->commitMessage(),
+            ...([] === $this->generatedFiles ? [] : ['generated_files' => $this->generatedFiles]),
         ];
     }
 }

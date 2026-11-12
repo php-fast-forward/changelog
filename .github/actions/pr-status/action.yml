@@ -38,6 +38,11 @@ inputs:
   source:
     description: Historical source setting, matching the approved transaction.
     default: 'auto'
+  generated-files:
+    description: 'JSON array of existing tracked file paths allowed as generated release outputs.'
+    required: false
+    default: '[]'
+
   resolve-pull-requests:
     description: PR-resolution setting for ownership checks; no fragment origin lookup occurs.
     default: 'true'
@@ -77,6 +82,7 @@ runs:
     - --cwd=${{ inputs.working-directory }}
     - --repository=${{ inputs.repository }}
     - --source=${{ inputs.source }}
+    - --generated-files=${{ inputs.generated-files }}
     - --resolve-pull-requests=${{ inputs.resolve-pull-requests }}
     - --locale=${{ inputs.locale }}
     - --tag-prefix=${{ inputs.tag-prefix }}

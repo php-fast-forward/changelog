@@ -64,6 +64,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
      * @param PullRequestReferenceResolverInterface  $pullRequests  Proves optional PR references against immutable fragment origins without modifying authored files.
      * @param HistoryReferenceBuilder                $references    Completes missing concrete release links without altering historical Markdown or observing external state.
      * @param VersionBaselineResolverInterface       $baselines     Selects maintained stable version state independently of whether publication succeeded.
+     * @param ?GeneratedFileEvidence                 $generated     Hashes only explicitly selected prepared data under the immutable Git source base.
      */
     public function __construct(
         private PackagePathResolverInterface $paths,
@@ -85,6 +86,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         private PullRequestReferenceResolverInterface $pullRequests,
         private HistoryReferenceBuilder $references = new HistoryReferenceBuilder(),
         private VersionBaselineResolverInterface $baselines = new VersionBaselineResolver(),
+        private ?GeneratedFileEvidence $generated = null,
     ) {}
 
     /**
@@ -161,6 +163,13 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $notes = $this->history->notes($this->history->parse($contents, $template), $next);
         }
 
+        $generatedFiles = [] !== $options->generatedFiles
+            ? ($this->generated ?? throw new RuntimeException('Generated release proof is unavailable.'))->local(
+                $options,
+                $baseSha ?? throw new RuntimeException('Generated release output requires an immutable Git base.'),
+                null === $next ? $baseSha : null,
+            ) : [];
+
         return $this->plans->create(
             $options,
             $baseSha,
@@ -175,6 +184,7 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
             $notes,
             $receiptPath,
             $receiptBytes,
+            ...([] === $generatedFiles ? [] : ['generatedFiles' => $generatedFiles]),
         );
     }
 
@@ -304,6 +314,16 @@ final readonly class ReleasePlanner implements ReleasePlannerInterface
         ?ValidationReport $inventory,
     ): void {
         $data = $receipt->data;
+        $generated = [] === $options->generatedFiles ? [] : ($this->generated ?? throw new RuntimeException(
+            'Generated release proof is unavailable.',
+        ))->local(
+            $options,
+            $data['base_sha'],
+            null === $data['next_version'] ? $data['base_sha'] : null,
+        );
+        if (($data['generated_files'] ?? []) !== $generated) {
+            throw new RuntimeException('Pending generated output differs from the saved plan.');
+        }
         if (($data['resolve_pull_requests'] ?? false) !== $options->resolvePullRequests) {
             throw new RuntimeException('Pending release PR discovery differs from the saved plan.');
         }

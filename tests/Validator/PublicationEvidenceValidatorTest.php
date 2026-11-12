@@ -72,6 +72,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ReleaseOptions::class)]
 #[UsesClass(\FastForward\Changelog\Release\ReleaseMetadataParser::class)]
 #[UsesClass(\FastForward\Changelog\Automation\Policy\GitHubEvidence::class)]
+#[\PHPUnit\Framework\Attributes\UsesClass(\FastForward\Changelog\Release\ReleasePlan::class)]
 final class PublicationEvidenceValidatorTest extends TestCase
 {
     /** The positive policy is reconstructed against its immutable source base, rather than approved prose or current files. */
