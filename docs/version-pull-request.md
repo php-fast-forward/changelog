@@ -95,6 +95,12 @@ streams. Publication reconstructs committed bytes again and retains complete
 head/merge tree equality, so merging unrelated source changes beside an older
 executable is rejected. Each file keeps the existing 64 MiB bound.
 
+Native generated uploads require
+a streaming HTTP backend: the packaged Docker runtime supplies cURL. A direct
+`NativeHttpClient` is refused before upload because it buffers complete request
+bodies; ordinary history-only operations are unaffected. Custom injected HTTP
+clients or decorators must preserve request-body streaming.
+
 The PHP `GitRepositoryInterface::releaseMetadata()` and
 `ReleasePlanFactoryInterface::create()` accept an additional optional generated
 argument. Existing callers remain valid; custom implementations must accept the

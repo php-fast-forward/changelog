@@ -94,9 +94,10 @@ requires all of the following:
 - The signed commit identifies its source base, plan, output hash and configured
   options through scalar `Changelog-*` trailers. The source base must
   match the current live PR base exactly and be a GitHub-proven ancestor of the head.
-- The central blob at that head matches the declared output hash. Explicit
-  [generated-file policies](version-pull-request.md#generated-release-files) also
-  bind actual immutable payload hashes to that output, preserving source-base modes.
+- With the default policy, the declared output hash matches the central blob.
+  Explicit [generated-file policies](version-pull-request.md#generated-release-files)
+  instead bind the central hash and actual generated payload hashes into one
+  aggregate output fingerprint, preserving source-base modes.
   Comparison scope defaults to the central document and exact removals of the
   complete committed fragment inventory, adding only configured generated replacements. Unknown files, renames,
   unsafe modes, invalid fragments or truncated comparisons fail closed.

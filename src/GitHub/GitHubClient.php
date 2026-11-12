@@ -16,6 +16,7 @@ declare(strict_types=1);
 namespace FastForward\Changelog\GitHub;
 
 use RuntimeException;
+use Symfony\Component\HttpClient\NativeHttpClient;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -65,6 +66,11 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubPublic
             || [] !== array_intersect(['.', '..'], explode('/', $repository))
             || strlen($contents) > 67_108_864) {
             throw new RuntimeException('Generated Git blobs require a repository and at most 64 MiB.');
+        }
+        if ($this->http instanceof NativeHttpClient) {
+            throw new RuntimeException(
+                'Generated blob upload requires a streaming HTTP backend; NativeHttpClient buffers request bodies. Use the cURL backend.',
+            );
         }
         $digest = hash_init('sha1');
         hash_update($digest, 'blob ' . strlen($contents) . "\0");

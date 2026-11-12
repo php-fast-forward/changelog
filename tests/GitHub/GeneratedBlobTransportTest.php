@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\NativeHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -52,6 +53,15 @@ final class GeneratedBlobTransportTest extends TestCase
         self::assertSame($sha, new GitHubClient($http, 'synthetic-token')->createBlob('owner/project', $bytes));
     }
 
+    /** NativeHttpClient's eager request-body buffering is refused before request or body construction. */
+    public function testNativeUploadBackendIsRejectedBeforeRequest(): void
+    {
+        $http = new NativeHttpClient(['on_progress' => static function (): never {
+            self::fail('A refused native upload must never start a request.');
+        }]);
+        $this->expectExceptionMessage('NativeHttpClient buffers request bodies');
+        new GitHubClient($http)->createBlob('owner/project', 'binary');
+    }
     /** An unrelated returned object cannot become release evidence. */
     public function testUploadRejectsWrongObject(): void
     {
