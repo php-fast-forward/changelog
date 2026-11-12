@@ -350,8 +350,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    13 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and six repository workflows must remain distinct.',
+    14 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and seven repository workflows, including PHAR qualification, must remain distinct.',
 );
 $assertions += 6;
 
