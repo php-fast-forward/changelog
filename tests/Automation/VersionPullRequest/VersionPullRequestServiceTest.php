@@ -44,10 +44,64 @@ use RuntimeException;
 #[UsesClass(PendingPublicationException::class)]
 #[UsesClass(ReleasePlan::class)]
 #[UsesClass(ReleaseReceipt::class)]
+#[UsesClass(\FastForward\Changelog\Release\GeneratedFileEvidence::class)]
 final class VersionPullRequestServiceTest extends TestCase
 {
     use PolicyFixtureTrait;
 
+    /** Prepared bytes are uploaded in the same owned tree only after immutable source preflight. */
+    public function testGeneratedPayloadJoinsOneNativeTransaction(): void
+    {
+        $result = $this->synchronizeFixture(
+            ['generated' => ['dist/tool' => hash('sha256', 'binary')], 'generated_native' => true],
+        );
+        self::assertSame('created', $result->status);
+        self::assertContains(
+            ['path' => 'dist/tool', 'mode' => '100755', 'type' => 'blob', 'sha' => str_repeat('9', 40)],
+            $this->writes('trees')[0][2]['tree'],
+        );
+        self::assertCount(1, $this->writes('commits'));
+    }
+
+    /** History-only source changes can reuse an identical existing executable without uploading its bytes again. */
+    public function testUnchangedGeneratedBlobIsReused(): void
+    {
+        $result = $this->synchronizeFixture(
+            ['generated' => ['dist/tool' => hash(
+                'sha256',
+                'binary',
+            )], 'generated_native' => true, 'generated_reuse' => true],
+        );
+        self::assertSame('created', $result->status);
+        self::assertContains(
+            ['path' => 'dist/tool', 'mode' => '100755', 'type' => 'blob', 'sha' => hash('sha1', "blob 6\0binary")],
+            $this->writes('trees')[0][2]['tree'],
+        );
+        self::assertStringContainsString('Generated files: `dist/tool`.', $this->writes('pulls')[0][2]['body']);
+    }
+    /** Maintenance keeps the selected base payload and never uploads or writes a generated replacement. */
+    public function testMaintenanceLeavesGeneratedFilesUnchanged(): void
+    {
+        $result = $this->synchronizeFixture(
+            ['maintenance' => true, 'generated' => ['dist/tool' => hash('sha256', 'base bytes')]],
+        );
+        self::assertSame('created', $result->status);
+        self::assertSame(
+            [['path' => 'CHANGELOG.md', 'mode' => '100644', 'type' => 'blob', 'content' => 'new']],
+            $this->writes('trees')[0][2]['tree'],
+        );
+    }
+    /** Missing capability, changed bytes and concurrent base advancement never create a commit or move a ref. */
+    #[TestWith([[]])]
+    #[TestWith([['generated_native' => true, 'generated_bytes' => 'tampered']])]
+    #[TestWith([['generated_native' => true, 'base_race' => true]])]
+    public function testGeneratedPayloadCannotBypassProof(array $settings): void
+    {
+        $result = $this->synchronizeFixture(['generated' => ['dist/tool' => hash('sha256', 'binary')], ...$settings]);
+        self::assertContains($result->status, ['refused', 'conflict']);
+        self::assertSame([], $this->writes('commits'));
+        self::assertSame([], $this->writes('refs'));
+    }
     private array $calls = [];
     private array $policyCalls = [];
     private array $plannerCalls = [];
@@ -648,6 +702,7 @@ final class VersionPullRequestServiceTest extends TestCase
             '/consumer',
             repository: isset($settings['missing_repo']) ? null : 'owner/project',
             resolvePullRequests: $settings['resolve_references'] ?? false,
+            generatedFiles: array_keys($settings['generated'] ?? []),
         );
         $base = str_repeat('b', 40);
         $head = isset($settings['base_existing']) ? $base : (isset($settings['existing']) || isset($settings['orphan']) ? str_repeat(
@@ -666,7 +721,7 @@ final class VersionPullRequestServiceTest extends TestCase
         ) : $base, $settings['current_version'] ?? '1.0.0', $next, null === $next ? null : 'patch', (isset($settings['pending']) && ! isset($settings['pending_consumed'])) || isset($settings['none']) || isset($settings['maintenance']) ? [] : ['/consumer/.changelog/feature.md' => hash(
             'sha256',
             'fragment',
-        )], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']) || isset($settings['prepared_resume']));
+        )], [], '/consumer/CHANGELOG.md', $original, isset($settings['none']) ? 'old' : 'new', 'notes', '/consumer/.changelog/release-plan.json', $originalReceipt, 'receipt', isset($settings['pending']) || isset($settings['prepared_resume']), generatedFiles: $settings['generated'] ?? []);
         $data = ['id' => isset($settings['wrong_receipt_id']) ? 'wrong' : $plan->id, 'base_sha' => $base, 'consumed' => isset($settings['scope_mismatch']) || [] === $plan->consumed ? [] : ['.changelog/feature.md' => hash(
             'sha256',
             'fragment',
@@ -693,7 +748,18 @@ final class VersionPullRequestServiceTest extends TestCase
             }
         }
         $baseReads = $headReads = $localReads = 0;
-        $github = $this->createStub(GitHubClientInterface::class);
+        $github = isset($settings['generated_reuse']) ? $this->createMockForIntersectionOfInterfaces(
+            [GitHubClientInterface::class, \FastForward\Changelog\GitHub\GitHubBlobTransportInterface::class],
+        ) : (isset($settings['generated_native']) ? $this->createStubForIntersectionOfInterfaces(
+            [GitHubClientInterface::class, \FastForward\Changelog\GitHub\GitHubBlobTransportInterface::class],
+        ) : $this->createStub(
+            GitHubClientInterface::class,
+        ));
+        if (isset($settings['generated_reuse'])) {
+            $github->expects(self::never())->method('createBlob');
+        } elseif (isset($settings['generated_native'])) {
+            $github->method('createBlob')->willReturn(str_repeat('9', 40));
+        }
         $github->method('paginate')->willReturnCallback(static function (string $path) use (&$pr, $settings): array {
             return null === $pr ? [] : (isset($settings['duplicate_pr']) ? [$pr, $pr] : [$pr]);
         });
@@ -741,6 +807,23 @@ final class VersionPullRequestServiceTest extends TestCase
             }
             if (str_contains($path, '/contents/')) {
                 return isset($settings['unowned']) ? null : $this->file('old receipt');
+            }
+            if ('GET' === $method && str_contains($path, '/git/trees/')) {
+                $sha = substr($path, strrpos($path, '/') + 1);
+
+                return ['sha' => $sha, 'truncated' => false, 'tree' => str_repeat(
+                    'd',
+                    40,
+                ) === $sha ? [['path' => 'dist', 'type' => 'tree', 'sha' => str_repeat(
+                    '8',
+                    40,
+                )]] : [['path' => 'tool', 'type' => 'blob', 'mode' => '100755', 'sha' => isset($settings['generated_reuse']) ? hash(
+                    'sha1',
+                    "blob 6\0binary",
+                ) : str_repeat(
+                    '7',
+                    40,
+                ), 'size' => 6]]];
             }
             if ('GET' === $method && str_contains($path, '/git/commits/')) {
                 return isset($settings['missing_tree']) ? null : ['tree' => ['sha' => str_repeat('d', 40)]];
@@ -931,6 +1014,22 @@ final class VersionPullRequestServiceTest extends TestCase
             }
         });
 
+        $generated = null;
+        if (isset($settings['generated_native'])) {
+            $generatedGit = $this->createStub(GitRepositoryInterface::class);
+            $generatedGit->method('filesAt')->willReturn([['path' => 'dist/tool', 'mode' => '100755']]);
+            $generatedFiles = $this->createStub(\FastForward\Changelog\Filesystem\ManagedFileStoreInterface::class);
+            $generatedFiles->method('read')->willReturn($settings['generated_bytes'] ?? 'binary');
+            $generatedPaths = $this->createStub(PackagePathResolverInterface::class);
+            $generatedPaths->method('absolutePath')->willReturn('/consumer/dist/tool');
+            $generated = new \FastForward\Changelog\Release\GeneratedFileEvidence(
+                $generatedGit,
+                $generatedFiles,
+                $generatedPaths,
+                $github,
+            );
+        }
+
         return new VersionPullRequestService(
             $github,
             $git,
@@ -944,6 +1043,7 @@ final class VersionPullRequestServiceTest extends TestCase
             $this->createStub(TemplateResolverInterface::class),
             $this->createStub(HistoryReleaseFactoryInterface::class),
             $this->createStub(ReleasePlanFactoryInterface::class),
+            generated: $generated,
         )->synchronize(
             $options,
             $input,

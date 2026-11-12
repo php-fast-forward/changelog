@@ -199,12 +199,32 @@ A main-only checkout can lack the original head after a squash merge. Once the
 repository, merged PR/head and complete file/commit deltas are corroborated, the
 resolver may acquire that exact SHA from the matching repository hosted on github.com.
 Authentication stays in the HTTP adapter: HTTPS service discovery and an exact-head
-Git upload-pack request use the supplied token with redirects disabled. The bounded
-64 MiB response is imported by local `git index-pack` over stdin; credentials never
-reach Git, its argv, environment, config, credential helpers or persisted files.
-It updates only the local object database, without changing refs, `FETCH_HEAD`,
-the index or managed files, including during previews. It then rechecks the exact
-local commit and the repository/PR API identities before proving provenance.
+Git upload-pack request use the supplied token with redirects disabled. Credentials
+never reach Git, its argv, environment, config, credential helpers or persisted files.
+
+The standard service provider uses Git's [native object filter](https://git-scm.com/docs/pack-protocol),
+`blob:limit=1048576`, when
+recovering a missing original head. It retains the complete commit/tree graph and
+small file contents while omitting large payloads such as historical PHARs. This
+is not a shallow fetch. The total response remains bounded to 64 MiB; reference
+discovery stays enabled and no new workflow input is needed.
+
+Filtered packs are imported into a private temporary object directory. The
+original object database is available as a read-only alternate; the consumer's
+objects, refs, `FETCH_HEAD`, index, configuration and managed files stay unchanged.
+Git validates the received objects and the complete reachable commit/tree graph.
+Required fragment bytes still undergo the existing SHA-256 and direct-origin
+checks. Missing proof data fails preparation rather than silently dropping a
+reference. Git network access and lazy fetching are disabled inside this view.
+The private objects are removed when the operation succeeds or throws.
+
+The resolver rechecks the exact local commit and repository/PR API identities
+before proving provenance. `GitHubFilteredTransportInterface` and `GitObjectScope`
+supply this route through the standard provider. The existing complete-pack
+`commitPack()` and `acquireCommit()` APIs retain their original bounded, strict
+validation behavior for custom or manually composed clients; that legacy route
+may populate complete local Git objects as before.
+
 A failed fetch or changed identity still refuses preparation. Existing local
 Enterprise heads remain supported; acquisition of missing Enterprise heads is
 refused because their Git transport host is not verified by this capability.

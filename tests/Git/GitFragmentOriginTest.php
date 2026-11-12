@@ -348,7 +348,9 @@ final class GitFragmentOriginTest extends TestCase
     private function parents(string $commit, string $parents): array
     {
         return [
-            $this->git(['show', '-s', '--no-notes', '--no-show-signature', '--format=%P', $commit, '--']),
+            $this->git(
+                ['show', '-s', '--no-renames', '--no-notes', '--no-show-signature', '--format=%P', $commit, '--'],
+            ),
             $parents,
         ];
     }

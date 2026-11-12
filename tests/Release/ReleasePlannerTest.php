@@ -94,8 +94,46 @@ use RuntimeException;
 #[UsesClass(NextVersionResolver::class)]
 #[UsesClass(VersionImpactResolver::class)]
 #[UsesClass(VersionImpact::class)]
+#[UsesClass(\FastForward\Changelog\Release\GeneratedFileEvidence::class)]
 final class ReleasePlannerTest extends TestCase
 {
+    /** Recovery cannot reuse an artifact identity after its prepared bytes differ from the saved transaction. */
+    public function testSavedGeneratedEvidenceCannotBeDroppedDuringRecovery(): void
+    {
+        $receipt = new ReleaseReceipt([...$this->receipt()->data, 'generated_files' => ['dist/tool' => hash(
+            'sha256',
+            'binary',
+        )]]);
+        [$planner, $parts] = $this->planner(['receipt' => $receipt]);
+        $parts['plans']->expects(self::never())->method('resume');
+        $this->expectExceptionMessage('Pending generated output differs');
+        $planner->plan(new ReleaseOptions('/consumer'));
+    }
+    /** Backfill binds base blob hashes without reading a prepared artifact or writing its replacement. */
+    public function testGeneratedMaintenanceUsesOnlyOriginalCommittedBytes(): void
+    {
+        $git = $this->createMock(GitRepositoryInterface::class);
+        $git->method('filesAt')->willReturn([['path' => 'dist/tool', 'mode' => '100755']]);
+        $git->expects(self::once())->method('readFileAt')->with('/consumer', self::SHA, 'dist/tool')->willReturn(
+            'base bytes',
+        );
+        $files = $this->createMock(ManagedFileStoreInterface::class);
+        $files->expects(self::never())->method('read');
+        $generated = new \FastForward\Changelog\Release\GeneratedFileEvidence($git, $files, $this->createStub(
+            PackagePathResolverInterface::class,
+        ), $this->createStub(
+            GitHubClientInterface::class,
+        ));
+        [$planner, $parts] = $this->planner(['missing' => ['0.1.0'], 'generated' => $generated]);
+        $parts['plans']->expects(self::once())->method('create')->willReturnCallback(function (...$arguments) use (
+            $parts
+        ): ReleasePlan {
+            self::assertSame(['dist/tool' => hash('sha256', 'base bytes')], $arguments[14]);
+
+            return $parts['plan'];
+        });
+        $planner->plan(new ReleaseOptions('/consumer', generatedFiles: ['dist/tool']), 'backfill');
+    }
     private const string SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
     /** PR discovery receives accepted raw hashes and changes presentation without changing authored version inputs. */
@@ -1138,6 +1176,7 @@ final class ReleasePlannerTest extends TestCase
             $settings['pullRequests'] ?? $this->createStub(
                 \FastForward\Changelog\Release\Reference\PullRequestReferenceResolverInterface::class,
             ),
+            generated: $settings['generated'] ?? null,
         ),
             compact(
                 'document',

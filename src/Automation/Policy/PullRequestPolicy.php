@@ -17,7 +17,9 @@ namespace FastForward\Changelog\Automation\Policy;
 
 use FastForward\Changelog\Changeset\Parser\ChangesetParserInterface;
 use FastForward\Changelog\GitHub\GitHubClientInterface;
+use FastForward\Changelog\Release\GeneratedFileEvidence;
 use FastForward\Changelog\Release\ReleaseOptions;
+use FastForward\Changelog\Release\ReleasePlan;
 use RuntimeException;
 use Throwable;
 
@@ -27,10 +29,12 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
     /**
      * Injects API, result construction and value boundaries; construction has no external effects.
      *
-     * @param GitHubClientInterface $github Authenticated, replaceable GitHub API boundary for scoped reads and writes.
+     * @param GitHubClientInterface  $github    Authenticated, replaceable GitHub API boundary for scoped reads and writes.
+     * @param ?GeneratedFileEvidence $generated Reconstructs explicitly selected immutable generated blobs; absent preserves the default strict scope.
      */
     public function __construct(
         private GitHubClientInterface $github,
+        private ?GeneratedFileEvidence $generated = null,
     ) {}
 
     /**
@@ -315,7 +319,17 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
                 )),
             );
 
-            if (null === $central || hash('sha256', $central) !== $data['after_changelog_sha256']) {
+            $generated = [] === $options->generatedFiles ? [] : ($this->generated ?? throw new RuntimeException(
+                'Generated output proof is unavailable.',
+            ))->remote(
+                $options,
+                $data['base_sha'],
+                $headSha,
+            );
+            if (null === $central || ReleasePlan::outputHash(
+                $central,
+                $generated,
+            ) !== $data['after_changelog_sha256']) {
                 return false;
             }
             $scope = null;
@@ -436,6 +450,13 @@ final readonly class PullRequestPolicy implements PullRequestPolicyInterface
             $seen[$path] = true;
 
             if ($path === $options->changelogFile) {
+                if (! in_array($file['status'] ?? null, ['added', 'modified'], true)) {
+                    return false;
+                }
+
+                continue;
+            }
+            if (in_array($path, $options->generatedFiles, true)) {
                 if (! in_array($file['status'] ?? null, ['added', 'modified'], true)) {
                     return false;
                 }

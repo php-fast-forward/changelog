@@ -64,6 +64,11 @@ on:
         required: false
         default: 'auto'
 
+      generated-files:
+        description: 'JSON array of existing tracked file paths allowed as generated release outputs.'
+        type: string
+        default: '[]'
+
       resolve-pull-requests:
         description: 'PR-resolution setting of the approved version transaction; checking performs no origin lookup.'
         type: boolean
@@ -231,6 +236,7 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           repository: ${{ inputs.repository || github.repository }}
           source: ${{ inputs.source }}
+          generated-files: ${{ inputs.generated-files }}
           resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           token: ${{ secrets.token || github.token }}
           pull-request: ${{ inputs.pull-request }}

@@ -45,9 +45,9 @@ interface GitRepositoryInterface
      *
      * Missing metadata returns null; malformed, truncated or ambiguous evidence MUST fail closed.
      *
-     * @param  string                                                                                $directory     Explicit consumer directory used for repository or fragment operations.
-     * @param  string                                                                                $reference     Git revision to resolve within the explicit consumer repository.
-     * @param  string                                                                                $changelogFile Canonical project-relative path of the single central history blob.
+     * @param  string                                                                                $directory      Explicit consumer directory used for repository or fragment operations.
+     * @param  string                                                                                $reference      Git revision to resolve within the explicit consumer repository.
+     * @param  string                                                                                $changelogFile  Canonical project-relative path of the single central history blob.
      * @return array{base_sha:string,plan_id:string,output_sha256:string,options_sha256:string}|null Unique complete
      *                                                                                               transaction trailers
      *                                                                                               matching the approved
@@ -55,11 +55,13 @@ interface GitRepositoryInterface
      *                                                                                               when absent.
      * @throws RuntimeException                                                                      When Git execution or the returned immutable repository evidence cannot be verified.
      * @throws InvalidArgumentException                                                              When a supplied revision cannot be accepted before the immutable Git query.
+     * @param  list<string>                                                                          $generatedFiles Explicit existing generated paths whose committed bytes join the approved output fingerprint.
      */
     public function releaseMetadata(
         string $directory,
         string $reference,
         string $changelogFile = 'CHANGELOG.md',
+        array $generatedFiles = [],
     ): ?array;
 
     /**

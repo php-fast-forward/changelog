@@ -181,7 +181,20 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
         return [
             Release\Reference\PullRequestReferenceResolverInterface::class => new AliasFactory(
                 Release\Reference\PullRequestReferenceResolver::class,
-            ),
+            ),            Release\Reference\PullRequestReferenceResolver::class => static function (
+                ContainerInterface $container,
+            ): Release\Reference\PullRequestReferenceResolver {
+                $git = $container->get(Git\GitRepositoryInterface::class);
+                $github = $container->get(GitHubClientInterface::class);
+
+                return new Release\Reference\PullRequestReferenceResolver(
+                    $git,
+                    $github,
+                    $container->get(Filesystem\PackagePathResolverInterface::class),
+                    $git instanceof Git\GitRepository && $github instanceof GitHub\GitHubFilteredTransportInterface && $github->usesPublicGitHub()
+                        ? $container->get(Git\GitObjectScope::class) : null,
+                );
+            },
             Release\ReleaseJournalPathResolverInterface::class => new AliasFactory(
                 Release\ReleaseJournalPathResolver::class,
             ),
@@ -256,6 +269,7 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                 GitHubClientInterface::class,
                 Release\ReleaseMetadataParser::class,
                 History\HistoryReferenceBuilder::class,
+                generated: Release\GeneratedFileEvidence::class,
             ),
             Validator\ChangesetValidatorInterface::class => new AliasFactory(
                 Validator\ChangesetValidator::class,
@@ -473,6 +487,13 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
     {
         return [
             IdentifierGeneratorInterface::class => new AliasFactory(Fragment\RandomIdentifierGenerator::class),
+            Git\GitObjectScope::class => static fn(ContainerInterface $container): Git\GitObjectScope => new Git\GitObjectScope(
+                $container->get(Process\Factory\ProcessFactoryInterface::class),
+                $container->get(\Symfony\Component\Filesystem\Filesystem::class),
+                $container->get(Randomizer::class),
+                $container->get(self::CONFIG)->get('temporary_directory'),
+                $container->get(Filesystem\PackagePathResolverInterface::class),
+            ),
             Randomizer::class => static fn(): Randomizer => new Randomizer(new Secure()),
             HttpClientInterface::class => static fn(): HttpClientInterface => HttpClient::create(),
             GitHubClientInterface::class => new AliasFactory(GitHub\GitHubClient::class),

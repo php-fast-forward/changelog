@@ -69,6 +69,11 @@ on:
         required: false
         default: 'auto'
 
+      generated-files:
+        description: 'JSON array of existing tracked file paths allowed as generated release outputs.'
+        type: string
+        default: '[]'
+
       resolve-pull-requests:
         description: 'Resolve missing fragment PR references from verified Git and GitHub evidence.'
         type: boolean
@@ -250,6 +255,7 @@ jobs:
           tag-prefix: ${{ inputs.tag-prefix }}
           repository: ${{ inputs.repository || github.repository }}
           source: ${{ inputs.source }}
+          generated-files: ${{ inputs.generated-files }}
           resolve-pull-requests: ${{ inputs.resolve-pull-requests }}
           token: ${{ steps.auth.outputs.token }}
           base-branch: ${{ inputs.base-branch }}

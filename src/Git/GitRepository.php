@@ -18,6 +18,7 @@ namespace FastForward\Changelog\Git;
 
 use FastForward\Changelog\Process\Factory\ProcessFactoryInterface;
 use FastForward\Changelog\Release\ReleaseMetadataParser;
+use FastForward\Changelog\Release\ReleasePlan;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -29,14 +30,16 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
     /**
      * Injects process construction so unit tests never start Git.
      *
-     * @param ProcessFactoryInterface $processes Constructor for unstarted structured process using the configured
-     *                                           consumer root and filtered automation credentials.
-     * @param ?ReleaseMetadataParser  $metadata  Optional strict commit-trailer parser or contextual metadata proven by
-     *                                           the approved PR head.
+     * @param ProcessFactoryInterface $processes   Constructor for unstarted structured process using the configured
+     *                                             consumer root and filtered automation credentials.
+     * @param bool                    $quarantined Internal marker allowing filtered imports only inside a private object scope.
+     * @param ?ReleaseMetadataParser  $metadata    Optional strict commit-trailer parser or contextual metadata proven by
+     *                                             the approved PR head.
      */
     public function __construct(
         private ProcessFactoryInterface $processes,
         ?ReleaseMetadataParser $metadata = null,
+        private bool $quarantined = false,
     ) {
         $this->metadata = $metadata ?? new ReleaseMetadataParser();
     }
@@ -101,17 +104,19 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
     /**
      * Returns only complete scalar evidence whose generated output matches the exact approved central blob.
      *
-     * @param  string                   $directory     Explicit consumer directory used for repository or fragment operations.
-     * @param  string                   $reference     Git revision to resolve within the explicit consumer repository.
-     * @param  string                   $changelogFile Canonical project-relative path of the single central history blob.
+     * @param  string                   $directory      Explicit consumer directory used for repository or fragment operations.
+     * @param  string                   $reference      Git revision to resolve within the explicit consumer repository.
+     * @param  string                   $changelogFile  Canonical project-relative path of the single central history blob.
      * @return ?array                   Unique complete transaction trailers matching the approved central blob, or null when absent.
      * @throws RuntimeException         When Git execution or the returned immutable repository evidence cannot be verified.
      * @throws InvalidArgumentException When a supplied revision cannot be accepted before the immutable Git query.
+     * @param  list<string>             $generatedFiles Explicit existing generated paths whose committed bytes join the approved output fingerprint.
      */
     public function releaseMetadata(
         string $directory,
         string $reference,
         string $changelogFile = 'CHANGELOG.md',
+        array $generatedFiles = [],
     ): ?array {
         $sha = $this->resolveRef($directory, $reference);
         $direct = $this->metadata->parse($this->run($directory, ['show', '-s', '--format=%B', $sha, '--']));
@@ -120,7 +125,23 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
         if (null === $central) {
             return null;
         }
-        $output = hash('sha256', $central);
+        $generated = [];
+        foreach ($generatedFiles as $path) {
+            $files = $this->filesAt($directory, $sha, $path);
+            $bytes = $this->readFileAt($directory, $sha, $path);
+            if (1 !== count($files) || ($files[0]['path'] ?? null) !== $path || ! in_array(
+                $files[0]['mode'] ?? null,
+                ['100644', '100755'],
+                true,
+            )
+                || null === $bytes || strlen($bytes) > 67_108_864) {
+                throw new RuntimeException(
+                    'Generated release metadata requires exact bounded regular committed files.',
+                );
+            }
+            $generated[$path] = hash('sha256', $bytes);
+        }
+        $output = ReleasePlan::outputHash($central, $generated);
 
         if (null !== $direct) {
             if (! hash_equals($direct['output_sha256'], $output)) {
@@ -288,9 +309,59 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
      */
     public function acquireCommit(string $directory, string $repository, string $sha, string $pack): void
     {
+        $this->assertAcquisition($directory, $repository, $sha, $pack);
+        $process = $this->processes->create(['git', '-C', $directory, 'index-pack', '--stdin', '--strict']);
+        $process->setInput($pack);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            throw new RuntimeException('Git object acquisition could not validate the imported pack.');
+        }
+    }
+
+    /**
+     * Validates filtered objects and every reachable commit/tree inside an invocation-owned object directory.
+     *
+     * @param  string                    $directory  Consumer root whose base objects remain available through read-only alternates.
+     * @param  string                    $repository Independently verified GitHub owner/name matching the original local origin.
+     * @param  string                    $sha        Complete independently verified original PR head.
+     * @param  string                    $pack       Native filtered pack with large blobs omitted; total transfer remains bounded to 64 MiB.
+     * @return void                      Completion after native object validation and complete non-blob connectivity checks.
+     * @throws RuntimeException          When called outside a private scope or required metadata/objects cannot be proved.
+     * @throws \InvalidArgumentException When the repository or immutable head identity is invalid.
+     */
+    public function acquireFilteredCommit(string $directory, string $repository, string $sha, string $pack): void
+    {
+        if (!$this->quarantined) {
+            throw new RuntimeException('Filtered Git acquisition requires a private object scope.');
+        }
+        $this->assertAcquisition($directory, $repository, $sha, $pack);
+        $process = $this->processes->create(
+            ['git', '-C', $directory, 'index-pack', '--stdin', '--fsck-objects', '--promisor'],
+        );
+        $process->setInput($pack);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            throw new RuntimeException('Filtered Git objects could not be validated.');
+        }
+        $this->run($directory, ['rev-list', '--objects', '--filter=blob:none', '--missing=error', $sha, '--']);
+    }
+
+    /**
+     * Retains the existing exact-origin, immutable-head and complete response-bound preconditions for both modes.
+     *
+     * @param  string                    $directory  Trusted consumer root selected by repository discovery.
+     * @param  string                    $repository API-verified GitHub owner/name, never a transport URL.
+     * @param  string                    $sha        Complete selected commit identity, never a ref or option.
+     * @param  string                    $pack       Native Git pack bytes within the unchanged 64 MiB cap.
+     * @return void                      No value; invalid source or payload evidence is refused before import.
+     * @throws \InvalidArgumentException When repository or immutable identity syntax is invalid.
+     * @throws RuntimeException          When origin or payload evidence does not meet the acquisition contract.
+     */
+    private function assertAcquisition(string $directory, string $repository, string $sha, string $pack): void
+    {
         if (1 !== preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository)
             || 1 !== preg_match('/\A(?:[a-f0-9]{40}|[a-f0-9]{64})\z/', $sha)) {
-            throw new InvalidArgumentException('Commit acquisition requires a repository and complete SHA.');
+            throw new \InvalidArgumentException('Commit acquisition requires a repository and complete SHA.');
         }
         $origin = $this->originUrl($directory);
         if (null === $origin || 1 !== preg_match(
@@ -300,17 +371,10 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
         ) || 0 !== strcasecmp($matches[1], $repository)) {
             throw new RuntimeException('Commit acquisition requires the selected GitHub repository origin.');
         }
-        if (! str_starts_with($pack, 'PACK') || strlen($pack) < 32 || strlen($pack) > 67_108_864) {
+        if (!str_starts_with($pack, 'PACK') || strlen($pack) < 32 || strlen($pack) > 67_108_864) {
             throw new RuntimeException('Git object acquisition requires a bounded complete pack.');
         }
-        $process = $this->processes->create(['git', '-C', $directory, 'index-pack', '--stdin', '--strict']);
-        $process->setInput($pack);
-        $process->run();
-        if (! $process->isSuccessful()) {
-            throw new RuntimeException('Git object acquisition could not validate the imported pack.');
-        }
     }
-
     /**
      * Distinguishes unrelated history from a Git execution failure without accepting an invalid ref.
      *
@@ -587,7 +651,7 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
             }
             $rawParents = rtrim($this->fragmentGit(
                 $directory,
-                ['show', '-s', '--no-notes', '--no-show-signature', '--format=%P', $commit, '--'],
+                ['show', '-s', '--no-renames', '--no-notes', '--no-show-signature', '--format=%P', $commit, '--'],
             ), "\r\n");
             $parents = '' === $rawParents ? [] : explode(' ', $rawParents);
             if (! array_all(
@@ -624,7 +688,7 @@ final readonly class GitRepository implements GitCommitAcquirerInterface, GitRep
         }
         $raw = rtrim($this->fragmentGit(
             $directory,
-            ['show', '-s', '--no-notes', '--no-show-signature', '--format=%P', $origin, '--'],
+            ['show', '-s', '--no-renames', '--no-notes', '--no-show-signature', '--format=%P', $origin, '--'],
         ), "\r\n");
         $parents = '' === $raw ? [] : explode(' ', $raw);
         if (! array_all($parents, static fn(string $sha): bool => 1 === preg_match(
