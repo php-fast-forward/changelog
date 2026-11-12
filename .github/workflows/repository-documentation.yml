@@ -48,7 +48,7 @@ jobs:
 
       - name: Set Up PHP
         if: needs.impact.outputs.documentation == 'true'
-        uses: shivammathur/setup-php@2.37.1
+        uses: shivammathur/setup-php@2.40.0
         with:
           php-version: '8.5'
           coverage: none
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload Documentation Preview
         if: needs.impact.outputs.documentation == 'true'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: changelog-documentation
           path: .build/docs

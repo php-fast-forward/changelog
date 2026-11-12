@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- build(deps): bump the github-actions group with 7 updates
+
+  Update dependencies: `actions/checkout`, `actions/download-artifact`, `actions/upload-artifact`, `dependabot/fetch-metadata`, `docker/login-action`, `marocchino/sticky-pull-request-comment`, `shivammathur/setup-php`.
+
+  ([#88](https://github.com/php-fast-forward/changelog/pull/88), @dependabot[bot])
+
+- build(deps-dev): bump the composer-development group with 7 updates
+
+  Update dependencies: `fast-forward/phpdoc-bootstrap-template`, `llm/skills`, `phpstan/phpdoc-parser`, `phpunit/php-code-coverage`, `phpunit/phpunit`, `rector/rector`, `symplify/easy-coding-standard`.
+
+  ([#89](https://github.com/php-fast-forward/changelog/pull/89), @dependabot[bot])
+
 - Group Dependabot dependency updates by ecosystem and dependency type.
 
   Raise the minimum requirement of directly updated Composer dependencies in Dependabot version updates.
