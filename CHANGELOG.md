@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-12
+
+### Added
+
+- Support explicitly allowed generated release files in the same signed Bot commit
+  and version PR as the changelog consolidation. Bind their hashes to the native
+  release plan and publication evidence while preserving the existing file modes
+  and the strict default scope. Stream binary GitHub blob transport within the
+  existing limits so ready executables do not need a separate artifact PR.
+
+  Custom PHP implementations of the Git metadata and release plan factory
+  interfaces must accept their new optional generated-output parameters.
+
+  ([#84](https://github.com/php-fast-forward/changelog/pull/84))
+
+### Changed
+
+- build(deps): bump the github-actions group with 7 updates
+
+  Update dependencies: `actions/checkout`, `actions/download-artifact`, `actions/upload-artifact`, `dependabot/fetch-metadata`, `docker/login-action`, `marocchino/sticky-pull-request-comment`, `shivammathur/setup-php`.
+
+  ([#88](https://github.com/php-fast-forward/changelog/pull/88), @dependabot[bot])
+
+- build(deps-dev): bump the composer-development group with 7 updates
+
+  Update dependencies: `fast-forward/phpdoc-bootstrap-template`, `llm/skills`, `phpstan/phpdoc-parser`, `phpunit/php-code-coverage`, `phpunit/phpunit`, `rector/rector`, `symplify/easy-coding-standard`.
+
+  ([#89](https://github.com/php-fast-forward/changelog/pull/89), @dependabot[bot])
+
+- Group Dependabot dependency updates by ecosystem and dependency type.
+
+  Raise the minimum requirement of directly updated Composer dependencies in Dependabot version updates.
+
+  ([#83](https://github.com/php-fast-forward/changelog/pull/83))
+
+### Fixed
+
+- Preserve automatic fragment pull-request references when original PR history
+  contains large artifacts. Recover the complete commit and tree graph through
+  bounded native Git filtering and verify it in a temporary object scope, retaining
+  the existing fragment hashes, direct-origin checks and repository evidence.
+  Keep the consumer's Git objects, refs and configuration unchanged and preserve
+  the complete-pack APIs for existing integrations.
+
+  ([#84](https://github.com/php-fast-forward/changelog/pull/84))
+
 ## [0.5.0] - 2026-10-30
 
 ### Changed
@@ -121,6 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable fast-forward-changelog agent skill, consumer examples, focused guides and browsable phpDocumentor API documentation. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 - One managed version PR with configurable titles, deterministic consolidation and recoverable transactions, updating readable history and removing consumed fragments without adding tracked plan files. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 
+[0.6.0]: https://github.com/php-fast-forward/changelog/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/php-fast-forward/changelog/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/php-fast-forward/changelog/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/php-fast-forward/changelog/compare/v0.3.0...v0.4.0
