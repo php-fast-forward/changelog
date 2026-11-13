@@ -780,7 +780,7 @@ try {
                 'action' => 'closed',
                 'pull_request' => [
                     'merged' => true, 'merge_commit_sha' => $approvedImage,
-                    'head' => ['ref' => 'changelog/version', 'repo' => ['full_name' => 'fixture/consumer']],
+                    'head' => ['ref' => 'changelog/version-phar', 'repo' => ['full_name' => 'fixture/consumer']],
                     'base' => ['ref' => 'main'],
                 ],
             ],
@@ -801,6 +801,7 @@ try {
         [['github.event.pull_request.merged' => false], false],
         [['github.event.pull_request.head.repo.full_name' => 'fork/consumer'], false],
         [['github.event.pull_request.head.ref' => 'feature/untrusted'], false],
+        [['github.event.pull_request.head.ref' => 'changelog/version'], false],
         [['github.event.pull_request.head.ref' => "changelog/version' || true || '"], false],
         [['github.event.pull_request.base.ref' => 'release'], false],
         [['github.event.pull_request.merge_commit_sha' => str_repeat('b', 40)], false],
@@ -1435,8 +1436,9 @@ foreach ([$repositoryCi, $repositoryDocumentation] as $workflow) {
 }
 foreach (['packaging', 'component-compatibility', 'tests'] as $jobName) {
     $job = $repositoryCi['jobs'][$jobName];
+    $expectedNeeds = 'packaging' === $jobName ? ['impact', 'phar-build'] : 'impact';
     verifyWorkflow(
-        'impact' === $job['needs'] && '${{ always() && !cancelled() }}' === $job['if']
+        $expectedNeeds === $job['needs'] && '${{ always() && !cancelled() }}' === $job['if']
             && str_contains($job['steps'][0]['run'], 'exit 1')
             && '${{ needs.impact.result }}' === $job['steps'][0]['env']['FF_RESULT'],
         'A failed or missing impact decision must fail each required matrix context.',
