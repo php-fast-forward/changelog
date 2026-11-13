@@ -98,12 +98,12 @@ final class SquashPublicationTest extends TestCase
             putenv($name . '=' . $value);
             $_ENV[$name] = $_SERVER[$name] = $value;
         }
-        new Filesystem()->mkdir($root, 0700);
+        (new Filesystem())->mkdir($root, 0700);
         file_put_contents($root . '/empty-gitconfig', '');
         $producer = $root . '/origin';
         $consumer = $root . '/consumer';
         /** Runs only disposable fixture commands, with host configuration and credentials disabled. */
-        $git = static fn(string $directory, array $arguments): string => new Process([
+        $git = static fn(string $directory, array $arguments): string => (new Process([
             'git',
             '-C',
             $directory,
@@ -111,7 +111,7 @@ final class SquashPublicationTest extends TestCase
         ], $root, [
             'HOME' => $root, 'GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => $root . '/empty-gitconfig',
             'GIT_TERMINAL_PROMPT' => '0', 'GITHUB_TOKEN' => false, 'GH_TOKEN' => false, 'FF_CHANGELOG_TOKEN' => false,
-        ])->mustRun()->getOutput();
+        ]))->mustRun()->getOutput();
         try {
             $git($root, ['init', '--initial-branch=main', $producer]);
             $git($producer, ['config', 'user.name', 'Synthetic fixture']);
@@ -480,10 +480,10 @@ final class SquashPublicationTest extends TestCase
     public function testCleanupRemovesReadOnlyFixtureFiles(): void
     {
         $root = realpath(sys_get_temp_dir()) . '/changelog-cleanup-' . bin2hex(random_bytes(8));
-        new Filesystem()->mkdir($root, 0700);
+        (new Filesystem())->mkdir($root, 0700);
         try {
             file_put_contents($root . '/read-only-object', 'disposable');
-            new Filesystem()->chmod($root . '/read-only-object', 0444);
+            (new Filesystem())->chmod($root . '/read-only-object', 0444);
             self::removeFixture($root);
             self::assertDirectoryDoesNotExist($root);
         } finally {

@@ -7,13 +7,13 @@ checks those contributions and prepares one version PR that consolidates
 | What you need | Start here |
 | --- | --- |
 | Changelog automation on GitHub | [Guided project setup](project-installation.md) |
-| Local authoring and maintenance | Run the CLI with CPX, below. |
+| Local authoring and maintenance | Run the compiled CLI, below. |
 | Instructions for an agent | [Install the optional skill](skills.md) |
-| Services inside an existing PHP application | PHP API, below. |
+| Source service development | Development-only PHP services, below. |
 
 ## GitHub automation
 
-Use [`install` via CPX](project-installation.md) when the selected release offers
+Use the compiled [`install` command](project-installation.md) when the selected release offers
 it. The guided command explains publication, chooses the release branch, offers
 the project skill and previews a caller before confirmation. It preserves
 existing integrations and emits only non-default reusable inputs.
@@ -21,9 +21,10 @@ existing integrations and emits only non-default reusable inputs.
 For manual setup, copy the [consumer workflow](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml)
 to `.github/workflows/changelog.yml`. The [README](https://github.com/php-fast-forward/changelog/blob/main/README.md)
 shows the complete caller; [setup and permissions](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md)
-explain its event filters and credentials. The jobs need Linux, Docker, Bash and
-Git. Read those files at the selected published tag before copying them. The jobs
-do not install consumer PHP, Composer dependencies or Node.js.
+explain its event filters and credentials. The jobs need Linux, Bash and
+Git. Read those files at the selected published tag before copying them. Actions
+provision their PHP runtime without installing the consumer's Composer dependencies
+or Node.js.
 
 Publication defaults to enabled after the reviewed version PR is merged.
 Installation itself publishes nothing.
@@ -47,23 +48,25 @@ For a monorepo, run automation from the Git repository root and configure paths
 such as `packages/example/.changelog` and `packages/example/CHANGELOG.md`.
 Local CLI calls may instead select the package's working directory.
 
-## Run the CLI with CPX
+## Run the compiled CLI
 
-Use PHP `^8.5`, Git and [CPX](https://github.com/laravel/cpx). CPX resolves the
-CLI in a separate installation; the application does not need to require
-`fast-forward/changelog`. Put `--skip-local` before the package to select that
-copy instead of a matching project-local executable.
+Use PHP `^8.3` with Phar and zlib, Git and Composer. The package ships a ready-built PHAR; installing
+it requires no build tool. Its Composer proxy executes the bundled CLI rather
+than loading the application's dependencies. Runtime libraries are embedded;
+only PHP and required extensions constrain the consumer graph. PHP service
+classes require a source development checkout.
 
 Select the application's reviewed release, or a published stable version for new
 adoption, and set `CHANGELOG_VERSION` to that numeric version. From the project
 you want to maintain:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add \
+composer require --dev "fast-forward/changelog:$CHANGELOG_VERSION"
+vendor/bin/changelog list --raw
+vendor/bin/changelog help add
+vendor/bin/changelog add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
+vendor/bin/changelog check --no-interaction
 ```
 
 The first command lists the available commands. `help add` explains authoring.
@@ -74,10 +77,10 @@ without creating a note.
 See [fragment authoring](cli-fragments.md) for naming, metadata, commit options
 and diagnostics.
 
-Run from another directory by passing the CLI's `--cwd` after the package:
+Run from another directory by passing the CLI's `--cwd`:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
+vendor/bin/changelog check \
   --cwd=/path/to/project --no-interaction
 ```
 
@@ -85,7 +88,7 @@ After committing the contribution and fetching the intended baseline, compare
 its committed changes with:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check \
+vendor/bin/changelog check \
   --since=origin/main --no-interaction
 ```
 
@@ -94,16 +97,35 @@ own valid fragments and preserve central history and inherited fragments.
 PR, issue and author metadata are optional; no follow-up edit is required just
 because a PR has been opened.
 
-CPX separates dependency installations, not PHP runtimes: PHP `^8.5` is still
-required. The [Docker CLI](docker.md) supplies its own runtime. Existing Composer
-CLI installations remain usable as `vendor/bin/changelog`, or `changelog` on
-the global binary path; the command arguments are the same.
+For a global command, install the same selected release:
+
+```sh
+composer global require "fast-forward/changelog:$CHANGELOG_VERSION"
+changelog check --no-interaction
+```
+
+Ensure Composer's global binary directory is on `PATH`. The selected release's
+PHP version and required extensions remain necessary. GitHub Actions provision
+PHP and execute the same compiled CLI without a container. For a project
+installation, optional Composer scripts can keep the invocation short:
+
+```json
+{
+  "scripts": {
+    "changelog": "vendor/bin/changelog",
+    "changelog:check": "@changelog check --no-interaction"
+  }
+}
+```
+
+Merge these entries with existing scripts, then run `composer changelog:check`
+or `composer changelog -- add "Fixes Markdown parsing." --category=fixed`.
 
 ## Preview a release
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags
+vendor/bin/changelog status --json --source=tags
+vendor/bin/changelog version --dry-run --source=tags
 ```
 
 Both calls are read-only. Review the current/next version, effective impact,
@@ -117,18 +139,12 @@ localization and custom templates. [Publication](publication.md) documents exact
 commit evidence, retries and refusal of divergent tags or notes. The
 [CLI reference](cli-fragments.md) lists all commands and shared options.
 
-## PHP API
+## Development-only PHP services
 
-Use Composer only when the application needs the library's classes in its own
-dependency graph:
-
-```sh
-composer require 'fast-forward/changelog:^0.1'
-```
-
-PHP `^8.5` and the declared runtime dependencies apply. In particular, Console
-requires Symfony `^8.1`; an application restricted to Console 7.4 should use CPX
-or Docker for the standalone CLI. See [dependency compatibility](dependencies.md).
+The installed package is CLI-only and does not register its services in the
+consumer autoloader. This replaces the former library contract. Applications use
+`vendor/bin/changelog`. The examples below require `composer install` in a source
+checkout with development dependencies, rather than a consumer installation.
 
 CLI and automation share injected domain services. The provider has no
 constructor arguments. This composition excerpt shows default and optional
@@ -153,7 +169,7 @@ to add changelog behavior. Constructors perform no filesystem, Git, network,
 clock or credential observation. Configuration is explicit and captured lazily.
 
 The complete [contribution program](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/examples/contribution.php)
-loads the consumer autoloader, creates a fragment and checks its bytes. The
+loads the source development autoloader, creates a fragment and checks its bytes. The
 [PHP recipe](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/references/php-api.md)
 documents configuration keys, success, failure and collision behavior.
 The generated API reference supplies exact signatures; the domain guides explain

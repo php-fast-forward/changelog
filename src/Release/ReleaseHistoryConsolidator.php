@@ -205,5 +205,4 @@ final readonly class ReleaseHistoryConsolidator implements ReleaseHistoryConsoli
 
         return $left . $separator . $right;
     }
-
 }

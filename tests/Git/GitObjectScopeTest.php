@@ -97,7 +97,7 @@ final class GitObjectScopeTest extends TestCase
             return 0 === $calls++ ? $discovery : $scoped;
         });
         $filesystem = $this->filesystem();
-        $result = new GitObjectScope(
+        $result = (new GitObjectScope(
             $factory,
             $filesystem,
             $this->random(),
@@ -105,7 +105,7 @@ final class GitObjectScopeTest extends TestCase
             new \FastForward\Changelog\Filesystem\PackagePathResolver(
                 '/',
             ),
-        )->run(
+        ))->run(
             self::PROJECT,
             static fn(GitRepository $git): string => $git->resolveRef(self::PROJECT),
         );
@@ -124,7 +124,7 @@ final class GitObjectScopeTest extends TestCase
         if ($failure) {
             $this->expectExceptionObject($error);
         }
-        $actual = new GitObjectScope(
+        $actual = (new GitObjectScope(
             $factory,
             $filesystem,
             $this->random(),
@@ -132,7 +132,7 @@ final class GitObjectScopeTest extends TestCase
             new \FastForward\Changelog\Filesystem\PackagePathResolver(
                 '/',
             ),
-        )->run(
+        ))->run(
             self::PROJECT,
             static function (GitRepository $git) use ($failure, $error, $expected): object {
                 if ($failure) {
@@ -157,7 +157,7 @@ final class GitObjectScopeTest extends TestCase
         }
         $factory = $this->discoveryFactory($this->discovery($original, $success));
         $this->expectExceptionMessage('consumer Git object directory could not be verified');
-        new GitObjectScope(
+        (new GitObjectScope(
             $factory,
             $filesystem,
             $this->random(),
@@ -165,7 +165,7 @@ final class GitObjectScopeTest extends TestCase
             new \FastForward\Changelog\Filesystem\PackagePathResolver(
                 '/',
             ),
-        )->run(
+        ))->run(
             self::PROJECT,
             static function (): never {
                 self::fail('Invalid discovery must never execute the callback.');
@@ -182,11 +182,11 @@ final class GitObjectScopeTest extends TestCase
             $filesystem->expects(self::never())->method($method);
         }
         $this->expectExceptionMessage('private Git object scope already exists');
-        new GitObjectScope($this->discoveryFactory(
+        (new GitObjectScope($this->discoveryFactory(
             $this->discovery('/consumer/.git/objects'),
         ), $filesystem, $this->random(), self::ROOT, new \FastForward\Changelog\Filesystem\PackagePathResolver(
             '/',
-        ))->run(
+        )))->run(
             self::PROJECT,
             static function (): never {
                 self::fail('A collision must never execute the callback.');
@@ -218,11 +218,11 @@ final class GitObjectScopeTest extends TestCase
         $filesystem->expects(self::once())->method('chmod')->with($objects, 0700, 0000, true);
         $filesystem->expects(self::once())->method('remove')->with($objects);
         $this->expectExceptionObject($error);
-        new GitObjectScope($this->discoveryFactory(
+        (new GitObjectScope($this->discoveryFactory(
             $this->discovery('/consumer/.git/objects'),
         ), $filesystem, $this->random(), self::ROOT, new \FastForward\Changelog\Filesystem\PackagePathResolver(
             '/',
-        ))->run(
+        )))->run(
             self::PROJECT,
             static function (): never {
                 self::fail('Incomplete private setup must never execute the callback.');

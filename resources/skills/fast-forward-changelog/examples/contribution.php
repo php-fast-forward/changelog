@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Creates and validates one consumer fragment using explicit application paths.
+ * Development-source example: creates and validates one disposable fragment.
  *
  * @copyright Copyright (c) 2026 Felipe Sayao Lobato Abreu <github@mentordosnerds.com>
  * @license https://opensource.org/licenses/MIT MIT License
@@ -19,7 +19,7 @@ use function FastForward\Container\container;
 $autoload = $argv[1] ?? '';
 $directory = realpath($argv[2] ?? '');
 if ('' === $autoload || !is_file($autoload) || !isset($argv[2]) || false === $directory || !is_dir($directory)) {
-    fwrite(STDERR, "Usage: php contribution.php /consumer/vendor/autoload.php /existing/project\n");
+    fwrite(STDERR, "Usage: php contribution.php /source-checkout/vendor/autoload.php /existing/project\n");
     exit(2);
 }
 require $autoload;

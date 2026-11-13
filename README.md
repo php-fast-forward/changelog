@@ -11,7 +11,7 @@ collects them into `CHANGELOG.md` and removes the consumed fragments.
 The package is in 0.x development. Public interfaces may change before 1.0;
 review release notes and integration contracts before upgrading.
 
-[![PHP Version](https://img.shields.io/badge/php-%5E8.5-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
+[![PHP Version](https://img.shields.io/badge/php-%5E8.3-777BB4?logo=php&logoColor=white)](https://www.php.net/releases/)
 [![Composer Package](https://img.shields.io/badge/composer-fast--forward%2Fchangelog-F28D1A.svg?logo=composer&logoColor=white)](https://packagist.org/packages/fast-forward/changelog)
 [![Tests](https://img.shields.io/github/actions/workflow/status/php-fast-forward/changelog/repository-ci.yml?logo=githubactions&logoColor=white&label=tests&color=22C55E)](https://github.com/php-fast-forward/changelog/actions/workflows/repository-ci.yml)
 [![License](https://img.shields.io/github/license/php-fast-forward/changelog?color=64748B)](LICENSE)
@@ -19,7 +19,7 @@ review release notes and integration contracts before upgrading.
 
 ## 🤖 GitHub Actions
 
-Use [guided setup via CPX](docs/project-installation.md) to choose the release
+Use [guided setup with the compiled CLI](docs/project-installation.md) to choose the release
 branch, publication behavior and optional agent skill, then review the generated
 workflow. Existing integrations are preserved. For manual setup, create
 `.github/workflows/changelog.yml`:
@@ -85,7 +85,7 @@ All lifecycle inputs are optional. These are the main defaults:
 | `prepare-release` | `true` | Create or refresh the version PR after base pushes. |
 | `publish` | `true` | Publish the approved version PR's tag/release after merge. Set `false` for a pilot. |
 | `version-pr-title` | `chore(release): {repository} v{current_version} → v{next_version}` | Supports `{repository}`, `{repository_name}`, `{current_version}` and `{next_version}`. |
-| `runs-on` | `'["ubuntu-latest"]'` | Linux runner labels as JSON; Docker, Bash and Git are required. |
+| `runs-on` | `'["ubuntu-latest"]'` | Linux runner labels as JSON; Bash and Git are required; Actions provision PHP. |
 
 See the **[complete workflow and Action reference](docs/workflow-reference.md)**
 for every input, type, default, secret, output and permission. The
@@ -108,20 +108,22 @@ you want normal automatic publication.
 
 ## 🛠️ CLI
 
-Use PHP `^8.5` and [CPX](https://github.com/laravel/cpx) to run the CLI without
-adding it to the application's Composer dependencies. From your project:
+Use PHP `^8.3` with Phar and zlib, Git and Composer. Install it as a development dependency;
+Composer exposes its ready-built PHAR at `vendor/bin/changelog`:
 
 ```sh
-cpx --skip-local fast-forward/changelog add \
+composer require --dev fast-forward/changelog
+vendor/bin/changelog add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+vendor/bin/changelog check --no-interaction
 ```
 
-`--skip-local` selects CPX's separate installation. The commands create one
-fragment and validate pending notes; no `init` is needed. See
-[local setup and previews](docs/adoption.md#run-the-cli-with-cpx) and the
-[command reference](docs/cli-fragments.md#public-cli). The [Docker CLI](docs/docker.md)
-is an alternative with its own PHP runtime.
+The commands create one fragment and validate pending notes; no `init` or consumer
+build is needed. All runtime libraries are embedded and do not constrain the application's
+Composer graph. PHP services are development-source APIs, not exported by
+the consumer package.
+See [local setup, global installation and scripts](docs/adoption.md#run-the-compiled-cli) and the
+[command reference](docs/cli-fragments.md#public-cli). GitHub Actions run the same compiled CLI directly.
 
 ## 🧠 Agent skill
 

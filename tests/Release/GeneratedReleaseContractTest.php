@@ -82,9 +82,9 @@ final class GeneratedReleaseContractTest extends TestCase
         );
         self::assertSame(
             $first->generatedFiles,
-            new ReleasePlanFactory(new ReceiptCodec())->resume(
+            (new ReleasePlanFactory(new ReceiptCodec()))->resume(
                 $options,
-                new ReceiptCodec()->decode($first->receiptContents),
+                (new ReceiptCodec())->decode($first->receiptContents),
                 '/fixture/CHANGELOG.md',
                 'after',
                 '/journal',
@@ -93,7 +93,7 @@ final class GeneratedReleaseContractTest extends TestCase
         );
         $altered = str_replace(hash('sha256', 'first'), hash('sha256', 'tampered'), $first->receiptContents);
         $this->expectException(InvalidArgumentException::class);
-        new ReceiptCodec()->decode($altered);
+        (new ReceiptCodec())->decode($altered);
     }
 
     /** Legacy output remains byte-compatible, while map insertion order does not affect generated evidence. */
@@ -171,7 +171,7 @@ final class GeneratedReleaseContractTest extends TestCase
     /** Creates native evidence values without accessing files, time, processes or network. */
     private function plan(ReleaseOptions $options, array $generated, ?string $next = '1.0.1'): ReleasePlan
     {
-        return new ReleasePlanFactory(new ReceiptCodec())->create(
+        return (new ReleasePlanFactory(new ReceiptCodec()))->create(
             $options,
             str_repeat('a', 40),
             '1.0.0',

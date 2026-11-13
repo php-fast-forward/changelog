@@ -18,7 +18,7 @@ final class ComposerPackageVersionResolverTest extends TestCase
     #[TestWith([' dev-main '])]
     public function resolveReturnsTheInjectedComposerVersion(string $version): void
     {
-        self::assertSame($version, new ComposerPackageVersionResolver($version)->resolve());
+        self::assertSame($version, (new ComposerPackageVersionResolver($version))->resolve());
     }
 
     #[Test]
@@ -27,6 +27,6 @@ final class ComposerPackageVersionResolverTest extends TestCase
     #[TestWith([" \t\n "])]
     public function resolveUsesTheDevelopmentVersionWhenComposerHasNoVersion(?string $version): void
     {
-        self::assertSame('0.1.x-dev', new ComposerPackageVersionResolver($version)->resolve());
+        self::assertSame('0.1.x-dev', (new ComposerPackageVersionResolver($version))->resolve());
     }
 }

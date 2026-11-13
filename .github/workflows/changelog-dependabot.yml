@@ -11,7 +11,7 @@ on:
         default: ''
 
       runs-on:
-        description: JSON runner labels; Linux with Docker, Bash and Git is required.
+        description: JSON runner labels; Linux with Bash and Git is required. PHP is provisioned by the Action.
         type: string
         default: '["ubuntu-latest"]'
 
@@ -224,11 +224,6 @@ jobs:
           github-token: ${{ steps.auth.outputs.token }}
           skip-verification: 'false'
           skip-commit-verification: 'false'
-
-      - name: Prepare The Trusted Runtime Base Image Cache
-        uses: ./.changelog-runtime/.github/actions/setup-docker
-        with:
-          dockerfile: .changelog-runtime/Dockerfile
 
       - name: Run The Shared Dependabot Action
         id: operation

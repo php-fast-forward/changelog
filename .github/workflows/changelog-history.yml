@@ -11,7 +11,7 @@ on:
         default: ''
 
       runs-on:
-        description: JSON runner labels; Linux with Docker, Bash and Git is required.
+        description: JSON runner labels; Linux with Bash and Git is required. PHP is provisioned by the Action.
         type: string
         default: '["ubuntu-latest"]'
 
@@ -178,11 +178,6 @@ jobs:
           path: project
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Prepare The Trusted Runtime Base Image Cache
-        uses: ./.changelog-runtime/.github/actions/setup-docker
-        with:
-          dockerfile: .changelog-runtime/Dockerfile
 
       - name: Run The Shared History Action
         id: operation

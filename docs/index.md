@@ -9,9 +9,9 @@ workflow consolidates them into `CHANGELOG.md`.
 | Task | Guide |
 | --- | --- |
 | Set up GitHub automation | [Guided project setup](project-installation.md) → [Reusable lifecycle](reusable-lifecycle.md) |
-| Run the local CLI through CPX | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
+| Run the compiled local CLI | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
 | Manage project instructions from GitHub | [Skill installation](skills.md) → [Composer lifecycle](composer-skills.md) |
-| Integrate the PHP services | [PHP API](adoption.md) → [Dependencies](dependencies.md) |
+| Develop source PHP services (development checkout only) | [Source services](adoption.md) → [Dependencies](dependencies.md) |
 
 ## Automation and releases
 
@@ -22,7 +22,7 @@ workflow consolidates them into `CHANGELOG.md`.
 - [GitHub Actions event policy setup and blocked runs](actions-event-policy.md)
 - [Version PRs and title customization](version-pull-request.md),
   [approved publication](publication.md) and [local transaction recovery](release-receipts.md)
-- [History, formatting and templates](history.md), [Docker runtime](docker.md)
+- [History, formatting and templates](history.md), [Compiled distribution](phar.md)
   and [fragment/versioning specifications](specification/index.md)
 
 ## Advanced integration and contribution

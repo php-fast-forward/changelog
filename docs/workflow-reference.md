@@ -35,7 +35,7 @@ input absent from a workflow cannot be passed to it. “All” means all seven a
 
 | Input | Type | Default | Applies to | Meaning |
 | --- | --- | --- | --- | --- |
-| `runs-on` | string | `'["ubuntu-latest"]'` | All | JSON array of Linux runner labels. The runner needs Docker, Bash and Git. |
+| `runs-on` | string | `'["ubuntu-latest"]'` | All | JSON array of Linux runner labels. The runner needs Bash and Git; Actions provision PHP. |
 | `fragment-directory` | string | `.changelog` | All | Pending fragment path, relative to the selected project. |
 | `changelog-file` | string | `CHANGELOG.md` | All | Central history path, relative to the selected project. |
 | `locale` | string | `en` | All | Structural presentation language: `en` or `pt-BR`. |
@@ -70,7 +70,7 @@ regular files and preserve their base Git mode. Use the same list for Version,
 Check, Feedback and Publish.
 
 Compile in a separate read-only job at an immutable source base, then place the
-reviewed output over its allowed path before invoking the Version Docker Action.
+reviewed output over its allowed path before invoking the Version composite Action.
 Pass that same source SHA as `base-ref`; native freshness checks refuse an
 advanced remote base. The version operation hashes the staged bytes and includes
 the artifact, history and consumed-fragment deletions in one signed Bot commit
@@ -202,13 +202,13 @@ reports `state: published` or `unchanged` for confirmed publication and
 its caller must also know that `dry-run` is disabled and the publication route
 actually ran. A successful preparation-only run is not publication evidence.
 
-## Docker Actions
+## Composite Actions
 
 The six domain Actions are step-level building blocks. Prefer the reusable
 workflows unless you need to own checkout, event validation, authentication,
-permissions, concurrency and feedback orchestration yourself. They build the
-trusted runtime from the selected revision's Dockerfile and need a Linux runner
-with Docker. They do not install the consumer's Composer dependencies.
+permissions, concurrency and feedback orchestration yourself. They provision PHP
+and execute the ready PHAR from the selected trusted revision. The Linux runner
+needs Bash and Git. They do not install the consumer's Composer dependencies.
 
 | Name used below | Action path | Matching reusable |
 | --- | --- | --- |
@@ -298,9 +298,8 @@ the complete JSON operation result.
 
 ### Orchestration helpers
 
-[`github-auth`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/github-auth/action.yml) and
-[`setup-docker`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/setup-docker/action.yml) support the reusables;
-they are not additional changelog lifecycle operations. Their complete inputs
+[`github-auth`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/github-auth/action.yml) supports the reusables;
+it is not an additional changelog lifecycle operation. Its complete inputs
 are listed here for readers composing the underlying steps. All are strings.
 
 | Helper | Input | Required / default | Meaning |
@@ -314,12 +313,10 @@ are listed here for readers composing the underlying steps. All are strings.
 | `github-auth` | `read-dependabot-alerts` | `'false'` | Request alert-read permission for explicit trusted metadata. |
 | `github-auth` | `base-branch` | `''` | Selected release line for trusted push/manual events. |
 | `github-auth` | `automation-actor` | `''` | Expected managed Bot when ownership is verified. |
-| `setup-docker` | `dockerfile` | `Dockerfile` | Trusted runtime Dockerfile whose public base images are preloaded. |
 
 `github-auth` outputs only `token`, for subsequent steps in the same job.
-Never expose it through a job/workflow output. `setup-docker` has no outputs;
-it skips persistent self-hosted daemons. Neither helper grants permissions that
-the caller or App installation lacks.
+Never expose it through a job/workflow output. The helper grants no permissions
+that the caller or App installation lacks.
 
 ---
 

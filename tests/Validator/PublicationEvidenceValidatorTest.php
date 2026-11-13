@@ -212,7 +212,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
     {
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
         $state = $this->state($options);
-        $state['approved_doc'] = new HistoryReferenceBuilder()->complete($state['approved_doc'], 'owner/repo');
+        $state['approved_doc'] = (new HistoryReferenceBuilder())->complete($state['approved_doc'], 'owner/repo');
         $this->refreshApproved($state);
 
         $evidence = $this->validator($state)->validate($options, self::APPROVED);
@@ -233,7 +233,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
     {
         $options = new ReleaseOptions('/consumer', repository: 'owner/repo');
         $state = $this->state($options);
-        $references = new HistoryReferenceBuilder()->complete($state['approved_doc'], 'owner/repo')->getReferences();
+        $references = (new HistoryReferenceBuilder())->complete($state['approved_doc'], 'owner/repo')->getReferences();
         $references = match ($mutation) {
             'changed-destination' => str_replace('v1.0.0...v1.0.1', 'main...v1.0.1', $references),
             'missing-generated-link' => str_replace(
@@ -472,7 +472,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
             ), ...$state['base_doc']->getReleases(), ...$older],
         );
         if ($completeReferences) {
-            $state['approved_doc'] = new HistoryReferenceBuilder()->complete($state['approved_doc'], 'owner/repo');
+            $state['approved_doc'] = (new HistoryReferenceBuilder())->complete($state['approved_doc'], 'owner/repo');
         }
         $central = $codec->render($state['approved_doc'], $template, true);
         $state['blobs'][self::APPROVED]['CHANGELOG.md'] = $central;
@@ -736,7 +736,7 @@ final class PublicationEvidenceValidatorTest extends TestCase
             . $footer . '[1.7.0]: https://github.com/owner/repo/releases/tag/v1.7.0' . $newline,
         );
         if ($legacy) {
-            $state['approved_doc'] = new HistoryReferenceBuilder()->complete(
+            $state['approved_doc'] = (new HistoryReferenceBuilder())->complete(
                 $state['approved_doc']->withReferences($footer),
                 'owner/repo',
             );

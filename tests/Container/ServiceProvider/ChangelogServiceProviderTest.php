@@ -148,7 +148,7 @@ final class ChangelogServiceProviderTest extends TestCase
             ],
             [PackageVersionResolverInterface::class, $this->createStub(PackageVersionResolverInterface::class)],
         ]);
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
 
         self::assertInstanceOf(
             \FastForward\Changelog\Installation\InstallationFilesystem::class,
@@ -178,7 +178,7 @@ final class ChangelogServiceProviderTest extends TestCase
     /** Scalar skill settings compose lazily while injected boundaries remain unobserved until a mode runs. */
     public function testNativeSkillCompositionIsLazyWithExplicitAndDefaultSettings(): void
     {
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::never())->method('readlink');
         $finders = $this->createMock(FinderFactoryInterface::class);
@@ -212,7 +212,7 @@ final class ChangelogServiceProviderTest extends TestCase
     /** Human callback reads raw cwd only when selected and retains the configured inspector instance. */
     public function testWarningFactoryDefersInstallerUntilAnEligibleHumanInvocation(): void
     {
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
         $installer = $this->createMock(SkillInstallerInterface::class);
         $installer->expects(self::once())->method('run')->with(
             '/chosen',
@@ -251,7 +251,7 @@ final class ChangelogServiceProviderTest extends TestCase
         self::assertNotContains(SkillInstallerInterface::class, $lookups);
         $app = $factories[Changelog::class]($container);
         $app->addCommand(
-            new Command('check')->addOption('cwd', 'C', InputOption::VALUE_REQUIRED)->setCode(static fn(): int => 0),
+            (new Command('check'))->addOption('cwd', 'C', InputOption::VALUE_REQUIRED)->setCode(static fn(): int => 0),
         );
         $error = new BufferedOutput();
         $output = $this->createStub(ConsoleOutputInterface::class);
@@ -307,7 +307,7 @@ final class ChangelogServiceProviderTest extends TestCase
     #[Test]
     public function recoveryFactoryRetainsTheExplicitTemporaryDirectory(): void
     {
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::once())->method('journalPath')->with('/consumer')->willReturn(null);
         $container = $this->createMock(ContainerInterface::class);
@@ -327,7 +327,7 @@ final class ChangelogServiceProviderTest extends TestCase
     #[Test]
     public function explicitFactoriesRetainRuntimeSettingsAndInjectedTransport(): void
     {
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
         $container = $this->createMock(ContainerInterface::class);
         $response = $this->createStub(ResponseInterface::class);
         $response->method('getStatusCode')->willReturn(200);
@@ -490,7 +490,7 @@ final class ChangelogServiceProviderTest extends TestCase
     /** The output factory captures only the caller-supplied path and injected filesystem. */
     public function testGitHubOutputFactoryRetainsExplicitRunnerPath(): void
     {
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::once())->method('appendToFile')->with(
             '/runner/output',
@@ -571,7 +571,7 @@ final class ChangelogServiceProviderTest extends TestCase
     public function testUnavailableWorkingDirectoryFailsClearly(): void
     {
         RuntimeDefaults::$workingDirectory = false;
-        $factories = new ChangelogServiceProvider()->getFactories();
+        $factories = (new ChangelogServiceProvider())->getFactories();
         $container = $this->createMock(ContainerInterface::class);
         $container->expects(self::once())->method('has')->with('config.changelog.working_directory')->willReturn(false);
         $this->expectException(RuntimeException::class);

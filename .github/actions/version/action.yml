@@ -90,50 +90,84 @@ inputs:
 outputs:
   result:
     description: Complete stable JSON result.
+    value: ${{ steps.run.outputs.result }}
 
   status:
     description: "Operation status; empty when unavailable."
+    value: ${{ steps.run.outputs.status }}
 
   version:
     description: "Operation version; empty when unavailable."
+    value: ${{ steps.run.outputs.version }}
 
   pull-request:
     description: "Operation pull-request; empty when unavailable."
+    value: ${{ steps.run.outputs.pull-request }}
 
   url:
     description: "Operation url; empty when unavailable."
+    value: ${{ steps.run.outputs.url }}
 
   head-sha:
     description: "Operation head-sha; empty when unavailable."
+    value: ${{ steps.run.outputs.head-sha }}
 
   plan-id:
     description: "Operation plan-id; empty when unavailable."
+    value: ${{ steps.run.outputs.plan-id }}
 
   maintenance:
     description: "Operation maintenance; empty when unavailable."
+    value: ${{ steps.run.outputs.maintenance }}
 
 runs:
-  using: docker
-  image: "../../../Dockerfile"
-  env:
-    FF_CHANGELOG_TOKEN: ${{ inputs.token }}
-  args:
-    - "github"
-    - "version"
-    - "--no-interaction"
-    - "--cwd=${{ inputs.working-directory }}"
-    - "--fragment-directory=${{ inputs.fragment-directory }}"
-    - "--changelog-file=${{ inputs.changelog-file }}"
-    - "--locale=${{ inputs.locale }}"
-    - "--template=${{ inputs.template }}"
-    - "--base-ref=${{ inputs.base-ref }}"
-    - "--tag-prefix=${{ inputs.tag-prefix }}"
-    - "--repository=${{ inputs.repository }}"
-    - "--source=${{ inputs.source }}"
-    - "--generated-files=${{ inputs.generated-files }}"
-    - "--resolve-pull-requests=${{ inputs.resolve-pull-requests }}"
-    - "--base-branch=${{ inputs.base-branch }}"
-    - "--managed-branch=${{ inputs.managed-branch }}"
-    - "--automation-actor=${{ inputs.automation-actor }}"
-    - "--title=${{ inputs.title }}"
-    - "--dry-run=${{ inputs.dry-run }}"
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@2.40.0
+      with:
+        php-version: '8.3'
+        extensions: curl, iconv, mbstring, phar, zlib
+        tools: none
+        coverage: none
+    - id: run
+      shell: bash
+      env:
+        FF_CHANGELOG_BINARY: ${{ github.action_path }}/../../../dist/changelog
+        FF_CHANGELOG_TOKEN: ${{ inputs.token }}
+        FF_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        FF_INPUT_FRAGMENT_DIRECTORY: ${{ inputs.fragment-directory }}
+        FF_INPUT_CHANGELOG_FILE: ${{ inputs.changelog-file }}
+        FF_INPUT_LOCALE: ${{ inputs.locale }}
+        FF_INPUT_TEMPLATE: ${{ inputs.template }}
+        FF_INPUT_BASE_REF: ${{ inputs.base-ref }}
+        FF_INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
+        FF_INPUT_REPOSITORY: ${{ inputs.repository }}
+        FF_INPUT_SOURCE: ${{ inputs.source }}
+        FF_INPUT_GENERATED_FILES: ${{ inputs.generated-files }}
+        FF_INPUT_RESOLVE_PULL_REQUESTS: ${{ inputs.resolve-pull-requests }}
+        FF_INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
+        FF_INPUT_MANAGED_BRANCH: ${{ inputs.managed-branch }}
+        FF_INPUT_AUTOMATION_ACTOR: ${{ inputs.automation-actor }}
+        FF_INPUT_TITLE: ${{ inputs.title }}
+        FF_INPUT_DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        php "$FF_CHANGELOG_BINARY" \
+          "github" \
+          "version" \
+          "--no-interaction" \
+          "--cwd=$FF_INPUT_WORKING_DIRECTORY" \
+          "--fragment-directory=$FF_INPUT_FRAGMENT_DIRECTORY" \
+          "--changelog-file=$FF_INPUT_CHANGELOG_FILE" \
+          "--locale=$FF_INPUT_LOCALE" \
+          "--template=$FF_INPUT_TEMPLATE" \
+          "--base-ref=$FF_INPUT_BASE_REF" \
+          "--tag-prefix=$FF_INPUT_TAG_PREFIX" \
+          "--repository=$FF_INPUT_REPOSITORY" \
+          "--source=$FF_INPUT_SOURCE" \
+          "--generated-files=$FF_INPUT_GENERATED_FILES" \
+          "--resolve-pull-requests=$FF_INPUT_RESOLVE_PULL_REQUESTS" \
+          "--base-branch=$FF_INPUT_BASE_BRANCH" \
+          "--managed-branch=$FF_INPUT_MANAGED_BRANCH" \
+          "--automation-actor=$FF_INPUT_AUTOMATION_ACTOR" \
+          "--title=$FF_INPUT_TITLE" \
+          "--dry-run=$FF_INPUT_DRY_RUN"

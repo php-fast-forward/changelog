@@ -231,7 +231,7 @@ final readonly class InstallCommand
                         'changelog/version',
                     ],
                     'runs-on' => [
-                        'Linux runner labels as JSON; Docker, Bash and Git are required',
+                        'Linux runner labels as JSON; Bash and Git are required',
                         '["ubuntu-latest"]',
                     ],
                     'comment-mode' => ['PR comments: always, on-failure or never', 'always'],

@@ -22,8 +22,8 @@ final class VersionResolutionTest extends TestCase
         self::assertSame(VersionImpact::Minor, $valid->impact);
         self::assertSame([], $valid->errors);
         self::assertTrue($valid->isValid());
-        self::assertFalse(new VersionResolution(null, VersionImpact::Minor, [])->isValid());
-        self::assertFalse(new VersionResolution('1.2.3', null, [])->isValid());
-        self::assertFalse(new VersionResolution('1.2.3', VersionImpact::Minor, ['error'])->isValid());
+        self::assertFalse((new VersionResolution(null, VersionImpact::Minor, []))->isValid());
+        self::assertFalse((new VersionResolution('1.2.3', null, []))->isValid());
+        self::assertFalse((new VersionResolution('1.2.3', VersionImpact::Minor, ['error']))->isValid());
     }
 }

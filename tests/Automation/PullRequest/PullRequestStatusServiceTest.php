@@ -355,7 +355,7 @@ final class PullRequestStatusServiceTest extends TestCase
                 ['/consumer/.changelog/new.md' => $settings['hash'] ?? hash('sha256', 'accepted')]));
         }
 
-        return new PullRequestStatusService($github, $git, $policy, $checks)->inspect(
+        return (new PullRequestStatusService($github, $git, $policy, $checks))->inspect(
             new ReleaseOptions('/consumer', template: $settings['template'] ?? 'keep-a-changelog',
                 baseRef: $settings['base_ref'] ?? 'HEAD', repository: $settings['repository'] ?? 'owner/project'),
             $settings['number'] ?? 7, $settings['head'] ?? $head, $settings['base'] ?? $base,

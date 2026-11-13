@@ -45,7 +45,7 @@ final class ChangesetParserTest extends TestCase
         VersionImpact $impact,
     ): void {
         $expected = new Changeset('entry.md', $category, null, null, null, 'Body.', $impact);
-        $actual = new ChangesetParser()->parse('entry.md', "---\ncategory: {$value}\n---\n\nBody.\n");
+        $actual = (new ChangesetParser())->parse('entry.md', "---\ncategory: {$value}\n---\n\nBody.\n");
 
         self::assertEquals($expected, $actual->changeset);
         self::assertSame([], $actual->errors);
@@ -60,7 +60,10 @@ final class ChangesetParserTest extends TestCase
         $expected = new Changeset('entry.md', Category::Removed, 12, 34, 'dependabot[bot]', 'Body.', $impact);
         $contents = "---\ncategory: removed\ntype: {$value}\nissue: 12\npull_request: 34\nauthor: dependabot[bot]\n---\nBody.";
 
-        self::assertEquals($expected, new ChangesetParser()->parse('/repo/.changelog/entry.md', $contents)->changeset);
+        self::assertEquals(
+            $expected,
+            (new ChangesetParser())->parse('/repo/.changelog/entry.md', $contents)->changeset,
+        );
     }
 
     #[Test]
@@ -73,7 +76,7 @@ final class ChangesetParserTest extends TestCase
 
         self::assertEquals(
             $expected,
-            new ChangesetParser()->parse('C:\\repo\\.changelog\\entry.md', $contents)->changeset,
+            (new ChangesetParser())->parse('C:\\repo\\.changelog\\entry.md', $contents)->changeset,
         );
     }
 
@@ -87,11 +90,11 @@ final class ChangesetParserTest extends TestCase
         $contents = "---\ncategory: fixed\ntype: patch\n{$field}\n---\nBody.";
 
         if ('' === $author) {
-            $actual = new ChangesetParser()->parse('entry.md', $contents);
+            $actual = (new ChangesetParser())->parse('entry.md', $contents);
             self::assertContains('Author must be a GitHub login or null.', $actual->errors);
         } else {
             $expected = new Changeset('entry.md', Category::Fixed, null, null, $author, 'Body.', VersionImpact::Patch);
-            self::assertEquals($expected, new ChangesetParser()->parse('entry.md', $contents)->changeset);
+            self::assertEquals($expected, (new ChangesetParser())->parse('entry.md', $contents)->changeset);
         }
     }
 
@@ -102,7 +105,7 @@ final class ChangesetParserTest extends TestCase
         $expected = new Changeset('entry.md', Category::Fixed, null, null, null, $body, VersionImpact::Patch);
         $contents = "---\ncategory: fixed\ntype: patch\n---\n \t\n{$body}\n\t \n";
 
-        self::assertEquals($expected, new ChangesetParser()->parse('entry.md', $contents)->changeset);
+        self::assertEquals($expected, (new ChangesetParser())->parse('entry.md', $contents)->changeset);
     }
 
     /** Accepted fragments must serialize into the immutable JSON plan instead of failing only during release. */
@@ -112,7 +115,7 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(['eda080'])]
     public function rejectsInvalidUtf8BeforeConstructingAChangeset(string $hex): void
     {
-        $result = new ChangesetParser()->parse('entry.md', "---\ncategory: fixed\n---\n\nBody " . hex2bin($hex));
+        $result = (new ChangesetParser())->parse('entry.md', "---\ncategory: fixed\n---\n\nBody " . hex2bin($hex));
 
         self::assertFalse($result->isValid());
         self::assertContains(
@@ -138,7 +141,7 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["- Use `some\n  ~~~\n  code` safely."])]
     public function rejectsFencesThatWouldPreventReleaseHistoryRendering(string $body): void
     {
-        $result = new ChangesetParser()->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body);
+        $result = (new ChangesetParser())->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body);
 
         self::assertFalse($result->isValid());
         self::assertContains(
@@ -180,7 +183,7 @@ final class ChangesetParserTest extends TestCase
     public function retainsReleaseCompatibleMarkdownExactly(string $body): void
     {
         $expected = new Changeset('entry.md', Category::Fixed, null, null, null, $body, VersionImpact::Patch);
-        $result = new ChangesetParser()->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body . "\n");
+        $result = (new ChangesetParser())->parse('entry.md', "---\ncategory: fixed\n---\n\n" . $body . "\n");
 
         self::assertEquals($expected, $result->changeset);
         self::assertSame($body, $result->changeset->description);
@@ -189,7 +192,7 @@ final class ChangesetParserTest extends TestCase
     /** A root HTML tail cannot conceal older release headings when an authored list is consolidated. */
     public function testRejectsAnUncontainedHtmlTail(): void
     {
-        $result = new ChangesetParser()->parse(
+        $result = (new ChangesetParser())->parse(
             'html.md',
             "---\ncategory: added\ntype: minor\n---\n\n- First.\n\n<pre>\nExample\n",
         );
@@ -204,7 +207,7 @@ final class ChangesetParserTest extends TestCase
     #[TestWith(["Title <!-- not closed\n==="])]
     public function testRejectsUnclosedCommentsInRenderedBlocks(string $body): void
     {
-        $result = new ChangesetParser()->parse(
+        $result = (new ChangesetParser())->parse(
             'entry.md',
             "---\ncategory: fixed\n---\n\n" . $body,
         );
@@ -218,7 +221,7 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function reportsFilenameAndDelimiterErrorsWithoutConstructingAFragment(): void
     {
-        $result = new ChangesetParser()->parse('Bad Name.md', 'body');
+        $result = (new ChangesetParser())->parse('Bad Name.md', 'body');
 
         self::assertNull($result->changeset);
         self::assertSame([
@@ -232,7 +235,7 @@ final class ChangesetParserTest extends TestCase
     {
         self::assertSame([
             'Fragment frontmatter must have a closing delimiter.'],
-            new ChangesetParser()->parse('entry.md', "---\ncategory: fixed")->errors,
+            (new ChangesetParser())->parse('entry.md', "---\ncategory: fixed")->errors,
         );
     }
 
@@ -240,7 +243,7 @@ final class ChangesetParserTest extends TestCase
     public function accumulatesIndependentSchemaDiagnosticsAndDoesNotDropUnknownKeys(): void
     {
         $contents = "---\ncategory: wrong\ncategory: fixed\nissue: +1\npull_request: 0\nauthor: user-\ntype: release\nunknown: 1\nnot-a-pair\n---\n<!-- invisible -->";
-        $result = new ChangesetParser()->parse('entry.md', $contents);
+        $result = (new ChangesetParser())->parse('entry.md', $contents);
 
         self::assertSame([
             'Duplicate frontmatter key "category".',
@@ -258,7 +261,7 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function requiresACategoryAndRejectsOpenCommentOnlyBody(): void
     {
-        $result = new ChangesetParser()->parse('entry.md', "---\n---\n<!-- never closes");
+        $result = (new ChangesetParser())->parse('entry.md', "---\n---\n<!-- never closes");
 
         self::assertSame([
             'Missing required frontmatter key "category".',
@@ -270,7 +273,7 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function rejectsConflictingCanonicalAndLegacyImpactAndDuplicateAliases(): void
     {
-        $result = new ChangesetParser()->parse(
+        $result = (new ChangesetParser())->parse(
             'entry.md',
             "---\ncategory: added\ntype: patch\nversion: major\npull_request: 1\npull-request: 1\n---\nBody.",
         );
@@ -284,7 +287,7 @@ final class ChangesetParserTest extends TestCase
     #[Test]
     public function rejectsInvalidLegacyImpactAndOverflowReferences(): void
     {
-        $result = new ChangesetParser()->parse(
+        $result = (new ChangesetParser())->parse(
             'entry.md',
             "---\ncategory: fixed\nversion: invalid\nissue: 9999999999999999999999999\n---\nBody.",
         );
@@ -294,5 +297,4 @@ final class ChangesetParserTest extends TestCase
             $result->errors,
         );
     }
-
 }

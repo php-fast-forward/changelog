@@ -112,7 +112,6 @@ $feedback = Yaml::parseFile($root . '/.github/workflows/changelog-pr-status.yml'
 $lifecycle = Yaml::parseFile($root . '/.github/workflows/changelog.yml');
 $repository = Yaml::parseFile($root . '/.github/workflows/repository-changelog.yml');
 $repositoryCi = Yaml::parseFile($root . '/.github/workflows/repository-ci.yml');
-$repositoryImage = Yaml::parseFile($root . '/.github/workflows/repository-image.yml');
 $repositoryDocumentation = Yaml::parseFile($root . '/.github/workflows/repository-documentation.yml');
 $assertions = 0;
 
@@ -140,7 +139,6 @@ foreach ($feedback['jobs']['status']['steps'] as $step) {
             in_array($step['uses'], [
                 'actions/github-script@v9.0.0', 'actions/checkout@v7.0.1',
                 './.changelog-runtime/.github/actions/github-auth',
-                './.changelog-runtime/.github/actions/setup-docker',
                 './.changelog-runtime/.github/actions/pr-status',
             ], true),
             'Fork data must never introduce a consumer action or an unreviewed executable dependency.',
@@ -200,7 +198,11 @@ foreach (['check', 'pr-status', 'version', 'publish'] as $actionName) {
     $action = Yaml::parseFile($root . '/.github/actions/' . $actionName . '/action.yml');
     verifyWorkflow(
         'true' === $action['inputs']['resolve-pull-requests']['default']
-            && in_array('--resolve-pull-requests=${{ inputs.resolve-pull-requests }}', $action['runs']['args'], true),
+            && '${{ inputs.resolve-pull-requests }}' === $action['runs']['steps'][1]['env']['FF_INPUT_RESOLVE_PULL_REQUESTS']
+            && str_contains(
+                $action['runs']['steps'][1]['run'],
+                '"--resolve-pull-requests=$FF_INPUT_RESOLVE_PULL_REQUESTS"',
+            ),
         $actionName . ' must pass its reference policy directly to the CLI.',
     );
     ++$assertions;
@@ -218,41 +220,20 @@ verifyWorkflow(
     'Fresh Composer Installations (${{ matrix.dependencies }})' === $repositoryCi['jobs']['packaging']['name']
         && ['highest', 'lowest'] === $repositoryCi['jobs']['packaging']['strategy']['matrix']['dependencies']
         && '${{ matrix.check }}' === $repositoryCi['jobs']['tests']['name']
-        && ['PHP 8.5 (ubuntu-latest)', 'PHP 8.5 (ubuntu-24.04-arm)'] === array_column(
+        && [
+            'PHP 8.3 (ubuntu-latest)',
+            'PHP 8.4 (ubuntu-latest)',
+            'PHP 8.5 (ubuntu-latest)',
+            'PHP 8.5 (ubuntu-24.04-arm)',
+        ] === array_column(
             array_filter($repositoryCi['jobs']['tests']['strategy']['matrix']['include'],
                 static fn(array $row): bool => 'windows-latest' !== $row['os']),
             'check',
         )
         && 'PHP 8.5 (windows-latest)' === $repositoryCi['jobs']['windows']['name'],
-    'Repository CI renames must preserve all five required check names and matrix values.',
+    'Repository CI must preserve existing check names and add the supported PHP versions.',
 );
-verifyWorkflow(
-    'Repository: Publish Docker CLI' === $repositoryImage['name']
-        && ['workflow_dispatch', 'workflow_call'] === array_keys($repositoryImage['on'])
-        && true === $repositoryImage['on']['workflow_call']['inputs']['tag']['required']
-        && true === $repositoryImage['on']['workflow_call']['inputs']['expected-sha']['required']
-        && true === $repositoryImage['on']['workflow_dispatch']['inputs']['tag']['required']
-        && true === $repositoryImage['on']['workflow_dispatch']['inputs']['expected-sha']['required']
-        && './.github/workflows/repository-image.yml' === $repository['jobs']['image']['uses'],
-    'Image calls and explicit recovery must require the existing release tag and approved source selector.',
-);
-$assertions += 3;
-
-$imageReleaseGuard = workflowStep($repositoryImage['jobs']['validate'], 'Verify The Published GitHub Release');
-verifyWorkflow(
-    ['contents' => 'read'] === $repositoryImage['jobs']['validate']['permissions']
-        && '${{ inputs.expected-sha }}' === $imageReleaseGuard['env']['FF_EXPECTED_SHA']
-        && '${{ steps.release.outputs.tag }}' === $imageReleaseGuard['env']['FF_TAG'],
-    'Image recovery must validate an existing published release with a read-only token before building.',
-);
-foreach (['Prepare The Multi-Platform Release Image', 'Publish The Prepared Release Image'] as $stepName) {
-    $step = workflowStep($repositoryImage['jobs']['publish'], $stepName);
-    verifyWorkflow(
-        ! isset($step['with']['cache-to']) && ! isset($step['with']['cache-from']),
-        'Release images must not depend on external cache exports in read-only cache events.',
-    );
-}
-$assertions += 3;
+$assertions += 2;
 
 verifyWorkflow(
     [
@@ -262,11 +243,24 @@ verifyWorkflow(
         ],
         'pull_request_target' => ['branches' => ['main'], 'types' => ['opened', 'synchronize', 'reopened', 'closed']],
         'push' => ['branches' => ['main']],
+        'workflow_dispatch' => null,
     ] === $repository['on'],
-    'The internal caller must preserve the original event union without a new publication trigger.',
+    'The internal caller preserves contribution/publication events; manual dispatch qualifies version preparation only.',
 );
 $repositoryCheck = $repository['jobs']['check'];
 $repositoryLifecycle = $repository['jobs']['changelog'];
+$nativeVersion = workflowStep($repository['jobs']['version'], 'Prepare the version with the qualified executable');
+verifyWorkflow(
+    '${{ jobs.compiled.outputs.artifact }}' === $repositoryCi['on']['workflow_call']['outputs']['artifact']['value']
+        && '${{ needs.phar-build.outputs.artifact }}' === $repositoryCi['jobs']['compiled']['outputs']['artifact']
+        && './.github/actions/version' === $nativeVersion['uses']
+        && '${{ github.sha }}' === $nativeVersion['with']['base-ref']
+        && '["dist/changelog"]' === $nativeVersion['with']['generated-files']
+        && '${{ needs.version.outputs.head-sha }}' === $repository['jobs']['feedback']['with']['head-sha']
+        && '${{ github.sha }}' === $repository['jobs']['feedback']['with']['base-sha'],
+    'Main must bind qualified artifact identity, immutable source base, native version output and exact-head feedback.',
+);
+++$assertions;
 verifyWorkflow(
     'Repository: Changelog' === $repository['name']
         && 'Check Contribution' === $repositoryCheck['name']
@@ -281,13 +275,13 @@ verifyWorkflow(
 );
 verifyWorkflow(
     './.github/workflows/changelog.yml' === $repositoryLifecycle['uses']
-        && "github.event_name != 'pull_request'" === $repositoryLifecycle['if']
-        && true === $repositoryLifecycle['with']['prepare-release']
+        && "github.event_name == 'pull_request_target'" === $repositoryLifecycle['if']
+        && false === $repositoryLifecycle['with']['prepare-release']
         && true === $repositoryLifecycle['with']['publish']
         && 'main' === $repositoryLifecycle['with']['base-branch']
         && '${{ vars.CHANGELOG_AUTOMATION_ACTOR || \'github-actions[bot]\' }}'
             === $repositoryLifecycle['with']['automation-actor'],
-    'Trusted events must use the local facade while preserving the existing preparation, publication and Bot configuration.',
+    'Trusted PR events use the local facade; qualified main uses the existing immutable-base native preparation action.',
 );
 verifyWorkflow(
     ! isset($repository['concurrency']) && ! isset($repositoryLifecycle['concurrency'])
@@ -312,26 +306,14 @@ verifyWorkflow(
         === Yaml::parseFile(
             $root . '/.github/workflows/changelog-dependabot.yml',
         )['jobs']['changelog']['concurrency']['group']
-        && 'changelog-feedback-${{ github.repository }}-${{ inputs.pull-request }}' === $feedback['concurrency']['group']
-        && 'docker-cli-${{ github.repository }}-${{ inputs.tag || github.ref_name }}' === $repositoryImage['concurrency']['group'],
-    'Fragment, feedback and image operations must keep separate lock namespaces from the approved release transaction.',
+        && 'changelog-feedback-${{ github.repository }}-${{ inputs.pull-request }}' === $feedback['concurrency']['group'],
+    'Fragment and feedback operations must keep separate lock namespaces from the approved release transaction.',
 );
 $assertions += 2;
-$image = $repository['jobs']['image'];
-verifyWorkflow(
-    'changelog' === $image['needs']
-        && str_contains($image['if'], "needs.changelog.result == 'success'")
-        && str_contains($image['if'], "needs.changelog.outputs.published-version != ''")
-        && str_contains($image['if'], "needs.changelog.outputs.published-tag != ''")
-        && str_contains($image['if'], "needs.changelog.outputs.published-sha != ''")
-        && '${{ needs.changelog.outputs.published-tag }}' === $image['with']['tag']
-        && '${{ needs.changelog.outputs.published-sha }}' === $image['with']['expected-sha'],
-    'Only effective publication outputs may select the image tag and its approved source SHA.',
-);
 foreach (['version', 'tag', 'sha'] as $output) {
     verifyWorkflow(
         '${{ jobs.publish.outputs.' . $output . ' }}' === $lifecycle['on']['workflow_call']['outputs']['published-' . $output]['value'],
-        'Image selectors must originate in publication rather than version preparation.',
+        'Published identity must originate in publication rather than version preparation.',
     );
     ++$assertions;
 }
@@ -350,8 +332,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    13 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and six repository workflows must remain distinct.',
+    14 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and seven repository workflows, including the guarded PHAR refresh, must remain distinct.',
 );
 $assertions += 6;
 
@@ -539,7 +521,8 @@ verifyWorkflow(
             $versionWorkflow['jobs']['changelog'],
             'Run The Shared Version Action',
         )['with']['title']
-        && in_array('--title=${{ inputs.title }}', $versionAction['runs']['args'], true),
+        && '${{ inputs.title }}' === $versionAction['runs']['steps'][1]['env']['FF_INPUT_TITLE']
+        && str_contains($versionAction['runs']['steps'][1]['run'], '"--title=$FF_INPUT_TITLE"'),
     'The facade must forward the optional title through the existing workflow, action and CLI without changing defaults.',
 );
 ++$assertions;
@@ -674,16 +657,169 @@ $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(
 $filesystem->mkdir($directory);
 
 try {
+    // Execute each real composite shell body with inert inputs and a PHP argv double.
+    $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
+        php() {
+          printf '%s\0' "$@" > "$FF_CAPTURE_ARGS"
+          printf '%s' "$FF_CHANGELOG_TOKEN" > "$FF_CAPTURE_TOKEN"
+        }
+        BASH);
+    foreach (['check', 'dependabot', 'history', 'pr-status', 'publish', 'version'] as $actionName) {
+        $action = Yaml::parseFile($root . '/.github/actions/' . $actionName . '/action.yml');
+        $setup = $action['runs']['steps'][0];
+        $execute = $action['runs']['steps'][1];
+        verifyWorkflow(
+            'composite' === $action['runs']['using'] && 2 === count($action['runs']['steps'])
+                && 1 === preg_match('~\Ashivammathur/setup-php@[0-9]+\.[0-9]+\.[0-9]+\z~', $setup['uses'])
+                && '8.3' === $setup['with']['php-version']
+                && 'curl, iconv, mbstring, phar, zlib' === $setup['with']['extensions']
+                && 'none' === $setup['with']['tools']
+                && 'run' === $execute['id'] && 'bash' === $execute['shell']
+                && '${{ github.action_path }}/../../../dist/changelog' === $execute['env']['FF_CHANGELOG_BINARY']
+                && '${{ inputs.token }}' === $execute['env']['FF_CHANGELOG_TOKEN']
+                && !str_contains($execute['run'], '${{'),
+            'Composite Actions must provision PHP and execute only their trusted compiled runtime with inert environment inputs.',
+        );
+        $capture = $directory . '/action-argv';
+        $tokenCapture = $directory . '/action-token';
+        $environment = ['FF_CAPTURE_ARGS' => $capture, 'FF_CAPTURE_TOKEN' => $tokenCapture,
+            'FF_CHANGELOG_BINARY' => '/trusted runtime/dist/changelog', 'FF_CHANGELOG_TOKEN' => 'synthetic-action-token'];
+        $expected = ['/trusted runtime/dist/changelog', 'github', $actionName, '--no-interaction'];
+        foreach ($execute['env'] as $variable => $expression) {
+            if (!str_starts_with($variable, 'FF_INPUT_')) {
+                continue;
+            }
+            verifyWorkflow(
+                1 === preg_match('/\A\$\{\{ inputs\.([a-z0-9-]+) \}\}\z/', $expression, $match),
+                'Action input mapping must remain explicit.',
+            );
+            $value = $match[1] . ' spaces; $(touch unexpected-action-input) "literal"' . "\nnext";
+            $environment[$variable] = $value;
+            $flag = match ($match[1]) {
+                'working-directory' => 'cwd',
+                'head-sha' => 'expected-head-sha',
+                'base-sha' => 'since',
+                default => $match[1],
+            };
+            $expected[] = '--' . $flag . '=' . $value;
+        }
+        workflowGuard($execute['run'], $directory, $environment, 0);
+        verifyWorkflow(
+            $expected === explode("\0", rtrim(file_get_contents($capture), "\0"))
+                && 'synthetic-action-token' === file_get_contents($tokenCapture)
+                && !is_file($directory . '/unexpected-action-input'),
+            'Every composite argument must preserve its literal bytes, token and boundaries without executing input.',
+        );
+        foreach ($action['outputs'] as $name => $output) {
+            verifyWorkflow(
+                '${{ steps.run.outputs.' . $name . ' }}' === $output['value'],
+                'Composite outputs must expose the native operation step output.',
+            );
+        }
+        ++$assertions;
+    }
+
+    $refresh = Yaml::parseFile($root . '/.github/workflows/repository-phar-refresh.yml')['jobs']['refresh'];
+    $locateRefresh = workflowStep($refresh, 'Locate the still-open source pull request');
+    $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
+        gh() {
+          [[ "$1" == api ]] || return 71
+          case "$2" in
+            repos/fixture/consumer/commits/*/pulls) printf '%s\n' "$FF_REFRESH_PRS" ;;
+            repos/fixture/consumer/branches/*) printf '%s\n' "$FF_REFRESH_PROTECTED" ;;
+            *) return 72 ;;
+          esac
+        }
+        BASH);
+    foreach (['valid', 'closed', 'stale-head', 'fork', 'other-base', 'main', 'managed', 'protected'] as $case) {
+        $branch = match ($case) {
+            'main' => 'main',
+            'managed' => 'changelog/version-phar',
+            default => 'codex/runtime-change',
+        };
+        $head = str_repeat('a', 40);
+        $pr = ['state' => 'closed' === $case ? 'closed' : 'open',
+            'base' => ['ref' => in_array($case, ['other-base', 'main'], true) ? 'other-line' : 'main'],
+            'head' => ['sha' => 'stale-head' === $case ? str_repeat('b', 40) : $head,
+                'ref' => $branch, 'repo' => ['full_name' => 'fork' === $case ? 'other/consumer' : 'fixture/consumer']]];
+        $output = workflowGuard("set -e\n" . $locateRefresh['run'], $directory, [
+            'GH_REPO' => 'fixture/consumer', 'SOURCE_SHA' => $head, 'SOURCE_BRANCH' => $branch,
+            'FF_REFRESH_PRS' => json_encode([$pr], JSON_THROW_ON_ERROR),
+            'FF_REFRESH_PROTECTED' => 'protected' === $case ? 'true' : 'false',
+        ], 'protected' === $case ? 1 : 0);
+        verifyWorkflow(
+            'valid' === $case ? 'branch=codex/runtime-change' === trim($output) : '' === $output,
+            'The PHAR writer must select only one still-open, current, unprotected source PR targeting main: ' . $case,
+        );
+        ++$assertions;
+    }
+    $filesystem->remove($directory . '/daemon-mock');
     $feedbackConditionGuard = <<<'JS_WRAP'
     const snapshot = JSON.parse(process.env.FF_FEEDBACK_CONTEXT);
     const condition = process.env.FF_FEEDBACK_CONDITION.replace(
       /\bcancelled\(\)/g, snapshot.cancelled ? 'true' : 'false',
     ).replace(
-      /\b(?:inputs|needs|steps)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
+      /\b(?:github|inputs|needs|steps)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
       path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
     );
     core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
     JS_WRAP;
+    $actionWorkflow = Yaml::parseFile($root . '/.github/workflows/repository-action.yml');
+    $composite = $actionWorkflow['jobs']['composite-action'];
+    verifyWorkflow(
+        ['pull_request'] === array_keys($actionWorkflow['on'])
+            && ['contents' => 'read'] === $actionWorkflow['permissions']
+            && '${{ github.event.pull_request.head.sha }}' === $composite['steps'][0]['with']['ref']
+            && false === $composite['steps'][0]['with']['persist-credentials']
+            && '${{ github.event.pull_request.head.sha || github.sha }}' === $repositoryCi['jobs']['phar-build']['steps'][0]['with']['ref']
+            && !isset($composite['needs'])
+            && 0 === count(
+                array_filter($composite['steps'], static fn(array $step): bool => str_starts_with(
+                    $step['uses'] ?? '',
+                    'actions/download-artifact@',
+                )),
+            ),
+        'The Action smoke must use the tracked binary at the same PR head, without inheriting a default-branch cache trigger or cross-workflow artifacts.',
+    );
+    foreach (['pull_request' => true, 'push' => false, 'workflow_dispatch' => false, 'workflow_call' => false, 'pull_request_target' => false] as $event => $eligible) {
+        verifyWorkflow(
+            $eligible === array_key_exists($event, $actionWorkflow['on']),
+            'Only a pull request may trigger the local Action smoke.',
+        );
+        ++$assertions;
+    }
+    $parity = workflowStep($repositoryCi['jobs']['compiled'], 'Require The Refreshed Commit To Pass Before Merge');
+    foreach ([[
+        'pull_request', 'true', true],
+        ['pull_request', 'false', false],
+        ['push', 'true', false],
+        ['workflow_dispatch', 'true', false],
+    ] as [$event, $stale, $blocked]) {
+        $evaluated = workflowScriptGuard($feedbackConditionGuard, $directory, [
+            'FF_FEEDBACK_CONTEXT' => json_encode([
+                'github' => ['event_name' => $event], 'needs' => ['phar-build' => ['outputs' => ['stale' => $stale]]]],
+                JSON_THROW_ON_ERROR,
+            ),
+            'FF_FEEDBACK_CONDITION' => $parity['if'],
+        ], [], 0);
+        verifyWorkflow([
+            'eligible' => $blocked] === $evaluated['outputs'],
+            'A green Action smoke cannot qualify different tracked bytes: PR parity must reject a stale executable at that same head.',
+        );
+        ++$assertions;
+    }
+    workflowGuard($parity['run'], $directory, [], 1);
+    $qualification = workflowStep(
+        $repositoryCi['jobs']['compiled'],
+        'Require Successful Source And Artifact Qualification',
+    );
+    $qualified = ['BUILD' => 'success', 'RUNTIME' => 'success', 'PACKAGING' => 'success',
+        'COMPONENTS' => 'success', 'TESTS' => 'success', 'WINDOWS' => 'success'];
+    workflowGuard($qualification['run'], $directory, $qualified, 0);
+    foreach (array_keys($qualified) as $gate) {
+        workflowGuard($qualification['run'], $directory, [...$qualified, $gate => 'failure'], 1);
+        ++$assertions;
+    }
     foreach (['valid', 'invalid', 'obsolete', ''] as $status) {
         foreach (['always', 'on-failure', 'never'] as $mode) {
             foreach ([false, true] as $cancelled) {
@@ -713,75 +849,6 @@ try {
         verifyWorkflow(
             ['eligible' => 'success' !== $outcome] === $evaluated['outputs'],
             'An explicit obsolete result exits successfully; all unsuccessful operation outcomes retain the failure gate.',
-        );
-        ++$assertions;
-    }
-    $imageGuard = <<<'JS_WRAP'
-    const snapshot = JSON.parse(process.env.FF_IMAGE_CONTEXT);
-    const condition = process.env.FF_IMAGE_CONDITION.replace(
-      /\b(?:github|needs)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
-      path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
-    );
-    core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
-    JS_WRAP;
-    $approvedImage = str_repeat('a', 40);
-    $imageContext = [
-        'github' => [
-            'event_name' => 'pull_request_target', 'repository' => 'fixture/consumer',
-            'event' => [
-                'action' => 'closed',
-                'pull_request' => [
-                    'merged' => true, 'merge_commit_sha' => $approvedImage,
-                    'head' => ['ref' => 'changelog/version', 'repo' => ['full_name' => 'fixture/consumer']],
-                    'base' => ['ref' => 'main'],
-                ],
-            ],
-        ],
-        'needs' => ['changelog' => [
-            'result' => 'success',
-            'outputs' => [
-                'published-version' => '1.2.3', 'published-tag' => 'v1.2.3', 'published-sha' => $approvedImage,
-            ],
-        ]],
-    ];
-    foreach ([
-        [[], true],
-        [['github.event_name' => 'pull_request'], false],
-        [['github.event_name' => 'push'], false],
-        [['github.event_name' => 'workflow_dispatch'], false],
-        [['github.event.action' => 'opened'], false],
-        [['github.event.pull_request.merged' => false], false],
-        [['github.event.pull_request.head.repo.full_name' => 'fork/consumer'], false],
-        [['github.event.pull_request.head.ref' => 'feature/untrusted'], false],
-        [['github.event.pull_request.head.ref' => "changelog/version' || true || '"], false],
-        [['github.event.pull_request.base.ref' => 'release'], false],
-        [['github.event.pull_request.merge_commit_sha' => str_repeat('b', 40)], false],
-        [['github.event.pull_request' => null], false],
-        [['needs.changelog.result' => 'failure'], false],
-        [['needs.changelog.result' => 'skipped'], false],
-        [['needs.changelog.outputs.published-version' => ''], false],
-        [['needs.changelog.outputs.published-tag' => ''], false],
-        [['needs.changelog.outputs.published-sha' => ''], false],
-        [['needs.changelog.outputs.published-sha' => str_repeat('b', 40)], false],
-    ] as [$overrides, $expected]) {
-        $snapshot = $imageContext;
-        foreach ($overrides as $path => $value) {
-            $segments = explode('.', $path);
-            $last = array_pop($segments);
-            $cursor = &$snapshot;
-            foreach ($segments as $segment) {
-                $cursor = &$cursor[$segment];
-            }
-            $cursor[$last] = $value;
-            unset($cursor);
-        }
-        $evaluated = workflowScriptGuard($imageGuard, $directory, [
-            'FF_IMAGE_CONTEXT' => json_encode($snapshot, JSON_THROW_ON_ERROR),
-            'FF_IMAGE_CONDITION' => $image['if'],
-        ], [], 0);
-        verifyWorkflow(
-            ['eligible' => $expected] === $evaluated['outputs'] && [] === $evaluated['requests'],
-            'Complete opaque outputs cannot authorize an image outside the exact approved merged-PR event.',
         );
         ++$assertions;
     }
@@ -925,36 +992,6 @@ try {
         ++$assertions;
     }
     verifyWorkflow(! is_file($directory . '/unexpected'), 'Bot login must remain literal data.');
-    $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
-        gh() {
-          [[ "$1" == 'api' && "$2" == 'repos/fixture/consumer/releases/tags/v0.1.0' ]] || return 71
-          [[ "${FF_FIXTURE_RELEASE_FAILURE:-}" != 1 ]] || return 72
-          printf '%s\n' "$FF_FIXTURE_RELEASE_RESPONSE"
-        }
-        if [[ "${FF_FIXTURE_FORBID_DOCKER:-}" == 1 ]]; then
-          sudo() { touch unexpected-daemon-operation; return 73; }
-          docker() { touch unexpected-daemon-operation; return 73; }
-          jq() { touch unexpected-daemon-operation; return 73; }
-        fi
-        BASH);
-
-    foreach ([
-        ["v0.1.0\tfalse\t" . $approvedImage, false, 0],
-        ["v0.1.0\ttrue\t" . $approvedImage, false, 1],
-        ["v0.2.0\tfalse\t" . $approvedImage, false, 1],
-        ["v0.1.0\tfalse\t" . str_repeat('b', 40), false, 1],
-        ["v0.1.0\tfalse\tmain", false, 1],
-        ["v0.1.0\tfalse\t" . $approvedImage . "\tunexpected", false, 1],
-        ['', false, 1],
-        ['', true, 72],
-    ] as [$response, $failure, $expected]) {
-        workflowGuard($imageReleaseGuard['run'], $directory, [
-            'GITHUB_REPOSITORY' => 'fixture/consumer', 'FF_TAG' => 'v0.1.0', 'FF_EXPECTED_SHA' => $approvedImage,
-            'FF_FIXTURE_RELEASE_RESPONSE' => $response, 'FF_FIXTURE_RELEASE_FAILURE' => $failure ? '1' : '0',
-        ], $expected);
-        ++$assertions;
-    }
-
     // GitHub's default Bash runner stops at the first failing output check.
     $documentationGuard = "set -e\n" . workflowStep($documentation, 'Require Rendered Guides And API')['run'];
     workflowGuard($documentationGuard, $directory, [], 1);
@@ -971,22 +1008,6 @@ try {
     workflowGuard($documentationGuard, $directory, [], 0);
     $assertions += 5;
 
-    $cache = Yaml::parseFile($root . '/.github/actions/setup-docker/action.yml');
-    workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
-        'RUNNER_ENVIRONMENT' => 'self-hosted', 'RUNNER_OS' => 'Linux', 'FF_FIXTURE_FORBID_DOCKER' => '1',
-    ], 0);
-    verifyWorkflow(
-        ! is_file($directory . '/unexpected-daemon-operation'),
-        'Self-hosted daemons must remain untouched.',
-    );
-    workflowGuard($cache['runs']['steps'][0]['run'], $directory, [
-        'RUNNER_ENVIRONMENT' => 'github-hosted', 'RUNNER_OS' => 'Windows', 'FF_FIXTURE_FORBID_DOCKER' => '1',
-    ], 1);
-    verifyWorkflow(
-        "runner.environment == 'github-hosted'" === ($cache['runs']['steps'][1]['if'] ?? null),
-        'Base-image preloading must stay restricted to the hosted cache.',
-    );
-    $assertions += 3;
     $head = str_repeat('a', 40);
     $base = str_repeat('b', 40);
     $environment = [
@@ -1387,8 +1408,9 @@ foreach ([$repositoryCi, $repositoryDocumentation] as $workflow) {
 }
 foreach (['packaging', 'component-compatibility', 'tests'] as $jobName) {
     $job = $repositoryCi['jobs'][$jobName];
+    $expectedNeeds = 'packaging' === $jobName ? ['impact', 'phar-build'] : 'impact';
     verifyWorkflow(
-        'impact' === $job['needs'] && '${{ always() && !cancelled() }}' === $job['if']
+        $expectedNeeds === $job['needs'] && '${{ always() && !cancelled() }}' === $job['if']
             && str_contains($job['steps'][0]['run'], 'exit 1')
             && '${{ needs.impact.result }}' === $job['steps'][0]['env']['FF_RESULT'],
         'A failed or missing impact decision must fail each required matrix context.',

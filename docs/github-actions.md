@@ -12,14 +12,14 @@ focuses on complete event callers and the behavior of each operation.
 
 Choose only the operations your custom workflow needs. Do not add these callers
 alongside the lifecycle for the same events: that would run the operation twice.
-The examples below use release `v0.1.0` and require a Linux runner with Docker.
+The examples below use release `v0.1.0` and use a Linux runner with Bash and Git; Actions provision PHP.
 They run the packaged CLI separately from consumer files and dependencies.
-See [runtime paths and identity](docker.md) for the Action implementation contract.
+See [compiled runtime paths and identity](phar.md) for the Action implementation contract.
 
 ## Shared configuration
 
 Shared defaults and applicability differ between the lifecycle, individual
-workflows and step-level Docker Actions. Check the
+workflows and step-level composite Actions. Check the
 [shared workflow inputs](workflow-reference.md) or
 [Action inputs](workflow-reference.md) for your selected
 entrypoint. In particular, the lifecycle uses `version-pr-title`, the Version
@@ -119,7 +119,7 @@ updates one sticky comment. `comment-mode` accepts `always`, `on-failure` or
 templates or Composer scripts. A failed contribution can still receive feedback.
 The data checkout explicitly opts into Checkout v7's fork-head access. This opt-in
 is confined to that step: credentials are not persisted, submodules/LFS are off,
-and the Dockerfile, Actions and CLI come from the pinned trusted runtime. Never
+and the Actions and compiled CLI come from the pinned trusted runtime. Never
 add an execution step from the checked-out consumer or load its dependencies.
 After an automated dependency commit, pass its verified new head; omitting
 `base-sha` resolves the live PR base before validation. Keep the comparison

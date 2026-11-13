@@ -22,7 +22,7 @@ final class VersionImpactResolverTest extends TestCase
     #[Test]
     public function resolveReturnsNullForAnEmptyCollection(): void
     {
-        self::assertNull(new VersionImpactResolver()->resolve([]));
+        self::assertNull((new VersionImpactResolver())->resolve([]));
     }
 
     #[Test]
@@ -54,7 +54,6 @@ final class VersionImpactResolverTest extends TestCase
             new Changeset('deprecated.md', Category::Deprecated, null, null, null, 'Deprecation.'),
         ];
 
-        self::assertSame(VersionImpact::Minor, new VersionImpactResolver()->resolve($changesets));
+        self::assertSame(VersionImpact::Minor, (new VersionImpactResolver())->resolve($changesets));
     }
-
 }

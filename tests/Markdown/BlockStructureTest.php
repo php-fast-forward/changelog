@@ -154,5 +154,4 @@ final class BlockStructureTest extends TestCase
     {
         self::assertSame($expected, BlockStructure::hasUnclosedComment($description));
     }
-
 }

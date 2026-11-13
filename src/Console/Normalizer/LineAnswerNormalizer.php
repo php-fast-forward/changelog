@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 namespace FastForward\Changelog\Console\Normalizer;
 
+use Symfony\Component\Console\Exception\InvalidArgumentException;
+
 /** Removes the terminal's Enter delimiter without trimming Markdown spaces or preceding blank lines. */
 final readonly class LineAnswerNormalizer
 {
@@ -27,5 +29,20 @@ final readonly class LineAnswerNormalizer
     public function __invoke(?string $value): ?string
     {
         return null === $value ? null : preg_replace('/\r?\n\z/', '', $value);
+    }
+    /**
+     * Rejects an empty normalized answer while preserving meaningful Markdown bytes for native retries.
+     *
+     * @param string|null $value Normalized terminal response whose meaningful whitespace must be retained.
+     *
+     * @return string Nonblank response unchanged; blank or absent answers throw the native console input exception.
+     */
+    public function validate(?string $value): string
+    {
+        if (null === $value || '' === trim($value)) {
+            throw new InvalidArgumentException('The change description must contain meaningful text.');
+        }
+
+        return $value;
     }
 }

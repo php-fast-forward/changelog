@@ -33,7 +33,7 @@ final class TrackedFencedCodeStartParser implements BlockStartParserInterface
      */
     public function tryStart(Cursor $cursor, MarkdownParserStateInterface $parserState): ?BlockStart
     {
-        $start = new FencedCodeStartParser()->tryStart($cursor, $parserState);
+        $start = (new FencedCodeStartParser())->tryStart($cursor, $parserState);
 
         if (null === $start) {
             return null;

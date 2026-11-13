@@ -25,7 +25,14 @@ final class HistoryReleaseFactoryTest extends TestCase
     {
         $dates = $this->createMock(ReleaseDateValidatorInterface::class);
         $dates->expects(null === $date ? self::never() : self::once())->method('validate')->with($date ?? 'unused');
-        $release = new HistoryReleaseFactory($dates)->create($input, $date, 'tagger_date', 'body', 'heading', 'ending');
+        $release = (new HistoryReleaseFactory($dates))->create(
+            $input,
+            $date,
+            'tagger_date',
+            'body',
+            'heading',
+            'ending',
+        );
         self::assertSame($expected, $release->getVersion());
         self::assertSame($date, $release->getDate());
         self::assertSame('tagger_date', $release->getDateSource());
@@ -44,7 +51,7 @@ final class HistoryReleaseFactoryTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $dates = $this->createMock(ReleaseDateValidatorInterface::class);
         $dates->expects(self::never())->method('validate');
-        new HistoryReleaseFactory($dates)->create($version);
+        (new HistoryReleaseFactory($dates))->create($version);
     }
 
     #[Test]
@@ -57,6 +64,6 @@ final class HistoryReleaseFactoryTest extends TestCase
         $dates->expects(self::once())->method('validate')->with($date)->willThrowException(
             new InvalidArgumentException('Invalid calendar date.'),
         );
-        new HistoryReleaseFactory($dates)->create('1.0.0', $date);
+        (new HistoryReleaseFactory($dates))->create('1.0.0', $date);
     }
 }

@@ -101,7 +101,7 @@ final class ScopedPullRequestReferenceResolverTest extends TestCase
         });
         $random = new Randomizer(new Mt19937(42));
         $objects = '/private-scopes/fast-forward-changelog-objects-' . bin2hex(
-            new Randomizer(new Mt19937(42))->getBytes(16),
+            (new Randomizer(new Mt19937(42)))->getBytes(16),
         );
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::once())->method('exists')->with($objects)->willReturn(false);

@@ -27,8 +27,8 @@ return RectorConfig::configure()
         __DIR__ . '/ecs.php',
     ])
     ->withCache(__DIR__ . '/.build/rector')
-    ->withPhpVersion(PhpVersion::PHP_85)
-    ->withPhpSets(php85: true)
+    ->withPhpVersion(PhpVersion::PHP_83)
+    ->withPhpSets(php83: true)
     ->withCodeQualityLevel(1)
     ->withDeadCodeLevel(1)
     ->withTypeCoverageLevel(1);

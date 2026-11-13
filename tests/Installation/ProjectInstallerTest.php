@@ -71,7 +71,7 @@ YAML;
         $releases->expects(self::never())->method('resolve');
         $skills = $this->createMock(ProjectSkillInstallerInterface::class);
         $skills->expects(self::never())->method('run');
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run(
+        $result = (new ProjectInstaller($filesystem, $releases, $skills))->run(
             '/project',
             'v9.0.0',
             ['unknown' => true],
@@ -195,7 +195,7 @@ YAML;
         )->willReturn(
             ['state' => 'planned', 'fingerprint' => 'skill-plan'],
         );
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', 'v0.2.0', [
+        $result = (new ProjectInstaller($filesystem, $releases, $skills))->run('/project', 'v0.2.0', [
             'base-branch' => 'maintenance/1.x', 'publish' => true, 'source' => 'auto', 'count' => 4, 'ratio' => 0.5,
         ], dryRun: true);
         $content = $result['workflow']['content'];
@@ -290,7 +290,7 @@ YAML;
                 return ['state' => $dryRun ? 'planned' : 'installed', 'fingerprint' => 'skill-plan'];
             },
         );
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
+        $result = (new ProjectInstaller($filesystem, $releases, $skills))->run('/project', null, []);
 
         self::assertSame(['preview', 'workflow', 'skill'], $events);
         self::assertSame('installed', $result['state']);
@@ -336,7 +336,7 @@ YAML;
         ]);
         $releases = $this->createMock(WorkflowReleaseResolverInterface::class);
         $releases->expects(self::never())->method('resolve');
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run(
+        $result = (new ProjectInstaller($filesystem, $releases, $skills))->run(
             '/project', null, [], expectedSkill: 'reviewed',
         );
 
@@ -395,7 +395,7 @@ YAML;
             ['state' => 'planned', 'fingerprint' => 'skill-plan'],
             ['state' => 'unmanaged'],
         );
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
+        $result = (new ProjectInstaller($filesystem, $releases, $skills))->run('/project', null, []);
 
         self::assertSame($existing ? 'blocked' : 'partial', $result['state']);
         self::assertSame('unmanaged', $result['skill']['state']);
@@ -416,9 +416,9 @@ YAML;
         )->willReturn(
             ['state' => $state],
         );
-        $result = new ProjectInstaller($filesystem, $this->createStub(
+        $result = (new ProjectInstaller($filesystem, $this->createStub(
             WorkflowReleaseResolverInterface::class,
-        ), $skills)->run(
+        ), $skills))->run(
             '/project',
             null,
             [],
@@ -449,7 +449,7 @@ YAML;
 
         self::assertSame(
             'blocked',
-            new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, [])['state'],
+            (new ProjectInstaller($filesystem, $releases, $skills))->run('/project', null, [])['state'],
         );
     }
 
@@ -478,7 +478,7 @@ YAML;
                 return ['state' => 'planned', 'fingerprint' => 'skill-plan'];
             },
         );
-        $result = new ProjectInstaller($filesystem, $releases, $skills)->run('/project', null, []);
+        $result = (new ProjectInstaller($filesystem, $releases, $skills))->run('/project', null, []);
 
         self::assertSame($existing ? 'blocked' : 'partial', $result['state']);
         self::assertStringContainsString('disk full', $result['diagnostics'][0]);
@@ -577,9 +577,9 @@ YAML;
         $releases = $this->createStub(WorkflowReleaseResolverInterface::class);
         $releases->method('resolve')->willReturn($release);
 
-        return new ProjectInstaller($filesystem, $releases, $this->createStub(
+        return (new ProjectInstaller($filesystem, $releases, $this->createStub(
             ProjectSkillInstallerInterface::class,
-        ))->run(
+        )))->run(
             '/project',
             null,
             $settings,
