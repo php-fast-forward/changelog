@@ -111,68 +111,6 @@ jobs:
       - name: Qualify the same compiled bytes on every supported platform
         run: php tests/Phar/verify.php "${{ runner.temp }}/phar/changelog"
 
-  composite-action:
-    name: Composite Action Uses The Qualified CLI
-    needs: phar-build
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          artifact-ids: ${{ needs.phar-build.outputs.artifact }}
-          merge-multiple: true
-          path: ${{ runner.temp }}/phar
-
-      - name: Prepare A Disposable Composite Action Project
-        shell: bash
-        env:
-          FF_ACTION_PROJECT: ${{ runner.temp }}/changelog-action-fixture
-          FF_ACTION_CANDIDATE: ${{ runner.temp }}/phar/changelog
-        run: |
-          mkdir -p "$FF_ACTION_PROJECT"
-          printf '%s\n' '# Changelog' '' '## [0.1.0] - 2026-01-01' '' '### Added' '' '- Fixture.' > "$FF_ACTION_PROJECT/CHANGELOG.md"
-          cp "$FF_ACTION_CANDIDATE" dist/changelog
-          git -C "$FF_ACTION_PROJECT" init --initial-branch=main
-          git -C "$FF_ACTION_PROJECT" -c user.name=Fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=absent-hooks commit --allow-empty -m 'Disposable action fixture'
-
-      - name: Verify Composite Action Invocation And Runner Outputs
-        id: composite-action
-        uses: ./.github/actions/history
-        with:
-          working-directory: ${{ runner.temp }}/changelog-action-fixture
-          operation: format
-          dry-run: 'true'
-          source: tags
-
-      - name: Verify The Composite Action Output Contract
-        env:
-          FF_ACTION_RESULT: ${{ steps.composite-action.outputs.result }}
-          FF_ACTION_STATUS: ${{ steps.composite-action.outputs.status }}
-        run: |
-          # PHP evaluates these variables; shell quoting is intentional.
-          # shellcheck disable=SC2016
-          php -r '
-              $result = json_decode(
-                  getenv("FF_ACTION_RESULT"),
-                  true,
-                  512,
-                  JSON_THROW_ON_ERROR,
-              );
-
-              if (
-                  $result["status"] !== "dry-run"
-                  || getenv("FF_ACTION_STATUS") !== "dry-run"
-              ) {
-                  exit(1);
-              }
-          '
-
-
   packaging:
     needs: [impact, phar-build]
     if: ${{ always() && !cancelled() }}
@@ -545,7 +483,7 @@ jobs:
 
   compiled:
     name: Compiled CLI Matches Qualified Source
-    needs: [phar-build, phar-runtime, composite-action, packaging, component-compatibility, tests, windows]
+    needs: [phar-build, phar-runtime, packaging, component-compatibility, tests, windows]
     if: always() && needs.phar-build.result != 'skipped'
     runs-on: ubuntu-latest
     outputs:
@@ -555,8 +493,6 @@ jobs:
         env:
           BUILD: ${{ needs.phar-build.result }}
           RUNTIME: ${{ needs.phar-runtime.result }}
-          ACTION: ${{ needs.composite-action.result }}
-          EVENT: ${{ github.event_name }}
           PACKAGING: ${{ needs.packaging.result }}
           COMPONENTS: ${{ needs.component-compatibility.result }}
           TESTS: ${{ needs.tests.result }}
@@ -564,12 +500,7 @@ jobs:
         run: |
           test "$BUILD" = success && test "$RUNTIME" = success &&
           test "$PACKAGING" = success && test "$COMPONENTS" = success &&
-          test "$TESTS" = success && test "$WINDOWS" = success || exit 1
-          if [ "$EVENT" = pull_request ]; then
-            test "$ACTION" = success
-          else
-            test "$ACTION" = skipped
-          fi
+          test "$TESTS" = success && test "$WINDOWS" = success
       - if: github.event_name == 'pull_request' && needs.phar-build.outputs.stale == 'true'
         uses: actions/download-artifact@v8.0.2
         with:

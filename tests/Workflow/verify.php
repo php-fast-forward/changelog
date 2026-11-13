@@ -332,8 +332,8 @@ foreach ([
     ++$assertions;
 }
 verifyWorkflow(
-    13 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and six repository workflows, including the guarded PHAR refresh, must remain distinct.',
+    14 === count(glob($root . '/.github/workflows/*.yml')),
+    'The seven public contracts and seven repository workflows, including the guarded PHAR refresh, must remain distinct.',
 );
 $assertions += 6;
 
@@ -764,47 +764,60 @@ try {
     );
     core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
     JS_WRAP;
-    $composite = $repositoryCi['jobs']['composite-action'];
+    $actionWorkflow = Yaml::parseFile($root . '/.github/workflows/repository-action.yml');
+    $composite = $actionWorkflow['jobs']['composite-action'];
     verifyWorkflow(
-        'phar-build' === $composite['needs']
-            && "github.event_name == 'pull_request'" === $composite['if']
+        ['pull_request'] === array_keys($actionWorkflow['on'])
+            && ['contents' => 'read'] === $actionWorkflow['permissions']
             && '${{ github.event.pull_request.head.sha }}' === $composite['steps'][0]['with']['ref']
             && false === $composite['steps'][0]['with']['persist-credentials']
-            && '${{ needs.phar-build.outputs.artifact }}' === $composite['steps'][1]['with']['artifact-ids']
-            && in_array('composite-action', $repositoryCi['jobs']['compiled']['needs'], true),
-        'The local Action smoke must bind the qualified candidate and execute only inside a pull-request cache scope.',
+            && '${{ github.event.pull_request.head.sha || github.sha }}' === $repositoryCi['jobs']['phar-build']['steps'][0]['with']['ref']
+            && !isset($composite['needs'])
+            && 0 === count(
+                array_filter($composite['steps'], static fn(array $step): bool => str_starts_with(
+                    $step['uses'] ?? '',
+                    'actions/download-artifact@',
+                )),
+            ),
+        'The Action smoke must use the tracked binary at the same PR head, without inheriting a default-branch cache trigger or cross-workflow artifacts.',
     );
-    foreach (['pull_request' => true, 'push' => false, 'workflow_dispatch' => false, 'pull_request_target' => false] as $event => $eligible) {
-        $evaluated = workflowScriptGuard($feedbackConditionGuard, $directory, [
-            'FF_FEEDBACK_CONTEXT' => json_encode(['github' => ['event_name' => $event]], JSON_THROW_ON_ERROR),
-            'FF_FEEDBACK_CONDITION' => $composite['if'],
-        ], [], 0);
-        verifyWorkflow([
-            'eligible' => $eligible] === $evaluated['outputs'],
-            'Composite smoke must never execute a PR Action in a default-branch cache context.',
+    foreach (['pull_request' => true, 'push' => false, 'workflow_dispatch' => false, 'workflow_call' => false, 'pull_request_target' => false] as $event => $eligible) {
+        verifyWorkflow(
+            $eligible === array_key_exists($event, $actionWorkflow['on']),
+            'Only a pull request may trigger the local Action smoke.',
         );
         ++$assertions;
     }
+    $parity = workflowStep($repositoryCi['jobs']['compiled'], 'Require The Refreshed Commit To Pass Before Merge');
+    foreach ([[
+        'pull_request', 'true', true],
+        ['pull_request', 'false', false],
+        ['push', 'true', false],
+        ['workflow_dispatch', 'true', false],
+    ] as [$event, $stale, $blocked]) {
+        $evaluated = workflowScriptGuard($feedbackConditionGuard, $directory, [
+            'FF_FEEDBACK_CONTEXT' => json_encode([
+                'github' => ['event_name' => $event], 'needs' => ['phar-build' => ['outputs' => ['stale' => $stale]]]],
+                JSON_THROW_ON_ERROR,
+            ),
+            'FF_FEEDBACK_CONDITION' => $parity['if'],
+        ], [], 0);
+        verifyWorkflow([
+            'eligible' => $blocked] === $evaluated['outputs'],
+            'A green Action smoke cannot qualify different tracked bytes: PR parity must reject a stale executable at that same head.',
+        );
+        ++$assertions;
+    }
+    workflowGuard($parity['run'], $directory, [], 1);
     $qualification = workflowStep(
         $repositoryCi['jobs']['compiled'],
         'Require Successful Source And Artifact Qualification',
     );
     $qualified = ['BUILD' => 'success', 'RUNTIME' => 'success', 'PACKAGING' => 'success',
         'COMPONENTS' => 'success', 'TESTS' => 'success', 'WINDOWS' => 'success'];
-    foreach (['pull_request', 'push', 'workflow_dispatch', 'pull_request_target'] as $event) {
-        foreach (['success', 'skipped', 'failure', 'cancelled', ''] as $outcome) {
-            workflowGuard($qualification['run'], $directory, [...$qualified, 'EVENT' => $event, 'ACTION' => $outcome],
-                ('pull_request' === $event ? 'success' : 'skipped') === $outcome ? 0 : 1);
-            ++$assertions;
-        }
-    }
+    workflowGuard($qualification['run'], $directory, $qualified, 0);
     foreach (array_keys($qualified) as $gate) {
-        workflowGuard(
-            $qualification['run'],
-            $directory,
-            [...$qualified, $gate => 'failure', 'EVENT' => 'pull_request', 'ACTION' => 'success'],
-            1,
-        );
+        workflowGuard($qualification['run'], $directory, [...$qualified, $gate => 'failure'], 1);
         ++$assertions;
     }
     foreach (['valid', 'invalid', 'obsolete', ''] as $status) {

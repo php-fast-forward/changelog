@@ -97,6 +97,13 @@ consumer PHP, install dependencies, merge, tag or release. A changed/closed PR,
 source-head mismatch or failed qualification prevents refresh. No credentials,
 repository settings, protection rules or release channel are created here.
 
+The composite Action smoke has a separate PR-only workflow. It executes the
+tracked executable at the same immutable PR head; the required compiled parity
+gate rejects that head if its bytes differ from the qualified candidate. Both
+checks must pass on the same head. Main/manual qualification keeps the source,
+PHAR and packaging checks, without running a PR Action in the default-branch
+cache scope. No second build or cross-workflow artifact polling is needed.
+
 ## Distribution and GitHub Actions
 
 The tested executable is tracked in the tree that will eventually be tagged, so

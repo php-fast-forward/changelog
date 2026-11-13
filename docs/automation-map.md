@@ -42,12 +42,13 @@ copies it into its own `.github/workflows` and selects a published version or re
 
 Internal files use the `repository-` prefix; public reusable paths retain their
 `changelog` names. Display names use `Repository: ...` for internal event
-workflows and the image helper, and `Reusable: ...` for public
+workflows, and `Reusable: ...` for public
 contracts. These names distinguish ownership without changing consumer paths.
 
 | Repository workflow | Trigger and purpose |
 | --- | --- |
 | [`repository-ci.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-ci.yml) | PR, push and manual checks for this package: quality, tests, coverage and installed-runtime fixtures. |
+| [`repository-action.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-action.yml) | PR-only smoke of the tracked PHAR through the actual composite Action, with read-only permissions and PR cache scope. The compiled parity gate must also pass on that same head. |
 | [`repository-documentation.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-documentation.yml) | Read-only PR, push and manual builds of Markdown guides and the phpDocumentor API; uploads a site artifact without publishing Pages or Wiki. |
 | [`repository-impact.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-impact.yml) | Internal read-only helper for tests and documentation: classifies the complete immutable PR diff without hiding required checks. |
 | [`repository-phar-refresh.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-phar-refresh.yml) | Data-only refresh of an outdated compiled CLI on the same still-open source PR, after source/runtime/packaging qualification; it never merges or publishes a release. |
