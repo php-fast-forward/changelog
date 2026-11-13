@@ -46,10 +46,15 @@ try {
         $source . '/resources',
         FilesystemIterator::SKIP_DOTS,
     )) as $file) {
-        $relative = substr($file->getPathname(), strlen($source) + 1);
-        $verify(file_get_contents($file->getPathname()) === file_get_contents(
-            'phar://changelog-inspection.phar/' . $relative,
-        ), 'Bundled resource differs: ' . $relative);
+        $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($source) + 1));
+        $bundled = 'phar://changelog-inspection.phar/' . $relative;
+        $verify(is_file($bundled), 'Bundled resource is absent: ' . $relative);
+        $expected = file_get_contents($file->getPathname());
+        $actual = file_get_contents($bundled);
+        $verify($expected === $actual, 'Bundled resource differs: ' . $relative
+            . '; checkout=' . hash('sha256', $expected) . '/' . strlen($expected)
+            . '; phar=' . hash('sha256', $actual) . '/' . strlen($actual)
+            . '; crlf-only=' . (str_replace("\r\n", "\n", $expected) === $actual ? 'true' : 'false'));
     }
     foreach (['LICENSE', 'composer.json', 'composer.lock', 'vendor/autoload.php'] as $file) {
         $verify(is_file('phar://changelog-inspection.phar/' . $file), 'Required runtime file missing: ' . $file);
