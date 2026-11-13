@@ -31,7 +31,7 @@ $verify = static function (bool $condition, string $message) use (&$assertions):
 };
 $run = static function (array $arguments, int $exit = 0) use ($artifact, $temporary, $verify, $environment): string {
     $process = new Symfony\Component\Process\Process(
-        [PHP_BINARY, $artifact, ...$arguments],
+        [PHP_BINARY, '-d', 'memory_limit=128M', $artifact, ...$arguments],
         $temporary,
         $environment,
     );
@@ -70,8 +70,12 @@ try {
     $run(['add', 'PHAR fixture change.', '--category=fixed', '--no-interaction']);
     $run(['check', '--no-interaction']);
     file_put_contents(
+        $temporary . '/TemplateText.php',
+        '<?php namespace Fixture; final class TemplateText { public static function render(): string { return "PHAR callback template."; } }',
+    );
+    file_put_contents(
         $temporary . '/template.php',
-        '<?php file_put_contents(__DIR__ . "/template-loaded", "yes"); return ["introduction" => "PHAR callback template."];',
+        '<?php spl_autoload_register(static function ($class): void { if ($class === "Fixture\\\\TemplateText") { require __DIR__ . "/TemplateText.php"; } }); $text = Fixture\\TemplateText::render(); file_put_contents(__DIR__ . "/template-loaded", $text); return ["introduction" => $text];',
     );
     $process = new Symfony\Component\Process\Process(['git', 'init', '-q', $temporary], env: $environment);
     $process->mustRun();
@@ -91,7 +95,7 @@ try {
     ]);
     $verify(file_get_contents(
         $temporary . '/template-loaded',
-    ) === 'yes', 'Explicit project PHP template was not executed.');
+    ) === 'PHAR callback template.', 'Explicit project PHP template and its autoload callback were not executed.');
     $verify(!file_exists($temporary . '/CHANGELOG.md'), 'Version dry run wrote history.');
     $verify($baseline === glob(
         dirname($temporary) . '/fast-forward-changelog-*',

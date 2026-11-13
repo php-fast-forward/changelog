@@ -1,6 +1,7 @@
 *                       text=auto
 *.php                   text eol=lf
 /bin/changelog          text eol=lf
+/dist/changelog         binary
 
 # Keep the six public Docker Actions and their root build context in GitHub dist archives.
 /.github/workflows      export-ignore

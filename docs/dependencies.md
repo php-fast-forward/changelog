@@ -1,12 +1,13 @@
 # Requirements and dependency compatibility
 
 Use this guide for PHP integration requirements or a Composer resolution failure.
-For CLI-only use, [CPX](adoption.md) keeps the tool's dependency installation
+For CLI-only use, the [compiled CLI](adoption.md) bundles its execution dependencies.
+A global Composer installation keeps the library package's declared constraints
 separate from the application's graph.
 
 | Key requirement | Supported range / reason |
 | --- | --- |
-| PHP | `^8.5`, including when the CLI is run through CPX. |
+| PHP | `^8.5`, including when running the compiled CLI. |
 | Symfony Console | `^8.1`; interactive `Ask` uses its `constraints` argument. |
 | Other Symfony components | `^7.4 || ^8.0`; filesystem, discovery, HTTP, locks, process and validation boundaries. |
 | Fast Forward Container / Config | `~1.6.0` / `^1.7`; composition and optional explicit settings. |
@@ -28,8 +29,8 @@ against the installed packages, alongside the CLI and domain suites.
 The package does not support a complete Symfony 7.4 dependency graph: an
 application that requires Console 7.4 cannot install this library into the same
 Composer graph. Accepting the other 7.4 components does not remove the Console
-8.1 requirement. [CPX with `--skip-local`](adoption.md) uses a
-separate dependency installation while retaining the PHP `^8.5` requirement.
+8.1 requirement. A [global Composer installation](adoption.md) uses a separate
+dependency graph while retaining the PHP `^8.5` requirement.
 The [self-contained Docker CLI](docker.md) supplies its own PHP runtime as well.
 
 ## Compatible Dependency Bounds

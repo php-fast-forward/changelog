@@ -5,6 +5,23 @@ declare(strict_types=1);
 
 // The native skill installer requires a physical donor tree with guarded ancestry.
 Phar::mapPhar();
+$pharPackageMetadata = [];
+if (isset($_composer_autoload_path) && is_string($_composer_autoload_path)) {
+    $installedJson = dirname($_composer_autoload_path) . '/composer/installed.json';
+    if (is_file($installedJson)) {
+        $installed = json_decode(file_get_contents($installedJson), true, flags: JSON_THROW_ON_ERROR);
+        foreach ($installed['packages'] ?? [] as $package) {
+            if ('fast-forward/changelog' === ($package['name'] ?? null)) {
+                $pharPackageMetadata = [
+                    'version' => $package['version'],
+                    'reference' => $package['source']['reference'] ?? $package['dist']['reference'] ?? null,
+                ];
+
+                break;
+            }
+        }
+    }
+}
 $runtime = (realpath(sys_get_temp_dir()) ?: sys_get_temp_dir())
     . '/fast-forward-changelog-' . bin2hex(random_bytes(16));
 if (!mkdir($runtime, 0700)) {

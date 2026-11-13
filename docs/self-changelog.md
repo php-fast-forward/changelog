@@ -9,7 +9,7 @@ same fragments and reusable lifecycle it distributes.
 Read the root [development contract](https://github.com/php-fast-forward/changelog/blob/main/AGENTS.md)
 and [canonical skill](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md).
 Use `php bin/changelog <command>` from this source checkout in place of the
-skill's CPX package prefix. No installed copy of the skill is needed here.
+skill's consumer binary path. No installed copy of the skill is needed here.
 
 ```sh
 composer install
@@ -35,7 +35,7 @@ verified human maintenance policy described in [policies](policies.md).
 | --- | --- |
 | Contribution PR | Read-only contribution check, exact-head status and sticky feedback from trusted code. |
 | Dependabot PR | A verified dependency fragment, followed by validation of the resulting head. |
-| Push to `main` | Create or refresh the single `changelog/version` PR. |
+| Push to `main` | Qualify source and one canonical PHAR, then create or refresh `changelog/version-phar` with those exact bytes. |
 | Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication starts image publication; major-branch promotion consumes a separate release event. |
 
 The [automation map](automation-map.md) lists the repository CI, documentation,

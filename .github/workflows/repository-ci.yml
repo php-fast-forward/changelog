@@ -2,10 +2,12 @@ name: 'Repository: Tests'
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  workflow_call:
+    outputs:
+      artifact:
+        description: Fully qualified canonical executable artifact ID.
+        value: ${{ jobs.compiled.outputs.artifact }}
 
 permissions:
   contents: read
@@ -22,8 +24,90 @@ jobs:
   impact:
     uses: ./.github/workflows/repository-impact.yml
 
-  packaging:
+  phar-build:
     needs: impact
+    if: needs.impact.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stale: ${{ steps.parity.outputs.stale }}
+      artifact: ${{ steps.candidate.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@2.40.0
+        with:
+          php-version: '8.5'
+          extensions: curl, iconv, mbstring, phar, zlib
+          tools: composer:v2, box:4.7.1
+          coverage: none
+      - name: Build once from a Git-free production runtime
+        env:
+          COMPOSER_ROOT_VERSION: dev-main
+          COMPOSER_HOME: ${{ runner.temp }}/changelog-phar-composer-home
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/changelog-phar-composer-cache
+        run: |
+          mkdir "$RUNNER_TEMP/changelog-runtime"
+          git archive HEAD | tar -xf - -C "$RUNNER_TEMP/changelog-runtime"
+          composer install --working-dir="$RUNNER_TEMP/changelog-runtime" --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative --no-interaction --no-progress
+          composer check-platform-reqs --working-dir="$RUNNER_TEMP/changelog-runtime" --no-dev
+          box validate --ignore-recommendations-and-warnings "$RUNNER_TEMP/changelog-runtime/box.json"
+          box compile --no-parallel --sort-compiled-files --config="$RUNNER_TEMP/changelog-runtime/box.json"
+          install -m 755 "$RUNNER_TEMP/changelog-runtime/dist/changelog" "$RUNNER_TEMP/changelog"
+          box verify "$RUNNER_TEMP/changelog"
+      - name: Compare the committed executable before execution
+        id: parity
+        shell: bash
+        run: |
+          set +e
+          cmp "$RUNNER_TEMP/changelog" dist/changelog
+          status=$?
+          set -e
+          case "$status" in
+            0) echo 'stale=false' >> "$GITHUB_OUTPUT" ;;
+            1) echo 'stale=true' >> "$GITHUB_OUTPUT" ;;
+            *) exit "$status" ;;
+          esac
+      - id: candidate
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: changelog-build-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/changelog
+          compression-level: 0
+          if-no-files-found: error
+
+  phar-runtime:
+    needs: phar-build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@2.40.0
+        with:
+          php-version: '8.5'
+          extensions: curl, iconv, mbstring, phar, zlib
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative --no-interaction --no-progress
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          artifact-ids: ${{ needs.phar-build.outputs.artifact }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/phar
+      - name: Qualify the same compiled bytes on every supported platform
+        run: php tests/Phar/verify.php "${{ runner.temp }}/phar/changelog"
+
+  packaging:
+    needs: [impact, phar-build]
     if: ${{ always() && !cancelled() }}
     name: Fresh Composer Installations (${{ matrix.dependencies }})
     runs-on: ubuntu-latest
@@ -42,10 +126,15 @@ jobs:
         env:
           FF_RESULT: ${{ needs.impact.result }}
           FF_RUNTIME: ${{ needs.impact.outputs.runtime }}
+          FF_BUILD: ${{ needs.phar-build.result }}
         shell: bash
         run: |
           if [[ "$FF_RESULT" != 'success' || ! "$FF_RUNTIME" =~ ^(true|false)$ ]]; then
             echo '::error::Validation scope failed or is incomplete; this required check cannot pass.'
+            exit 1
+          fi
+          if [[ "$FF_RUNTIME" == 'true' && "$FF_BUILD" != 'success' ]]; then
+            echo '::error::The PHAR candidate was not built successfully.'
             exit 1
           fi
 
@@ -68,12 +157,21 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Download The Exact PHAR Candidate
+        if: needs.impact.outputs.runtime == 'true'
+        uses: actions/download-artifact@v8.0.2
+        with:
+          artifact-ids: ${{ needs.phar-build.outputs.artifact }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/phar
+
       - name: Validate Fresh Local And Global Consumers
         if: needs.impact.outputs.runtime == 'true'
         run: php tests/Packaging/verify.php
         env:
           CHANGELOG_PACKAGING_DIRECT: '1'
           CHANGELOG_PACKAGING_DEPENDENCIES: ${{ matrix.dependencies }}
+          CHANGELOG_PHAR_CANDIDATE: ${{ runner.temp }}/phar/changelog
 
   component-compatibility:
     needs: impact
@@ -413,6 +511,46 @@ jobs:
             echo '::error::A platform or Windows shard did not pass; inspect the matrix results.'
             exit 1
           fi
+
+  compiled:
+    name: Compiled CLI Matches Qualified Source
+    needs: [phar-build, phar-runtime, packaging, component-compatibility, tests, windows]
+    if: always() && needs.phar-build.result != 'skipped'
+    runs-on: ubuntu-latest
+    outputs:
+      artifact: ${{ needs.phar-build.outputs.artifact }}
+    steps:
+      - name: Require Successful Source And Artifact Qualification
+        env:
+          BUILD: ${{ needs.phar-build.result }}
+          RUNTIME: ${{ needs.phar-runtime.result }}
+          PACKAGING: ${{ needs.packaging.result }}
+          COMPONENTS: ${{ needs.component-compatibility.result }}
+          TESTS: ${{ needs.tests.result }}
+          WINDOWS: ${{ needs.windows.result }}
+        run: |
+          test "$BUILD" = success && test "$RUNTIME" = success &&
+          test "$PACKAGING" = success && test "$COMPONENTS" = success &&
+          test "$TESTS" = success && test "$WINDOWS" = success
+      - if: github.event_name == 'pull_request' && needs.phar-build.outputs.stale == 'true'
+        uses: actions/download-artifact@v8.0.2
+        with:
+          artifact-ids: ${{ needs.phar-build.outputs.artifact }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/phar
+      - name: Retain Only A Fully Qualified Update
+        if: github.event_name == 'pull_request' && needs.phar-build.outputs.stale == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: changelog-update-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/phar/changelog
+          compression-level: 0
+          if-no-files-found: error
+      - name: Require The Refreshed Commit To Pass Before Merge
+        if: github.event_name == 'pull_request' && needs.phar-build.outputs.stale == 'true'
+        run: |
+          echo 'The executable needs the fully qualified update; CI must pass again on the refreshed commit.' >&2
+          exit 1
 
   coverage-report:
     name: Line Coverage Report

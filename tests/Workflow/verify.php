@@ -262,11 +262,24 @@ verifyWorkflow(
         ],
         'pull_request_target' => ['branches' => ['main'], 'types' => ['opened', 'synchronize', 'reopened', 'closed']],
         'push' => ['branches' => ['main']],
+        'workflow_dispatch' => null,
     ] === $repository['on'],
-    'The internal caller must preserve the original event union without a new publication trigger.',
+    'The internal caller preserves contribution/publication events; manual dispatch qualifies version preparation only.',
 );
 $repositoryCheck = $repository['jobs']['check'];
 $repositoryLifecycle = $repository['jobs']['changelog'];
+$nativeVersion = workflowStep($repository['jobs']['version'], 'Prepare the version with the qualified executable');
+verifyWorkflow(
+    '${{ jobs.compiled.outputs.artifact }}' === $repositoryCi['on']['workflow_call']['outputs']['artifact']['value']
+        && '${{ needs.phar-build.outputs.artifact }}' === $repositoryCi['jobs']['compiled']['outputs']['artifact']
+        && './.github/actions/version' === $nativeVersion['uses']
+        && '${{ github.sha }}' === $nativeVersion['with']['base-ref']
+        && '["dist/changelog"]' === $nativeVersion['with']['generated-files']
+        && '${{ needs.version.outputs.head-sha }}' === $repository['jobs']['feedback']['with']['head-sha']
+        && '${{ github.sha }}' === $repository['jobs']['feedback']['with']['base-sha'],
+    'Main must bind qualified artifact identity, immutable source base, native version output and exact-head feedback.',
+);
+++$assertions;
 verifyWorkflow(
     'Repository: Changelog' === $repository['name']
         && 'Check Contribution' === $repositoryCheck['name']
@@ -281,13 +294,13 @@ verifyWorkflow(
 );
 verifyWorkflow(
     './.github/workflows/changelog.yml' === $repositoryLifecycle['uses']
-        && "github.event_name != 'pull_request'" === $repositoryLifecycle['if']
-        && true === $repositoryLifecycle['with']['prepare-release']
+        && "github.event_name == 'pull_request_target'" === $repositoryLifecycle['if']
+        && false === $repositoryLifecycle['with']['prepare-release']
         && true === $repositoryLifecycle['with']['publish']
         && 'main' === $repositoryLifecycle['with']['base-branch']
         && '${{ vars.CHANGELOG_AUTOMATION_ACTOR || \'github-actions[bot]\' }}'
             === $repositoryLifecycle['with']['automation-actor'],
-    'Trusted events must use the local facade while preserving the existing preparation, publication and Bot configuration.',
+    'Trusted PR events use the local facade; qualified main uses the existing immutable-base native preparation action.',
 );
 verifyWorkflow(
     ! isset($repository['concurrency']) && ! isset($repositoryLifecycle['concurrency'])
@@ -351,7 +364,7 @@ foreach ([
 }
 verifyWorkflow(
     14 === count(glob($root . '/.github/workflows/*.yml')),
-    'The seven public contracts and seven repository workflows, including PHAR qualification, must remain distinct.',
+    'The seven public contracts and seven repository workflows, including the guarded PHAR refresh, must remain distinct.',
 );
 $assertions += 6;
 
@@ -671,6 +684,41 @@ $directory = sys_get_temp_dir() . '/changelog-workflow-' . bin2hex(random_bytes(
 $filesystem->mkdir($directory);
 
 try {
+    $refresh = Yaml::parseFile($root . '/.github/workflows/repository-phar-refresh.yml')['jobs']['refresh'];
+    $locateRefresh = workflowStep($refresh, 'Locate the still-open source pull request');
+    $filesystem->dumpFile($directory . '/daemon-mock', <<<'BASH'
+        gh() {
+          [[ "$1" == api ]] || return 71
+          case "$2" in
+            repos/fixture/consumer/commits/*/pulls) printf '%s\n' "$FF_REFRESH_PRS" ;;
+            repos/fixture/consumer/branches/*) printf '%s\n' "$FF_REFRESH_PROTECTED" ;;
+            *) return 72 ;;
+          esac
+        }
+        BASH);
+    foreach (['valid', 'closed', 'stale-head', 'fork', 'other-base', 'main', 'managed', 'protected'] as $case) {
+        $branch = match ($case) {
+            'main' => 'main',
+            'managed' => 'changelog/version-phar',
+            default => 'codex/runtime-change',
+        };
+        $head = str_repeat('a', 40);
+        $pr = ['state' => 'closed' === $case ? 'closed' : 'open',
+            'base' => ['ref' => in_array($case, ['other-base', 'main'], true) ? 'other-line' : 'main'],
+            'head' => ['sha' => 'stale-head' === $case ? str_repeat('b', 40) : $head,
+                'ref' => $branch, 'repo' => ['full_name' => 'fork' === $case ? 'other/consumer' : 'fixture/consumer']]];
+        $output = workflowGuard("set -e\n" . $locateRefresh['run'], $directory, [
+            'GH_REPO' => 'fixture/consumer', 'SOURCE_SHA' => $head, 'SOURCE_BRANCH' => $branch,
+            'FF_REFRESH_PRS' => json_encode([$pr], JSON_THROW_ON_ERROR),
+            'FF_REFRESH_PROTECTED' => 'protected' === $case ? 'true' : 'false',
+        ], 'protected' === $case ? 1 : 0);
+        verifyWorkflow(
+            'valid' === $case ? 'branch=codex/runtime-change' === trim($output) : '' === $output,
+            'The PHAR writer must select only one still-open, current, unprotected source PR targeting main: ' . $case,
+        );
+        ++$assertions;
+    }
+    $filesystem->remove($directory . '/daemon-mock');
     $feedbackConditionGuard = <<<'JS_WRAP'
     const snapshot = JSON.parse(process.env.FF_FEEDBACK_CONTEXT);
     const condition = process.env.FF_FEEDBACK_CONDITION.replace(

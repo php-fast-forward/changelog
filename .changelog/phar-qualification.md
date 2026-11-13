@@ -3,4 +3,4 @@ category: added
 type: minor
 ---
 
-Adds an isolated Box build and disposable CLI qualification for a standalone PHAR, while preserving the Composer PHP API and existing Docker Actions.
+Ships the compiled CLI through Composer and maintains its tested PHAR with the existing CI refresh pattern, while preserving the public PHP API and Docker Actions. Local and global usage no longer requires a separate command executor; the compressed CLI requires Phar and zlib alongside PHP 8.5.

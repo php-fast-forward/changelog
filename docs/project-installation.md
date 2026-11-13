@@ -1,13 +1,14 @@
-# Set up a project with CPX
+# Set up a project with the compiled CLI
 
 The `install` command configures GitHub automation and offers the optional agent
 skill through llm/skills and its GitHub source. It previews the complete caller
 and project setup changes before asking to apply them. Existing
 workflows, their selected versions and locally edited skills are preserved.
 
-Use PHP `^8.5`, Git and [CPX](https://github.com/laravel/cpx). Run from an existing
-Git repository; CPX keeps the CLI dependencies outside the application.
-Workflow-only setup adds no application dependency. Optional skill setup also
+Use PHP `^8.5`, Git and the Composer-installed compiled CLI from the
+[adoption guide](adoption.md#run-the-compiled-cli). Run from an existing Git
+repository. A global Composer installation keeps the library's dependency
+constraints outside the application. Optional skill setup also
 needs an existing `composer.json` and Composer: it adds `llm/skills` as a
 development tool and manages its source in `skills.json`, without requiring the
 Changelog runtime in the application.
@@ -18,8 +19,9 @@ Select a published stable release and set `CHANGELOG_VERSION` to its complete
 numeric version, without `v`. Check that version's help before setup:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help install
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install
+composer require --dev "fast-forward/changelog:$CHANGELOG_VERSION"
+vendor/bin/changelog help install
+vendor/bin/changelog install
 ```
 
 Use the help and guide from the same selected release. An installer that offers
@@ -31,8 +33,7 @@ If the selected release does not offer `install`, follow the
 using the resources and documentation from that release. Do not substitute
 development code implicitly.
 
-`--skip-local` selects CPX's separate tool installation. The command operates on
-the current project's Git root, not CPX's package cache. Use
+The command operates on the current project's Git root, not its installed package. Use
 `--cwd=/path/to/project` to select another existing checkout.
 
 ## Answer the questions and review the result
@@ -112,14 +113,14 @@ Preview both components without creating directories, acquiring installation
 locks or writing files:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
+vendor/bin/changelog install \
   --dry-run --json
 ```
 
 Apply deliberate unattended choices:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" install \
+vendor/bin/changelog install \
   --yes --no-interaction --base-branch=main --publish=true --no-skill \
   --set=comment-mode=on-failure
 ```

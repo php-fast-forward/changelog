@@ -314,6 +314,12 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
 {
     $source = $fixtureRoot . '/archive-source';
     exportSource($packageRoot, $source, $environment);
+    $candidate = getenv('CHANGELOG_PHAR_CANDIDATE');
+    if (false !== $candidate && '' !== $candidate) {
+        verify(is_file($candidate) && !is_link($candidate), 'PHAR candidate must be an explicit regular file.');
+        copy($candidate, $source . '/dist/changelog');
+        chmod($source . '/dist/changelog', 0755);
+    }
     execute(['git', 'init', '--initial-branch=main'], $source, $environment);
     execute(['git', 'add', '--all'], $source, $environment);
     execute(['git', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Synthetic package archive'], $source, $environment);
@@ -343,14 +349,24 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
     $contentsRoot = $fixtureRoot . '/archive-contents';
     mkdir($contentsRoot, 0700);
     execute(['tar', '-xf', $archive, '-C', $contentsRoot], $source, $environment);
-    $runtimeFiles = ['Dockerfile', '.dockerignore', 'composer.json', 'composer.lock', 'LICENSE', 'bin/changelog'];
+    $runtimeFiles = [
+        'Dockerfile',
+        '.dockerignore',
+        'composer.json',
+        'composer.lock',
+        'LICENSE',
+        'bin/changelog',
+        'dist/changelog',
+    ];
     foreach (array_keys(snapshot($packageRoot . '/src')) as $file) {
         $runtimeFiles[] = 'src/' . $file;
     }
     foreach ([...$actions, ...$runtimeFiles] as $file) {
         verify(in_array($file, $entries, true), 'Action build dependency is absent from the archive: ' . $file);
+        $expected = 'dist/changelog' === $file && false !== $candidate && '' !== $candidate
+            ? $candidate : $packageRoot . '/' . $file;
         verify(
-            hash_file('sha256', $packageRoot . '/' . $file) === hash_file('sha256', $contentsRoot . '/' . $file),
+            hash_file('sha256', $expected) === hash_file('sha256', $contentsRoot . '/' . $file),
             'Archived Action/runtime bytes differ from the candidate source: ' . $file,
         );
     }
@@ -397,8 +413,7 @@ function exercise(string $installation, string $consumer, array $environment): v
     if ('Windows' !== PHP_OS_FAMILY) {
         execute([$binary, 'list', '--raw', '--no-interaction', '--no-ansi'], $consumer, $environment);
     }
-    // A development checkout may leave its own vendor tree in a path mirror.
-    // The native Composer proxy must select its top-level installation autoloader.
+    // A source mirror may contain a foreign autoloader; the compiled CLI must use its private runtime.
     mkdir($installed . '/vendor', 0700, true);
     file_put_contents(
         $installed . '/vendor/autoload.php',
@@ -428,9 +443,30 @@ function exercise(string $installation, string $consumer, array $environment): v
         verify(!str_contains($listing['stdout'], 'changelog:' . $command), 'A legacy prefixed alias leaked.');
     }
     verify(
-        str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], 'dev-main'),
-        'The binary did not use native installed package metadata.',
+        str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], '0.6.0'),
+        'The binary did not preserve its installed package identity.',
     );
+    $hostAutoload = $installation . '/vendor/autoload.php';
+    $identity = json_decode(execute([
+        PHP_BINARY, '-r',
+        'require $argv[1]; echo json_encode(["package" => "fast-forward/changelog", "version" => Composer\\InstalledVersions::getPrettyVersion("fast-forward/changelog"), "reference" => Composer\\InstalledVersions::getReference("fast-forward/changelog")]);',
+        $hostAutoload,
+    ], $consumer, $environment)['stdout'], true, flags: JSON_THROW_ON_ERROR);
+    $originalAutoload = file_get_contents($hostAutoload);
+    file_put_contents(
+        $hostAutoload,
+        "<?php throw new RuntimeException('The PHAR must not load the consumer autoloader.');\n",
+    );
+    try {
+        verify(
+            $identity === skillResult(
+                cli($binary, $consumer, $environment, ['skill:install', '--dry-run', '--json']),
+            )['source'],
+            'The compiled CLI must preserve installed package metadata without executing its host autoloader.',
+        );
+    } finally {
+        file_put_contents($hostAutoload, $originalAutoload);
+    }
     cli($binary, $consumer, $environment, ['--help']);
     foreach ($publicCommands as $command) {
         cli($binary, $consumer, $environment, ['help', $command]);
@@ -440,14 +476,21 @@ function exercise(string $installation, string $consumer, array $environment): v
     $originalProvider = file_get_contents($provider);
     file_put_contents($provider, failSelectedFactory($originalProvider));
     try {
-        cli($binary, $consumer, $environment, ['list', '--raw']);
-        cli($binary, $consumer, $environment, ['--help']);
-        $failure = cli($binary, $consumer, $environment, ['status', '--source=tags'], 1);
+        cli($binary, $consumer, $environment, ['status', '--source=tags']);
+        $sourceBinary = $installed . '/bin/changelog';
+        cli($sourceBinary, $consumer, $environment, ['list', '--raw']);
+        cli($sourceBinary, $consumer, $environment, ['--help']);
+        $failure = cli($sourceBinary, $consumer, $environment, ['status', '--source=tags'], 1);
         verify(
             str_contains($failure['stdout'] . $failure['stderr'], 'fixture selected graph'),
             'Selected-command failure did not retain its diagnostic.',
         );
-        cli($binary, $consumer, $environment, ['add', 'Graph failures stay isolated.', '--name=lazy-isolation.md']);
+        cli(
+            $sourceBinary,
+            $consumer,
+            $environment,
+            ['add', 'Graph failures stay isolated.', '--name=lazy-isolation.md'],
+        );
         unlink($consumer . '/.changelog/lazy-isolation.md');
     } finally {
         file_put_contents($provider, $originalProvider);
@@ -891,8 +934,8 @@ try {
     $archive = verifyArchive($packageRoot, $fixtureRoot, $localEnv);
     execute(['tar', '-xf', $archive, '-C', $fixtureRoot . '/package'], $fixtureRoot, $localEnv);
     $manifest = ['name' => 'fixture/changelog-consumer', 'type' => 'project', 'license' => 'MIT',
-        'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => 'dev-main']]]],
-        'require' => ['fast-forward/changelog' => 'dev-main'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];
+        'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => '0.6.0']]]],
+        'require' => ['fast-forward/changelog' => '0.6.0'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];
     $local = $fixtureRoot . '/local-installation';
     $global = $fixtureRoot . '/global-composer';
     file_put_contents(

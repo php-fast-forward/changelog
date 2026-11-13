@@ -11,10 +11,19 @@ on:
 
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions: {}
 
 jobs:
+  quality:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/repository-ci.yml
+
   check:
     name: Check Contribution
     if: github.event_name == 'pull_request'
@@ -32,12 +41,14 @@ jobs:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
       base-sha: ${{ github.event.pull_request.base.sha }}
-      managed-branch: changelog/version
+      managed-branch: changelog/version-phar
+      source: tags
+      generated-files: '["dist/changelog"]'
       automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
 
   changelog:
     name: Changelog Lifecycle
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'pull_request_target'
     # Each public operation owns its lock; reusing a nested group here would deadlock.
     permissions:
       contents: write
@@ -47,10 +58,13 @@ jobs:
     uses: ./.github/workflows/changelog.yml
     with:
       base-branch: main
+      managed-branch: changelog/version-phar
+      source: tags
+      generated-files: '["dist/changelog"]'
       version-pr-title: 'chore(release): fast-forward/changelog v{current_version} → v{next_version}'
       automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
       comment-mode: always
-      prepare-release: true
+      prepare-release: false
       publish: true
       # Enable only after separately approved environment/key staging.
       # Until then, retain the existing publication credential route.
@@ -67,7 +81,7 @@ jobs:
       github.event_name == 'pull_request_target' && github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'changelog/version' &&
+      github.event.pull_request.head.ref == 'changelog/version-phar' &&
       github.event.pull_request.base.ref == 'main' &&
       needs.changelog.result == 'success' &&
       needs.changelog.outputs.published-version != '' &&
@@ -81,3 +95,96 @@ jobs:
     with:
       tag: ${{ needs.changelog.outputs.published-tag }}
       expected-sha: ${{ needs.changelog.outputs.published-sha }}
+
+  version:
+    needs: quality
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: changelog-${{ github.repository }}-main
+      cancel-in-progress: false
+    outputs:
+      pull-request: ${{ steps.version.outputs.pull-request }}
+      head-sha: ${{ steps.version.outputs.head-sha }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - name: Skip a qualification superseded by a newer main
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          QUALIFIED_BASE: ${{ github.sha }}
+        shell: bash
+        run: |
+          current=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          [[ "$current" =~ ^[0-9a-f]{40}$ ]]
+          if test "$current" = "$QUALIFIED_BASE"; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo 'A newer main superseded this qualification; its run prepares the version.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.base.outputs.current == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the successful qualification's artifact identity
+        if: steps.base.outputs.current == 'true'
+        env:
+          QUALIFIED_ARTIFACT: ${{ needs.quality.outputs.artifact }}
+        run: test -n "$QUALIFIED_ARTIFACT"
+      - if: steps.base.outputs.current == 'true'
+        uses: actions/download-artifact@v8.0.2
+        with:
+          artifact-ids: ${{ needs.quality.outputs.artifact }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/phar
+      - name: Stage the qualified executable as data
+        if: steps.base.outputs.current == 'true'
+        run: |
+          test -f dist/changelog && test ! -L dist && test ! -L dist/changelog
+          test -f "$RUNNER_TEMP/phar/changelog" && test ! -L "$RUNNER_TEMP/phar/changelog"
+          install -m 755 "$RUNNER_TEMP/phar/changelog" dist/changelog
+      - name: Prepare the version with the qualified executable
+        if: steps.base.outputs.current == 'true'
+        id: version
+        uses: ./.github/actions/version
+        with:
+          base-branch: main
+          base-ref: ${{ github.sha }}
+          managed-branch: changelog/version-phar
+          source: tags
+          generated-files: '["dist/changelog"]'
+          resolve-pull-requests: true
+          title: 'chore(release): fast-forward/changelog v{current_version} → v{next_version}'
+          automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+          token: ${{ secrets.CHANGELOG_TOKEN || github.token }}
+  feedback:
+    needs: version
+    if: needs.version.outputs.pull-request != '' && needs.version.outputs.head-sha != ''
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      statuses: write
+    uses: ./.github/workflows/changelog-pr-status.yml
+    with:
+      pull-request: ${{ fromJSON(needs.version.outputs.pull-request) }}
+      head-sha: ${{ needs.version.outputs.head-sha }}
+      base-sha: ${{ github.sha }}
+      base-branch: main
+      managed-branch: changelog/version-phar
+      source: tags
+      generated-files: '["dist/changelog"]'
+      resolve-pull-requests: true
+      automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
+    secrets:
+      token: ${{ secrets.CHANGELOG_TOKEN || github.token }}

@@ -13,16 +13,17 @@ Run from the application's directory. `CHANGELOG_VERSION` is the verified exact
 numeric product version, not a range frozen into this skill:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help status
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help version
+composer require --dev "fast-forward/changelog:$CHANGELOG_VERSION"
+vendor/bin/changelog list --raw
+vendor/bin/changelog help status
+vendor/bin/changelog help version
 ```
 
-CPX keeps tool dependencies separate from the application's Composer project;
-the command still operates on application files. It is not a filesystem sandbox
-or a PHP runtime. CPX's own update/help/version commands concern the executor.
-An existing reviewed `vendor/bin/changelog` may run the same supported arguments
-without changing the application's dependencies.
+The Composer proxy executes the ready-built PHAR and its bundled dependencies.
+The package still exposes its PHP API and declares library dependencies; use
+`composer global require` for a separate graph when necessary. The command
+operates on application files and still needs its supported PHP runtime and Git.
+Preserve an existing reviewed installation instead of upgrading it incidentally.
 
 Project instructions are managed separately with `llm/skills` and a GitHub donor
 recorded in `skills.json`. The CLI's guided project setup can offer that route
@@ -36,8 +37,8 @@ host-session activation remain separate results.
 For releases offering these arguments, inspect the read-only plan first:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" status --json --source=tags --no-interaction
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" version --dry-run --source=tags --no-interaction
+vendor/bin/changelog status --json --source=tags --no-interaction
+vendor/bin/changelog version --dry-run --source=tags --no-interaction
 ```
 
 Review the baseline/current/next version, effective impact, accepted fragment

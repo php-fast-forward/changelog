@@ -2,7 +2,7 @@
 name: fast-forward-changelog
 description: Adopt Fast Forward Changelog's GitHub lifecycle, write and check independent fragments, review version PRs, and perform authorized release maintenance. Discover the selected release's documentation and CLI capabilities before choosing integration details.
 license: MIT
-compatibility: Requires access to the application repository and the selected release's documentation. Verify that release's runner or PHP requirements before execution. Local CLI examples use CPX; PHP integration uses the application's Composer installation. GitHub credentials are needed only for authorized remote operations.
+compatibility: Requires access to the application repository and the selected release's documentation. Verify that release's runner or PHP requirements before execution. Local CLI examples use the Composer-installed compiled binary; PHP integration uses the application's Composer autoloader. GitHub credentials are needed only for authorized remote operations.
 metadata:
   author: php-fast-forward
   source: original
@@ -28,7 +28,7 @@ approval.
 2. For new adoption or a requested update, discover the latest published stable
    release in the [official repository](https://github.com/php-fast-forward/changelog/releases).
    Confirm the complete release tag and its commit, exclude drafts/prereleases,
-   and respect any explicitly selected maintenance line. For CPX or PHP use,
+   and respect any explicitly selected maintenance line. For Composer or PHP use,
    confirm the same version is available on
    [Packagist](https://packagist.org/packages/fast-forward/changelog).
 3. Read that tag's README and relevant documentation, not `main` or an old copy
@@ -55,16 +55,17 @@ approval.
    release, without the tag's `v`. Discover commands and inspect their arguments:
 
    ```sh
-   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" list --raw
-   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help add
-   cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help check
+   composer require --dev "fast-forward/changelog:$CHANGELOG_VERSION"
+   vendor/bin/changelog list --raw
+   vendor/bin/changelog help add
+   vendor/bin/changelog help check
    ```
 
-   Use [CPX's official setup](https://github.com/laravel/cpx) when installation is
-   authorized; do not pin the executor in these commands. `--skip-local` selects
-   its separate tool installation. CPX may handle `--help` or `--version` itself,
-   so use `help <command>` for changelog help. An existing reviewed project binary
-   may be used directly instead. Confirm prerequisites from the chosen release.
+   Install only when authorized; preserve an existing reviewed project version.
+   Composer exposes the ready-built PHAR, without a consumer build. The library
+   retains its dependency constraints and public PHP API. If that graph conflicts
+   with the application, use a separate global Composer installation and its
+   `changelog` binary. Confirm prerequisites from the chosen release.
 
 Installing this skill installs instructions, independently of the runtime. The
 project route uses `llm/skills` with the `php-fast-forward/changelog` GitHub source:
@@ -110,8 +111,8 @@ After help confirms these arguments, the CLI can create and validate that note
 from the application directory instead of writing the example manually:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --no-interaction
+vendor/bin/changelog add "Preserves meaningful Markdown spaces when parsing fragments." --category=fixed --no-interaction
+vendor/bin/changelog check --no-interaction
 ```
 
 Verify that exactly one intended fragment was created and central history stayed
@@ -121,7 +122,7 @@ fetch the intended baseline under existing authority, then use its supported
 comparison option, for example:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" check --since=origin/main --no-interaction
+vendor/bin/changelog check --since=origin/main --no-interaction
 ```
 
 That comparison requires committed contribution changes. A local uncommitted

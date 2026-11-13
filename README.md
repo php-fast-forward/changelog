@@ -19,7 +19,7 @@ review release notes and integration contracts before upgrading.
 
 ## 🤖 GitHub Actions
 
-Use [guided setup via CPX](docs/project-installation.md) to choose the release
+Use [guided setup with the compiled CLI](docs/project-installation.md) to choose the release
 branch, publication behavior and optional agent skill, then review the generated
 workflow. Existing integrations are preserved. For manual setup, create
 `.github/workflows/changelog.yml`:
@@ -108,18 +108,20 @@ you want normal automatic publication.
 
 ## 🛠️ CLI
 
-Use PHP `^8.5` and [CPX](https://github.com/laravel/cpx) to run the CLI without
-adding it to the application's Composer dependencies. From your project:
+Use PHP `^8.5` with Phar and zlib, Git and Composer. Install it as a development dependency;
+Composer exposes its ready-built PHAR at `vendor/bin/changelog`:
 
 ```sh
-cpx --skip-local fast-forward/changelog add \
+composer require --dev fast-forward/changelog
+vendor/bin/changelog add \
   "Fixes Markdown parsing." --category=fixed --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+vendor/bin/changelog check --no-interaction
 ```
 
-`--skip-local` selects CPX's separate installation. The commands create one
-fragment and validate pending notes; no `init` is needed. See
-[local setup and previews](docs/adoption.md#run-the-cli-with-cpx) and the
+The commands create one fragment and validate pending notes; no `init` or consumer
+build is needed. The package retains its PHP library dependencies and public API;
+use a global Composer installation if the application's dependency graph conflicts.
+See [local setup, global installation and scripts](docs/adoption.md#run-the-compiled-cli) and the
 [command reference](docs/cli-fragments.md#public-cli). The [Docker CLI](docs/docker.md)
 is an alternative with its own PHP runtime.
 

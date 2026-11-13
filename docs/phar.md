@@ -1,99 +1,111 @@
-# Standalone PHAR qualification
+# Compiled CLI and Composer PHP API
 
-Issue [#90](https://github.com/php-fast-forward/changelog/issues/90) tracks an
-additional standalone CLI distribution. This draft qualifies a Box build; it
-does not replace the published Composer package or the six Docker Actions.
+Composer's `bin` points to the ready-built `dist/changelog` PHAR. Local installs
+use `vendor/bin/changelog`; global installs use Composer's global binary path.
+The source entrypoint remains `php bin/changelog` for development and explicit
+PHP-library integration. Consumers do not compile the CLI.
 
-## Build and runtime
+The library retains `require`, PSR-4 autoload, `src`, resources and its public PHP
+API. Its Composer dependency constraints still apply; a PHAR does not turn this
+library into a PHP-only dependency graph. A global Composer installation is the
+separate-graph option. Source is maintained once, while the generated artifact
+also contains copies of runtime libraries and resources.
 
-`box.json` selects the existing entrypoint, complete `src`, `resources` and
-production `vendor` trees, Composer metadata and license. Source is maintained
-once. The bundled libraries occupy bytes inside the archive as well as any
-separate source installation. Box stays outside the dependency graph.
+## Official Box build
 
-The qualification workflow installs the reviewed production lock with plugins
-and scripts disabled, provisions `composer:v2, box:4.7.1` through the same
-`shivammathur/setup-php` integration as Code Standards, builds
-`dist/changelog`, runs Box verification and disposable command tests, then
-uploads that exact artifact. It has read-only permissions, no autocommit and no
-release operation. Changes to artifact inputs or this packaging surface, or an
-explicit dispatch, run this read-only qualification; ordinary documentation
-changes do not rebuild it. This does not commit a new binary on every PR.
+CI provisions `composer:v2, box:4.7.1` through `shivammathur/setup-php`, matching
+Code Standards. No project dependency, custom compiler or installer is added.
+`box.json` selects `bin`, `src`, complete `resources`, production `vendor`,
+Composer manifests and license; GZ compression measured about 3 MB versus
+12.7 MB uncompressed in the initial local comparison.
 
-Local builds measured about 3 MB with GZ and 12.7 MB with NONE. The GZ artifact needs PHP `^8.5`,
-Phar and zlib, plus the bundled runtime's platform requirements (currently
-mbstring or its bundled iconv-backed polyfill). Git operations still need Git.
-Generated-file HTTP uploads require the supported cURL backend. A PHAR supplies
-neither PHP, Git nor extensions; it cannot replace their provisioning.
-
-Build manually with an isolated Box executable:
+The build job exports its exact source commit with `git archive`, installs the
+reviewed production lock in that Git-free staging root with plugins/scripts
+disabled and `COMPOSER_ROOT_VERSION=dev-main`, then runs official commands:
 
 ```sh
-composer install --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative
-box validate --ignore-recommendations-and-warnings box.json
-box compile --no-parallel --sort-compiled-files --config=box.json
-box verify dist/changelog
-php tests/Phar/verify.php
+box validate --ignore-recommendations-and-warnings "$RUNTIME/box.json"
+box compile --no-parallel --sort-compiled-files --config="$RUNTIME/box.json"
+box verify "$RUNTIME/dist/changelog"
 ```
 
-The generated Box stub was tested first: command discovery worked, but native
-`skill:install --dry-run` failed because its guarded donor inventory requires an
-absolute physical path. `stub.php` therefore extracts one private runtime with
-mode 0700, selects its bundled autoloader, invokes the existing entrypoint and
-removes the runtime at shutdown. It keeps the caller's CWD and arguments. There
-is no shared cache or consumer autoload discovery. Forced termination can leave
-that invocation's directory behind. The maintained disposable test checks actual
-skill bytes, fragments, an explicit project PHP template, Git, exit status and
-ordinary shutdown cleanup.
+This removes a real refresh cycle: Composer otherwise embeds the checkout SHA
+in its root metadata, so committing a compiled artifact changes the next build
+again. Stable staging, archive timestamps and sorted inputs let the refreshed
+commit converge. Box never enters the consumer or bundled dependency graph.
 
-## Composer and API boundary
+The generated Box stub was tested first: discovery worked, but native
+`skill:install` rejected its `phar://` donor because the guarded inventory needs
+a physical tree. The small `stub.php` extracts a private mode-0700 runtime,
+chooses its bundled autoloader, invokes the existing entrypoint and removes that
+runtime at shutdown. CWD and arguments are preserved. There is no shared cache.
+Forced termination can leave that invocation's directory behind.
 
-The existing package is deliberately `type: library`, exposes
-`FastForward\\Changelog\\` through PSR-4 and documents in-process services,
-callbacks and replaceable boundaries. Retain `require`, `autoload`, `src` and
-the current `bin/changelog`. Moving its runtime libraries to `require-dev` or
-export-ignoring source would break PHP consumers. A standalone CLI process has
-its own dependency universe; a PHAR loaded into another PHP process does not.
+Explicit project PHP templates execute in the bundled CLI environment. Register
+any project-specific autoload callback in that selected template. Applications
+that need their existing Composer loader/container should use the retained PHP
+API or source entrypoint instead of implicitly mixing dependency loaders.
 
-There are two distinct publication choices:
+## Version metadata and platform requirements
 
-1. Keep the library package and add a tested release PHAR. Composer source/API
-   consumers keep their existing graph. Pointing that package's `bin` to a
-   tracked compiled artifact can later select the standalone CLI, but does not
-   remove the library's dependency constraints.
-2. If a PHP-only Composer graph is required, define a distinct CLI package
-   identity in this same repository, or deliberately withdraw the existing PHP
-   API in a reviewed breaking release. This draft activates neither choice.
+A Composer proxy identifies its own autoloader path. The stub reads only the
+adjacent `composer/installed.json` data and selects this package's version and
+reference for the existing CLI configuration. It never includes the consumer's
+`installed.php` or autoloader. This preserves `--version` and skill receipt
+identity while executing bundled dependencies. Direct standalone invocation has
+the truthful embedded development build identity; it does not invent a release
+version from an ambient Git repository.
 
-A GitHub release asset alone does not enter Packagist's default tagged-tree ZIP.
-Before changing `composer.json`'s binary path, the selected publication flow must
-put the tested artifact in the exact tree delivered to Composer. The new native
-generated-file release contract can include an existing tracked artifact in the
-same signed version commit as history and fragment deletions. That publication
-flow must also bind the intended version and source SHA; this qualification's
-`dev-main` metadata is not an official release identity.
+The compressed executable requires PHP `^8.5`, Phar and zlib. The bundled graph
+also requires JSON, tokenizer and mbstring or its iconv-backed polyfill. Git
+operations need Git. Generated-file HTTP uploads require the supported cURL
+backend. The PHAR supplies neither an interpreter, extensions nor Git.
 
-## Docker and remaining qualification
+## Qualification and guarded refresh
 
-All six public Actions use the root Dockerfile, which packages PHP 8.5, Git,
-dependencies and the reviewed HTTP backend without requiring the consumer to
-install them. Preserve it. A later image can copy the qualified PHAR instead of
-installing the source dependency tree. Replacing Docker with a composite Action
-would change host/runtime provisioning and must be independently qualified.
+`repository-ci.yml` builds once and downloads the producer's exact artifact ID
+for PHP 8.5 on Linux, ARM and Windows. Source quality, integration/component
+checks and fresh Composer local/global packaging remain independent checks.
+Packaging can place the candidate only in its disposable archive copy, so a
+runtime PR can qualify new bytes before refreshing its tracked executable.
+The source entrypoint still exercises API/provider failures; the compiled CLI
+must ignore modifications to the package's external source and autoloader.
 
-Before publication, qualify Composer's local/global proxies against the selected
-real package manifest, archives and source preference; callback/autoload/API
-coexistence; all six automation operations and HTTP upload/streaming inside the
-actual packaged runtime; Windows invocation; minimal extension combinations;
-repeat-build byte identity and runtime metadata. The initial test is evidence
-for the listed local CLI paths, not proof of every privileged operation or an
-already available Packagist binary. No consumer needs CPX or a build step to run
-the resulting standalone artifact.
+Only after all source, runtime and packaging gates pass does CI expose the
+qualified producer artifact ID. On source PRs, a stale candidate becomes an
+update artifact and parity stays red until refresh and another successful run.
+Editorial PRs use the existing trusted impact classifier to skip the build.
 
-A disposable ZIP fixture with a deliberately different package identity and
-`bin: ["dist/changelog"]` passed real `composer require --prefer-dist` and
-`composer global require` in private Composer homes. Its package contained the
-PHAR, manifests, resources and license, with no external `src` or `vendor` tree;
-both generated proxies ran discovery and native skill preview. This proves the
-proxy/ZIP route, not that the existing library manifest or Packagist already
-ships this alternative. No global host installation was changed.
+On main, the qualified artifact is passed as data to the existing native version
+Action with `base-ref` equal to the immutable event SHA and `generated-files`
+selecting `dist/changelog`. History, fragment deletions and executable therefore
+share one signed native version commit/PR. An obsolete main run skips before
+writing; a later race is rejected by the existing planner/preflight. Explicit
+feedback validates the actual resulting head. The lifecycle facade keeps
+preparation disabled and uses the same generated-file policy for publication.
+The new `changelog/version-phar` branch distinguishes that policy from any older
+managed version branch without overwriting its evidence.
+
+`repository-phar-refresh.yml` follows the same data-only writer pattern as Code
+Standards. Its trusted workflow definition checks the original repository,
+source SHA, branch and still-open PR, downloads only the qualified update from
+that run, then uses the existing repository-scoped App/environment and the
+marketplace autocommit Action to replace `dist/changelog` only. It does not run
+consumer PHP, install dependencies, merge, tag or release. A changed/closed PR,
+source-head mismatch or failed qualification prevents refresh. No credentials,
+repository settings, protection rules or release channel are created here.
+
+## Distribution and Docker
+
+The tested executable is tracked in the same tree that will eventually be tagged,
+so default Packagist/Composer dist contains it. A GitHub release asset alone would
+not enter that ZIP. `--prefer-source` also receives the tracked artifact; it may
+fetch more Git history. Source/API files remain exported intentionally. Resources,
+canonical skills and dependency licenses are available both where required by
+the API and within the executable. Actual source and archive consumers are tested
+in disposable Composer homes; no real consumer is modified by qualification.
+
+All six public Docker Actions retain their existing Dockerfile and source CLI.
+It supplies PHP 8.5, Git and the reviewed HTTP runtime. A PHAR cannot replace that
+provisioning. Migrating the container or Actions is a separate measured change;
+this distribution does not activate a new publication channel or release.

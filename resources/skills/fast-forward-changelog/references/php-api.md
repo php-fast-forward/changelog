@@ -1,8 +1,8 @@
 # Optional PHP integration
 
 Load only when the application needs injected services instead of the CLI or
-GitHub lifecycle. CPX executes a separate tool; it does not provide an application
-autoloader. Inspect the application's Composer installation with
+GitHub lifecycle. The compiled CLI executes in a separate process; it does not
+provide an application autoloader. Inspect the application's Composer installation with
 `composer show fast-forward/changelog`, then read the PHP integration/API guide,
 manifest requirements and migration notes from that exact release tag.
 

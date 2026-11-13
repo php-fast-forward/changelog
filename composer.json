@@ -41,6 +41,8 @@
     ],
     "require": {
         "php": "^8.5",
+        "ext-phar": "*",
+        "ext-zlib": "*",
         "composer-runtime-api": "^2.0",
         "container-interop/service-provider": "^0.4.1",
         "fast-forward/clock": "^1.1",
@@ -93,7 +95,7 @@
         }
     },
     "bin": [
-        "bin/changelog"
+        "dist/changelog"
     ],
     "config": {
         "platform": {

@@ -77,8 +77,8 @@ used across Fast Forward PHP packages.
 - Read [the canonical skill](resources/skills/fast-forward-changelog/SKILL.md)
   before recording notes, validating contributions or maintaining releases here.
   It is also the internal procedure; no copy or host-discovery adapter is needed.
-- In this source checkout use `php bin/changelog` instead of the consumer's CPX
-  invocation or installed binary. Inspect `php bin/changelog list --raw` and command help
+- In this source checkout use `php bin/changelog` instead of the consumer's
+  compiled binary. Inspect `php bin/changelog list --raw` and command help
   before choosing flags. Validate pending notes with `php bin/changelog check`
   and compare a contribution with `php bin/changelog check --since=origin/main`.
 - Add one unique `.changelog/*.md` fragment per coherent observable change.
@@ -95,7 +95,7 @@ used across Fast Forward PHP packages.
   them to the summaries for review. This does not authorize publication or edits
   to already published releases; ordinary contribution rules remain in force.
 - Let the workflow prepare one managed version PR per configured release line;
-  this repository currently uses `main` and `changelog/version`. A prepared version
+  this repository currently uses `main` and `changelog/version-phar`. A prepared version
   and green checks are not publication authority: review its exact head, history
   and fragment deletions before any separately authorized merge/release.
 - Consumers maintaining parallel `1.x`/`2.x` lines MUST select the matching
@@ -121,7 +121,7 @@ used across Fast Forward PHP packages.
   The PHP updater and manual arbitrary tag/SHA dispatch are removed. See the
   self-changelog guide for the changed concurrency guarantees and recovery limits.
 - A channel update does not authorize another release. `@v0` can cross breaking
-  development minors; keep the skill/CPX constraint aligned with its declared
+  development minors; keep the skill/Composer constraint aligned with its declared
   product contract rather than assuming it has the same range.
 
 ## Design Notes

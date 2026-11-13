@@ -9,7 +9,7 @@ workflow consolidates them into `CHANGELOG.md`.
 | Task | Guide |
 | --- | --- |
 | Set up GitHub automation | [Guided project setup](project-installation.md) → [Reusable lifecycle](reusable-lifecycle.md) |
-| Run the local CLI through CPX | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
+| Run the compiled local CLI | [Local first use](adoption.md) → [Fragment and command reference](cli-fragments.md) |
 | Manage project instructions from GitHub | [Skill installation](skills.md) → [Composer lifecycle](composer-skills.md) |
 | Integrate the PHP services | [PHP API](adoption.md) → [Dependencies](dependencies.md) |
 
