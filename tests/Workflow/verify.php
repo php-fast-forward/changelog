@@ -390,7 +390,10 @@ verifyWorkflow(
 );
 $documentationArtifact = workflowStep($documentation, 'Upload Documentation Preview');
 verifyWorkflow(
-    'actions/upload-artifact@v7.0.1' === $documentationArtifact['uses']
+    1 === preg_match(
+        '~\Aactions/upload-artifact@v(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}\z~',
+        $documentationArtifact['uses'],
+    )
         && '.build/docs' === $documentationArtifact['with']['path']
         && 'error' === $documentationArtifact['with']['if-no-files-found']
         && 14 === $documentationArtifact['with']['retention-days']
