@@ -110,10 +110,10 @@ try {
         'The image must execute the packaged CLI directly from PATH.',
     );
     $runtime = $docker(['run', '--rm', '--network=none', '--entrypoint', 'php', $image, '-r',
-        'require "/usr/local/vendor/autoload.php"; echo json_encode(["php" => PHP_VERSION, "version" => Composer\\InstalledVersions::getPrettyVersion("fast-forward/changelog"), "src" => is_file("/usr/local/src/Console/Changelog.php"), "dev" => Composer\\InstalledVersions::isInstalled("phpunit/phpunit"), "composer" => is_file("/usr/local/bin/composer"), "script" => is_file("/usr/local/scripts/automation.php")]);']);
+        'Phar::loadPhar("/usr/local/bin/changelog", "image.phar"); echo json_encode(["php" => PHP_VERSION, "version" => getenv("COMPOSER_ROOT_VERSION"), "src" => is_file("phar://image.phar/src/Console/Changelog.php"), "dev" => is_dir("phar://image.phar/vendor/phpunit"), "composer" => is_file("/usr/local/bin/composer"), "script" => is_file("/usr/local/scripts/automation.php")]);']);
     $runtime = json_decode($runtime['stdout'], true, 512, JSON_THROW_ON_ERROR);
     verify(str_starts_with($runtime['php'], '8.5.'), 'The runtime must remain PHP 8.5.');
-    verify($runtime['src'], 'Source code must be installed under /usr/local/src.');
+    verify($runtime['src'], 'Source code must be bundled in the compiled executable.');
     if (null !== $expectedVersion) {
         verify(
             $expectedVersion === $runtime['version'],

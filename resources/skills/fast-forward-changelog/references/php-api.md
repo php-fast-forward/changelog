@@ -1,26 +1,21 @@
-# Optional PHP integration
+# Development-source PHP services
 
-Load only when the application needs injected services instead of the CLI or
-GitHub lifecycle. The compiled CLI executes in a separate process; it does not
-provide an application autoloader. Inspect the application's Composer installation with
-`composer show fast-forward/changelog`, then read the PHP integration/API guide,
-manifest requirements and migration notes from that exact release tag.
-
-Use the installed namespaces and method signatures. Keep the application's
-existing command loader, container precedence and secret mechanism. Expose only
-the needed domain services and inject external boundaries in application tests.
-Resolving a service or writing a fragment does not authorize commits or releases.
+The current Composer package distributes the compiled CLI and does not autoload
+PHP service classes into the consumer. Use `vendor/bin/changelog` in applications.
+The example below requires a source checkout after `composer install` with
+development dependencies. Older releases retain their own library contracts;
+inspect the selected release before adopting an integration.
 
 ## Bundled contribution example
 
 The complete [contribution program](../examples/contribution.php) illustrates the
-`0.1.0` PHP API: explicit consumer autoloader and target directory, provider
+`0.1.0` PHP API: explicit source development autoloader and target directory, provider
 composition, fragment creation and validation. It is an optional example, not
 the contract for every later release. Before using it with another version,
 compare its imports/signatures with that release's documented API or use the
 example shipped with the selected release.
 
-For a matching API, run it first in a disposable target:
+From a matching development checkout, run it first in a disposable target:
 
 ```sh
 php .agents/skills/fast-forward-changelog/examples/contribution.php ./vendor/autoload.php /absolute/project

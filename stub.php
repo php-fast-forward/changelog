@@ -22,6 +22,12 @@ if (isset($_composer_autoload_path) && is_string($_composer_autoload_path)) {
         }
     }
 }
+// Container builds may supply identity; Composer proxy metadata remains authoritative.
+if ([] === $pharPackageMetadata && false !== ($imageVersion = getenv(
+    'COMPOSER_ROOT_VERSION',
+)) && '' !== $imageVersion) {
+    $pharPackageMetadata = ['version' => $imageVersion, 'reference' => null];
+}
 $runtime = (realpath(sys_get_temp_dir()) ?: sys_get_temp_dir())
     . '/fast-forward-changelog-' . bin2hex(random_bytes(16));
 if (!mkdir($runtime, 0700)) {

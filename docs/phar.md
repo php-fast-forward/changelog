@@ -1,14 +1,14 @@
-# Compiled CLI and Composer PHP API
+# Compiled CLI distribution
 
 Composer's `bin` points to the ready-built `dist/changelog` PHAR. Local installs
 use `vendor/bin/changelog`; global installs use Composer's global binary path.
-The source entrypoint remains `php bin/changelog` for development and explicit
-PHP-library integration. Consumers do not compile the CLI.
+Consumers do not compile the CLI or install its runtime libraries. Only PHP and
+the declared extensions enter the consumer dependency graph.
 
-The library retains `require`, PSR-4 autoload, `src`, resources and its public PHP
-API. Its Composer dependency constraints still apply; a PHAR does not turn this
-library into a PHP-only dependency graph. A global Composer installation is the
-separate-graph option. Source is maintained once, while the generated artifact
+This replaces the former PHP library contract: service classes are no longer
+registered in the consumer autoloader. The source entrypoint `php bin/changelog`
+and service examples require a source checkout with development dependencies
+installed, through `autoload-dev`. Applications use the CLI process. Source is maintained once, while the generated artifact
 also contains copies of runtime libraries and resources.
 
 ## Official Box build
@@ -19,9 +19,11 @@ Code Standards. No project dependency, custom compiler or installer is added.
 Composer manifests and license; GZ compression measured about 3 MB versus
 12.7 MB uncompressed in the initial local comparison.
 
-The build job exports its exact source commit with `git archive`, installs the
-reviewed production lock in that Git-free staging root with plugins/scripts
-disabled and `COMPOSER_ROOT_VERSION=dev-main`, then runs official commands:
+`extra.phar.runtime-packages` selects runtime roots from the reviewed development
+lock. `php scripts/phar/prepare.php NEW_DIRECTORY` creates a Git-free staging
+manifest with its own runtime autoloader and security conflicts. Composer resolves
+only exact locked package records, with Packagist disabled, without plugins or
+scripts. PHPUnit, Rector, ECS and Box are not runtime roots. CI then runs:
 
 ```sh
 box validate --ignore-recommendations-and-warnings "$RUNTIME/box.json"
@@ -43,8 +45,8 @@ Forced termination can leave that invocation's directory behind.
 
 Explicit project PHP templates execute in the bundled CLI environment. Register
 any project-specific autoload callback in that selected template. Applications
-that need their existing Composer loader/container should use the retained PHP
-API or source entrypoint instead of implicitly mixing dependency loaders.
+must not implicitly mix the host's Composer loader into the compiled process.
+PHP service examples require this repository's development installation.
 
 ## Version metadata and platform requirements
 
@@ -68,7 +70,7 @@ for PHP 8.5 on Linux, ARM and Windows. Source quality, integration/component
 checks and fresh Composer local/global packaging remain independent checks.
 Packaging can place the candidate only in its disposable archive copy, so a
 runtime PR can qualify new bytes before refreshing its tracked executable.
-The source entrypoint still exercises API/provider failures; the compiled CLI
+Source service tests use the development graph; the compiled CLI
 must ignore modifications to the package's external source and autoloader.
 
 Only after all source, runtime and packaging gates pass does CI expose the
@@ -100,12 +102,13 @@ repository settings, protection rules or release channel are created here.
 The tested executable is tracked in the same tree that will eventually be tagged,
 so default Packagist/Composer dist contains it. A GitHub release asset alone would
 not enter that ZIP. `--prefer-source` also receives the tracked artifact; it may
-fetch more Git history. Source/API files remain exported intentionally. Resources,
-canonical skills and dependency licenses are available both where required by
-the API and within the executable. Actual source and archive consumers are tested
+fetch more Git history and includes the source tree; default dist omits `src` and
+`bin`. Complete resources and canonical skills remain outside and within the
+executable. Dependency licenses are bundled inside the PHAR; the package license
+is also exported outside it. Actual source and archive consumers are tested
 in disposable Composer homes; no real consumer is modified by qualification.
 
-All six public Docker Actions retain their existing Dockerfile and source CLI.
-It supplies PHP 8.5, Git and the reviewed HTTP runtime. A PHAR cannot replace that
-provisioning. Migrating the container or Actions is a separate measured change;
-this distribution does not activate a new publication channel or release.
+All six public Docker Actions keep their interfaces and shared Dockerfile, which
+now copies the same ready-built executable instead of resolving dependencies.
+The image still supplies PHP 8.5, Git and the reviewed HTTP runtime; the PHAR
+cannot replace that provisioning. No new publication channel is activated.

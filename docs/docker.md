@@ -80,8 +80,8 @@ CLI args and forwards its token through the environment. The `github-auth` and
 `setup-docker` composites are internal workflow helpers. Docker Actions run on
 Linux runners with Docker available, including self-hosted runners. GitHub builds
 from the Dockerfile's parent directory and mounts consumer data at `/github/workspace`;
-the CLI stays at `/usr/local/bin/changelog`, with source and dependencies in
-`/usr/local/src` and `/usr/local/vendor`. PHP 8.5 and Git are included; Composer,
+the ready-built PHAR stays at `/usr/local/bin/changelog`, containing its private
+source, runtime dependencies and resources. PHP 8.5 and Git are included; Composer,
 development tools and Action scripts are absent from the runtime image. The
 allowlisted build context excludes host credentials, Git state and vendor files.
 No shell entrypoint or action PHP script is
@@ -99,8 +99,8 @@ permissions, event validation, signatures and committed publication proof are
 still enforced by the existing services.
 
 The six public Action metadata files, shared Dockerfile, `.dockerignore`,
-`composer.json`, `composer.lock`, license, executable and complete `src/` tree
-remain in Git archives. The packaged skill and consumer workflow example remain
+`composer.json`, `composer.lock`, license and compiled executable remain in Git
+archives; source-only files are excluded from consumer archives. The packaged skill and consumer workflow example remain
 in `resources/`. Repository workflows, issue/PR templates, funding configuration
 and the two internal composites are excluded individually, along with development
 files. Keeping the root Docker build context is necessary for remote Action use.

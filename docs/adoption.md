@@ -9,7 +9,7 @@ checks those contributions and prepares one version PR that consolidates
 | Changelog automation on GitHub | [Guided project setup](project-installation.md) |
 | Local authoring and maintenance | Run the compiled CLI, below. |
 | Instructions for an agent | [Install the optional skill](skills.md) |
-| Services inside an existing PHP application | PHP API, below. |
+| Source service development | Development-only PHP services, below. |
 
 ## GitHub automation
 
@@ -137,19 +137,12 @@ localization and custom templates. [Publication](publication.md) documents exact
 commit evidence, retries and refusal of divergent tags or notes. The
 [CLI reference](cli-fragments.md) lists all commands and shared options.
 
-## PHP API
+## Development-only PHP services
 
-Use Composer only when the application needs the library's classes in its own
-dependency graph:
-
-```sh
-composer require "fast-forward/changelog:$CHANGELOG_VERSION"
-```
-
-PHP `^8.5` and the declared runtime dependencies apply. In particular, Console
-requires Symfony `^8.1`; an application restricted to Console 7.4 should use a
-separate global Composer installation or Docker for the standalone CLI.
-See [dependency compatibility](dependencies.md).
+The installed package is CLI-only and does not register its services in the
+consumer autoloader. This replaces the former library contract. Applications use
+`vendor/bin/changelog`. The examples below require `composer install` in a source
+checkout with development dependencies, rather than a consumer installation.
 
 CLI and automation share injected domain services. The provider has no
 constructor arguments. This composition excerpt shows default and optional
@@ -174,7 +167,7 @@ to add changelog behavior. Constructors perform no filesystem, Git, network,
 clock or credential observation. Configuration is explicit and captured lazily.
 
 The complete [contribution program](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/examples/contribution.php)
-loads the consumer autoloader, creates a fragment and checks its bytes. The
+loads the source development autoloader, creates a fragment and checks its bytes. The
 [PHP recipe](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/references/php-api.md)
 documents configuration keys, success, failure and collision behavior.
 The generated API reference supplies exact signatures; the domain guides explain

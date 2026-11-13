@@ -29,3 +29,9 @@
 /phpunit.xml.dist       export-ignore
 /phpdoc.dist.xml        export-ignore
 /README*.md              export-ignore
+
+# Consumer archives contain the ready CLI; source remains available via Git.
+/src/                   export-ignore
+/bin/                   export-ignore
+/stub.php               export-ignore
+/box.json               export-ignore

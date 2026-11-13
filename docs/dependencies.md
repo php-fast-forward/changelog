@@ -1,100 +1,50 @@
 # Requirements and dependency compatibility
 
-Use this guide for PHP integration requirements or a Composer resolution failure.
-For CLI-only use, the [compiled CLI](adoption.md) bundles its execution dependencies.
-A global Composer installation keeps the library package's declared constraints
-separate from the application's graph.
+Composer consumers receive the ready-built CLI, not its library dependency graph.
+`require` declares PHP `^8.5`, Phar, zlib, iconv, JSON and tokenizer. The bundled
+mbstring polyfill supplies that API where the native extension is unavailable.
+Git operations need Git; generated-file HTTP streaming needs the supported cURL
+backend. See [compiled distribution](phar.md) for the build and runtime contract.
 
-| Key requirement | Supported range / reason |
-| --- | --- |
-| PHP | `^8.5`, including when running the compiled CLI. |
-| Symfony Console | `^8.1`; interactive `Ask` uses its `constraints` argument. |
-| Other Symfony components | `^7.4 || ^8.0`; filesystem, discovery, HTTP, locks, process and validation boundaries. |
-| Fast Forward Container / Config | `~1.6.0` / `^1.7`; composition and optional explicit settings. |
+## Private runtime and source development
 
-The [manifest](https://github.com/php-fast-forward/changelog/blob/main/composer.json)
-contains all direct requirements. No local configuration file is needed for CLI use.
+All libraries are maintained in `require-dev`; `extra.phar.runtime-packages`
+selects the direct roots included in the PHAR. Composer resolves their closure
+from exact reviewed lock records in a Git-free staging root with Packagist,
+plugins and scripts disabled. The private runtime restores its own PSR-4 loader.
+PHPUnit, Prophecy, Rector, ECS and documentation tools are not runtime roots.
+PHP Parser is a genuine transitive runtime dependency and remains bundled.
 
-## Container bound
+The consumer package no longer exports PHP service classes. A source checkout
+with `composer install` exposes those services through `autoload-dev` for
+contributor tests and development examples. Existing library integrations must
+migrate to the CLI process or remain on their reviewed older library release.
+Source remains maintained once, while the artifact contains its compiled copy.
 
-Container 1.10 still retries a failed explicit concrete factory through
-autowiring: an independently injected throwing factory returned a healthy
-command instead of propagating the sentinel exception. The identical probe
-preserves that exception exactly once under Container 1.6. The compatibility
-bound therefore remains deliberate; a newer version number is insufficient.
-The provider remains registered by class name without
-constructor arguments. Its composition and optional configuration are exercised
-against the installed packages, alongside the CLI and domain suites.
+Symfony Console requires `^8.1` for native interactive constraints. The four
+security-sensitive filesystem, HTTP, validator and YAML components require
+`^7.4.23 || ^8.1.11`. Other components retain their declared compatible ranges.
+The manifest and lock are authoritative. Security advisory blocking remains on.
+Runtime staging retains the diagnostic conflicts for old PHP-DI,
+polyfill-php83 and translation-contracts; these exclusions do not constrain the
+consumer's independent libraries.
 
-The package does not support a complete Symfony 7.4 dependency graph: an
-application that requires Console 7.4 cannot install this library into the same
-Composer graph. Accepting the other 7.4 components does not remove the Console
-8.1 requirement. A [global Composer installation](adoption.md) uses a separate
-dependency graph while retaining the PHP `^8.5` requirement.
-The [self-contained Docker CLI](docker.md) supplies its own PHP runtime as well.
+Native PHP 8.5 tests qualify the locked source graph on Linux, ARM and Windows.
+Component jobs separately minimize compatible 7.4 and 8.1 families. Fresh
+Composer fixtures install the CLI without development dependencies, test local
+and global proxies and verify isolation from conflicting host constraints.
 
-## Compatible Dependency Bounds
+## Docker and reproducibility
 
-Three targeted conflicts preserve clean diagnostics on PHP 8.5:
+Docker copies the same ready-built executable and supplies PHP and Git. It does
+not resolve Composer dependencies or rebuild the PHAR. The existing
+`COMPOSER_ROOT_VERSION` build argument becomes container identity metadata;
+that value is not publication authority. Composer proxy metadata takes precedence.
 
-- `php-di/php-di <7.0.7` emits implicit-nullability diagnostics while constructing
-  the retained Container 1.6 composition. The 7.0.7 patch uses explicit nullable
-  constructor and resolver parameters.
-- `symfony/polyfill-php83 <1.30` declares implicitly nullable parameters. Loading
-  it emitted PHP deprecation output before publication fixture subprocesses
-  exchanged their structured results.
-- `symfony/translation-contracts <2.5.3 || >=3.0,<3.4.2` has the same PHP
-  diagnostic problem in its translator interface/trait. It appeared during
-  native interactive validation in the test suite.
-
-The permitted patched implementations use explicit nullable types. These
-exclusions describe the reproduced diagnostic failures; they do not claim that
-every application using those older packages fails. No error reporting is
-disabled to make the compatibility checks pass.
-
-The native PHP 8.5 matrix tests the maximum locked graph on Linux, ARM and
-Windows. Separate component jobs minimize all runtime requirements and their
-transitive dependencies for the maintained 7.4 and 8.1 component families while
-retaining the locked development test toolchain. Console retains its own 8.1
-minimum, and the development YAML parser retains its own compatible minimum. Those jobs
-run the unit and real Git/HTTP integration suites, CLI discovery and the complete
-provider-based contribution recipe; PHP and PHPUnit deprecations fail the jobs.
-The separate fresh Composer packaging jobs still resolve complete highest and
-lowest consumer runtime graphs without development dependencies.
-Symfony 8.0 reached end of support in July 2026; its components cannot satisfy
-the current security advisories. The 8.1 component job keeps Composer advisory
-blocking enabled and selects the first permitted patched graph (currently
-8.1.11 for filesystem, HTTP client and validator). The manifest's `^8.0` range
-already permits 8.1, so no runtime constraint or PHP-platform change is needed.
-See [Symfony 8.0 support](https://symfony.com/releases/8.0) and the upstream
-[filesystem](https://github.com/symfony/symfony/security/advisories/GHSA-6prc-h956-hxjq),
-[HTTP scoping](https://github.com/symfony/symfony/security/advisories/GHSA-gq53-v8w2-gjhj),
-[HTTP DNS](https://github.com/symfony/symfony/security/advisories/GHSA-c7hm-wqwp-f9v8)
-and [validator](https://github.com/symfony/symfony/security/advisories/GHSA-4qpf-57w4-m3wc) advisories.
-
-## Contributor builds and development tools
-
-`composer.lock` pins this repository's development and Docker image
-installation. Composer consumers resolve the version constraints in `require`
-with their own lock; the library's lock does not pin a consumer's dependency graph.
-The shared Dockerfile installs its trusted runtime with `--no-dev --no-scripts
---no-plugins` at build time. Actions execute the included CLI; consumer
-dependencies are not installed by an Action. Docker bases use explicit full
-version tags; external Actions use verified full version tags. Consumer
-references select a published version or reviewed full commit. Release image builds
-pass COMPOSER_ROOT_VERSION as a build argument.
-
-PHPUnit `^13.4`, Prophecy, Rector `^2.7`, ECS, PHP Parser and code-coverage
-tooling `^14.4` are development
-requirements. The separate documentation build uses the phpDocumentor shim and
-Fast Forward Bootstrap template as development dependencies; only that shim is
-permitted as a Composer plugin. The quality installation disables plugins. See
-[documentation tooling and its isolated dependency graph](documentation.md).
-Running the CLI needs none of these development tools and does not load DevTools.
-Use `composer show --locked` and the disposable packaging verification to inspect
-the effective graphs. There is no `version` field in the package manifest;
-published package versions derive from Git tags.
-
----
+Box is provisioned as an isolated CI tool, outside both the private runtime and
+consumer graph. All runtime licenses and complete resources are preserved in
+the executable; resources also remain outside it for skills and orchestration.
+The stable Git-free build avoids embedding its own subsequent refresh commit.
+Versions consumed through Composer derive from package metadata and Git tags.
 
 [Documentation index](index.md)

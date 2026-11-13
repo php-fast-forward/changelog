@@ -119,8 +119,9 @@ vendor/bin/changelog check --no-interaction
 ```
 
 The commands create one fragment and validate pending notes; no `init` or consumer
-build is needed. The package retains its PHP library dependencies and public API;
-use a global Composer installation if the application's dependency graph conflicts.
+build is needed. All runtime libraries are embedded and do not constrain the application's
+Composer graph. PHP services are development-source APIs, not exported by
+the consumer package.
 See [local setup, global installation and scripts](docs/adoption.md#run-the-compiled-cli) and the
 [command reference](docs/cli-fragments.md#public-cli). The [Docker CLI](docs/docker.md)
 is an alternative with its own PHP runtime.

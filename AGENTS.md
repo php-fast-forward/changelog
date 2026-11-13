@@ -34,7 +34,9 @@ used across Fast Forward PHP packages.
   Bash/JavaScript fixtures need Node.js only for development. Run actionlint on
   changed workflow contracts and verify the effective consumer jobs separately.
 - Keep `composer.lock` for reproducible contributor, CI and Docker CLI builds.
-  Library consumers resolve the constraints in `composer.json` independently.
+  Consumers receive the compiled CLI and PHP/extension requirements only. Runtime
+  library roots live in `require-dev` and `extra.phar.runtime-packages`; source
+  services use `autoload-dev`. Build staging restores the private runtime loader.
 - Keep unit tests under the namespace hierarchy of the source they exercise.
   Unit tests MUST replace filesystem, Git, processes, network, clock and host
   state with injected doubles. Integration and packaging fixtures are separate

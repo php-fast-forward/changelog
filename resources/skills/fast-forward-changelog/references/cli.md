@@ -20,8 +20,8 @@ vendor/bin/changelog help version
 ```
 
 The Composer proxy executes the ready-built PHAR and its bundled dependencies.
-The package still exposes its PHP API and declares library dependencies; use
-`composer global require` for a separate graph when necessary. The command
+Runtime libraries are embedded and do not constrain the application's Composer
+graph. Consumer installations expose the CLI, not PHP service classes. The command
 operates on application files and still needs its supported PHP runtime and Git.
 Preserve an existing reviewed installation instead of upgrading it incidentally.
 

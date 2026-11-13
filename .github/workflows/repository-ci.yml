@@ -49,9 +49,9 @@ jobs:
           COMPOSER_HOME: ${{ runner.temp }}/changelog-phar-composer-home
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/changelog-phar-composer-cache
         run: |
-          mkdir "$RUNNER_TEMP/changelog-runtime"
-          git archive HEAD | tar -xf - -C "$RUNNER_TEMP/changelog-runtime"
-          composer install --working-dir="$RUNNER_TEMP/changelog-runtime" --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative --no-interaction --no-progress
+          composer install --no-plugins --no-scripts --prefer-dist --no-interaction --no-progress
+          php scripts/phar/prepare.php "$RUNNER_TEMP/changelog-runtime"
+          composer dump-autoload --working-dir="$RUNNER_TEMP/changelog-runtime" --no-dev --no-plugins --no-scripts --classmap-authoritative
           composer check-platform-reqs --working-dir="$RUNNER_TEMP/changelog-runtime" --no-dev
           box validate --ignore-recommendations-and-warnings "$RUNNER_TEMP/changelog-runtime/box.json"
           box compile --no-parallel --sort-compiled-files --config="$RUNNER_TEMP/changelog-runtime/box.json"
@@ -97,7 +97,7 @@ jobs:
           extensions: curl, iconv, mbstring, phar, zlib
           tools: composer:v2
           coverage: none
-      - run: composer install --no-dev --no-plugins --no-scripts --prefer-dist --classmap-authoritative --no-interaction --no-progress
+      - run: composer install --no-plugins --no-scripts --prefer-dist --classmap-authoritative --no-interaction --no-progress
       - uses: actions/download-artifact@v8.0.2
         with:
           artifact-ids: ${{ needs.phar-build.outputs.artifact }}
@@ -164,6 +164,10 @@ jobs:
           artifact-ids: ${{ needs.phar-build.outputs.artifact }}
           merge-multiple: true
           path: ${{ runner.temp }}/phar
+
+      - name: Install Development Harness Dependencies
+        if: needs.impact.outputs.runtime == 'true'
+        run: composer install --no-plugins --no-scripts --prefer-dist --no-interaction --no-progress
 
       - name: Validate Fresh Local And Global Consumers
         if: needs.impact.outputs.runtime == 'true'

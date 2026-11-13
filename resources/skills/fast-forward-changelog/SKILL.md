@@ -2,7 +2,7 @@
 name: fast-forward-changelog
 description: Adopt Fast Forward Changelog's GitHub lifecycle, write and check independent fragments, review version PRs, and perform authorized release maintenance. Discover the selected release's documentation and CLI capabilities before choosing integration details.
 license: MIT
-compatibility: Requires access to the application repository and the selected release's documentation. Verify that release's runner or PHP requirements before execution. Local CLI examples use the Composer-installed compiled binary; PHP integration uses the application's Composer autoloader. GitHub credentials are needed only for authorized remote operations.
+compatibility: Requires access to the application repository and the selected release's documentation. Verify that release's runner or PHP requirements before execution. Local CLI examples use the Composer-installed compiled binary; PHP service examples require a source development checkout. GitHub credentials are needed only for authorized remote operations.
 metadata:
   author: php-fast-forward
   source: original
@@ -62,10 +62,9 @@ approval.
    ```
 
    Install only when authorized; preserve an existing reviewed project version.
-   Composer exposes the ready-built PHAR, without a consumer build. The library
-   retains its dependency constraints and public PHP API. If that graph conflicts
-   with the application, use a separate global Composer installation and its
-   `changelog` binary. Confirm prerequisites from the chosen release.
+   Composer exposes the ready-built PHAR, without a consumer build. All runtime libraries
+   are embedded, leaving only PHP/extensions in the consumer graph. PHP service
+   classes require a source development installation. Confirm prerequisites from the chosen release.
 
 Installing this skill installs instructions, independently of the runtime. The
 project route uses `llm/skills` with the `php-fast-forward/changelog` GitHub source:
