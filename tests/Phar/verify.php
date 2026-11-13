@@ -115,5 +115,6 @@ try {
     ), 'PHAR invocation left an extracted runtime behind.');
     echo 'PHAR PASS: ', $assertions, " assertions; bundled resources, real skill copy, fragments, explicit PHP template, Git, exits and shutdown cleanup.\n";
 } finally {
+    $filesystem->chmod($temporary, 0700, 0000, true);
     $filesystem->remove($temporary);
 }
