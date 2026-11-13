@@ -24,7 +24,7 @@ final class GitHubOutputWriterTest extends TestCase
         $result = ['status' => 'valid', 'version' => null, 'details' => ['text' => "<info>literal</info> café\nnext"]];
         self::assertSame(
             json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            new GitHubOutputWriter($filesystem)->write($result),
+            (new GitHubOutputWriter($filesystem))->write($result),
         );
     }
 
@@ -41,7 +41,7 @@ final class GitHubOutputWriterTest extends TestCase
             'result=' . $json . "\nstatus=updated\nversion=1.2.3\npull-request=16\nurl=https://example.test/pr/16\nhead-sha=head\nplan-id=plan\nfragments=2\nmaintenance=false\npath=.changelog/fix.md\ntag=v1.2.3\nsha=commit\n",
             true,
         );
-        self::assertSame($json, new GitHubOutputWriter($filesystem, '/runner/output')->write($result));
+        self::assertSame($json, (new GitHubOutputWriter($filesystem, '/runner/output'))->write($result));
     }
 
     /** True and non-integral numeric outputs have deterministic scalar representations. */
@@ -53,7 +53,7 @@ final class GitHubOutputWriterTest extends TestCase
             "result={\"maintenance\":true,\"fragments\":0.5}\nfragments=0.5\nmaintenance=true\n",
             true,
         );
-        new GitHubOutputWriter($filesystem, '/runner/output')->write(['maintenance' => true, 'fragments' => 0.5]);
+        (new GitHubOutputWriter($filesystem, '/runner/output'))->write(['maintenance' => true, 'fragments' => 0.5]);
     }
 
     /** Scalar injection and complex output values fail before any partial file write. */
@@ -63,7 +63,7 @@ final class GitHubOutputWriterTest extends TestCase
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::never())->method('appendToFile');
         $this->expectException(InvalidArgumentException::class);
-        new GitHubOutputWriter($filesystem, '/runner/output')->write(['status' => 'valid', 'url' => $value]);
+        (new GitHubOutputWriter($filesystem, '/runner/output'))->write(['status' => 'valid', 'url' => $value]);
     }
 
     /** Covers every forbidden line separator and a non-scalar known output. */
@@ -78,7 +78,7 @@ final class GitHubOutputWriterTest extends TestCase
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::never())->method('appendToFile');
         $this->expectException(InvalidArgumentException::class);
-        new GitHubOutputWriter($filesystem, '')->write(['status' => 'valid']);
+        (new GitHubOutputWriter($filesystem, ''))->write(['status' => 'valid']);
     }
 
     /** Invalid JSON content cannot produce partial GitHub outputs. */
@@ -87,7 +87,7 @@ final class GitHubOutputWriterTest extends TestCase
         $filesystem = $this->createMock(Filesystem::class);
         $filesystem->expects(self::never())->method('appendToFile');
         $this->expectException(JsonException::class);
-        new GitHubOutputWriter($filesystem, '/runner/output')->write(['status' => "\xff"]);
+        (new GitHubOutputWriter($filesystem, '/runner/output'))->write(['status' => "\xff"]);
     }
 
     /** Failed output persistence propagates instead of reporting successful command completion. */
@@ -98,6 +98,6 @@ final class GitHubOutputWriterTest extends TestCase
             new RuntimeException('Output unavailable.'),
         );
         $this->expectException(RuntimeException::class);
-        new GitHubOutputWriter($filesystem, '/runner/output')->write(['status' => 'valid']);
+        (new GitHubOutputWriter($filesystem, '/runner/output'))->write(['status' => 'valid']);
     }
 }

@@ -3,7 +3,7 @@
 /bin/changelog          text eol=lf
 /dist/changelog         binary
 
-# Keep the six public Docker Actions and their root build context in GitHub dist archives.
+# Keep the six public composite Actions and their compiled runtime in dist archives.
 /.github/workflows      export-ignore
 /.github/dependabot.yml export-ignore
 /.github/scripts        export-ignore
@@ -11,7 +11,6 @@
 /.github/FUNDING.yml    export-ignore
 /.github/PULL_REQUEST_TEMPLATE.md export-ignore
 /.github/actions/github-auth export-ignore
-/.github/actions/setup-docker export-ignore
 /.agents/               export-ignore
 /.claude/               export-ignore
 /docs/                  export-ignore
@@ -33,5 +32,4 @@
 # Consumer archives contain the ready CLI; source remains available via Git.
 /src/                   export-ignore
 /bin/                   export-ignore
-/stub.php               export-ignore
 /box.json               export-ignore

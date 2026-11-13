@@ -14,7 +14,7 @@ final class ProcessFactoryTest extends TestCase
 {
     public function testCreatesAnUnstartedConsumerProcessWithCredentialInheritanceDisabled(): void
     {
-        $process = new ProcessFactory('/fixture/project')->create(['git', 'status']);
+        $process = (new ProcessFactory('/fixture/project'))->create(['git', 'status']);
         self::assertInstanceOf(Process::class, $process);
         self::assertSame('/fixture/project', $process->getWorkingDirectory());
         self::assertSame(60.0, $process->getTimeout());

@@ -5,7 +5,7 @@ skill through llm/skills and its GitHub source. It previews the complete caller
 and project setup changes before asking to apply them. Existing
 workflows, their selected versions and locally edited skills are preserved.
 
-Use PHP `^8.5`, Git and the Composer-installed compiled CLI from the
+Use PHP `^8.3`, Git and the Composer-installed compiled CLI from the
 [adoption guide](adoption.md#run-the-compiled-cli). Run from an existing Git
 repository. A global Composer installation keeps the library's dependency
 constraints outside the application. Optional skill setup also

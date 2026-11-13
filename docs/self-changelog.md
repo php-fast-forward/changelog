@@ -36,10 +36,10 @@ verified human maintenance policy described in [policies](policies.md).
 | Contribution PR | Read-only contribution check, exact-head status and sticky feedback from trusted code. |
 | Dependabot PR | A verified dependency fragment, followed by validation of the resulting head. |
 | Push to `main` | Qualify source and one canonical PHAR, then create or refresh `changelog/version-phar` with those exact bytes. |
-| Merge of that version PR | Verify the approved merge and publish its tag/release. Successful publication starts image publication; major-branch promotion consumes a separate release event. |
+| Merge of that version PR | Verify the approved merge and publish its tag/release. Major-branch promotion consumes a separate release event. |
 
-The [automation map](automation-map.md) lists the repository CI, documentation,
-lifecycle and image jobs. The lifecycle uses the public Docker Actions;
+The [automation map](automation-map.md) lists the repository CI, documentation
+and lifecycle jobs. The lifecycle uses the public composite Actions;
 consumer dependencies and PR-head PHP never run in privileged jobs.
 Version and publication share a concurrency group and do not cancel each other.
 
@@ -68,7 +68,7 @@ Local `status` and `version --dry-run` can preview a release. Applying a version
 or history maintenance locally is an explicit maintainer operation, separate
 from an ordinary contribution. Follow [transactions and recovery](release-receipts.md)
 and [publication](publication.md); never bypass checks to force a stale plan.
-For image-only failures after a published release, use [Docker recovery](docker.md).
+For compiled-runtime failures, inspect the exact artifact and source revision as described in [PHAR distribution](phar.md).
 
 ## Released major branches and latest
 

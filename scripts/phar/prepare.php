@@ -37,7 +37,7 @@ foreach (['src', 'resources', 'bin'] as $path) {
     }
     $filesystem->mirror($root . '/' . $path, $runtime . '/' . $path);
 }
-foreach (['LICENSE', 'box.json', 'stub.php'] as $path) {
+foreach (['LICENSE', 'box.json', 'scripts/phar/stub.php'] as $path) {
     $filesystem->copy($root . '/' . $path, $runtime . '/' . $path);
 }
 $source = json_decode(file_get_contents($root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);

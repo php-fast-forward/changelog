@@ -92,12 +92,12 @@ try {
     );
     $process = new Symfony\Component\Process\Process(['git', 'init', '-q', $temporary], env: $environment);
     $process->mustRun();
-    new Symfony\Component\Process\Process(['git', '-C', $temporary, 'add', '.'], env: $environment)->mustRun();
-    new Symfony\Component\Process\Process([
+    (new Symfony\Component\Process\Process(['git', '-C', $temporary, 'add', '.'], env: $environment))->mustRun();
+    (new Symfony\Component\Process\Process([
         'git', '-C', $temporary, '-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
         '-c', 'user.email=fixture@example.invalid', '-c', 'core.hooksPath=' . $temporary . '/no-hooks',
         'commit', '-qm', 'Disposable fixture',
-    ], env: $environment)->mustRun();
+    ], env: $environment))->mustRun();
     $run([
         'version',
         '--dry-run',

@@ -33,7 +33,7 @@ final class MutationCommandsTest extends TestCase
         $input = $this->mutation(true, false);
         $output = $this->createStub(OutputInterface::class);
         $runner->expects(self::once())->method('run')->with($input, $operation, $output)->willReturn(2);
-        self::assertSame(2, new $class($runner)($input, $output));
+        self::assertSame(2, (new $class($runner))($input, $output));
     }
 
     public static function commands(): array

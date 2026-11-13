@@ -1,6 +1,6 @@
 # Authoring and checking fragments
 
-Use PHP `^8.5` and the Composer-installed PHAR as described in [local setup](adoption.md).
+Use PHP `^8.3` and the Composer-installed PHAR as described in [local setup](adoption.md).
 Run from the consumer project, without initialization or a local configuration file:
 
 ```sh
@@ -161,7 +161,7 @@ Use `help <command>` for command-specific help.
 | `publish` | `publish --target-sha=<approved-full-sha> --repository=owner/repo --dry-run` | Validate committed evidence and inspect remote state before publication. |
 
 The `github` entrypoint belongs to the Actions' machine-operation contract;
-see [Docker and automation](docker.md). Ordinary local tasks use the commands above.
+see [compiled distribution and Actions](phar.md). Ordinary local tasks use the commands above.
 
 ### Shared settings
 

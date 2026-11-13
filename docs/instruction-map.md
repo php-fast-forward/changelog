@@ -24,15 +24,15 @@ automatic native-agent discovery; agents follow the explicit root link.
 | Retire | `CLAUDE.md`, `.github/copilot-instructions.md`, old Codex/Claude skill links | Remove unused host-specific distribution adapters; no automatic native-host support claim. |
 | Retire | `scripts/skills-sync.mjs`, its test and guide | Link synchronization is no longer a repository responsibility; no replacement generator is needed. |
 | Retain | `scripts/{lint,php-files,phpdoc,verify-quality}.php` | Actual development gates; excluded from consumer archives and runtime images. |
-| Retain/update | `.github/actions/{check,pr-status,dependabot,version,publish,history}` | Stable public Docker Action paths; metadata and root Docker context remain in shared source archives. |
-| Retain | `.github/actions/{github-auth,setup-docker}` | Trusted internal helpers; excluded from consumer archives and not public integration contracts. |
+| Retain/update | `.github/actions/{check,pr-status,dependabot,version,publish,history}` | Stable public composite Action paths; metadata and compiled PHAR remain in shared archives. |
+| Retain | `.github/actions/github-auth` | Trusted internal authentication helper; not a public integration contract. |
 | Add | `.github/workflows/repository-impact.yml`, `.github/scripts/ci-impact.{mjs,md}` | Read-only internal validation classifier and its operational guide; preserves required check identities and contribution validation. |
 | Retain/update | `.github/workflows/changelog*.yml` | Seven stable public reusable contracts, kept directly in GitHub's required directory; excluded from Composer archives. |
-| Consolidate/rename | `.github/workflows/repository-{ci,changelog,documentation,image}.yml` | Internal quality, one lifecycle caller, read-only documentation builds and product image publication; excluded from consumer archives. |
+| Consolidate/rename | `.github/workflows/repository-{ci,changelog,documentation}.yml` | Internal quality, one lifecycle caller and read-only documentation builds; excluded from consumer archives. |
 | Add | `resources/workflows/{changelog.yml,README.md}` | Copyable consumer caller and instructions; not executable here and not a second reusable implementation. |
 | Retain/update | `docs/automation-map.md` | Navigation separating stable public interfaces, repository-prefixed workflows, internal helpers and copyable resources. |
 | Retain/update | `docs/workflow-reference.md` | Complete public parameters, defaults, secrets, outputs and permissions under the same root authority; no new instruction scope. |
-| Retain | `Dockerfile`, `tests/Container` | Packaged CLI and isolated image proof; no real publication authority. |
+| Retire | `Dockerfile`, `tests/Container`, `.github/workflows/repository-image.yml`, `.github/actions/setup-docker` | Compiled CLI and composite Action checks replace image builds and publication. |
 | Retain/update | Adoption, skill and Composer guides | Explicit installation and distribution contracts, separate from activation and release authority. |
 | Retain/update | `src/Installation/`, `docs/project-installation.md` | Explicit project inspection, verified workflow rendering and llm/skills project setup under the same root; existing automation, Composer policy and foreign ownership are preserved. |
 
@@ -128,7 +128,7 @@ checks do not establish native host activation.
 
 For the automation reorganization, replace the four internal lifecycle callers
 together and preserve the seven public addresses. Run `composer test:workflows`,
-actionlint, packaging and native checks; verify the remote Docker Action as well
+actionlint, packaging and native checks; verify the composite Action as well
 as the local checkout route. If nesting changes a required check context,
 migrate only that protection entry after the new context passes. Restore its
 previous mapping when rolling back. Public Action archive metadata remains a

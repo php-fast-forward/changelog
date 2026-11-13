@@ -21,9 +21,10 @@ existing integrations and emits only non-default reusable inputs.
 For manual setup, copy the [consumer workflow](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/changelog.yml)
 to `.github/workflows/changelog.yml`. The [README](https://github.com/php-fast-forward/changelog/blob/main/README.md)
 shows the complete caller; [setup and permissions](https://github.com/php-fast-forward/changelog/blob/main/resources/workflows/README.md)
-explain its event filters and credentials. The jobs need Linux, Docker, Bash and
-Git. Read those files at the selected published tag before copying them. The jobs
-do not install consumer PHP, Composer dependencies or Node.js.
+explain its event filters and credentials. The jobs need Linux, Bash and
+Git. Read those files at the selected published tag before copying them. Actions
+provision their PHP runtime without installing the consumer's Composer dependencies
+or Node.js.
 
 Publication defaults to enabled after the reviewed version PR is merged.
 Installation itself publishes nothing.
@@ -49,10 +50,11 @@ Local CLI calls may instead select the package's working directory.
 
 ## Run the compiled CLI
 
-Use PHP `^8.5` with Phar and zlib, Git and Composer. The package ships a ready-built PHAR; installing
+Use PHP `^8.3` with Phar and zlib, Git and Composer. The package ships a ready-built PHAR; installing
 it requires no build tool. Its Composer proxy executes the bundled CLI rather
-than loading the application's dependencies. The package also retains its PHP
-API and Composer dependency constraints; this is not a PHP-only dependency graph.
+than loading the application's dependencies. Runtime libraries are embedded;
+only PHP and required extensions constrain the consumer graph. PHP service
+classes require a source development checkout.
 
 Select the application's reviewed release, or a published stable version for new
 adoption, and set `CHANGELOG_VERSION` to that numeric version. From the project
@@ -95,17 +97,17 @@ own valid fragments and preserve central history and inherited fragments.
 PR, issue and author metadata are optional; no follow-up edit is required just
 because a PR has been opened.
 
-For a separate dependency graph, install the same selected release globally:
+For a global command, install the same selected release:
 
 ```sh
 composer global require "fast-forward/changelog:$CHANGELOG_VERSION"
 changelog check --no-interaction
 ```
 
-Ensure Composer's global binary directory is on `PATH`. PHP `^8.5` and the
-artifact's required extensions remain necessary. The [Docker CLI](docker.md)
-supplies its own runtime. For a project installation, optional Composer scripts
-can keep the invocation short:
+Ensure Composer's global binary directory is on `PATH`. The selected release's
+PHP version and required extensions remain necessary. GitHub Actions provision
+PHP and execute the same compiled CLI without a container. For a project
+installation, optional Composer scripts can keep the invocation short:
 
 ```json
 {

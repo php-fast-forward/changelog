@@ -39,7 +39,7 @@ jobs:
           persist-credentials: false
       - uses: shivammathur/setup-php@2.40.0
         with:
-          php-version: '8.5'
+          php-version: '8.3'
           extensions: curl, iconv, mbstring, phar, zlib
           tools: composer:v2, box:4.7.1
           coverage: none
@@ -85,7 +85,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+        include:
+          - {os: ubuntu-latest, php: '8.3'}
+          - {os: ubuntu-24.04-arm, php: '8.3'}
+          - {os: windows-latest, php: '8.3'}
+          - {os: ubuntu-latest, php: '8.4'}
+          - {os: ubuntu-latest, php: '8.5'}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -93,7 +98,7 @@ jobs:
           persist-credentials: false
       - uses: shivammathur/setup-php@2.40.0
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php }}
           extensions: curl, iconv, mbstring, phar, zlib
           tools: composer:v2
           coverage: none
@@ -105,6 +110,49 @@ jobs:
           path: ${{ runner.temp }}/phar
       - name: Qualify the same compiled bytes on every supported platform
         run: php tests/Phar/verify.php "${{ runner.temp }}/phar/changelog"
+
+      - name: Prepare A Disposable Composite Action Project
+        shell: bash
+        env:
+          FF_ACTION_PROJECT: ${{ runner.temp }}/changelog-action-fixture
+          FF_ACTION_CANDIDATE: ${{ runner.temp }}/phar/changelog
+        run: |
+          php -r 'mkdir(getenv("FF_ACTION_PROJECT"), 0700, true); file_put_contents(getenv("FF_ACTION_PROJECT") . "/CHANGELOG.md", "# Changelog\n\n## [0.1.0] - 2026-01-01\n\n### Added\n\n- Fixture.\n"); copy(getenv("FF_ACTION_CANDIDATE"), "dist/changelog");'
+          git -C "$FF_ACTION_PROJECT" init --initial-branch=main
+          git -C "$FF_ACTION_PROJECT" -c user.name=Fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=absent-hooks commit --allow-empty -m 'Disposable action fixture'
+
+      - name: Verify Composite Action Invocation And Runner Outputs
+        id: composite-action
+        uses: ./.github/actions/history
+        with:
+          working-directory: ${{ runner.temp }}/changelog-action-fixture
+          operation: format
+          dry-run: 'true'
+          source: tags
+
+      - name: Verify The Composite Action Output Contract
+        env:
+          FF_ACTION_RESULT: ${{ steps.composite-action.outputs.result }}
+          FF_ACTION_STATUS: ${{ steps.composite-action.outputs.status }}
+        run: |
+          # PHP evaluates these variables; shell quoting is intentional.
+          # shellcheck disable=SC2016
+          php -r '
+              $result = json_decode(
+                  getenv("FF_ACTION_RESULT"),
+                  true,
+                  512,
+                  JSON_THROW_ON_ERROR,
+              );
+
+              if (
+                  $result["status"] !== "dry-run"
+                  || getenv("FF_ACTION_STATUS") !== "dry-run"
+              ) {
+                  exit(1);
+              }
+          '
+
 
   packaging:
     needs: [impact, phar-build]
@@ -153,7 +201,7 @@ jobs:
         if: needs.impact.outputs.runtime == 'true'
         uses: shivammathur/setup-php@2.40.0
         with:
-          php-version: '8.5'
+          php-version: '8.3'
           coverage: none
           tools: composer:v2
 
@@ -187,7 +235,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        components: ['7.4', '8.1']
+        components: ['7.4']
 
     steps:
       - name: Require A Complete Validation Decision
@@ -216,7 +264,7 @@ jobs:
         if: needs.impact.outputs.runtime == 'true'
         uses: shivammathur/setup-php@2.40.0
         with:
-          php-version: '8.5'
+          php-version: '8.3'
           coverage: none
           tools: composer:v2
 
@@ -232,7 +280,7 @@ jobs:
           SYMFONY_COMPONENT_VERSION: ${{ matrix.components }}
         run: |
           # Minimize runtime requirements and their dependencies; retain locked test tools.
-          # Console retains its separate 8.1 minimum for native Ask constraints.
+          # The private PHP 8.3 runtime targets the patched Symfony 7.4 family.
           composer update \
             container-interop/service-provider \
             fast-forward/clock \
@@ -307,27 +355,43 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - php: '8.3'
+            os: ubuntu-latest
+            check: PHP 8.3 (ubuntu-latest)
+            shard: all
+            integration-arguments: ''
+          - php: '8.4'
+            os: ubuntu-latest
+            check: PHP 8.4 (ubuntu-latest)
+            shard: all
+            integration-arguments: ''
+          - php: '8.5'
+            os: ubuntu-latest
             check: PHP 8.5 (ubuntu-latest)
             shard: all
             integration-arguments: ''
-          - os: ubuntu-24.04-arm
+          - php: '8.5'
+            os: ubuntu-24.04-arm
             check: PHP 8.5 (ubuntu-24.04-arm)
             shard: all
             integration-arguments: ''
-          - os: windows-latest
+          - php: '8.5'
+            os: windows-latest
             check: Windows Integration (references)
             shard: references
             integration-arguments: --group windows-references --exclude-filter=.#2
-          - os: windows-latest
+          - php: '8.5'
+            os: windows-latest
             check: Windows Integration (stacked references)
             shard: stacked-references
             integration-arguments: --group windows-references --filter=.#2
-          - os: windows-latest
+          - php: '8.5'
+            os: windows-latest
             check: Windows Integration (provenance)
             shard: provenance
             integration-arguments: --group windows-provenance
-          - os: windows-latest
+          - php: '8.5'
+            os: windows-latest
             check: Windows Integration (publication)
             shard: publication
             integration-arguments: --exclude-group windows-references --exclude-group windows-provenance
@@ -359,8 +423,8 @@ jobs:
         if: needs.impact.outputs.runtime == 'true'
         uses: shivammathur/setup-php@2.40.0
         with:
-          php-version: '8.5'
-          coverage: ${{ matrix.os == 'ubuntu-latest' && 'xdebug' || 'none' }}
+          php-version: ${{ matrix.php }}
+          coverage: ${{ (matrix.os == 'ubuntu-latest' && matrix.php == '8.5') && 'xdebug' || 'none' }}
           tools: composer:v2
 
       - name: Isolate Composer State
@@ -385,13 +449,13 @@ jobs:
           --no-progress
 
       - name: Run The Package Quality And Unit Coverage Gates
-        if: needs.impact.outputs.runtime == 'true' && matrix.os == 'ubuntu-latest'
+        if: needs.impact.outputs.runtime == 'true' && (matrix.os == 'ubuntu-latest' && matrix.php == '8.5')
         run: composer check
         env:
           XDEBUG_MODE: coverage
 
       - name: Test Unit Contracts On This Platform
-        if: needs.impact.outputs.runtime == 'true' && matrix.os != 'ubuntu-latest'
+        if: needs.impact.outputs.runtime == 'true' && (matrix.os != 'ubuntu-latest' || matrix.php != '8.5')
         run: vendor/bin/phpunit --testsuite unit --no-coverage
 
       - name: Smoke Test The CLI
@@ -431,65 +495,9 @@ jobs:
         if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
         run: composer test:workflows
 
-      - name: Prepare The Runner-Local Base Image Cache
-        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
-        uses: ./.github/actions/setup-docker
-
-      - name: Build The Packaged CLI Image
-        # Base images are preloaded by the preceding runner-local cache step.
-        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
-        run: docker build --progress=plain -t fast-forward-changelog:ci .
-
-      - name: Verify The Actual Container CLI In Disposable Consumers
-        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
-        run: php tests/Container/verify.php fast-forward-changelog:ci
-
-      - name: Verify The Composer Root Version Build Argument
-        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
-        run: |
-          docker build \
-            --build-arg COMPOSER_ROOT_VERSION=1.2.3 \
-            --tag fast-forward-changelog:version-fixture \
-            .
-
-          php tests/Container/verify.php fast-forward-changelog:version-fixture 1.2.3
-
-      - name: Verify Docker Action Invocation And Runner Outputs
-        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
-        id: docker-action
-        uses: ./.github/actions/history
-        with:
-          operation: format
-          dry-run: 'true'
-          source: tags
-
-      - name: Verify The Docker Action Output Contract
-        if: needs.impact.outputs.runtime == 'true' && startsWith(matrix.os, 'ubuntu-')
-        env:
-          FF_ACTION_RESULT: ${{ steps.docker-action.outputs.result }}
-          FF_ACTION_STATUS: ${{ steps.docker-action.outputs.status }}
-        run: |
-          # PHP evaluates these variables; shell quoting is intentional.
-          # shellcheck disable=SC2016
-          php -r '
-              $result = json_decode(
-                  getenv("FF_ACTION_RESULT"),
-                  true,
-                  512,
-                  JSON_THROW_ON_ERROR,
-              );
-
-              if (
-                  $result["status"] !== "dry-run"
-                  || getenv("FF_ACTION_STATUS") !== "dry-run"
-              ) {
-                  exit(1);
-              }
-          '
-
       - name: Upload Native Line Coverage From This Run
         if: >-
-          ${{ needs.impact.outputs.runtime == 'true' && success() && matrix.os == 'ubuntu-latest' &&
+          ${{ needs.impact.outputs.runtime == 'true' && success() && (matrix.os == 'ubuntu-latest' && matrix.php == '8.5') &&
               ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
                (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
         uses: actions/upload-artifact@v7.0.2

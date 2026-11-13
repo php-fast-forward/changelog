@@ -2,8 +2,8 @@
 
 These four PHP files are internal development gates. Consumers run
 the Composer binary; contributors use `php bin/changelog` after installing dev
-dependencies. Docker actions execute the compiled CLI.
-The production image does not copy this directory, and source archives exclude
+dependencies. Composite Actions execute the compiled CLI.
+Consumer archives exclude
 it.
 
 | File | Actual callers | Responsibility |

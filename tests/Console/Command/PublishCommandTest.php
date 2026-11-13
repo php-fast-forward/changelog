@@ -61,7 +61,7 @@ final class PublishCommandTest extends TestCase
         );
         self::assertSame(
             0,
-            new PublishCommand($factory, $git, $publication)($this->settings(), $output, $target, $dry),
+            (new PublishCommand($factory, $git, $publication))($this->settings(), $output, $target, $dry),
         );
     }
 
@@ -102,7 +102,7 @@ final class PublishCommandTest extends TestCase
         $publication->expects(self::never())->method('publish');
         self::assertSame(
             2,
-            new PublishCommand($factory, $git, $publication)($this->settings(), $this->createStub(
+            (new PublishCommand($factory, $git, $publication))($this->settings(), $this->createStub(
                 OutputInterface::class,
             ), '--all'),
         );
@@ -123,6 +123,6 @@ final class PublishCommandTest extends TestCase
         $error = $this->createMock(OutputInterface::class);
         $output->expects(self::once())->method('getErrorOutput')->willReturn($error);
         $error->expects(self::once())->method('writeln')->with('<error>conflicting tag</error>');
-        self::assertSame(1, new PublishCommand($factory, $git, $publication)($this->settings(), $output));
+        self::assertSame(1, (new PublishCommand($factory, $git, $publication))($this->settings(), $output));
     }
 }

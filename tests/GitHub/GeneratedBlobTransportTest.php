@@ -50,7 +50,7 @@ final class GeneratedBlobTransportTest extends TestCase
 
             return new MockResponse(json_encode(['sha' => $sha], JSON_THROW_ON_ERROR));
         });
-        self::assertSame($sha, new GitHubClient($http, 'synthetic-token')->createBlob('owner/project', $bytes));
+        self::assertSame($sha, (new GitHubClient($http, 'synthetic-token'))->createBlob('owner/project', $bytes));
     }
 
     /** NativeHttpClient's eager request-body buffering is refused before request or body construction. */
@@ -60,13 +60,16 @@ final class GeneratedBlobTransportTest extends TestCase
             self::fail('A refused native upload must never start a request.');
         }]);
         $this->expectExceptionMessage('NativeHttpClient buffers request bodies');
-        new GitHubClient($http)->createBlob('owner/project', 'binary');
+        (new GitHubClient($http))->createBlob('owner/project', 'binary');
     }
     /** An unrelated returned object cannot become release evidence. */
     public function testUploadRejectsWrongObject(): void
     {
         $this->expectExceptionMessage('exact generated blob identity');
-        new GitHubClient(new MockHttpClient(new MockResponse('{"sha":"wrong"}')))->createBlob('owner/project', 'bytes');
+        (new GitHubClient(new MockHttpClient(new MockResponse('{"sha":"wrong"}'))))->createBlob(
+            'owner/project',
+            'bytes',
+        );
     }
 
     /** Invalid identities and oversized payloads fail before any network effect. */
@@ -79,7 +82,7 @@ final class GeneratedBlobTransportTest extends TestCase
         $http->expects(self::never())->method('request');
         $bytes = $oversized ? str_repeat('x', 67_108_865) : '';
         $this->expectException(RuntimeException::class);
-        new GitHubClient($http)->createBlob($repository, $bytes);
+        (new GitHubClient($http))->createBlob($repository, $bytes);
     }
 
     /** Raw bytes are bounded by independent tree size and bound to the Git object, including empty blobs. */
@@ -102,7 +105,7 @@ final class GeneratedBlobTransportTest extends TestCase
         });
         self::assertSame(
             hash('sha256', $bytes),
-            new GitHubClient($http)->blobDigest('owner/project', $sha, strlen($bytes)),
+            (new GitHubClient($http))->blobDigest('owner/project', $sha, strlen($bytes)),
         );
     }
 
@@ -117,7 +120,7 @@ final class GeneratedBlobTransportTest extends TestCase
         $http = $this->createMock(HttpClientInterface::class);
         $http->expects(self::never())->method('request');
         $this->expectException(RuntimeException::class);
-        new GitHubClient($http)->blobDigest($repository, $sha, $size);
+        (new GitHubClient($http))->blobDigest($repository, $sha, $size);
     }
 
     /** HTTP errors, truncated responses, identity mismatch and excess bytes never validate. */
@@ -129,7 +132,7 @@ final class GeneratedBlobTransportTest extends TestCase
     {
         $sha = hash('sha1', "blob 3\0abc");
         $this->expectException(RuntimeException::class);
-        new GitHubClient(new MockHttpClient(new MockResponse($bytes, ['http_code' => $status])))->blobDigest(
+        (new GitHubClient(new MockHttpClient(new MockResponse($bytes, ['http_code' => $status]))))->blobDigest(
             'owner/project',
             $sha,
             $size,
@@ -143,6 +146,6 @@ final class GeneratedBlobTransportTest extends TestCase
             throw new TransportException('synthetic-token private body');
         });
         $this->expectExceptionMessage('Generated blob transport failed; details were withheld.');
-        new GitHubClient($http, 'synthetic-token')->blobDigest('owner/project', str_repeat('a', 40), 0);
+        (new GitHubClient($http, 'synthetic-token'))->blobDigest('owner/project', str_repeat('a', 40), 0);
     }
 }

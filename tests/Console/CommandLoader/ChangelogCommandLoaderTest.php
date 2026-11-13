@@ -87,7 +87,7 @@ final class ChangelogCommandLoaderTest extends TestCase
     {
         $container = $this->createMock(ContainerInterface::class);
         $container->expects(self::once())->method('get')->with(AddCommand::class)->willReturn(new \stdClass());
-        $command = new ChangelogCommandLoader($container)->get('add');
+        $command = (new ChangelogCommandLoader($container))->get('add');
         self::assertSame('add', $command->getName());
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('The command service must be invokable: ' . AddCommand::class);

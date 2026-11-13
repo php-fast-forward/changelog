@@ -43,7 +43,7 @@ final class StatusCommandTest extends TestCase
             json_encode($plan->summary(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             OutputInterface::OUTPUT_RAW,
         );
-        self::assertSame(0, new StatusCommand($factory, $planner)($settings, $output, true));
+        self::assertSame(0, (new StatusCommand($factory, $planner))($settings, $output, true));
     }
 
     #[Test]
@@ -60,7 +60,9 @@ final class StatusCommandTest extends TestCase
         $error->expects(self::once())->method('writeln')->with('<error>invalid locale</error>');
         self::assertSame(
             2,
-            new StatusCommand($factory, $this->createStub(ReleasePlannerInterface::class))($this->settings(), $output),
+            (new StatusCommand($factory, $this->createStub(
+                ReleasePlannerInterface::class,
+            )))($this->settings(), $output),
         );
     }
 
@@ -73,7 +75,9 @@ final class StatusCommandTest extends TestCase
         $output->expects(self::once())->method('writeln')->with('<error>Git unavailable</error>');
         self::assertSame(
             1,
-            new StatusCommand($factory, $this->createStub(ReleasePlannerInterface::class))($this->settings(), $output),
+            (new StatusCommand($factory, $this->createStub(
+                ReleasePlannerInterface::class,
+            )))($this->settings(), $output),
         );
     }
 }

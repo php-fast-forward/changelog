@@ -52,7 +52,7 @@ Choose base and managed branches,
 fragment/history paths, historical sources and PR-reference policy consistently
 across enabled operations. For parallel maintenance, select a separate managed
 branch per release line and verify its actual planned version; a branch's name
-does not enforce a SemVer range. Use individual workflows or Docker actions only
+does not enforce a SemVer range. Use individual workflows or composite Actions only
 when their release-specific contracts suit the application's orchestration.
 
 Full tags identify concrete releases; an immutable commit pin also keeps execution

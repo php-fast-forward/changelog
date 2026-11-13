@@ -22,7 +22,7 @@ workflow consolidates them into `CHANGELOG.md`.
 - [GitHub Actions event policy setup and blocked runs](actions-event-policy.md)
 - [Version PRs and title customization](version-pull-request.md),
   [approved publication](publication.md) and [local transaction recovery](release-receipts.md)
-- [History, formatting and templates](history.md), [Docker runtime](docker.md)
+- [History, formatting and templates](history.md), [Compiled distribution](phar.md)
   and [fragment/versioning specifications](specification/index.md)
 
 ## Advanced integration and contribution

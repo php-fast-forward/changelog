@@ -84,7 +84,7 @@ final class PullRequestReferenceResolverTest extends TestCase
         $paths->expects(self::never())->method('absolutePath');
         $changes = $empty ? [] : [$this->change($explicit ? 55 : null)];
 
-        self::assertSame($changes, new PullRequestReferenceResolver($git, $github, $paths)->resolve(
+        self::assertSame($changes, (new PullRequestReferenceResolver($git, $github, $paths))->resolve(
             $this->options($enabled, $repository), $base, $changes,
         ));
     }
@@ -110,7 +110,7 @@ final class PullRequestReferenceResolverTest extends TestCase
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('fragment-origin capability');
-        new PullRequestReferenceResolver($git, $github, $paths)->resolve(
+        (new PullRequestReferenceResolver($git, $github, $paths))->resolve(
             $this->options(),
             self::BASE,
             [$this->change()],
@@ -298,8 +298,8 @@ final class PullRequestReferenceResolverTest extends TestCase
         ]);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('fragment-provenance capability');
-        new PullRequestReferenceResolver($git, $this->createStub(GitHubClientInterface::class),
-            $this->createStub(PackagePathResolverInterface::class))->resolve(
+        (new PullRequestReferenceResolver($git, $this->createStub(GitHubClientInterface::class),
+            $this->createStub(PackagePathResolverInterface::class)))->resolve(
                 $this->options(),
                 self::BASE,
                 [$this->change()],

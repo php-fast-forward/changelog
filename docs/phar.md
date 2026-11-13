@@ -38,7 +38,7 @@ commit converge. Box never enters the consumer or bundled dependency graph.
 
 The generated Box stub was tested first: discovery worked, but native
 `skill:install` rejected its `phar://` donor because the guarded inventory needs
-a physical tree. The small `stub.php` extracts a private mode-0700 runtime,
+a physical tree. The small `scripts/phar/stub.php` extracts a private mode-0700 runtime,
 chooses its bundled autoloader, invokes the existing entrypoint and removes that
 runtime at shutdown. CWD and arguments are preserved. There is no shared cache.
 Forced termination can leave that invocation's directory behind.
@@ -58,7 +58,7 @@ identity while executing bundled dependencies. Direct standalone invocation has
 the truthful embedded development build identity; it does not invent a release
 version from an ambient Git repository.
 
-The compressed executable requires PHP `^8.5`, Phar and zlib. The bundled graph
+The compressed executable targets PHP `^8.3`, Phar and zlib. The bundled graph
 also requires JSON, tokenizer and mbstring or its iconv-backed polyfill. Git
 operations need Git. Generated-file HTTP uploads require the supported cURL
 backend. The PHAR supplies neither an interpreter, extensions nor Git.
@@ -66,7 +66,7 @@ backend. The PHAR supplies neither an interpreter, extensions nor Git.
 ## Qualification and guarded refresh
 
 `repository-ci.yml` builds once and downloads the producer's exact artifact ID
-for PHP 8.5 on Linux, ARM and Windows. Source quality, integration/component
+for PHP 8.3 on Linux, ARM and Windows, plus PHP 8.4/8.5 on Linux. Source quality, integration/component
 checks and fresh Composer local/global packaging remain independent checks.
 Packaging can place the candidate only in its disposable archive copy, so a
 runtime PR can qualify new bytes before refreshing its tracked executable.
@@ -97,18 +97,19 @@ consumer PHP, install dependencies, merge, tag or release. A changed/closed PR,
 source-head mismatch or failed qualification prevents refresh. No credentials,
 repository settings, protection rules or release channel are created here.
 
-## Distribution and Docker
+## Distribution and GitHub Actions
 
-The tested executable is tracked in the same tree that will eventually be tagged,
-so default Packagist/Composer dist contains it. A GitHub release asset alone would
-not enter that ZIP. `--prefer-source` also receives the tracked artifact; it may
-fetch more Git history and includes the source tree; default dist omits `src` and
-`bin`. Complete resources and canonical skills remain outside and within the
-executable. Dependency licenses are bundled inside the PHAR; the package license
-is also exported outside it. Actual source and archive consumers are tested
-in disposable Composer homes; no real consumer is modified by qualification.
+The tested executable is tracked in the tree that will eventually be tagged, so
+default Packagist/Composer dist contains it. A release asset alone would not enter
+that ZIP. Git `--prefer-source` also receives the artifact and complete source;
+default dist omits source-only files. Resources and canonical skills remain
+outside and within the executable. Dependency licenses are inside the PHAR; the
+package license is also exported outside it.
 
-All six public Docker Actions keep their interfaces and shared Dockerfile, which
-now copies the same ready-built executable instead of resolving dependencies.
-The image still supplies PHP 8.5, Git and the reviewed HTTP runtime; the PHAR
-cannot replace that provisioning. No new publication channel is activated.
+All six public Actions are composite steps with unchanged inputs and outputs.
+They provision PHP 8.3 and extensions through the pinned setup-php Action, then
+execute their own trusted `dist/changelog`. Input values travel through quoted
+environment variables. Existing reusables preserve the called workflow's exact
+runtime SHA, consumer checkout separation, token permissions and native outputs.
+They do not install consumer dependencies. Git and Bash must be available on the
+runner. No Dockerfile, image builder or image publication remains in this project.

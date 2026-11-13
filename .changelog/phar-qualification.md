@@ -3,6 +3,10 @@ category: added
 type: minor
 ---
 
-Ships the compiled CLI through Composer and maintains its tested PHAR with the existing CI refresh pattern, with all execution dependencies embedded and the existing Docker Action interfaces. Local and global usage no longer requires a separate command executor; the compressed CLI requires Phar and zlib alongside PHP 8.5.
+Distributes the ready-built Changelog PHAR through local and global Composer installations, embedding all execution libraries and complete resources. Consumers require PHP 8.3 and the declared extensions, without resolving library dependencies or compiling the CLI.
 
-Changes the Composer package from a PHP library to a compiled CLI: runtime libraries move to development dependencies and service namespaces are no longer autoloaded for consumers. Source service development remains available through autoload-dev. Consumer dependency graphs contain PHP and required extensions only.
+Replaces the Composer PHP-library contract with a compiled CLI: runtime libraries move to development dependencies and service namespaces are no longer autoloaded for consumers. Source development remains available through autoload-dev; resources and skills remain exported for orchestration.
+
+Updates runtime and contributor dependencies to current stable PHP 8.3-compatible releases, including patched Symfony 7.4 and official PHP 8.4/8.5 polyfills. Consolidates the superseded standalone dependency-update fragment into this delivery.
+
+Replaces Docker-backed Actions with PHP-provisioned composite Actions preserving inputs, outputs, quoted arguments and trusted runtime revisions. Retires image builds and publication without changing existing remote images or credentials. CI builds and qualifies one executable before its guarded refresh or native version transaction; the minimal extraction stub lives beside build preparation.

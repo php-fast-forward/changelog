@@ -99,46 +99,80 @@ inputs:
 outputs:
   result:
     description: Complete stable JSON result.
+    value: ${{ steps.run.outputs.result }}
 
   state:
     description: "Operation state; empty when unavailable."
+    value: ${{ steps.run.outputs.state }}
 
   version:
     description: "Operation version; empty when unavailable."
+    value: ${{ steps.run.outputs.version }}
 
   tag:
     description: "Operation tag; empty when unavailable."
+    value: ${{ steps.run.outputs.tag }}
 
   sha:
     description: "Operation sha; empty when unavailable."
+    value: ${{ steps.run.outputs.sha }}
 
   url:
     description: "Operation url; empty when unavailable."
+    value: ${{ steps.run.outputs.url }}
 
 runs:
-  using: docker
-  image: "../../../Dockerfile"
-  env:
-    FF_CHANGELOG_TOKEN: ${{ inputs.token }}
-  args:
-    - "github"
-    - "publish"
-    - "--no-interaction"
-    - "--cwd=${{ inputs.working-directory }}"
-    - "--fragment-directory=${{ inputs.fragment-directory }}"
-    - "--changelog-file=${{ inputs.changelog-file }}"
-    - "--locale=${{ inputs.locale }}"
-    - "--template=${{ inputs.template }}"
-    - "--base-ref=${{ inputs.base-ref }}"
-    - "--tag-prefix=${{ inputs.tag-prefix }}"
-    - "--repository=${{ inputs.repository }}"
-    - "--source=${{ inputs.source }}"
-    - "--generated-files=${{ inputs.generated-files }}"
-    - "--resolve-pull-requests=${{ inputs.resolve-pull-requests }}"
-    - "--target-sha=${{ inputs.target-sha }}"
-    - "--pull-request=${{ inputs.pull-request }}"
-    - "--expected-head-sha=${{ inputs.expected-head-sha }}"
-    - "--base-branch=${{ inputs.base-branch }}"
-    - "--managed-branch=${{ inputs.managed-branch }}"
-    - "--automation-actor=${{ inputs.automation-actor }}"
-    - "--dry-run=${{ inputs.dry-run }}"
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@2.40.0
+      with:
+        php-version: '8.3'
+        extensions: curl, iconv, mbstring, phar, zlib
+        tools: none
+        coverage: none
+    - id: run
+      shell: bash
+      env:
+        FF_CHANGELOG_BINARY: ${{ github.action_path }}/../../../dist/changelog
+        FF_CHANGELOG_TOKEN: ${{ inputs.token }}
+        FF_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        FF_INPUT_FRAGMENT_DIRECTORY: ${{ inputs.fragment-directory }}
+        FF_INPUT_CHANGELOG_FILE: ${{ inputs.changelog-file }}
+        FF_INPUT_LOCALE: ${{ inputs.locale }}
+        FF_INPUT_TEMPLATE: ${{ inputs.template }}
+        FF_INPUT_BASE_REF: ${{ inputs.base-ref }}
+        FF_INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
+        FF_INPUT_REPOSITORY: ${{ inputs.repository }}
+        FF_INPUT_SOURCE: ${{ inputs.source }}
+        FF_INPUT_GENERATED_FILES: ${{ inputs.generated-files }}
+        FF_INPUT_RESOLVE_PULL_REQUESTS: ${{ inputs.resolve-pull-requests }}
+        FF_INPUT_TARGET_SHA: ${{ inputs.target-sha }}
+        FF_INPUT_PULL_REQUEST: ${{ inputs.pull-request }}
+        FF_INPUT_EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha }}
+        FF_INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
+        FF_INPUT_MANAGED_BRANCH: ${{ inputs.managed-branch }}
+        FF_INPUT_AUTOMATION_ACTOR: ${{ inputs.automation-actor }}
+        FF_INPUT_DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        php "$FF_CHANGELOG_BINARY" \
+          "github" \
+          "publish" \
+          "--no-interaction" \
+          "--cwd=$FF_INPUT_WORKING_DIRECTORY" \
+          "--fragment-directory=$FF_INPUT_FRAGMENT_DIRECTORY" \
+          "--changelog-file=$FF_INPUT_CHANGELOG_FILE" \
+          "--locale=$FF_INPUT_LOCALE" \
+          "--template=$FF_INPUT_TEMPLATE" \
+          "--base-ref=$FF_INPUT_BASE_REF" \
+          "--tag-prefix=$FF_INPUT_TAG_PREFIX" \
+          "--repository=$FF_INPUT_REPOSITORY" \
+          "--source=$FF_INPUT_SOURCE" \
+          "--generated-files=$FF_INPUT_GENERATED_FILES" \
+          "--resolve-pull-requests=$FF_INPUT_RESOLVE_PULL_REQUESTS" \
+          "--target-sha=$FF_INPUT_TARGET_SHA" \
+          "--pull-request=$FF_INPUT_PULL_REQUEST" \
+          "--expected-head-sha=$FF_INPUT_EXPECTED_HEAD_SHA" \
+          "--base-branch=$FF_INPUT_BASE_BRANCH" \
+          "--managed-branch=$FF_INPUT_MANAGED_BRANCH" \
+          "--automation-actor=$FF_INPUT_AUTOMATION_ACTOR" \
+          "--dry-run=$FF_INPUT_DRY_RUN"

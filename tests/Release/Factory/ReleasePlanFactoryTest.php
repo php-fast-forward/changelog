@@ -174,7 +174,7 @@ final class ReleasePlanFactoryTest extends TestCase
             'impact' => 'patch', 'consumed' => ['.changelog/a.md' => hash('sha256', 'a')], 'historical_versions' => [
                 '0.1.0',
             ], 'changelog_contents' => 'after', 'notes' => "Exact notes\n"];
-        $plan = new ReleasePlanFactory($codec)->resume(
+        $plan = (new ReleasePlanFactory($codec))->resume(
             $options,
             new ReleaseReceipt($data),
             '/consumer/CHANGELOG.md',
@@ -193,7 +193,7 @@ final class ReleasePlanFactoryTest extends TestCase
         self::assertSame('release', $plan->mode());
         $data['next_version'] = null;
         $data['impact'] = null;
-        $maintenance = new ReleasePlanFactory($codec)->resume(
+        $maintenance = (new ReleasePlanFactory($codec))->resume(
             $options,
             new ReleaseReceipt($data),
             '/consumer/CHANGELOG.md',
@@ -202,7 +202,7 @@ final class ReleasePlanFactoryTest extends TestCase
             'receipt',
         );
         self::assertSame('maintenance', $maintenance->mode());
-        $prepared = new ReleasePlanFactory($codec)->resume(
+        $prepared = (new ReleasePlanFactory($codec))->resume(
             $options,
             new ReleaseReceipt($data),
             '/consumer/CHANGELOG.md',

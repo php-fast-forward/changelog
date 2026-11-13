@@ -1,6 +1,0 @@
-# Only the already compiled CLI enters the Docker runtime.
-**
-!Dockerfile
-!.dockerignore
-!dist/
-!dist/changelog

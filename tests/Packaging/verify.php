@@ -314,13 +314,14 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
     mkdir($contentsRoot, 0700);
     execute(['tar', '-xf', $archive, '-C', $contentsRoot], $source, $environment);
     $runtimeFiles = [
-        'Dockerfile',
-        '.dockerignore',
         'composer.json',
         'composer.lock',
         'LICENSE',
         'dist/changelog',
     ];
+    foreach (array_keys(snapshot($packageRoot . '/resources')) as $file) {
+        $runtimeFiles[] = 'resources/' . $file;
+    }
     foreach ([...$actions, ...$runtimeFiles] as $file) {
         verify(in_array($file, $entries, true), 'Action build dependency is absent from the archive: ' . $file);
         $expected = 'dist/changelog' === $file && false !== $candidate && '' !== $candidate
@@ -332,10 +333,10 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
     }
     foreach ($actions as $file) {
         verify(
-            realpath(dirname($contentsRoot . '/' . $file) . '/../../../Dockerfile') === realpath(
-                $contentsRoot . '/Dockerfile',
+            realpath(dirname($contentsRoot . '/' . $file) . '/../../../dist/changelog') === realpath(
+                $contentsRoot . '/dist/changelog',
             ),
-            'The archived public Action cannot resolve the shared Dockerfile: ' . $file,
+            'The archived composite Action must resolve its own compiled runtime: ' . $file,
         );
     }
     $skillFiles = snapshot($packageRoot . '/resources/skills/fast-forward-changelog');
@@ -350,7 +351,7 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
             'Archived skill bytes differ from the canonical package: ' . $file,
         );
     }
-    fwrite(STDOUT, "Archive public Actions, Docker context, skill and development exclusions PASS.\n");
+    fwrite(STDOUT, "Archive public composite Actions, ready runtime, skill and development exclusions PASS.\n");
 
     return $archive;
 }
@@ -412,10 +413,9 @@ function exercise(string $installation, string $consumer, array $environment): v
         'require $argv[1]; echo json_encode(["package" => "fast-forward/changelog", "version" => Composer\\InstalledVersions::getPrettyVersion("fast-forward/changelog"), "reference" => Composer\\InstalledVersions::getReference("fast-forward/changelog")]);',
         $hostAutoload,
     ], $consumer, $environment)['stdout'], true, flags: JSON_THROW_ON_ERROR);
-    $environment['COMPOSER_ROOT_VERSION'] = '9.9.9-image-fixture';
     verify(
         str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], '0.6.0'),
-        'Installed Composer metadata must override container identity metadata.',
+        'The binary must match the installed Composer package version.',
     );
     $originalAutoload = file_get_contents($hostAutoload);
     file_put_contents(
@@ -888,7 +888,7 @@ try {
     execute(['tar', '-xf', $archive, '-C', $fixtureRoot . '/package'], $fixtureRoot, $localEnv);
     $manifest = ['name' => 'fixture/changelog-consumer', 'type' => 'project', 'license' => 'MIT',
         'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => '0.6.0']]]],
-        'require' => ['fast-forward/changelog' => '0.6.0'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];
+        'require' => ['fast-forward/changelog' => '0.6.0'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.3.0']]];
     $local = $fixtureRoot . '/local-installation';
     $global = $fixtureRoot . '/global-composer';
     file_put_contents(

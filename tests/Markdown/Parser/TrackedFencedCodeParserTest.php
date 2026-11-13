@@ -69,7 +69,7 @@ final class TrackedFencedCodeParserTest extends TestCase
         $environment->addBlockStartParser(new TrackedFencedCodeStartParser(), 51);
         $fences = [];
 
-        foreach (new MarkdownParser($environment)->parse($source)->iterator() as $node) {
+        foreach ((new MarkdownParser($environment))->parse($source)->iterator() as $node) {
             if ($node instanceof FencedCode) {
                 $fences[] = $node;
             }
