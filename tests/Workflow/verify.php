@@ -759,11 +759,54 @@ try {
     const condition = process.env.FF_FEEDBACK_CONDITION.replace(
       /\bcancelled\(\)/g, snapshot.cancelled ? 'true' : 'false',
     ).replace(
-      /\b(?:inputs|needs|steps)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
+      /\b(?:github|inputs|needs|steps)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+/g,
       path => JSON.stringify(path.split('.').reduce((value, key) => value?.[key], snapshot) ?? ''),
     );
     core.setOutput('eligible', new Function('return Boolean(' + condition + ')')());
     JS_WRAP;
+    $composite = $repositoryCi['jobs']['composite-action'];
+    verifyWorkflow(
+        'phar-build' === $composite['needs']
+            && "github.event_name == 'pull_request'" === $composite['if']
+            && '${{ github.event.pull_request.head.sha }}' === $composite['steps'][0]['with']['ref']
+            && false === $composite['steps'][0]['with']['persist-credentials']
+            && '${{ needs.phar-build.outputs.artifact }}' === $composite['steps'][1]['with']['artifact-ids']
+            && in_array('composite-action', $repositoryCi['jobs']['compiled']['needs'], true),
+        'The local Action smoke must bind the qualified candidate and execute only inside a pull-request cache scope.',
+    );
+    foreach (['pull_request' => true, 'push' => false, 'workflow_dispatch' => false, 'pull_request_target' => false] as $event => $eligible) {
+        $evaluated = workflowScriptGuard($feedbackConditionGuard, $directory, [
+            'FF_FEEDBACK_CONTEXT' => json_encode(['github' => ['event_name' => $event]], JSON_THROW_ON_ERROR),
+            'FF_FEEDBACK_CONDITION' => $composite['if'],
+        ], [], 0);
+        verifyWorkflow([
+            'eligible' => $eligible] === $evaluated['outputs'],
+            'Composite smoke must never execute a PR Action in a default-branch cache context.',
+        );
+        ++$assertions;
+    }
+    $qualification = workflowStep(
+        $repositoryCi['jobs']['compiled'],
+        'Require Successful Source And Artifact Qualification',
+    );
+    $qualified = ['BUILD' => 'success', 'RUNTIME' => 'success', 'PACKAGING' => 'success',
+        'COMPONENTS' => 'success', 'TESTS' => 'success', 'WINDOWS' => 'success'];
+    foreach (['pull_request', 'push', 'workflow_dispatch', 'pull_request_target'] as $event) {
+        foreach (['success', 'skipped', 'failure', 'cancelled', ''] as $outcome) {
+            workflowGuard($qualification['run'], $directory, [...$qualified, 'EVENT' => $event, 'ACTION' => $outcome],
+                ('pull_request' === $event ? 'success' : 'skipped') === $outcome ? 0 : 1);
+            ++$assertions;
+        }
+    }
+    foreach (array_keys($qualified) as $gate) {
+        workflowGuard(
+            $qualification['run'],
+            $directory,
+            [...$qualified, $gate => 'failure', 'EVENT' => 'pull_request', 'ACTION' => 'success'],
+            1,
+        );
+        ++$assertions;
+    }
     foreach (['valid', 'invalid', 'obsolete', ''] as $status) {
         foreach (['always', 'on-failure', 'never'] as $mode) {
             foreach ([false, true] as $cancelled) {
