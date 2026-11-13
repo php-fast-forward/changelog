@@ -51,6 +51,14 @@ try {
         $verify(is_file($bundled), 'Bundled resource is absent: ' . $relative);
         $expected = file_get_contents($file->getPathname());
         $actual = file_get_contents($bundled);
+        if ($expected !== $actual && str_replace("\r\n", "\n", $expected) === $actual) {
+            $canonical = new Symfony\Component\Process\Process(
+                ['git', '-C', $source, 'show', 'HEAD:' . $relative],
+                env: $environment,
+            );
+            $canonical->mustRun();
+            $expected = $canonical->getOutput();
+        }
         $verify($expected === $actual, 'Bundled resource differs: ' . $relative
             . '; checkout=' . hash('sha256', $expected) . '/' . strlen($expected)
             . '; phar=' . hash('sha256', $actual) . '/' . strlen($actual)
@@ -70,7 +78,7 @@ try {
     $installed = json_decode($run(['skill:install', '--json']), true, 512, JSON_THROW_ON_ERROR);
     $verify($installed['state'] === 'installed', 'Bundled native skill did not install.');
     $verify(file_get_contents($temporary . '/.agents/skills/fast-forward-changelog/SKILL.md') === file_get_contents(
-        $source . '/resources/skills/fast-forward-changelog/SKILL.md',
+        'phar://changelog-inspection.phar/resources/skills/fast-forward-changelog/SKILL.md',
     ), 'Installed skill bytes differ.');
     $run(['add', 'PHAR fixture change.', '--category=fixed', '--no-interaction']);
     $run(['check', '--no-interaction']);
