@@ -3054,16 +3054,16 @@
         },
         {
             "name": "fast-forward/phpdoc-bootstrap-template",
-            "version": "v2.2.2",
+            "version": "v2.2.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fast-forward/phpdoc-bootstrap-template.git",
-                "reference": "98b87352583ce03c44a9c41ff3eacf7c75114a42"
+                "reference": "3773b4f4a051b9966349ec02a4ab68001b51c198"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fast-forward/phpdoc-bootstrap-template/zipball/98b87352583ce03c44a9c41ff3eacf7c75114a42",
-                "reference": "98b87352583ce03c44a9c41ff3eacf7c75114a42",
+                "url": "https://api.github.com/repos/php-fast-forward/phpdoc-bootstrap-template/zipball/3773b4f4a051b9966349ec02a4ab68001b51c198",
+                "reference": "3773b4f4a051b9966349ec02a4ab68001b51c198",
                 "shasum": ""
             },
             "require": {
@@ -3118,7 +3118,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-25T16:44:03+00:00"
+            "time": "2026-11-11T07:22:41+00:00"
         },
         {
             "name": "internal/path",
