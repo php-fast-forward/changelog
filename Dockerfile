@@ -1,5 +1,5 @@
 # One packaged CLI is shared by every Docker action and local container invocation.
-FROM php:8.5.11-cli-alpine3.24 AS dependencies
+FROM php:8.5.12-cli-alpine3.24 AS dependencies
 
 COPY --from=composer:2.10.3 /usr/bin/composer /usr/local/bin/composer
 
@@ -23,7 +23,7 @@ RUN composer install \
         --classmap-authoritative \
     && composer check-platform-reqs --no-dev
 
-FROM php:8.5.11-cli-alpine3.24
+FROM php:8.5.12-cli-alpine3.24
 
 RUN apk add --no-cache git \
     && git config --system --add safe.directory /github/workspace \
