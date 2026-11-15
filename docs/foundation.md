@@ -31,9 +31,9 @@ process, container and clock boundaries rather than copying these dependencies.
 
 ## Formatting and PHP target
 
-PHP is `^8.5`, with Composer's development platform fixed at `8.5.0`. Rector
-uses its verified installed API `withPhpVersion(PHP_85)` and
-`withPhpSets(php85: true)` so an upgrade cannot silently opt into PHP 8.6 syntax.
+PHP is `^8.3`, with Composer's development platform fixed at `8.3.0`. Rector
+uses `withPhpVersion(PHP_83)` and `withPhpSets(php83: true)` so an upgrade
+cannot silently opt into syntax requiring PHP newer than 8.3.
 The initial quality, dead code and type declaration levels are deliberately
 incremental. Raise a level in a reviewed change and retest public API, doubles
 and coverage. ECS uses the existing PER prepared set, alphabetic imports and
@@ -45,8 +45,8 @@ lines; long argument lists wrap around 120 columns while intentional multiline
 layouts stay multiline. Keep a blank line before each new attributed command
 parameter or input property, with its attribute directly attached to that
 parameter/property. Multiline argument spacing preserves these groups.
-Dockerfile stages, installation flags and runtime layout use separate logical
-blocks. Workflow shell guards and long commands use continuation lines without
+Runtime preparation and installation flags use separate logical blocks.
+Workflow shell guards and long commands use continuation lines without
 changing their arguments or expressions. Opaque strings, class names and pinned
 references may exceed the wrapping target when splitting would harm clarity.
 Git attributes keep PHP and the CLI executable in LF on every checkout, including
@@ -76,10 +76,11 @@ malformed Cobertura and invalid counts, including a zero denominator.
 `composer quality:verify` separately tests the gates' success and rejection
 paths in temporary fixtures, then removes only the fixtures it created.
 
-This library intentionally omits a version field and tracks `composer.lock` for
-development and Docker builds. Composer consumers resolve the declared runtime
-constraints through their own locks. A future template chooses its own lockfile
-policy. Consumer releases obtain identity from VCS tags.
+This CLI package intentionally omits a version field and tracks `composer.lock`
+for development and reproducible PHAR builds. Composer consumers receive the
+ready executable with its libraries embedded. A library template may retain a
+public PHP dependency graph and choose its own lockfile policy. Consumer releases
+obtain identity from VCS tags.
 
 Before extracting the reference, replace repository links, docs URLs, badges,
 sponsor links and author/license data with verified values. Never copy

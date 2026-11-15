@@ -42,9 +42,9 @@ final class SkillInstallCommandTest extends TestCase
         $io = new SymfonyStyle(new ArrayInput([]), $output);
         self::assertSame(
             $exit,
-            new SkillInstallCommand(
+            (new SkillInstallCommand(
                 $installer,
-            )($io, '/consumer', 'custom/skills', true, $check, $update, $dryRun, true),
+            ))($io, '/consumer', 'custom/skills', true, $check, $update, $dryRun, true),
         );
         self::assertSame($result, json_decode(trim($output->fetch()), true, flags: JSON_THROW_ON_ERROR));
     }
@@ -71,7 +71,7 @@ final class SkillInstallCommandTest extends TestCase
         $io = new SymfonyStyle(new ArrayInput([]), $output);
         self::assertSame(
             2,
-            new SkillInstallCommand($installer)($io, check: true, update: true, json: true),
+            (new SkillInstallCommand($installer))($io, check: true, update: true, json: true),
         );
         self::assertStringContainsString(
             'mutually exclusive',
@@ -84,7 +84,7 @@ final class SkillInstallCommandTest extends TestCase
         $installer = $this->createStub(SkillInstallerInterface::class);
         $installer->method('run')->willReturn(['state' => 'unmanaged', 'target' => 'skills/name', 'action' => null]);
         $output = new BufferedOutput();
-        self::assertSame(1, new SkillInstallCommand($installer)(new SymfonyStyle(new ArrayInput([]), $output)));
+        self::assertSame(1, (new SkillInstallCommand($installer))(new SymfonyStyle(new ArrayInput([]), $output)));
         $text = $output->fetch();
         self::assertStringContainsString('unmanaged; target: skills/name', $text);
         self::assertStringContainsString('No files were replaced', $text);
@@ -96,7 +96,7 @@ final class SkillInstallCommandTest extends TestCase
         $installer = $this->createStub(SkillInstallerInterface::class);
         $installer->method('run')->willReturn(['state' => 'current', 'target' => 'skills/name', 'action' => null]);
         $output = new BufferedOutput();
-        self::assertSame(0, new SkillInstallCommand($installer)(new SymfonyStyle(new ArrayInput([]), $output)));
+        self::assertSame(0, (new SkillInstallCommand($installer))(new SymfonyStyle(new ArrayInput([]), $output)));
         self::assertSame('Skill state: current; target: skills/name' . PHP_EOL, $output->fetch());
     }
 
@@ -110,7 +110,7 @@ final class SkillInstallCommandTest extends TestCase
         $output = new BufferedOutput();
         self::assertSame(
             $invalid ? 2 : 1,
-            new SkillInstallCommand($installer)(new SymfonyStyle(new ArrayInput([]), $output), json: $json),
+            (new SkillInstallCommand($installer))(new SymfonyStyle(new ArrayInput([]), $output), json: $json),
         );
         $text = $output->fetch();
         if ($json) {

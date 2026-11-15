@@ -38,7 +38,7 @@ final class ReleaseMetadataParserTest extends TestCase
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage($diagnostic);
-        new ReleaseMetadataParser()->parse($message);
+        (new ReleaseMetadataParser())->parse($message);
     }
 
     /** Supplies independently invalid trailer shapes. */

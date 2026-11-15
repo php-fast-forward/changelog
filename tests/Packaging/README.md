@@ -12,10 +12,18 @@ arguments directly on the disposable runner, without an RTK prerequisite. Compos
 download the package's public runtime dependencies. It exports the current
 tracked and unignored source into a synthetic Git repository, creates an archive
 using the candidate `.gitattributes`, then extracts that archive as the package
-for a Composer path repository with `symlink: false` and an explicit `dev-main`
+for a Composer path repository with `symlink: false` and an explicit synthetic `0.6.0`
 version. Both installs disable development dependencies, plugins and scripts,
 and must mirror the archive payload exactly. Checkout dependencies and caches
 never enter that payload.
+
+The package keeps its source and PHP API alongside `dist/changelog`; Composer's
+binary proxy executes the compiled CLI. The source entrypoint is exercised
+separately when injecting an API/provider failure, while the PHAR must remain
+independent of that modified external source. CI may set
+`CHANGELOG_PHAR_CANDIDATE` to its freshly built artifact: only the disposable
+archive-source copy receives those bytes, so complete packaging can qualify a
+candidate before the guarded CI writer refreshes the tracked executable.
 
 `CHANGELOG_PACKAGING_DEPENDENCIES=highest` is the default fresh resolution.
 Set it to `lowest` to exercise the minimum stable runtime dependency graph with

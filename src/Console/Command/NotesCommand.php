@@ -279,5 +279,4 @@ final readonly class NotesCommand
 
         return strcmp($left, $right);
     }
-
 }

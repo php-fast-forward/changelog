@@ -1,8 +1,8 @@
 {
     "name": "fast-forward/changelog",
-    "description": "Standalone changelog domain and CLI runtime for Fast Forward PHP packages.",
+    "description": "Self-contained changelog CLI and automation for Fast Forward PHP packages.",
     "license": "MIT",
-    "type": "library",
+    "type": "project",
     "keywords": [
         "changelog",
         "cli",
@@ -40,64 +40,63 @@
         }
     ],
     "require": {
-        "php": "^8.5",
-        "composer-runtime-api": "^2.0",
-        "container-interop/service-provider": "^0.4.1",
-        "fast-forward/clock": "^1.1",
-        "fast-forward/config": "^1.7",
-        "fast-forward/container": "^1.10",
-        "league/commonmark": "^2.10.4",
-        "psr/clock": "^1.0",
-        "psr/container": "^1.0 || ^2.0",
-        "symfony/console": "^8.1",
-        "symfony/filesystem": "^7.4 || ^8.0",
-        "symfony/finder": "^7.4 || ^8.0",
-        "symfony/http-client": "^7.4 || ^8.0",
-        "symfony/lock": "^7.4 || ^8.0",
-        "symfony/process": "^7.4 || ^8.0",
-        "symfony/validator": "^7.4 || ^8.0",
-        "symfony/yaml": "^7.4 || ^8.0",
-        "thecodingmachine/safe": "^3.4"
+        "ext-iconv": "*",
+        "ext-json": "*",
+        "ext-phar": "*",
+        "ext-tokenizer": "*",
+        "ext-zlib": "*",
+        "php": "^8.3"
     },
     "require-dev": {
+        "composer-runtime-api": "^2.2",
+        "container-interop/service-provider": "^0.4.1",
         "ext-simplexml": "*",
-        "fast-forward/phpdoc-bootstrap-template": "^2.2",
-        "llm/skills": "^1.16",
-        "nikic/php-parser": "^5.9",
-        "phpspec/prophecy": "^1.26",
-        "phpspec/prophecy-phpunit": "^2.5",
-        "phpdocumentor/shim": "^3.10",
-        "phpstan/phpdoc-parser": "^2.4",
-        "phpunit/php-code-coverage": "^14.5",
-        "phpunit/phpunit": "^13.4",
-        "rector/rector": "^2.8",
-        "symplify/easy-coding-standard": "^13.3"
+        "fast-forward/clock": "^1.1.3",
+        "fast-forward/config": "^1.7.4",
+        "fast-forward/container": "^1.10.1",
+        "fast-forward/phpdoc-bootstrap-template": "^2.2.4",
+        "league/commonmark": "^2.10.7",
+        "llm/skills": "^1.17.0",
+        "nikic/php-parser": "^5.9.0",
+        "phpdocumentor/shim": "^3.10.0",
+        "phpspec/prophecy": "^1.26.1",
+        "phpspec/prophecy-phpunit": "^2.5.0",
+        "phpstan/phpdoc-parser": "^2.4.1",
+        "phpunit/php-code-coverage": "^12.5.8",
+        "phpunit/phpunit": "^12.5.44",
+        "psr/clock": "^1.0.0",
+        "psr/container": "^2.0.2",
+        "rector/rector": "^2.8.4",
+        "symfony/console": "^7.4.23",
+        "symfony/filesystem": "^7.4.23",
+        "symfony/finder": "^7.4.23",
+        "symfony/http-client": "^7.4.23",
+        "symfony/lock": "^7.4.23",
+        "symfony/polyfill-php84": "^1.43.0",
+        "symfony/polyfill-php85": "^1.43.0",
+        "symfony/process": "^7.4.22",
+        "symfony/translation-contracts": "^3.8.1",
+        "symfony/validator": "^7.4.23",
+        "symfony/yaml": "^7.4.23",
+        "symplify/easy-coding-standard": "^13.3.17",
+        "thecodingmachine/safe": "^3.4.0"
     },
     "suggest": {
         "llm/skills": "Optionally synchronize the bundled agent skill in consumer projects."
     },
-    "conflict": {
-        "php-di/php-di": "<7.0.7",
-        "symfony/polyfill-php83": "<1.30",
-        "symfony/translation-contracts": "<2.5.3 || >=3.0,<3.4.2"
-    },
     "minimum-stability": "stable",
-    "autoload": {
-        "psr-4": {
-            "FastForward\\Changelog\\": "src/"
-        }
-    },
     "autoload-dev": {
         "psr-4": {
+            "FastForward\\Changelog\\": "src/",
             "FastForward\\Changelog\\Tests\\": "tests/"
         }
     },
     "bin": [
-        "bin/changelog"
+        "dist/changelog"
     ],
     "config": {
         "platform": {
-            "php": "8.5.0"
+            "php": "8.3.0"
         },
         "sort-packages": true,
         "allow-plugins": {
@@ -111,6 +110,33 @@
         },
         "branch-alias": {
             "dev-main": "0.1.x-dev"
+        },
+        "phar": {
+            "runtime-packages": [
+                "container-interop/service-provider",
+                "fast-forward/clock",
+                "fast-forward/config",
+                "fast-forward/container",
+                "league/commonmark",
+                "psr/clock",
+                "psr/container",
+                "symfony/console",
+                "symfony/filesystem",
+                "symfony/finder",
+                "symfony/http-client",
+                "symfony/lock",
+                "symfony/process",
+                "symfony/validator",
+                "symfony/yaml",
+                "thecodingmachine/safe",
+                "symfony/polyfill-php84",
+                "symfony/polyfill-php85"
+            ],
+            "runtime-conflicts": {
+                "php-di/php-di": "<7.0.7",
+                "symfony/polyfill-php83": "<1.30",
+                "symfony/translation-contracts": "<2.5.3 || >=3.0,<3.4.2"
+            }
         }
     },
     "scripts": {

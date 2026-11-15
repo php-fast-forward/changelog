@@ -153,7 +153,7 @@ if ([] === $paths) {
 }
 
 sort($paths);
-$parser = new ParserFactory()->createForNewestSupportedVersion();
+$parser = (new ParserFactory())->createForNewestSupportedVersion();
 $finder = new NodeFinder();
 $config = new ParserConfig([]);
 $lexer = new Lexer($config);

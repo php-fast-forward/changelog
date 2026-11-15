@@ -33,7 +33,7 @@ final class VersionBaselineResolverTest extends TestCase
         ), $versions);
         $history = new HistoryDocument($releases, 'Original prefix', 'Original references');
 
-        self::assertSame($expected, new VersionBaselineResolver()->resolve($history, $tagVersion));
+        self::assertSame($expected, (new VersionBaselineResolver())->resolve($history, $tagVersion));
         self::assertSame($releases, $history->getReleases());
         self::assertSame('Original prefix', $history->getPrefix());
         self::assertSame('Original references', $history->getReferences());
@@ -73,6 +73,6 @@ final class VersionBaselineResolverTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        new VersionBaselineResolver()->resolve(new HistoryDocument(), $version);
+        (new VersionBaselineResolver())->resolve(new HistoryDocument(), $version);
     }
 }

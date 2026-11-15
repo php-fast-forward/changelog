@@ -19,7 +19,7 @@ final class GitHubInputTest extends TestCase
     {
         self::assertSame(['working-directory' => '.', 'fragment-directory' => '.changelog',
             'changelog-file' => 'CHANGELOG.md', 'locale' => 'en', 'template' => 'keep-a-changelog',
-            'base-ref' => 'HEAD', 'tag-prefix' => 'v', 'source' => 'auto', 'resolve-pull-requests' => 'false'], new GitHubInput()->values());
+            'base-ref' => 'HEAD', 'tag-prefix' => 'v', 'source' => 'auto', 'resolve-pull-requests' => 'false'], (new GitHubInput())->values());
     }
 
     /** Explicit empty strings, false text and JSON remain distinguishable from omitted flags. */

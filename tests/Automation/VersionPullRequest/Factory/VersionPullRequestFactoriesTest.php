@@ -51,8 +51,8 @@ final class VersionPullRequestFactoriesTest extends TestCase
         self::assertNull($value->version);
         self::assertTrue($value->maintenance);
         self::assertSame(['maintenance'], $value->diagnostics);
-        self::assertNull(new VersionPullRequestResult('none')->prNumber);
-        self::assertSame('diagnostic', new VersionPullRequestException('diagnostic')->getMessage());
+        self::assertNull((new VersionPullRequestResult('none'))->prNumber);
+        self::assertSame('diagnostic', (new VersionPullRequestException('diagnostic'))->getMessage());
     }
 
     /** Templates have a separate finite bound; final rendering still applies the ordinary PR title limit. */
@@ -65,7 +65,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     {
         $title = str_repeat('a', $literalBytes) . '{' . $placeholder . '}';
 
-        $input = new VersionPullRequestInputFactory()->create(title: $title);
+        $input = (new VersionPullRequestInputFactory())->create(title: $title);
 
         self::assertSame(1024, strlen($input->title));
         self::assertSame($title, $input->title);
@@ -78,7 +78,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     public function rejectsUnsafeTitleTemplates(string $title): void
     {
         $this->expectException(VersionPullRequestException::class);
-        new VersionPullRequestInputFactory()->create(
+        (new VersionPullRequestInputFactory())->create(
             title: 'oversized' === $title ? str_repeat('a', 1008) . '{current_version}' : $title,
         );
     }
@@ -99,7 +99,7 @@ final class VersionPullRequestFactoriesTest extends TestCase
     public function rejectsUnsafeAutomationSettings(string $base, string $branch, string $actor, string $title): void
     {
         $this->expectException(VersionPullRequestException::class);
-        new VersionPullRequestInputFactory()->create(
+        (new VersionPullRequestInputFactory())->create(
             'long' === $base ? str_repeat('a', 256) : $base,
             $branch,
             $actor,

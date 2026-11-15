@@ -53,7 +53,7 @@ final class GitHubClientTest extends TestCase
 
             return new MockResponse($bytes, ['response_headers' => ['content-type' => 'application/x-git-upload-pack-' . $type]]);
         });
-        self::assertSame($pack, new GitHubClient($http, 'private-token')->commitPack('owner/project', $sha));
+        self::assertSame($pack, (new GitHubClient($http, 'private-token'))->commitPack('owner/project', $sha));
         self::assertCount(2, $calls);
     }
 
@@ -73,7 +73,7 @@ final class GitHubClientTest extends TestCase
         $http = $this->createMock(HttpClientInterface::class);
         $http->expects(self::never())->method('request');
         $this->expectExceptionMessage('verified public GitHub identities');
-        new GitHubClient($http, $token, $api)->commitPack($repo, $sha);
+        (new GitHubClient($http, $token, $api))->commitPack($repo, $sha);
     }
 
     /** Authentication denial, redirects and unexpected media cannot masquerade as an object pack. */
@@ -86,7 +86,7 @@ final class GitHubClientTest extends TestCase
             'http_code' => $status, 'response_headers' => ['content-type' => $type],
         ]));
         $this->expectExceptionMessage('HTTP evidence could not be verified');
-        new GitHubClient($http, 'private-token')->commitPack('owner/project', str_repeat('a', 40));
+        (new GitHubClient($http, 'private-token'))->commitPack('owner/project', str_repeat('a', 40));
     }
 
     /** Invalid framing is refused before credential-free bytes can reach a Git subprocess. */
@@ -104,7 +104,7 @@ final class GitHubClientTest extends TestCase
             'response_headers' => ['content-type' => 'application/x-git-upload-pack-' . ($result ? 'result' : 'advertisement')],
         ]);
         $this->expectExceptionMessage($result ? 'invalid complete pack' : 'invalid service discovery');
-        new GitHubClient(new MockHttpClient($responses))->commitPack('owner/project', str_repeat('a', 40));
+        (new GitHubClient(new MockHttpClient($responses)))->commitPack('owner/project', str_repeat('a', 40));
     }
 
     /** Transport exceptions must never disclose token-bearing request details. */
@@ -114,7 +114,7 @@ final class GitHubClientTest extends TestCase
             throw new TransportException('private-token request details');
         });
         $this->expectExceptionMessage('transport failed; details were withheld');
-        new GitHubClient($http, 'private-token')->commitPack('owner/project', str_repeat('a', 40));
+        (new GitHubClient($http, 'private-token'))->commitPack('owner/project', str_repeat('a', 40));
     }
 
     /** Download progress is capped before an oversized response can be retained. */
@@ -126,7 +126,7 @@ final class GitHubClientTest extends TestCase
             throw new RuntimeException('Unreachable');
         });
         $this->expectExceptionMessage('response limit');
-        new GitHubClient($http)->commitPack('owner/project', str_repeat('a', 40));
+        (new GitHubClient($http))->commitPack('owner/project', str_repeat('a', 40));
     }
 
     /** A transport that omits progress still cannot return an oversized response. */
@@ -141,17 +141,17 @@ final class GitHubClientTest extends TestCase
         $http = $this->createStub(HttpClientInterface::class);
         $http->method('request')->willReturn($response);
         $this->expectExceptionMessage('response limit');
-        new GitHubClient($http)->commitPack('owner/project', str_repeat('a', 40));
+        (new GitHubClient($http))->commitPack('owner/project', str_repeat('a', 40));
     }
 
     /** Git acquisition can only use public GitHub when API evidence shares that trusted origin. */
     public function testPublicTransportIdentityIsExplicit(): void
     {
-        self::assertTrue(new GitHubClient($this->createStub(HttpClientInterface::class))->usesPublicGitHub());
+        self::assertTrue((new GitHubClient($this->createStub(HttpClientInterface::class)))->usesPublicGitHub());
         self::assertFalse(
-            new GitHubClient($this->createStub(
+            (new GitHubClient($this->createStub(
                 HttpClientInterface::class,
-            ), apiUrl: 'https://enterprise.test/api/v3')->usesPublicGitHub(),
+            ), apiUrl: 'https://enterprise.test/api/v3'))->usesPublicGitHub(),
         );
     }
 

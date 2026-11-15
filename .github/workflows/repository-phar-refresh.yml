@@ -1,0 +1,86 @@
+name: 'Repository: Refresh compiled executable'
+on:
+  workflow_run:
+    workflows: ['Repository: Tests']
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: phar-refresh-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch != 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release-channels
+    steps:
+      - name: Locate the still-open source pull request
+        id: pull-request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          branch=$(gh api "repos/$GH_REPO/commits/$SOURCE_SHA/pulls" | jq -r '[.[] | select(.state == "open" and .base.ref == "main" and .head.sha == env.SOURCE_SHA and .head.ref == env.SOURCE_BRANCH and .head.repo.full_name == env.GH_REPO)] | if length == 1 then .[0].head.ref else empty end')
+          if test -n "$branch"; then
+            git check-ref-format "refs/heads/$branch"
+            case "$branch" in main|changelog/version*) exit 0 ;; esac
+            branch_path=$(printf '%s' "$branch" | jq -sRr @uri)
+            test "$(gh api "repos/$GH_REPO/branches/$branch_path" --jq .protected)" = false
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download the qualified update, if one was produced
+        id: artifact
+        if: steps.pull-request.outputs.branch != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: changelog-update-${{ github.event.workflow_run.head_sha }}-${{ github.event.workflow_run.run_attempt }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/phar-update
+      - if: steps.artifact.outcome == 'success'
+        id: writer
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: 'Iv23liHqRng02H747IYa'
+          private-key: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}
+          owner: php-fast-forward
+          repositories: changelog
+          permission-contents: write
+      - if: steps.artifact.outcome == 'success'
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ steps.pull-request.outputs.branch }}
+          token: ${{ steps.writer.outputs.token }}
+      - if: steps.artifact.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_BRANCH: ${{ steps.pull-request.outputs.branch }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          gh api "repos/$GH_REPO/commits/$SOURCE_SHA/pulls" | jq -e '[.[] | select(.state == "open" and .base.ref == "main" and .head.sha == env.SOURCE_SHA and .head.ref == env.SOURCE_BRANCH and .head.repo.full_name == env.GH_REPO)] | length == 1'
+          branch_path=$(printf '%s' "$SOURCE_BRANCH" | jq -sRr @uri)
+          test "$(gh api "repos/$GH_REPO/branches/$branch_path" --jq .protected)" = false
+          test "$(git log -1 --format=%s)" != 'build: refresh compiled executable'
+          test -f dist/changelog && test ! -L dist && test ! -L dist/changelog
+          test -f "$RUNNER_TEMP/phar-update/changelog" && test ! -L "$RUNNER_TEMP/phar-update/changelog"
+          install -m 755 "$RUNNER_TEMP/phar-update/changelog" dist/changelog
+      - if: steps.artifact.outcome == 'success'
+        uses: stefanzweifel/git-auto-commit-action@v7.2.1
+        with:
+          branch: ${{ steps.pull-request.outputs.branch }}
+          file_pattern: dist/changelog
+          commit_message: 'build: refresh compiled executable'
+          skip_checkout: true
+          skip_fetch: true

@@ -56,7 +56,7 @@ final class ChangelogTest extends TestCase
             self::assertSame($error, $stderr);
             $stderr->writeln('Local skill hint');
         });
-        $app->addCommand(new Command('check')->setCode(static fn(): int => 0));
+        $app->addCommand((new Command('check'))->setCode(static fn(): int => 0));
         self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check']), $output));
         self::assertSame(1, $calls);
         self::assertSame('Local skill hint' . PHP_EOL, $error->fetch());
@@ -80,7 +80,7 @@ final class ChangelogTest extends TestCase
                 'Excluded path resolved skill inspection.',
             );
         });
-        $command = new Command($name)->setCode(static fn(): int => 0);
+        $command = (new Command($name))->setCode(static fn(): int => 0);
         foreach (['json', 'raw'] as $option) {
             $command->addOption($option, null, InputOption::VALUE_NONE);
         }
@@ -120,7 +120,7 @@ final class ChangelogTest extends TestCase
                 'Auxiliary inspection failed',
             );
         });
-        $app->addCommand(new Command('check')->setCode(static fn(): int => 0));
+        $app->addCommand((new Command('check'))->setCode(static fn(): int => 0));
         $output = $this->createStub(ConsoleOutputInterface::class);
         $output->method('getErrorOutput')->willReturn(new BufferedOutput());
         self::assertSame(0, $app->doRun(new ArgvInput(['changelog', 'check']), $output));
@@ -182,7 +182,7 @@ final class ChangelogTest extends TestCase
         $runner = $this->createMock(AutomationRunnerInterface::class);
         $runner->expects(self::once())->method('run')->with(
             'check',
-            new GitHubInput()->values() + ['since' => 'base'],
+            (new GitHubInput())->values() + ['since' => 'base'],
         )->willReturn(
             ['status' => 'valid'],
         );

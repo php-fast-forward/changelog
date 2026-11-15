@@ -26,7 +26,7 @@ final class ChangesetRendererTest extends TestCase
 
         self::assertSame(
             "---\ncategory: changed\ntype: patch\nissue: 1\npull_request: 2\nauthor: \"coisa\"\n---\n\n{$body}\n",
-            new ChangesetRenderer()->render($fragment),
+            (new ChangesetRenderer())->render($fragment),
         );
     }
 
@@ -37,7 +37,7 @@ final class ChangesetRendererTest extends TestCase
 
         self::assertSame(
             "---\ncategory: deprecated\ntype: minor\n---\n\nBody.\n",
-            new ChangesetRenderer()->render($fragment),
+            (new ChangesetRenderer())->render($fragment),
         );
     }
 }

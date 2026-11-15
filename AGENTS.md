@@ -16,9 +16,9 @@ used across Fast Forward PHP packages.
 - Approved-commit publication: [`src/Publication/`](src/Publication/)
 - Filesystem, Git and GitHub boundaries: [`src/Filesystem/`](src/Filesystem/), [`src/Git/`](src/Git/), [`src/GitHub/`](src/GitHub/)
 - Process construction boundary: [`src/Process/`](src/Process/); HTTP client and secure entropy construction belong to the service provider.
-- Trusted automation and Docker actions: [`src/Automation/`](src/Automation/), [`.github/actions/`](.github/actions/)
+- Trusted automation and composite Actions: [`src/Automation/`](src/Automation/), [`.github/actions/`](.github/actions/)
 - GitHub orchestration: [`.github/workflows/`](.github/workflows/); `changelog*` are public reusables and `repository-*` belong to this package.
-- Packaged CLI image: [`Dockerfile`](Dockerfile), [runtime guide](docs/docker.md)
+- Compiled CLI distribution: [`dist/changelog`](dist/changelog), [runtime guide](docs/phar.md)
 - Tests: [`tests/`](tests/)
 - Docs: [`docs/`](docs/)
 - Published history: [`CHANGELOG.md`](CHANGELOG.md)
@@ -27,14 +27,16 @@ used across Fast Forward PHP packages.
 
 - Install dependencies with `composer install` when authorized for this checkout.
 - Run focused tests with `vendor/bin/phpunit`; validate metadata with `composer validate --strict`.
-- PHP `^8.5` is the minimum supported runtime; code updates MUST NOT require PHP 8.6.
+- PHP `^8.3` is the minimum supported runtime; code updates MUST NOT require PHP 8.4 or newer.
 - Run `composer check` for independent quality gates. Rector/ECS check and fix
   scripts are separate; revalidate after applying fixes.
 - Run `composer test:workflows` after reusable workflow changes; its isolated
   Bash/JavaScript fixtures need Node.js only for development. Run actionlint on
   changed workflow contracts and verify the effective consumer jobs separately.
-- Keep `composer.lock` for reproducible contributor, CI and Docker CLI builds.
-  Library consumers resolve the constraints in `composer.json` independently.
+- Keep `composer.lock` for reproducible contributor, CI and compiled CLI builds.
+  Consumers receive the compiled CLI and PHP/extension requirements only. Runtime
+  library roots live in `require-dev` and `extra.phar.runtime-packages`; source
+  services use `autoload-dev`. Build staging restores the private runtime loader.
 - Keep unit tests under the namespace hierarchy of the source they exercise.
   Unit tests MUST replace filesystem, Git, processes, network, clock and host
   state with injected doubles. Integration and packaging fixtures are separate
@@ -77,8 +79,8 @@ used across Fast Forward PHP packages.
 - Read [the canonical skill](resources/skills/fast-forward-changelog/SKILL.md)
   before recording notes, validating contributions or maintaining releases here.
   It is also the internal procedure; no copy or host-discovery adapter is needed.
-- In this source checkout use `php bin/changelog` instead of the consumer's CPX
-  invocation or installed binary. Inspect `php bin/changelog list --raw` and command help
+- In this source checkout use `php bin/changelog` instead of the consumer's
+  compiled binary. Inspect `php bin/changelog list --raw` and command help
   before choosing flags. Validate pending notes with `php bin/changelog check`
   and compare a contribution with `php bin/changelog check --since=origin/main`.
 - Add one unique `.changelog/*.md` fragment per coherent observable change.
@@ -95,7 +97,7 @@ used across Fast Forward PHP packages.
   them to the summaries for review. This does not authorize publication or edits
   to already published releases; ordinary contribution rules remain in force.
 - Let the workflow prepare one managed version PR per configured release line;
-  this repository currently uses `main` and `changelog/version`. A prepared version
+  this repository currently uses `main` and `changelog/version-phar`. A prepared version
   and green checks are not publication authority: review its exact head, history
   and fragment deletions before any separately authorized merge/release.
 - Consumers maintaining parallel `1.x`/`2.x` lines MUST select the matching
@@ -121,7 +123,7 @@ used across Fast Forward PHP packages.
   The PHP updater and manual arbitrary tag/SHA dispatch are removed. See the
   self-changelog guide for the changed concurrency guarantees and recovery limits.
 - A channel update does not authorize another release. `@v0` can cross breaking
-  development minors; keep the skill/CPX constraint aligned with its declared
+  development minors; keep the skill/Composer constraint aligned with its declared
   product contract rather than assuming it has the same range.
 
 ## Design Notes
@@ -180,9 +182,9 @@ procedures stay in their package entrypoint. The instruction map is recorded in
 - [Guided project installation](docs/project-installation.md): owns `install` questions, published workflow defaults, optional llm/skills setup, confirmation and separate component results; preserves existing automation and installer ownership.
 - [Skill distribution guide](docs/skills.md): owns the default llm/skills GitHub route, generated-copy rules and legacy/NPX ownership; distinguishes synchronization from host activation.
 - [Composer skill lifecycle](docs/composer-skills.md): documents source selection, plugin execution, automatic reconstruction and update/removal limits; consumer activation remains explicit.
-- [Docker runtime guide](docs/docker.md): defines the self-contained CLI image and direct Action invocations; image registry publication remains separately authorized.
+- [Docker migration](docs/docker.md): explains the replacement of image builds with direct PHAR execution.
 - [Automation map](docs/automation-map.md): maps public/internal automation, parallel maintenance selectors and publication-channel boundaries; defines consumption paths and shared-archive boundaries.
 - [Release channels](docs/self-changelog.md#released-major-branches-and-latest): owns major-branch/latest-tag promotion, pending activation and recovery limits; never authorizes remote configuration or ref changes.
 - [Workflow reference](docs/workflow-reference.md): lists public inputs, defaults, secrets, outputs and permissions; publication defaults to enabled after an approved version-PR merge, while `publish: false` is an explicit validation choice.
 - [Consumer workflow example](resources/workflows/README.md): explains the single caller, reviewed product pin and optional lifecycle settings; copying a workflow does not grant merge or publication authority.
-- [Container fixture](tests/Container/verify.md): validates the installed image with disposable Git repositories and synthetic credentials; performs no real publication.
+- [PHAR fixture](tests/Phar/verify.php): verifies the ready executable in disposable projects; see [distribution](docs/phar.md) for build and runtime guarantees.

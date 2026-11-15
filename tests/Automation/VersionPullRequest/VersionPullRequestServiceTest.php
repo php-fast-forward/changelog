@@ -143,11 +143,11 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame('updated', $result->status);
         self::assertSame([$enabled, !$enabled, $enabled], $this->referencePolicies);
         self::assertStringContainsString(
-            'Changelog-Options: ' . new ReleaseOptions(
+            'Changelog-Options: ' . (new ReleaseOptions(
                 '/consumer',
                 repository: 'owner/project',
                 resolvePullRequests: $enabled,
-            )->evidenceHash(),
+            ))->evidenceHash(),
             $this->writes('commits')[0][2]['message'],
         );
         self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
@@ -1030,7 +1030,7 @@ final class VersionPullRequestServiceTest extends TestCase
             );
         }
 
-        return new VersionPullRequestService(
+        return (new VersionPullRequestService(
             $github,
             $git,
             $planner,
@@ -1044,7 +1044,7 @@ final class VersionPullRequestServiceTest extends TestCase
             $this->createStub(HistoryReleaseFactoryInterface::class),
             $this->createStub(ReleasePlanFactoryInterface::class),
             generated: $generated,
-        )->synchronize(
+        ))->synchronize(
             $options,
             $input,
         );

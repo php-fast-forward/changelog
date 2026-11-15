@@ -90,39 +90,70 @@ inputs:
 outputs:
   result:
     description: Complete stable JSON result.
+    value: ${{ steps.run.outputs.result }}
 
   status:
     description: "Operation status; empty when unavailable."
+    value: ${{ steps.run.outputs.status }}
 
   path:
     description: "Operation path; empty when unavailable."
+    value: ${{ steps.run.outputs.path }}
 
   head-sha:
     description: "Operation head-sha; empty when unavailable."
+    value: ${{ steps.run.outputs.head-sha }}
 
 runs:
-  using: docker
-  image: "../../../Dockerfile"
-  env:
-    FF_CHANGELOG_TOKEN: ${{ inputs.token }}
-  args:
-    - "github"
-    - "dependabot"
-    - "--no-interaction"
-    - "--cwd=${{ inputs.working-directory }}"
-    - "--fragment-directory=${{ inputs.fragment-directory }}"
-    - "--changelog-file=${{ inputs.changelog-file }}"
-    - "--locale=${{ inputs.locale }}"
-    - "--template=${{ inputs.template }}"
-    - "--base-ref=${{ inputs.base-ref }}"
-    - "--tag-prefix=${{ inputs.tag-prefix }}"
-    - "--repository=${{ inputs.repository }}"
-    - "--source=${{ inputs.source }}"
-    - "--pull-request=${{ inputs.pull-request }}"
-    - "--expected-head-sha=${{ inputs.expected-head-sha }}"
-    - "--dependency-names=${{ inputs.dependency-names }}"
-    - "--dependency-type=${{ inputs.dependency-type }}"
-    - "--ecosystem=${{ inputs.ecosystem }}"
-    - "--security-alert-numbers=${{ inputs.security-alert-numbers }}"
-    - "--include-dev=${{ inputs.include-dev }}"
-    - "--include-actions=${{ inputs.include-actions }}"
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@2.40.0
+      with:
+        php-version: '8.3'
+        extensions: curl, iconv, mbstring, phar, zlib
+        tools: none
+        coverage: none
+    - id: run
+      shell: bash
+      env:
+        FF_CHANGELOG_BINARY: ${{ github.action_path }}/../../../dist/changelog
+        FF_CHANGELOG_TOKEN: ${{ inputs.token }}
+        FF_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        FF_INPUT_FRAGMENT_DIRECTORY: ${{ inputs.fragment-directory }}
+        FF_INPUT_CHANGELOG_FILE: ${{ inputs.changelog-file }}
+        FF_INPUT_LOCALE: ${{ inputs.locale }}
+        FF_INPUT_TEMPLATE: ${{ inputs.template }}
+        FF_INPUT_BASE_REF: ${{ inputs.base-ref }}
+        FF_INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
+        FF_INPUT_REPOSITORY: ${{ inputs.repository }}
+        FF_INPUT_SOURCE: ${{ inputs.source }}
+        FF_INPUT_PULL_REQUEST: ${{ inputs.pull-request }}
+        FF_INPUT_EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha }}
+        FF_INPUT_DEPENDENCY_NAMES: ${{ inputs.dependency-names }}
+        FF_INPUT_DEPENDENCY_TYPE: ${{ inputs.dependency-type }}
+        FF_INPUT_ECOSYSTEM: ${{ inputs.ecosystem }}
+        FF_INPUT_SECURITY_ALERT_NUMBERS: ${{ inputs.security-alert-numbers }}
+        FF_INPUT_INCLUDE_DEV: ${{ inputs.include-dev }}
+        FF_INPUT_INCLUDE_ACTIONS: ${{ inputs.include-actions }}
+      run: |
+        php "$FF_CHANGELOG_BINARY" \
+          "github" \
+          "dependabot" \
+          "--no-interaction" \
+          "--cwd=$FF_INPUT_WORKING_DIRECTORY" \
+          "--fragment-directory=$FF_INPUT_FRAGMENT_DIRECTORY" \
+          "--changelog-file=$FF_INPUT_CHANGELOG_FILE" \
+          "--locale=$FF_INPUT_LOCALE" \
+          "--template=$FF_INPUT_TEMPLATE" \
+          "--base-ref=$FF_INPUT_BASE_REF" \
+          "--tag-prefix=$FF_INPUT_TAG_PREFIX" \
+          "--repository=$FF_INPUT_REPOSITORY" \
+          "--source=$FF_INPUT_SOURCE" \
+          "--pull-request=$FF_INPUT_PULL_REQUEST" \
+          "--expected-head-sha=$FF_INPUT_EXPECTED_HEAD_SHA" \
+          "--dependency-names=$FF_INPUT_DEPENDENCY_NAMES" \
+          "--dependency-type=$FF_INPUT_DEPENDENCY_TYPE" \
+          "--ecosystem=$FF_INPUT_ECOSYSTEM" \
+          "--security-alert-numbers=$FF_INPUT_SECURITY_ALERT_NUMBERS" \
+          "--include-dev=$FF_INPUT_INCLUDE_DEV" \
+          "--include-actions=$FF_INPUT_INCLUDE_ACTIONS"

@@ -1,18 +1,17 @@
 # Authoring and checking fragments
 
-Use PHP `^8.5` and CPX as described in [local setup](adoption.md).
+Use PHP `^8.3` and the Composer-installed PHAR as described in [local setup](adoption.md).
 Run from the consumer project, without initialization or a local configuration file:
 
 ```sh
-cpx --skip-local fast-forward/changelog add \
+vendor/bin/changelog add \
   "Updates the dependency while preserving the public API." \
   --category=changed --type=patch --no-interaction
-cpx --skip-local fast-forward/changelog check --no-interaction
+vendor/bin/changelog check --no-interaction
 ```
 
-`--skip-local` belongs to CPX and precedes the package. The remaining arguments
-belong to Changelog. Existing Composer installs use the same arguments through
-`vendor/bin/changelog`, or `changelog` on the global binary path. The working
+Global installations use the same arguments through `changelog` on the global
+binary path. The working
 directory selects the consumer project; `--cwd` can select it explicitly.
 `add` creates `.changelog/` when necessary and one independent Markdown fragment.
 It does not edit central history or create configuration files.
@@ -39,7 +38,7 @@ head branch and complete head SHA, then copy its positive number from the
 canonical PR URL or trusted metadata. With `PULL_REQUEST` set to that number:
 
 ```sh
-cpx --skip-local fast-forward/changelog add \
+vendor/bin/changelog add \
   "Fixes Markdown parsing." --category=fixed \
   --pull-request="$PULL_REQUEST" --no-interaction
 ```
@@ -57,7 +56,7 @@ replacing another fragment.
 An explicit `--name` is a complete filename ending in `.md`, for example:
 
 ```sh
-cpx --skip-local fast-forward/changelog add \
+vendor/bin/changelog add \
   "Changes the internal adapter." --category=changed --type=patch \
   --name=internal-adapter.md --no-interaction
 ```
@@ -73,7 +72,7 @@ customizes it when committing. Unrelated staged or unstaged files remain outside
 this operation. No push is performed by fragment authoring.
 
 ```sh
-cpx --skip-local fast-forward/changelog add \
+vendor/bin/changelog add \
   "Fixes parser handling." --category=fixed --commit \
   --commit-message="chore: document parser fix" --no-interaction
 ```
@@ -91,7 +90,7 @@ diagnostics. A local check may have an empty fragment directory and performs no
 Git comparison unless a baseline is supplied.
 
 ```sh
-cpx --skip-local fast-forward/changelog check --since=origin/main --no-interaction
+vendor/bin/changelog check --since=origin/main --no-interaction
 ```
 
 With a baseline, existing fragments inherited from the base do not satisfy the
@@ -133,8 +132,8 @@ stable maintained section does it fall back to a stable tag reachable from
 section produces a diagnostic.
 
 ```sh
-cpx --skip-local fast-forward/changelog notes 1.2.3 --no-interaction
-cpx --skip-local fast-forward/changelog notes 1.2.3 \
+vendor/bin/changelog notes 1.2.3 --no-interaction
+vendor/bin/changelog notes 1.2.3 \
   --output=notes/release-1.2.3.md --no-interaction
 ```
 
@@ -145,7 +144,7 @@ cannot replace a maintained input. See [history framing](history.md).
 
 ## Public CLI
 
-In the table, append the arguments to `cpx --skip-local fast-forward/changelog`.
+In the table, append the arguments to `vendor/bin/changelog`.
 Use `help <command>` for command-specific help.
 
 | Command | Example arguments | Behavior |
@@ -162,7 +161,7 @@ Use `help <command>` for command-specific help.
 | `publish` | `publish --target-sha=<approved-full-sha> --repository=owner/repo --dry-run` | Validate committed evidence and inspect remote state before publication. |
 
 The `github` entrypoint belongs to the Actions' machine-operation contract;
-see [Docker and automation](docker.md). Ordinary local tasks use the commands above.
+see [compiled distribution and Actions](phar.md). Ordinary local tasks use the commands above.
 
 ### Shared settings
 
@@ -204,8 +203,8 @@ discovery. See [reference and history behavior](history.md).
 
 `-s` selects historical source; `-S` selects a contribution baseline. Uppercase
 `-T` leaves `-t` available to each command. Direct Changelog execution retains
-Symfony's `-h`, `-q`, `-v`, `-V` and `-n` global options. Through CPX 2.1, use
-`help <command>` instead of `--help`; `--version` identifies CPX itself.
+Symfony's `-h`, `-q`, `-v`, `-V` and `-n` global options; `--version` identifies
+the installed Changelog package.
 A commit message does not enable `--commit`.
 
 Successful commands exit `0`, invalid arguments exit `2`, and validation or

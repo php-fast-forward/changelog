@@ -1,0 +1,66 @@
+name: 'Repository: Action'
+
+# A PR-only workflow keeps local Action execution in the PR cache scope.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: action-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  composite-action:
+    name: Composite Action Uses The Committed CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Prepare A Disposable Composite Action Project
+        shell: bash
+        env:
+          FF_ACTION_PROJECT: ${{ runner.temp }}/changelog-action-fixture
+        run: |
+          mkdir -p "$FF_ACTION_PROJECT"
+          printf '%s\n' '# Changelog' '' '## [0.1.0] - 2026-01-01' '' '### Added' '' '- Fixture.' > "$FF_ACTION_PROJECT/CHANGELOG.md"
+          git -C "$FF_ACTION_PROJECT" init --initial-branch=main
+          git -C "$FF_ACTION_PROJECT" -c user.name=Fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=absent-hooks commit --allow-empty -m 'Disposable action fixture'
+
+      - name: Verify Composite Action Invocation And Runner Outputs
+        id: composite-action
+        uses: ./.github/actions/history
+        with:
+          working-directory: ${{ runner.temp }}/changelog-action-fixture
+          operation: format
+          dry-run: 'true'
+          source: tags
+
+      - name: Verify The Composite Action Output Contract
+        env:
+          FF_ACTION_RESULT: ${{ steps.composite-action.outputs.result }}
+          FF_ACTION_STATUS: ${{ steps.composite-action.outputs.status }}
+        run: |
+          # PHP evaluates these variables; shell quoting is intentional.
+          # shellcheck disable=SC2016
+          php -r '
+              $result = json_decode(
+                  getenv("FF_ACTION_RESULT"),
+                  true,
+                  512,
+                  JSON_THROW_ON_ERROR,
+              );
+
+              if (
+                  $result["status"] !== "dry-run"
+                  || getenv("FF_ACTION_STATUS") !== "dry-run"
+              ) {
+                  exit(1);
+              }
+          '
+
+

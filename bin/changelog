@@ -41,13 +41,15 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
 
         $automationToken = getenv('FF_CHANGELOG_TOKEN');
         $config = config(['changelog' => [
-            'installed_version' => InstalledVersions::isInstalled(
+            'installed_version' => $pharPackageMetadata['version'] ?? (InstalledVersions::isInstalled(
                 'fast-forward/changelog',
             ) ? InstalledVersions::getPrettyVersion(
                 'fast-forward/changelog',
-            ) : null,
-            'installed_reference' => InstalledVersions::isInstalled('fast-forward/changelog')
-                ? InstalledVersions::getReference('fast-forward/changelog') : null,
+            ) : null),
+            'installed_reference' => $pharPackageMetadata['reference'] ?? (InstalledVersions::isInstalled(
+                'fast-forward/changelog',
+            )
+                ? InstalledVersions::getReference('fast-forward/changelog') : null),
             'token' => false === $automationToken ? (getenv('GITHUB_TOKEN') ?: '') : $automationToken,
             'api_url' => getenv('GITHUB_API_URL') ?: 'https://api.github.com',
             'github_output_file' => getenv('GITHUB_OUTPUT') ?: null,

@@ -33,7 +33,7 @@ final class GitHubCommandTest extends TestCase
         $result = ['status' => 'obsolete', 'pull_request' => 7, 'head_sha' => str_repeat('a', 40),
             'base_sha' => str_repeat('b', 40)];
         $runner = $this->createMock(AutomationRunnerInterface::class);
-        $runner->expects(self::once())->method('run')->with('pr-status', new GitHubInput()->values())->willReturn(
+        $runner->expects(self::once())->method('run')->with('pr-status', (new GitHubInput())->values())->willReturn(
             $result,
         );
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
@@ -61,7 +61,7 @@ final class GitHubCommandTest extends TestCase
     public function testNativeConsoleMappingAndRawOutput(): void
     {
         $runner = $this->createMock(AutomationRunnerInterface::class);
-        $expected = new GitHubInput()->values() + ['base-branch' => 'stable', 'managed-branch' => 'release/stable',
+        $expected = (new GitHubInput())->values() + ['base-branch' => 'stable', 'managed-branch' => 'release/stable',
             'automation-actor' => 'app[bot]', 'title' => 'Release <info>literal</info>', 'dry-run' => 'true'];
         $runner->expects(self::once())->method('run')->with('version', $expected)->willReturn(['status' => 'planned']);
         $writer = $this->createMock(GitHubOutputWriterInterface::class);
@@ -81,7 +81,7 @@ final class GitHubCommandTest extends TestCase
         $runner = $this->createMock(AutomationRunnerInterface::class);
         $runner->expects(self::once())->method('run')->with(
             'history',
-            new GitHubInput()->values() + ['operation' => 'format', 'dry-run' => 'false', 'check' => 'true'],
+            (new GitHubInput())->values() + ['operation' => 'format', 'dry-run' => 'false', 'check' => 'true'],
         )->willReturn(
             ['status' => 'planned'],
         );
@@ -133,7 +133,7 @@ final class GitHubCommandTest extends TestCase
             ),
             OutputInterface::OUTPUT_RAW,
         );
-        self::assertSame($status, new GitHubCommand($runner, $writer)('check', new GitHubInput(), $output));
+        self::assertSame($status, (new GitHubCommand($runner, $writer))('check', new GitHubInput(), $output));
     }
 
     /** Supplies explicit exceptions without consulting filesystem or remote state. */
@@ -160,6 +160,6 @@ final class GitHubCommandTest extends TestCase
         $output = $this->createMock(ConsoleOutputInterface::class);
         $output->expects(self::never())->method('writeln');
         $output->expects(self::once())->method('getErrorOutput')->willReturn($error);
-        self::assertSame(1, new GitHubCommand($runner, $writer)('version', new GitHubInput(), $output));
+        self::assertSame(1, (new GitHubCommand($runner, $writer))('version', new GitHubInput(), $output));
     }
 }

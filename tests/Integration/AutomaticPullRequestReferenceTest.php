@@ -72,11 +72,11 @@ final class AutomaticPullRequestReferenceTest extends TestCase
             $_ENV[$name] = $_SERVER[$name] = $value;
         }
         file_put_contents($root . '/empty', '');
-        $git = static fn(array $args): string => new Process(
+        $git = static fn(array $args): string => (new Process(
             ['git', ...$args],
             $root,
             ['GH_TOKEN' => false, 'GITHUB_TOKEN' => false, 'FF_CHANGELOG_TOKEN' => false, 'GIT_TERMINAL_PROMPT' => '0'],
-        )->mustRun()->getOutput();
+        ))->mustRun()->getOutput();
         try {
             $git(['init', '--initial-branch=main']);
             $git(['config', 'user.name', 'Synthetic fixture']);

@@ -21,7 +21,7 @@ on:
         default: ''
 
       runs-on:
-        description: JSON runner labels; Linux with Docker, Bash and Git is required.
+        description: JSON runner labels; Linux with Bash and Git is required. PHP is provisioned by the Action.
         type: string
         default: '["ubuntu-latest"]'
 

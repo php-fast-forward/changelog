@@ -53,7 +53,7 @@ final class AddCommandTest extends TestCase
             ->willReturn('/consumer/.changelog/one.md');
         $io = $this->createMock(SymfonyStyle::class);
         $io->expects(self::once())->method('success')->with('Created fragment: /consumer/.changelog/one.md');
-        self::assertSame(0, new AddCommand($factory, $writer)(
+        self::assertSame(0, (new AddCommand($factory, $writer))(
             $io,
             $settings,
             'Exact **Markdown**',
@@ -185,7 +185,7 @@ final class AddCommandTest extends TestCase
         $io->expects(self::once())->method('error');
         self::assertSame(
             2,
-            new AddCommand($factory, $writer)($io, $this->settings(), 'Message', issue: $reference),
+            (new AddCommand($factory, $writer))($io, $this->settings(), 'Message', issue: $reference),
         );
     }
 
@@ -208,7 +208,7 @@ final class AddCommandTest extends TestCase
         $io->expects(self::once())->method('error')->with('exclusive write failed');
         self::assertSame(
             1,
-            new AddCommand($factory, $writer)($io, $this->settings(), 'Message'),
+            (new AddCommand($factory, $writer))($io, $this->settings(), 'Message'),
         );
     }
 }

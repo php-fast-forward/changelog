@@ -16,6 +16,7 @@ inputs:
     required: true
   head-sha:
     description: Exact checked-out PR head.
+    value: ${{ steps.run.outputs.head-sha }}
     required: true
   base-sha:
     description: Exact live PR base.
@@ -65,35 +66,66 @@ inputs:
 outputs:
   result:
     description: JSON containing snapshot identities and diagnostics; obsolete results omit comment_body and errors.
+    value: ${{ steps.run.outputs.result }}
   status:
     description: valid, invalid or obsolete; unavailable evidence fails without claiming validation.
+    value: ${{ steps.run.outputs.status }}
   head-sha:
     description: Inspected immutable PR head.
+    value: ${{ steps.run.outputs.head-sha }}
 
 runs:
-  using: docker
-  image: '../../../Dockerfile'
-  env:
-    FF_CHANGELOG_TOKEN: ${{ inputs.token }}
-  args:
-    - github
-    - pr-status
-    - --no-interaction
-    - --cwd=${{ inputs.working-directory }}
-    - --repository=${{ inputs.repository }}
-    - --source=${{ inputs.source }}
-    - --generated-files=${{ inputs.generated-files }}
-    - --resolve-pull-requests=${{ inputs.resolve-pull-requests }}
-    - --locale=${{ inputs.locale }}
-    - --tag-prefix=${{ inputs.tag-prefix }}
-    - --pull-request=${{ inputs.pull-request }}
-    - --expected-head-sha=${{ inputs.head-sha }}
-    - --since=${{ inputs.base-sha }}
-    - --base-branch=${{ inputs.base-branch }}
-    - --fragment-directory=${{ inputs.fragment-directory }}
-    - --changelog-file=${{ inputs.changelog-file }}
-    - --managed-branch=${{ inputs.managed-branch }}
-    - --automation-actor=${{ inputs.automation-actor }}
-    - --waiver-label=${{ inputs.waiver-label }}
-    - --maintenance-label=${{ inputs.maintenance-label }}
-    - --publish-status=${{ inputs.publish-status }}
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@2.40.0
+      with:
+        php-version: '8.3'
+        extensions: curl, iconv, mbstring, phar, zlib
+        tools: none
+        coverage: none
+    - id: run
+      shell: bash
+      env:
+        FF_CHANGELOG_BINARY: ${{ github.action_path }}/../../../dist/changelog
+        FF_CHANGELOG_TOKEN: ${{ inputs.token }}
+        FF_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        FF_INPUT_REPOSITORY: ${{ inputs.repository }}
+        FF_INPUT_SOURCE: ${{ inputs.source }}
+        FF_INPUT_GENERATED_FILES: ${{ inputs.generated-files }}
+        FF_INPUT_RESOLVE_PULL_REQUESTS: ${{ inputs.resolve-pull-requests }}
+        FF_INPUT_LOCALE: ${{ inputs.locale }}
+        FF_INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
+        FF_INPUT_PULL_REQUEST: ${{ inputs.pull-request }}
+        FF_INPUT_HEAD_SHA: ${{ inputs.head-sha }}
+        FF_INPUT_BASE_SHA: ${{ inputs.base-sha }}
+        FF_INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
+        FF_INPUT_FRAGMENT_DIRECTORY: ${{ inputs.fragment-directory }}
+        FF_INPUT_CHANGELOG_FILE: ${{ inputs.changelog-file }}
+        FF_INPUT_MANAGED_BRANCH: ${{ inputs.managed-branch }}
+        FF_INPUT_AUTOMATION_ACTOR: ${{ inputs.automation-actor }}
+        FF_INPUT_WAIVER_LABEL: ${{ inputs.waiver-label }}
+        FF_INPUT_MAINTENANCE_LABEL: ${{ inputs.maintenance-label }}
+        FF_INPUT_PUBLISH_STATUS: ${{ inputs.publish-status }}
+      run: |
+        php "$FF_CHANGELOG_BINARY" \
+          "github" \
+          "pr-status" \
+          "--no-interaction" \
+          "--cwd=$FF_INPUT_WORKING_DIRECTORY" \
+          "--repository=$FF_INPUT_REPOSITORY" \
+          "--source=$FF_INPUT_SOURCE" \
+          "--generated-files=$FF_INPUT_GENERATED_FILES" \
+          "--resolve-pull-requests=$FF_INPUT_RESOLVE_PULL_REQUESTS" \
+          "--locale=$FF_INPUT_LOCALE" \
+          "--tag-prefix=$FF_INPUT_TAG_PREFIX" \
+          "--pull-request=$FF_INPUT_PULL_REQUEST" \
+          "--expected-head-sha=$FF_INPUT_HEAD_SHA" \
+          "--since=$FF_INPUT_BASE_SHA" \
+          "--base-branch=$FF_INPUT_BASE_BRANCH" \
+          "--fragment-directory=$FF_INPUT_FRAGMENT_DIRECTORY" \
+          "--changelog-file=$FF_INPUT_CHANGELOG_FILE" \
+          "--managed-branch=$FF_INPUT_MANAGED_BRANCH" \
+          "--automation-actor=$FF_INPUT_AUTOMATION_ACTOR" \
+          "--waiver-label=$FF_INPUT_WAIVER_LABEL" \
+          "--maintenance-label=$FF_INPUT_MAINTENANCE_LABEL" \
+          "--publish-status=$FF_INPUT_PUBLISH_STATUS"

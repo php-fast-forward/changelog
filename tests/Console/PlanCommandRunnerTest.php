@@ -57,7 +57,7 @@ final class PlanCommandRunnerTest extends TestCase
         );
         self::assertSame(
             $expected,
-            new PlanCommandRunner($factory, $planner, $applier)->run($input, $operation, $output),
+            (new PlanCommandRunner($factory, $planner, $applier))->run($input, $operation, $output),
         );
     }
 
@@ -92,7 +92,7 @@ final class PlanCommandRunnerTest extends TestCase
         );
         self::assertSame(
             2,
-            new PlanCommandRunner($factory, $planner, $applier)->run($this->mutation(true, true), 'version', $output),
+            (new PlanCommandRunner($factory, $planner, $applier))->run($this->mutation(true, true), 'version', $output),
         );
     }
 
@@ -108,9 +108,9 @@ final class PlanCommandRunnerTest extends TestCase
         $error->expects(self::once())->method('writeln')->with('<error>planning failed</error>');
         self::assertSame(
             1,
-            new PlanCommandRunner($factory, $this->createStub(ReleasePlannerInterface::class), $this->createStub(
+            (new PlanCommandRunner($factory, $this->createStub(ReleasePlannerInterface::class), $this->createStub(
                 ReleaseApplierInterface::class,
-            ))->run($this->mutation(), 'version', $output),
+            )))->run($this->mutation(), 'version', $output),
         );
     }
 }

@@ -610,7 +610,7 @@ final class AutomationRunnerTest extends TestCase
     private function noCalls(string $interface): object
     {
         $mock = $this->createMock($interface);
-        foreach (new ReflectionClass($interface)->getMethods() as $method) {
+        foreach ((new ReflectionClass($interface))->getMethods() as $method) {
             if (GitRepositoryInterface::class === $interface && 'repositoryRoot' === $method->getName()) {
                 $mock->method('repositoryRoot')->willReturn('/consumer');
 

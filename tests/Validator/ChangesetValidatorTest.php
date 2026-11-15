@@ -199,5 +199,4 @@ final class ChangesetValidatorTest extends TestCase
         )->reveal());
         self::assertEquals($expected, $validator->validate('/repo/.changelog', false, false));
     }
-
 }

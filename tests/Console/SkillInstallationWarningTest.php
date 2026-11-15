@@ -23,7 +23,10 @@ final class SkillInstallationWarningTest extends TestCase
             ['state' => $state],
         );
         $error = new BufferedOutput();
-        new SkillInstallationWarning(static fn(string $cwd): array => $installer->run($cwd, mode: 'check'), true)->warn(
+        (new SkillInstallationWarning(static fn(string $cwd): array => $installer->run(
+            $cwd,
+            mode: 'check',
+        ), true))->warn(
             '/consumer',
             $error,
         );
@@ -50,10 +53,10 @@ final class SkillInstallationWarningTest extends TestCase
         $installer = $this->createMock(SkillInstallerInterface::class);
         $installer->expects(self::never())->method('run');
         $error = new BufferedOutput();
-        new SkillInstallationWarning(static fn(string $cwd): array => $installer->run(
+        (new SkillInstallationWarning(static fn(string $cwd): array => $installer->run(
             $cwd,
             mode: 'check',
-        ), false)->warn(
+        ), false))->warn(
             '/consumer',
             $error,
         );
@@ -65,7 +68,10 @@ final class SkillInstallationWarningTest extends TestCase
         $installer = $this->createStub(SkillInstallerInterface::class);
         $installer->method('run')->willThrowException(new RuntimeException('private payload bytes'));
         $error = new BufferedOutput();
-        new SkillInstallationWarning(static fn(string $cwd): array => $installer->run($cwd, mode: 'check'), true)->warn(
+        (new SkillInstallationWarning(static fn(string $cwd): array => $installer->run(
+            $cwd,
+            mode: 'check',
+        ), true))->warn(
             '/consumer',
             $error,
         );

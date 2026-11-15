@@ -1,7 +1,7 @@
 # Workflow contract fixtures
 
 Run `composer test:workflows` on Linux or macOS with Bash and Node.js. Symfony YAML is
-a development dependency; the distributed CLI and Docker image do not need it.
+a development dependency; the distributed CLI does not need it.
 
 The fixture reads the actual reusable workflows, checks their nested inputs and
 permission grants, and executes the actual Bash and GitHub Script guards. It
@@ -77,6 +77,6 @@ alone did not isolate system Git configuration on Windows. The stacked scenario
 injects a hostile line-ending override first and asserts exact worktree bytes
 after checkout, preserving the original provenance rejection assertion.
 
-These checks do not execute GitHub's scheduler, Docker runner, token-permission
+These checks do not execute GitHub's scheduler, Action runner, token-permission
 model, sticky comment action or required-status settings in a consumer. A pilot
 repository must verify those effective platform behaviors before release.
