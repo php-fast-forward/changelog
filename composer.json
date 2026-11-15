@@ -73,7 +73,7 @@
         "symfony/http-client": "^7.4.23",
         "symfony/lock": "^7.4.23",
         "symfony/polyfill-php84": "^1.43.0",
-        "symfony/polyfill-php85": "^1.43.0",
+        "symfony/polyfill-php85": "^1.44.0",
         "symfony/process": "^7.4.22",
         "symfony/translation-contracts": "^3.8.1",
         "symfony/validator": "^7.4.23",
