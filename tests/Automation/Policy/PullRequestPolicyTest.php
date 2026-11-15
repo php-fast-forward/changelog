@@ -531,11 +531,7 @@ final class PullRequestPolicyTest extends TestCase
                 'filename' => 'src/foreign.php', 'status' => 'modified',
             ];
         } elseif ('options' === $case) {
-            $responses[$commit]['commit']['message'] = str_replace(
-                $this->options()->evidenceHash(),
-                (new ReleaseOptions('/consumer', repository: 'owner/project', locale: 'pt-BR'))->evidenceHash(),
-                $responses[$commit]['commit']['message'],
-            );
+            $data['locale'] = 'pt-BR';
         }
         $policy = $this->policy($responses, [], $data);
         self::assertSame($accepted, $policy->inspectHead($this->options(), $head, baseSha: $base));
