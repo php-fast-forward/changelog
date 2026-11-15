@@ -97,7 +97,7 @@ used across Fast Forward PHP packages.
   them to the summaries for review. This does not authorize publication or edits
   to already published releases; ordinary contribution rules remain in force.
 - Let the workflow prepare one managed version PR per configured release line;
-  this repository currently uses `main` and `changelog/version-phar`. A prepared version
+  this repository currently uses `main` and `changelog/version`. A prepared version
   and green checks are not publication authority: review its exact head, history
   and fragment deletions before any separately authorized merge/release.
 - Consumers maintaining parallel `1.x`/`2.x` lines MUST select the matching

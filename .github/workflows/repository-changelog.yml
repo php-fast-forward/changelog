@@ -41,7 +41,7 @@ jobs:
       pull-request: ${{ github.event.pull_request.number }}
       head-sha: ${{ github.event.pull_request.head.sha }}
       base-sha: ${{ github.event.pull_request.base.sha }}
-      managed-branch: changelog/version-phar
+      managed-branch: changelog/version
       source: tags
       generated-files: '["dist/changelog"]'
       automation-actor: ${{ vars.CHANGELOG_AUTOMATION_ACTOR || 'github-actions[bot]' }}
@@ -58,7 +58,7 @@ jobs:
     uses: ./.github/workflows/changelog.yml
     with:
       base-branch: main
-      managed-branch: changelog/version-phar
+      managed-branch: changelog/version
       source: tags
       generated-files: '["dist/changelog"]'
       version-pr-title: 'chore(release): fast-forward/changelog v{current_version} → v{next_version}'
@@ -138,7 +138,7 @@ jobs:
         with:
           base-branch: main
           base-ref: ${{ github.sha }}
-          managed-branch: changelog/version-phar
+          managed-branch: changelog/version
           source: tags
           generated-files: '["dist/changelog"]'
           resolve-pull-requests: true
@@ -159,7 +159,7 @@ jobs:
       head-sha: ${{ needs.version.outputs.head-sha }}
       base-sha: ${{ github.sha }}
       base-branch: main
-      managed-branch: changelog/version-phar
+      managed-branch: changelog/version
       source: tags
       generated-files: '["dist/changelog"]'
       resolve-pull-requests: true

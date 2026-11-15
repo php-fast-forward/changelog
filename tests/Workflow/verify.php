@@ -734,7 +734,7 @@ try {
     foreach (['valid', 'closed', 'stale-head', 'fork', 'other-base', 'main', 'managed', 'protected'] as $case) {
         $branch = match ($case) {
             'main' => 'main',
-            'managed' => 'changelog/version-phar',
+            'managed' => 'changelog/version',
             default => 'codex/runtime-change',
         };
         $head = str_repeat('a', 40);

@@ -384,6 +384,19 @@ final readonly class VersionPullRequestService implements VersionPullRequestServ
                 );
             }
 
+            // Adopt only the otherwise identical, fully proved history-only transaction.
+            // This is preparation, never publication: the replacement must prove the current policy.
+            if (! $owned && [] !== $options->generatedFiles) {
+                $previous = get_object_vars($options);
+                $previous['generatedFiles'] = [];
+                $owned = $this->policy->inspectHead(
+                    new ReleaseOptions(...$previous),
+                    $head,
+                    $input->automationActor,
+                    $base,
+                );
+            }
+
             if (null !== $pr) {
                 $owned = $owned && $this->botCreatedPullRequest($options, $pr, $input->automationActor);
             }
