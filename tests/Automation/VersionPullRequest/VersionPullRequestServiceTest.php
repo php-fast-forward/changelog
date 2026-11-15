@@ -168,7 +168,9 @@ final class VersionPullRequestServiceTest extends TestCase
         self::assertSame([['dist/tool'], ['dist/tool'], [], ['dist/tool']], $this->generatedPolicies);
         self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
         self::assertStringContainsString(
-            'Changelog-Options: ' . (new ReleaseOptions('/consumer', repository: 'owner/project', generatedFiles: ['dist/tool']))->evidenceHash(),
+            'Changelog-Options: ' . (new ReleaseOptions('/consumer', repository: 'owner/project', generatedFiles: [
+                'dist/tool',
+            ]))->evidenceHash(),
             $this->writes('commits')[0][2]['message'],
         );
     }
