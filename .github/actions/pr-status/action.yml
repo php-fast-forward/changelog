@@ -16,7 +16,6 @@ inputs:
     required: true
   head-sha:
     description: Exact checked-out PR head.
-    value: ${{ steps.run.outputs.head-sha }}
     required: true
   base-sha:
     description: Exact live PR base.

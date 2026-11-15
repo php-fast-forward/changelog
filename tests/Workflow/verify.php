@@ -194,6 +194,16 @@ foreach (['check', 'feedback', 'version', 'validate-version', 'publish'] as $job
     ++$assertions;
 }
 
+$statusAction = Yaml::parseFile($root . '/.github/actions/pr-status/action.yml');
+verifyWorkflow(
+    true === $statusAction['inputs']['head-sha']['required']
+        && ! array_key_exists('value', $statusAction['inputs']['head-sha'])
+        && '${{ inputs.head-sha }}' === $statusAction['runs']['steps'][1]['env']['FF_INPUT_HEAD_SHA']
+        && '${{ steps.run.outputs.head-sha }}' === $statusAction['outputs']['head-sha']['value'],
+    'PR status must accept the exact head as an input and expose step expressions only as outputs.',
+);
+++$assertions;
+
 foreach (['check', 'pr-status', 'version', 'publish'] as $actionName) {
     $action = Yaml::parseFile($root . '/.github/actions/' . $actionName . '/action.yml');
     verifyWorkflow(
