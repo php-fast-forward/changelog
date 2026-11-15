@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   ([#91](https://github.com/php-fast-forward/changelog/pull/91))
 
+### Changed
+
+- build(deps-dev): bump symfony/polyfill-php85 from 1.43.0 to 1.44.0 in the composer-development group across 1 directory
+
+  Update dependencies: `symfony/polyfill-php85`.
+
+  ([#96](https://github.com/php-fast-forward/changelog/pull/96), @dependabot[bot])
+
 ### Fixed
 
 - Keep documentation workflow verification compatible with stable full-version
