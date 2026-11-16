@@ -35,7 +35,7 @@ verified human maintenance policy described in [policies](policies.md).
 | --- | --- |
 | Contribution PR | Read-only contribution check, exact-head status and sticky feedback from trusted code. |
 | Dependabot PR | A verified dependency fragment, followed by validation of the resulting head. |
-| Push to `main` | Qualify source and one canonical PHAR, then create or refresh `changelog/version-phar` with those exact bytes. |
+| Push to `main` | Qualify source and one canonical PHAR, then create or refresh `changelog/version` with those exact bytes. |
 | Merge of that version PR | Verify the approved merge and publish its tag/release. Major-branch promotion consumes a separate release event. |
 
 The [automation map](automation-map.md) lists the repository CI, documentation

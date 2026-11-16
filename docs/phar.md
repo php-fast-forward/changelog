@@ -85,8 +85,12 @@ share one signed native version commit/PR. An obsolete main run skips before
 writing; a later race is rejected by the existing planner/preflight. Explicit
 feedback validates the actual resulting head. The lifecycle facade keeps
 preparation disabled and uses the same generated-file policy for publication.
-The new `changelog/version-phar` branch distinguishes that policy from any older
-managed version branch without overwriting its evidence.
+The existing `changelog/version` branch remains the single managed release line.
+Preparation may migrate an older history-only transaction only after proving its
+signed Bot ownership, exact scope and otherwise identical policy. The replacement
+uses the current generated-file policy and a non-forced descendant update, preserving
+existing PR identity and commit history. Publication never accepts the legacy policy.
+Existing alternate branches and PRs are not closed or removed automatically.
 
 `repository-phar-refresh.yml` follows the same data-only writer pattern as Code
 Standards. Its trusted workflow definition checks the original repository,
