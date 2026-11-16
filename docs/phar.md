@@ -87,7 +87,10 @@ feedback validates the actual resulting head. The lifecycle facade keeps
 preparation disabled and uses the same generated-file policy for publication.
 The existing `changelog/version` branch remains the single managed release line.
 Preparation may migrate an older history-only transaction only after proving its
-signed Bot ownership, exact scope and otherwise identical policy. The replacement
+signed Bot ownership, exact scope and otherwise identical policy. When migrating
+to tags with generated outputs, preparation may also prove the older auto-source,
+history-only transaction; reference resolution and all other settings must match.
+This exception does not authorize arbitrary source-policy changes. The replacement
 uses the current generated-file policy and a non-forced descendant update, preserving
 existing PR identity and commit history. Publication never accepts the legacy policy.
 Existing alternate branches and PRs are not closed or removed automatically.
