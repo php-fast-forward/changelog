@@ -511,13 +511,17 @@ final class PullRequestPolicyTest extends TestCase
     }
 
     /** Legacy reconstruction preserves identity/scope proof and cannot validate current-policy publication. */
-    #[TestWith(['valid', true])]
-    #[TestWith(['signature', false])]
-    #[TestWith(['author', false])]
-    #[TestWith(['scope', false])]
-    #[TestWith(['options', false])]
-    public function testHistoryOnlyMigrationEvidenceRemainsPolicyBound(string $case, bool $accepted): void
-    {
+    #[TestWith(['valid', true, 'auto'])]
+    #[TestWith(['valid', true, 'tags'])]
+    #[TestWith(['signature', false, 'tags'])]
+    #[TestWith(['author', false, 'tags'])]
+    #[TestWith(['scope', false, 'tags'])]
+    #[TestWith(['options', false, 'tags'])]
+    public function testHistoryOnlyMigrationEvidenceRemainsPolicyBound(
+        string $case,
+        bool $accepted,
+        string $source,
+    ): void {
         [$responses, $data] = $this->managed();
         $head = str_repeat('a', 40);
         $base = str_repeat('b', 40);
@@ -535,7 +539,9 @@ final class PullRequestPolicyTest extends TestCase
         }
         $policy = $this->policy($responses, [], $data);
         self::assertSame($accepted, $policy->inspectHead($this->options(), $head, baseSha: $base));
-        $current = new ReleaseOptions('/consumer', repository: 'owner/project', generatedFiles: ['dist/tool']);
+        $current = new ReleaseOptions('/consumer', repository: 'owner/project', source: $source, generatedFiles: [
+            'dist/tool',
+        ]);
         self::assertFalse($policy->inspectHead($current, $head, baseSha: $base));
         self::assertFalse($policy->inspect($current, 7)->centralChangeAuthorized);
     }

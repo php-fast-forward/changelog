@@ -175,6 +175,44 @@ final class VersionPullRequestServiceTest extends TestCase
         );
     }
 
+    /** Auto-history migration requires independent ownership and a replacement under the current tags policy. */
+    #[TestWith(['valid', 'updated'])]
+    #[TestWith(['unowned', 'refused'])]
+    #[TestWith(['unsigned_new_commit', 'conflict'])]
+    #[TestWith(['github_source', 'refused'])]
+    #[TestWith(['no_generated', 'refused'])]
+    #[TestWith(['reference_policy', 'refused'])]
+    public function testHistoryOnlyAutoToTagsMigration(string $case, string $expected): void
+    {
+        $settings = [
+            'existing' => true, 'source' => 'github_source' === $case ? 'github' : 'tags',
+            'resolve_references' => true, 'legacy_auto_history' => true,
+            'generated' => ['dist/tool' => hash('sha256', 'binary')], 'generated_native' => true,
+        ];
+        if ('reference_policy' === $case) {
+            $settings['resolve_references'] = false;
+        } elseif ('no_generated' === $case) {
+            unset($settings['generated'], $settings['generated_native']);
+        } elseif ('valid' !== $case) {
+            $settings[$case] = true;
+        }
+        $result = $this->synchronizeFixture($settings);
+        self::assertSame($expected, $result->status);
+        if ('updated' !== $expected) {
+            self::assertSame([], $this->writes('refs/heads'));
+
+            return;
+        }
+        self::assertSame(['sha' => str_repeat('c', 40), 'force' => false], $this->writes('refs/heads')[0][2]);
+        self::assertStringContainsString(
+            'Changelog-Options: ' . (new ReleaseOptions(
+                '/consumer', repository: 'owner/project', source: 'tags', resolvePullRequests: true,
+                generatedFiles: ['dist/tool'],
+            ))->evidenceHash(),
+            $this->writes('commits')[0][2]['message'],
+        );
+    }
+
     /** Legacy evidence does not bypass ownership or authenticate the replacement under old settings. */
     #[TestWith(['unowned'])]
     #[TestWith(['unsigned_new_commit'])]
@@ -739,6 +777,7 @@ final class VersionPullRequestServiceTest extends TestCase
         $options = new ReleaseOptions(
             '/consumer',
             repository: isset($settings['missing_repo']) ? null : 'owner/project',
+            source: $settings['source'] ?? 'auto',
             resolvePullRequests: $settings['resolve_references'] ?? false,
             generatedFiles: array_keys($settings['generated'] ?? []),
         );
@@ -1024,6 +1063,11 @@ final class VersionPullRequestServiceTest extends TestCase
             $this->policyCalls[] = ['inspectHead', $sha];
             $this->referencePolicies[] = $received->resolvePullRequests;
             $this->generatedPolicies[] = $received->generatedFiles;
+
+            if (isset($settings['legacy_auto_history']) && str_repeat('a', 40) === $sha
+                && ('auto' !== $received->source || [] !== $received->generatedFiles || ! $received->resolvePullRequests)) {
+                return false;
+            }
 
             if (isset($settings['legacy_generated_policy']) && str_repeat('a', 40) === $sha
                 && [] !== $received->generatedFiles) {
