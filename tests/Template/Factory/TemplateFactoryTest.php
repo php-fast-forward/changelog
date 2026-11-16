@@ -42,7 +42,7 @@ final class TemplateFactoryTest extends TestCase
     #[TestWith(['pt-BR', '### Adicionado', '## [Não publicado]'])]
     public function createsVerifiedBuiltinLocales(string $locale, string $category, string $unreleased): void
     {
-        $template = new TemplateFactory()->create($locale);
+        $template = (new TemplateFactory())->create($locale);
         self::assertSame($locale, $template->getLocale());
         self::assertSame($category, $template->categoryHeading('added'));
         self::assertSame($unreleased, $template->unreleasedHeading());
@@ -53,7 +53,7 @@ final class TemplateFactoryTest extends TestCase
     #[Test]
     public function acceptsExplicitPartialPresentationOverrides(): void
     {
-        $template = new TemplateFactory()->create(
+        $template = (new TemplateFactory())->create(
             'en',
             ['introduction' => '# History', 'category_headings' => ['added' => '### Features'], 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version}: {date}', 'no_notes' => 'No notes'],
         );
@@ -75,14 +75,14 @@ final class TemplateFactoryTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('category headings must identify distinct categories');
 
-        new TemplateFactory()->create($locale, ['category_headings' => $headings]);
+        (new TemplateFactory())->create($locale, ['category_headings' => $headings]);
     }
 
     /** Harmless terminal heading whitespace cannot make formatting select a different category alias. */
     #[Test]
     public function categoryOverridesRetainTheirIdentityAcrossActualHistoryFormatting(): void
     {
-        $template = new TemplateFactory()->create('en', [
+        $template = (new TemplateFactory())->create('en', [
             'category_headings' => ['changed' => "### Fixed \t", 'fixed' => '### Repairs'],
         ]);
         $codec = $this->codec();
@@ -110,7 +110,7 @@ final class TemplateFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('literal delimiter outside valid version/date characters');
-        new TemplateFactory()->create('en', ['release_heading_dated' => $heading]);
+        (new TemplateFactory())->create('en', ['release_heading_dated' => $heading]);
     }
 
     #[Test]
@@ -124,7 +124,7 @@ final class TemplateFactoryTest extends TestCase
     #[TestWith(['## {date}{date}:{version}'])]
     public function separatedLiteralAndRepeatedSamePlaceholderFormsRoundTripThroughTheActualCodec(string $heading): void
     {
-        $template = new TemplateFactory()->create('en', ['release_heading_dated' => $heading]);
+        $template = (new TemplateFactory())->create('en', ['release_heading_dated' => $heading]);
         $documents = $this->createStub(HistoryDocumentFactoryInterface::class);
         $documents->method('create')->willReturnCallback(
             static fn(array $releases, string $prefix, string $references): HistoryDocument => new HistoryDocument(
@@ -186,7 +186,7 @@ final class TemplateFactoryTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('unreleased heading must not also identify a valid release heading');
-        new TemplateFactory()->create('en', $overrides);
+        (new TemplateFactory())->create('en', $overrides);
     }
 
     #[Test]
@@ -203,7 +203,7 @@ final class TemplateFactoryTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('unreleased heading must not also identify a valid release heading');
-        new TemplateFactory()->create(
+        (new TemplateFactory())->create(
             'en',
             ['release_heading' => '## Release {version}', 'unreleased_heading' => $unsafe->unreleasedHeading()],
         );
@@ -232,7 +232,7 @@ final class TemplateFactoryTest extends TestCase
     #[TestWith(['en', ['release_heading_dated' => '## {version}: {date}/{date}', 'unreleased_heading' => '## 1.2.3: 2026-10-03/2026-10-04']])]
     public function preservesLocalizedPendingHeadingsAndNonreleaseNearMisses(string $locale, array $overrides): void
     {
-        $template = new TemplateFactory()->create($locale, $overrides);
+        $template = (new TemplateFactory())->create($locale, $overrides);
         self::assertSame($overrides['unreleased_heading'], $template->unreleasedHeading());
         $codec = $this->codec();
         $markdown = $codec->render(new HistoryDocument([
@@ -255,7 +255,7 @@ final class TemplateFactoryTest extends TestCase
     public function rejectsUnknownLocales(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new TemplateFactory()->create('unknown');
+        (new TemplateFactory())->create('unknown');
     }
 
     #[Test]
@@ -273,7 +273,7 @@ final class TemplateFactoryTest extends TestCase
     public function rejectsInvalidPresentationSettings(array $overrides): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new TemplateFactory()->create('en', $overrides);
+        (new TemplateFactory())->create('en', $overrides);
     }
     /** Exercises Markdown identity parsing with injected construction boundaries and no external state. */
     private function codec(): HistoryCodec
@@ -300,5 +300,4 @@ final class TemplateFactoryTest extends TestCase
 
         return new HistoryCodec($documents, $releases);
     }
-
 }

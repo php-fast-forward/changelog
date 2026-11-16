@@ -108,7 +108,7 @@ final class GeneratedFileEvidenceTest extends TestCase
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturn('/fixture/dist/tool');
         $this->expectException(RuntimeException::class);
-        new GeneratedFileEvidence($git, $files, $paths, $this->createStub(GitHubClientInterface::class))->local(
+        (new GeneratedFileEvidence($git, $files, $paths, $this->createStub(GitHubClientInterface::class)))->local(
             $this->options(),
             'base',
             $committed ? 'head' : null,

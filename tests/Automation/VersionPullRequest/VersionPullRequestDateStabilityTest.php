@@ -357,7 +357,7 @@ final class VersionPullRequestDateStabilityTest extends TestCase
                 $this->state['untrusted_template'] = true;
             }
 
-            return new TemplateFactory()->create($received->locale, $this->state['overrides']);
+            return (new TemplateFactory())->create($received->locale, $this->state['overrides']);
         });
         $paths = $this->createStub(PackagePathResolverInterface::class);
         $paths->method('absolutePath')->willReturnCallback(static fn(string $path): string => '/consumer/' . $path);

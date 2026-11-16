@@ -22,8 +22,8 @@ final class ChangesetParseResultTest extends TestCase
     {
         $changeset = new Changeset('one.md', Category::Added, null, null, '@bot', 'Body.');
 
-        self::assertTrue(new ChangesetParseResult('one.md', $changeset, [])->isValid());
-        self::assertFalse(new ChangesetParseResult('one.md', null, [])->isValid());
-        self::assertFalse(new ChangesetParseResult('one.md', $changeset, ['error'])->isValid());
+        self::assertTrue((new ChangesetParseResult('one.md', $changeset, []))->isValid());
+        self::assertFalse((new ChangesetParseResult('one.md', null, []))->isValid());
+        self::assertFalse((new ChangesetParseResult('one.md', $changeset, ['error']))->isValid());
     }
 }

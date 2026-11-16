@@ -168,7 +168,7 @@ final class PendingNoteCurationTest extends TestCase
         $kind = match ($scenario) {
             'ordinary' => 'ordinary', 'waiver' => 'waiver', 'unbound-kind' => 'unknown', default => 'maintenance',
         };
-        $report = new CheckService($validator, $git)->check(
+        $report = (new CheckService($validator, $git))->check(
             new ReleaseOptions('/repo'), 'base', 'no-authority' !== $scenario, 'waiver' === $scenario, $kind,
         );
 

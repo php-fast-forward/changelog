@@ -52,51 +52,6 @@ function verify(bool $condition, string $message): void
     }
 }
 
-/** Fails one selected command and exhausts native fallback without depending on private map grouping. */
-function failSelectedFactory(string $source): string
-{
-    $offset = 0;
-    $function = false;
-    $selected = false;
-    $start = null;
-    $depth = 0;
-
-    foreach (token_get_all($source) as $token) {
-        $text = is_array($token) ? $token[1] : $token;
-
-        if (is_array($token) && T_FUNCTION === $token[0]) {
-            $function = true;
-        } elseif ($function && is_array($token) && T_STRING === $token[0]) {
-            $selected = 'getFactories' === $text;
-            $function = false;
-        } elseif ($selected && is_array($token) && T_RETURN === $token[0] && null === $start) {
-            $start = $offset + strlen($text);
-        } elseif (null !== $start && is_string($token)) {
-            if (in_array($token, ['[', '{', '('], true)) {
-                ++$depth;
-            } elseif (in_array($token, [']', '}', ')'], true)) {
-                --$depth;
-            } elseif (';' === $token && 0 === $depth) {
-                $expression = substr($source, $start, $offset - $start);
-
-                return substr_replace(
-                    $source,
-                    ' array_replace(' . trim($expression)
-                    . ", [\\FastForward\\Changelog\\Release\\ReleasePlannerInterface::class => static fn(): null => null,"
-                    . " \\FastForward\\Changelog\\Console\\Command\\StatusCommand::class"
-                    . " => static fn(): never => throw new \\RuntimeException('fixture selected graph')])",
-                    $start,
-                    $offset - $start,
-                );
-            }
-        }
-
-        $offset += strlen($text);
-    }
-
-    throw new RuntimeException('The installed provider must expose its explicit factory declarations.');
-}
-
 /** Runs structured fixture arguments, using RTK locally or explicit direct execution in CI. */
 function execute(array $arguments, string $directory, array $environment, int $expected = 0): array
 {
@@ -237,7 +192,7 @@ function runtimeGraph(string $installation): void
     );
     $packages = $data['packages'] ?? $data;
     $names = array_column($packages, 'name');
-    verify(in_array('fast-forward/changelog', $names, true), 'The product package was not installed.');
+    verify(['fast-forward/changelog'] === $names, 'The CLI must install no runtime library dependencies.');
     foreach ([
         'fast-forward/dev-tools',
         'phpunit/phpunit',
@@ -260,8 +215,8 @@ function runtimeGraph(string $installation): void
     );
     $metadata = json_decode(file_get_contents($package . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
     verify(
-        'library' === $metadata['type'],
-        'Optional skill installation must retain the library installation contract.',
+        'project' === $metadata['type'],
+        'The compiled package must expose the CLI-only distribution contract.',
     );
     verify(
         'resources/skills' === ($metadata['extra']['skills']['source'] ?? null),
@@ -282,6 +237,15 @@ function runtimeGraph(string $installation): void
             "---\nname: fast-forward-changelog\n",
         ),
         'The distributed skill must retain its unambiguous public identifier.',
+    );
+    $visibility = execute([
+        PHP_BINARY, '-r', 'require $argv[1]; echo class_exists("FastForward\\Changelog\\Console\\Changelog") ? "exported" : "private";', $installation . '/vendor/autoload.php'],
+        $installation,
+        environment($fixtureRoot, $fixtureRoot . '/local-composer'),
+    );
+    verify(
+        'private' === $visibility['stdout'],
+        'The CLI-only package must not export an unusable PHP service autoloader.',
     );
     fwrite(STDOUT, sprintf("Runtime graph: %d packages, no development tools.\n", count($packages)));
 }
@@ -314,6 +278,12 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
 {
     $source = $fixtureRoot . '/archive-source';
     exportSource($packageRoot, $source, $environment);
+    $candidate = getenv('CHANGELOG_PHAR_CANDIDATE');
+    if (false !== $candidate && '' !== $candidate) {
+        verify(is_file($candidate) && !is_link($candidate), 'PHAR candidate must be an explicit regular file.');
+        copy($candidate, $source . '/dist/changelog');
+        chmod($source . '/dist/changelog', 0755);
+    }
     execute(['git', 'init', '--initial-branch=main'], $source, $environment);
     execute(['git', 'add', '--all'], $source, $environment);
     execute(['git', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Synthetic package archive'], $source, $environment);
@@ -321,7 +291,7 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
     execute(['git', 'archive', '--format=tar', '--output=' . $archive, 'HEAD'], $source, $environment);
     $listing = execute(['tar', '-tf', $archive], $source, $environment);
     $entries = preg_split('/\R/', trim($listing['stdout']));
-    foreach (['.agents/', '.claude/', 'scripts/', 'tests/', 'docs/'] as $excluded) {
+    foreach (['.agents/', '.claude/', 'scripts/', 'tests/', 'docs/', 'src/', 'bin/'] as $excluded) {
         verify(
             [] === array_filter($entries, static fn(string $entry): bool => str_starts_with($entry, $excluded)),
             'Development surface leaked into the archive: ' . $excluded,
@@ -343,23 +313,30 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
     $contentsRoot = $fixtureRoot . '/archive-contents';
     mkdir($contentsRoot, 0700);
     execute(['tar', '-xf', $archive, '-C', $contentsRoot], $source, $environment);
-    $runtimeFiles = ['Dockerfile', '.dockerignore', 'composer.json', 'composer.lock', 'LICENSE', 'bin/changelog'];
-    foreach (array_keys(snapshot($packageRoot . '/src')) as $file) {
-        $runtimeFiles[] = 'src/' . $file;
+    $runtimeFiles = [
+        'composer.json',
+        'composer.lock',
+        'LICENSE',
+        'dist/changelog',
+    ];
+    foreach (array_keys(snapshot($packageRoot . '/resources')) as $file) {
+        $runtimeFiles[] = 'resources/' . $file;
     }
     foreach ([...$actions, ...$runtimeFiles] as $file) {
         verify(in_array($file, $entries, true), 'Action build dependency is absent from the archive: ' . $file);
+        $expected = 'dist/changelog' === $file && false !== $candidate && '' !== $candidate
+            ? $candidate : $packageRoot . '/' . $file;
         verify(
-            hash_file('sha256', $packageRoot . '/' . $file) === hash_file('sha256', $contentsRoot . '/' . $file),
+            hash_file('sha256', $expected) === hash_file('sha256', $contentsRoot . '/' . $file),
             'Archived Action/runtime bytes differ from the candidate source: ' . $file,
         );
     }
     foreach ($actions as $file) {
         verify(
-            realpath(dirname($contentsRoot . '/' . $file) . '/../../../Dockerfile') === realpath(
-                $contentsRoot . '/Dockerfile',
+            realpath(dirname($contentsRoot . '/' . $file) . '/../../../dist/changelog') === realpath(
+                $contentsRoot . '/dist/changelog',
             ),
-            'The archived public Action cannot resolve the shared Dockerfile: ' . $file,
+            'The archived composite Action must resolve its own compiled runtime: ' . $file,
         );
     }
     $skillFiles = snapshot($packageRoot . '/resources/skills/fast-forward-changelog');
@@ -374,7 +351,7 @@ function verifyArchive(string $packageRoot, string $fixtureRoot, array $environm
             'Archived skill bytes differ from the canonical package: ' . $file,
         );
     }
-    fwrite(STDOUT, "Archive public Actions, Docker context, skill and development exclusions PASS.\n");
+    fwrite(STDOUT, "Archive public composite Actions, ready runtime, skill and development exclusions PASS.\n");
 
     return $archive;
 }
@@ -397,8 +374,7 @@ function exercise(string $installation, string $consumer, array $environment): v
     if ('Windows' !== PHP_OS_FAMILY) {
         execute([$binary, 'list', '--raw', '--no-interaction', '--no-ansi'], $consumer, $environment);
     }
-    // A development checkout may leave its own vendor tree in a path mirror.
-    // The native Composer proxy must select its top-level installation autoloader.
+    // A source mirror may contain a foreign autoloader; the compiled CLI must use its private runtime.
     mkdir($installed . '/vendor', 0700, true);
     file_put_contents(
         $installed . '/vendor/autoload.php',
@@ -428,31 +404,51 @@ function exercise(string $installation, string $consumer, array $environment): v
         verify(!str_contains($listing['stdout'], 'changelog:' . $command), 'A legacy prefixed alias leaked.');
     }
     verify(
-        str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], 'dev-main'),
-        'The binary did not use native installed package metadata.',
+        str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], '0.6.0'),
+        'The binary did not preserve its installed package identity.',
     );
+    $hostAutoload = $installation . '/vendor/autoload.php';
+    $identity = json_decode(execute([
+        PHP_BINARY, '-r',
+        'require $argv[1]; echo json_encode(["package" => "fast-forward/changelog", "version" => Composer\\InstalledVersions::getPrettyVersion("fast-forward/changelog"), "reference" => Composer\\InstalledVersions::getReference("fast-forward/changelog")]);',
+        $hostAutoload,
+    ], $consumer, $environment)['stdout'], true, flags: JSON_THROW_ON_ERROR);
+    verify(
+        str_contains(cli($binary, $consumer, $environment, ['--version'])['stdout'], '0.6.0'),
+        'The binary must match the installed Composer package version.',
+    );
+    $originalAutoload = file_get_contents($hostAutoload);
+    file_put_contents(
+        $hostAutoload,
+        "<?php throw new RuntimeException('The PHAR must not load the consumer autoloader.');\n",
+    );
+    try {
+        verify(
+            $identity === skillResult(
+                cli($binary, $consumer, $environment, ['skill:install', '--dry-run', '--json']),
+            )['source'],
+            'The compiled CLI must preserve installed package metadata without executing its host autoloader.',
+        );
+    } finally {
+        file_put_contents($hostAutoload, $originalAutoload);
+    }
     cli($binary, $consumer, $environment, ['--help']);
     foreach ($publicCommands as $command) {
         cli($binary, $consumer, $environment, ['help', $command]);
     }
 
     $provider = $installed . '/src/Container/ServiceProvider/ChangelogServiceProvider.php';
-    $originalProvider = file_get_contents($provider);
-    file_put_contents($provider, failSelectedFactory($originalProvider));
+    mkdir(dirname($provider), 0700, true);
+    file_put_contents($provider, "<?php throw new RuntimeException('External source must not execute.');\n");
     try {
-        cli($binary, $consumer, $environment, ['list', '--raw']);
-        cli($binary, $consumer, $environment, ['--help']);
-        $failure = cli($binary, $consumer, $environment, ['status', '--source=tags'], 1);
-        verify(
-            str_contains($failure['stdout'] . $failure['stderr'], 'fixture selected graph'),
-            'Selected-command failure did not retain its diagnostic.',
-        );
-        cli($binary, $consumer, $environment, ['add', 'Graph failures stay isolated.', '--name=lazy-isolation.md']);
-        unlink($consumer . '/.changelog/lazy-isolation.md');
+        cli($binary, $consumer, $environment, ['status', '--source=tags']);
     } finally {
-        file_put_contents($provider, $originalProvider);
+        unlink($provider);
     }
 
+    if (!is_dir($consumer . '/.changelog')) {
+        mkdir($consumer . '/.changelog', 0700);
+    }
     $poison = "<?php\nfile_put_contents(__DIR__ . '/executed-php-config', 'unexpected');\nthrow new RuntimeException('Implicit PHP configuration must not run.');\n";
     foreach (['changelog.php', '.changelog.php', '.ff-changelog.php', '.changelog/config.php'] as $name) {
         file_put_contents($consumer . '/' . $name, $poison);
@@ -737,7 +733,7 @@ fwrite(STDOUT, json_encode(['version' => $evidence->version, 'tag' => $evidence-
 PHP;
     $proof = json_decode(
         execute([
-            PHP_BINARY, '-d', 'display_errors=stderr', '-r', $proofCode, $installation . '/vendor/autoload.php', $approved, realpath(
+            PHP_BINARY, '-d', 'display_errors=stderr', '-r', $proofCode, $GLOBALS['packageRoot'] . '/vendor/autoload.php', $approved, realpath(
                 $environment['TMPDIR'],
             )],
             $consumer,
@@ -765,7 +761,7 @@ function exerciseSkill(string $installation, string $consumer, array $environmen
 {
     mkdir($consumer, 0700, true);
     $binary = $installation . '/vendor/bin/changelog';
-    $autoload = $installation . '/vendor/autoload.php';
+    $autoload = $GLOBALS['packageRoot'] . '/vendor/autoload.php';
     $example = $installation . '/vendor/fast-forward/changelog/resources/skills/fast-forward-changelog/examples/contribution.php';
     $before = snapshot($consumer);
     execute([PHP_BINARY, $example, $autoload], $consumer, $environment, 2);
@@ -891,8 +887,8 @@ try {
     $archive = verifyArchive($packageRoot, $fixtureRoot, $localEnv);
     execute(['tar', '-xf', $archive, '-C', $fixtureRoot . '/package'], $fixtureRoot, $localEnv);
     $manifest = ['name' => 'fixture/changelog-consumer', 'type' => 'project', 'license' => 'MIT',
-        'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => 'dev-main']]]],
-        'require' => ['fast-forward/changelog' => 'dev-main'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.5.0']]];
+        'repositories' => [['type' => 'path', 'url' => $fixtureRoot . '/package', 'options' => ['symlink' => false, 'versions' => ['fast-forward/changelog' => '0.6.0']]]],
+        'require' => ['fast-forward/changelog' => '0.6.0'], 'config' => ['allow-plugins' => false, 'platform' => ['php' => '8.3.0']]];
     $local = $fixtureRoot . '/local-installation';
     $global = $fixtureRoot . '/global-composer';
     file_put_contents(
@@ -921,17 +917,36 @@ try {
     file_put_contents(
         $diagnosticAutoload,
         "<?php\ntrigger_error('Synthetic autoload diagnostic.', E_USER_WARNING);\nrequire "
-        . var_export($local . '/vendor/autoload.php', true) . ";\n",
+        . var_export($packageRoot . '/vendor/autoload.php', true) . ";\n",
     );
     $diagnostic = execute([
         PHP_BINARY, '-d', 'display_errors=1', '-d', 'error_reporting=-1', '-r',
         '$_composer_autoload_path = $argv[1]; $entry = $argv[2]; $_SERVER["argv"] = [$entry, "status", "--json", "--source=tags", "--no-interaction"]; require $entry;',
-        $diagnosticAutoload, $local . '/vendor/fast-forward/changelog/bin/changelog',
+        $diagnosticAutoload, $packageRoot . '/bin/changelog',
     ], $fixtureRoot . '/local-consumer', $localEnv);
     summary($diagnostic);
     verify(
         str_contains($diagnostic['stderr'], 'Synthetic autoload diagnostic.'),
         'Diagnostics must remain visible on stderr.',
+    );
+    $host = $fixtureRoot . '/host-conflict';
+    mkdir($host, 0700);
+    $hostManifest = $manifest;
+    $hostManifest['repositories'][] = ['type' => 'package', 'package' => ['name' => 'symfony/console', 'version' => '6.0.0', 'type' => 'metapackage']];
+    $hostManifest['repositories'][] = ['type' => 'package', 'package' => ['name' => 'php-di/php-di', 'version' => '6.0.0', 'type' => 'metapackage']];
+    $hostManifest['require'] += ['symfony/console' => '6.0.0', 'php-di/php-di' => '6.0.0'];
+    file_put_contents($host . '/composer.json', json_encode($hostManifest, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+    execute([
+        'composer', 'update', '--no-dev', '--no-plugins', '--no-scripts', '--no-interaction', '--no-progress'],
+        $host,
+        $localEnv,
+    );
+    verify(
+        str_contains(
+            cli($host . '/vendor/bin/changelog', $host, $localEnv, ['list', '--raw'])['stdout'],
+            'skill:install',
+        ),
+        'Incompatible host constraints must not affect the private compiled runtime.',
     );
     fwrite(STDOUT, "Installing native Composer global runtime...\n");
     execute([

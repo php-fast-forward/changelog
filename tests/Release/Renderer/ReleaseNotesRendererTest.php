@@ -54,7 +54,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $description = $marker . ' [guide]: https://example.test' . $title . "\n"
             . $marker . ' See [guide].';
         $reference = null === $repository ? '#7' : '[#7](https://github.com/owner/repo/pull/7)';
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('definition.md', Category::Added, null, 7, null, $description),
         ], $template, $repository);
 
@@ -63,7 +63,7 @@ final class ReleaseNotesRendererTest extends TestCase
                 . $padding . '(' . $reference . ")\n" . $marker . ' See [guide]. (' . $reference . ")\n",
             $notes,
         );
-        $html = (string) new CommonMarkConverter()->convert($notes);
+        $html = (string) (new CommonMarkConverter())->convert($notes);
 
         self::assertStringContainsString('<a href="https://example.test"' . ($withTitle ? ' title="Guide title"' : '')
             . '>guide</a>', $html);
@@ -81,12 +81,12 @@ final class ReleaseNotesRendererTest extends TestCase
     ): void {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('definition.md', Category::Added, null, 7, null, $description),
         ], $template);
 
         self::assertSame("### Added\n\n" . $body . "\n\n" . str_repeat(' ', $padding) . "(#7)\n", $notes);
-        self::assertStringContainsString('(#7)', (string) new CommonMarkConverter()->convert($notes));
+        self::assertStringContainsString('(#7)', (string) (new CommonMarkConverter())->convert($notes));
     }
 
     /** Root context retains active definitions while inline-owned comment text and delivery attribution stay intact. */
@@ -98,7 +98,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template->method('categoryHeading')->willReturn('### Added');
         $description = "12. See [guide].\n\nAdditional context: [inline](https://example.test \"<!--\").\n\n"
             . '[guide]: https://example.test';
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('context.md', Category::Added, null, $pullRequest, null, $description),
         ], $template);
 
@@ -113,7 +113,7 @@ final class ReleaseNotesRendererTest extends TestCase
         self::assertFalse($document->hasUnclosedComment());
         self::assertStringContainsString(
             '<a href="https://example.test">guide</a>',
-            (string) new CommonMarkConverter()->convert($notes),
+            (string) (new CommonMarkConverter())->convert($notes),
         );
     }
 
@@ -121,7 +121,7 @@ final class ReleaseNotesRendererTest extends TestCase
     public function testEmptyInventoryProducesNoBody(): void
     {
         $template = $this->createStub(TemplateInterface::class);
-        self::assertSame('', new ReleaseNotesRenderer()->render([], $template));
+        self::assertSame('', (new ReleaseNotesRenderer())->render([], $template));
     }
 
     /** Inventory discovery does not request headings for absent categories. */
@@ -129,7 +129,7 @@ final class ReleaseNotesRendererTest extends TestCase
     {
         $template = $this->createMock(TemplateInterface::class);
         $template->expects(self::never())->method('categoryHeading');
-        self::assertSame('', new ReleaseNotesRenderer()->render([], $template));
+        self::assertSame('', (new ReleaseNotesRenderer())->render([], $template));
     }
 
     /** Descriptions retain Markdown, stable category order and useful references without technical metadata. */
@@ -152,7 +152,7 @@ final class ReleaseNotesRendererTest extends TestCase
             ),
             new Changeset('a.md', Category::Added, null, null, null, 'Feature a.'),
         ];
-        $notes = new ReleaseNotesRenderer()->render($changes, $template, 'owner/project');
+        $notes = (new ReleaseNotesRenderer())->render($changes, $template, 'owner/project');
         self::assertStringNotContainsString('fast-forward-changelog:', $notes);
         self::assertStringContainsString('### custom added', $notes);
         self::assertLessThan(strpos($notes, 'Feature **b**.'), strpos($notes, 'Feature a.'));
@@ -170,7 +170,7 @@ final class ReleaseNotesRendererTest extends TestCase
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Changed');
-        $notes = new ReleaseNotesRenderer()->render(
+        $notes = (new ReleaseNotesRenderer())->render(
             [new Changeset('one.md', Category::Changed, 7, 8, null, 'Keep two spaces.  ')],
             $template,
         );
@@ -191,7 +191,7 @@ final class ReleaseNotesRendererTest extends TestCase
         ];
         self::assertSame(
             "### added\n\n- First.\n- Second.\n\n### fixed\n\n- Correction.\n",
-            new ReleaseNotesRenderer()->render($changes, $template),
+            (new ReleaseNotesRenderer())->render($changes, $template),
         );
     }
 
@@ -207,7 +207,7 @@ final class ReleaseNotesRendererTest extends TestCase
         ];
         self::assertSame(
             "### Fixed\n\n- Before.\n- First paragraph.\n\n  Second paragraph.\n\n- After.\n",
-            new ReleaseNotesRenderer()->render($changes, $template),
+            (new ReleaseNotesRenderer())->render($changes, $template),
         );
     }
 
@@ -216,7 +216,7 @@ final class ReleaseNotesRendererTest extends TestCase
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Fixed');
-        $notes = new ReleaseNotesRenderer()->render(
+        $notes = (new ReleaseNotesRenderer())->render(
             [new Changeset('code.md', Category::Fixed, null, null, 'human', "```php\nreturn 1;\n```")],
             $template,
         );
@@ -237,7 +237,7 @@ final class ReleaseNotesRendererTest extends TestCase
         MARKDOWN;
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Changed');
-        $notes = new ReleaseNotesRenderer()->render(
+        $notes = (new ReleaseNotesRenderer())->render(
             [new Changeset('composer-dependencies.md', Category::Changed, null, null, null, $description)],
             $template,
         );
@@ -264,7 +264,7 @@ final class ReleaseNotesRendererTest extends TestCase
     {
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Fixed');
-        $notes = new ReleaseNotesRenderer()->render(
+        $notes = (new ReleaseNotesRenderer())->render(
             [new Changeset('rich.md', Category::Fixed, null, null, null, $description)],
             $template,
         );
@@ -304,7 +304,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        $notes = new ReleaseNotesRenderer()->render(
+        $notes = (new ReleaseNotesRenderer())->render(
             [new Changeset('list.md', Category::Added, null, 7, null, $description)],
             $template,
             'example/project',
@@ -329,7 +329,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n" . $description . "\n",
-            new ReleaseNotesRenderer()->render(
+            (new ReleaseNotesRenderer())->render(
                 [new Changeset('list.md', Category::Added, null, null, null, $description)],
                 $template,
             ),
@@ -378,7 +378,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n" . str_replace('{ref}', '#7', $expected) . "\n",
-            new ReleaseNotesRenderer()->render(
+            (new ReleaseNotesRenderer())->render(
                 [new Changeset('list.md', Category::Added, null, 7, null, $description)],
                 $template,
             ),
@@ -403,7 +403,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n" . $expected . "\n", (new ReleaseNotesRenderer())->render([
             new Changeset('list.md', Category::Added, null, 7, null, $description),
         ], $template));
     }
@@ -418,7 +418,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n- Description.\n\n      <!-- literal\tpayload\n\n  (#7)\n",
-            new ReleaseNotesRenderer()->render([$change], $template),
+            (new ReleaseNotesRenderer())->render([$change], $template),
         );
         self::assertSame($description, $change->description);
     }
@@ -431,7 +431,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n-\n  ```make\n  all:\n  \tprintf 'hello'\n  ```\n\n  (#7)\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset('code.md', Category::Added, null, 7, null, "```make\nall:\n\tprintf 'hello'\n```"),
             ], $template),
         );
@@ -458,7 +458,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n" . $expected . "\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset('code.md', Category::Added, null, null, null, $description),
             ], $template),
         );
@@ -473,7 +473,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n" . $expected . "\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n" . $expected . "\n", (new ReleaseNotesRenderer())->render([
             new Changeset('list.md', Category::Added, null, 7, null, $description),
         ], $template));
     }
@@ -486,7 +486,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n- First. (#7)\n\nAdditional context.\n\n- Second. (#7)\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset(
                     'list.md',
                     Category::Added,
@@ -508,7 +508,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n- <pre>\n  all:\n  \tprintf 'hello'\n  </pre>\n\n  (#7)\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset('html.md', Category::Added, null, 7, null, $source),
             ], $template),
         );
@@ -522,7 +522,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n- <pre>Code.</pre>\n\n  (#7)\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n- <pre>Code.</pre>\n\n  (#7)\n", (new ReleaseNotesRenderer())->render([
             new Changeset('html.md', Category::Added, null, 7, null, $description),
         ], $template));
     }
@@ -537,7 +537,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('HTML block');
 
-        new ReleaseNotesRenderer()->render([
+        (new ReleaseNotesRenderer())->render([
             new Changeset('html.md', Category::Added, null, $pullRequest, null, "- First.\n\n<pre>\nExample"),
         ], $template);
     }
@@ -552,7 +552,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('HTML block');
 
-        new ReleaseNotesRenderer()->render([
+        (new ReleaseNotesRenderer())->render([
             new Changeset('html.md', Category::Added, null, 7, null, $description),
         ], $template);
     }
@@ -567,7 +567,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n- First.\n\n<div>Detail.</div>\n\n- Next.\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset('a.md', Category::Added, null, null, null, "- First.\n\n<div>Detail.</div>" . $ending),
                 new Changeset('b.md', Category::Added, null, null, null, 'Next.'),
             ], $template),
@@ -586,7 +586,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n" . $description . "\n\n" . str_repeat(' ', $padding) . "(#7)\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset('code.md', Category::Added, null, 7, null, $description),
             ], $template),
         );
@@ -598,7 +598,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n-     printf hello\n\n  (#7)\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n-     printf hello\n\n  (#7)\n", (new ReleaseNotesRenderer())->render([
             new Changeset('code.md', Category::Added, null, 7, null, '    printf hello'),
         ], $template));
     }
@@ -609,7 +609,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n- First.\n\n2. Second.\n3. Third.\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n- First.\n\n2. Second.\n3. Third.\n", (new ReleaseNotesRenderer())->render([
             new Changeset('a.md', Category::Added, null, null, null, 'First.'),
             new Changeset('b.md', Category::Added, null, null, null, "2. Second.\n3. Third."),
         ], $template));
@@ -621,7 +621,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n- First.\n- Second.\n- Third.\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n- First.\n- Second.\n- Third.\n", (new ReleaseNotesRenderer())->render([
             new Changeset('a.md', Category::Added, null, null, null, 'First.'),
             new Changeset('b.md', Category::Added, null, null, null, "  - Second.\n  - Third."),
         ], $template));
@@ -633,7 +633,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $template = $this->createStub(TemplateInterface::class);
         $template->method('categoryHeading')->willReturn('### Added');
 
-        self::assertSame("### Added\n\n- First.\n- Second.\n\n  Continued.\n", new ReleaseNotesRenderer()->render([
+        self::assertSame("### Added\n\n- First.\n- Second.\n\n  Continued.\n", (new ReleaseNotesRenderer())->render([
             new Changeset('list.md', Category::Added, null, null, null, "  - First.\n- Second.\n\n  Continued."),
         ], $template));
     }
@@ -646,7 +646,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('explicit closing delimiter');
 
-        new ReleaseNotesRenderer()->render([
+        (new ReleaseNotesRenderer())->render([
             new Changeset('list.md', Category::Added, null, 7, null, "- ```text\n  example\n- Next item."),
         ], $template);
     }
@@ -660,7 +660,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n- First. (#7)\n- ```php\n  code();\n  ```\n\n  (#7)\n- Last. (#7)\n",
-            new ReleaseNotesRenderer()->render([
+            (new ReleaseNotesRenderer())->render([
                 new Changeset('list.md', Category::Added, null, 7, null, $description),
             ], $template),
         );
@@ -674,7 +674,7 @@ final class ReleaseNotesRendererTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('unclosed HTML comment');
 
-        new ReleaseNotesRenderer()->render([
+        (new ReleaseNotesRenderer())->render([
             new Changeset('list.md', Category::Added, null, 7, null, "- Visible.\n\n  <!-- not closed"),
         ], $template);
     }
@@ -690,7 +690,7 @@ final class ReleaseNotesRendererTest extends TestCase
 
         self::assertSame(
             "### Added\n\n- " . str_replace("\n", "\n  ", $description) . "\n",
-            new ReleaseNotesRenderer()->render(
+            (new ReleaseNotesRenderer())->render(
                 [new Changeset('rule.md', Category::Added, null, null, null, $description)],
                 $template,
             ),

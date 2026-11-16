@@ -120,7 +120,7 @@ final class ReleaseOptionsFactoryTest extends TestCase
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::never())->method('isRepository');
         $git->expects(self::never())->method('originUrl');
-        new ReleaseOptionsFactory($paths, $git)->create(['tagPrefix' => $prefix]);
+        (new ReleaseOptionsFactory($paths, $git))->create(['tagPrefix' => $prefix]);
     }
 
     /** Covers empty/dot/lock components, revision expressions and every Git-prohibited character family. */
@@ -211,7 +211,7 @@ final class ReleaseOptionsFactoryTest extends TestCase
         $git = $this->createMock(GitRepositoryInterface::class);
         $git->expects(self::never())->method('isRepository');
         $git->expects(self::never())->method('originUrl');
-        $options = new ReleaseOptionsFactory($paths, $git)->create(['repository' => 'Selected/Target']);
+        $options = (new ReleaseOptionsFactory($paths, $git))->create(['repository' => 'Selected/Target']);
         self::assertSame('Selected/Target', $options->repository);
         self::assertSame('auto', $options->source);
     }

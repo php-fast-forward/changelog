@@ -4,7 +4,7 @@ Follow [first installation](skills.md) for the minimal project route. The
 development dependency is `llm/skills`; the instructions come from the
 `php-fast-forward/changelog` GitHub source. The application does not need the
 Changelog runtime dependency. The manager's plugin approval and Composer
-requirements are separate from running Changelog through CPX.
+requirements are separate from running the compiled Changelog CLI.
 
 ## Review the source policy
 

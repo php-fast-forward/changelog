@@ -58,7 +58,7 @@ final class TemplateResolverTest extends TestCase
         $sources->expects(self::once())->method('create')->with('/consumer/presentation.php')->willReturn($config);
         self::assertSame(
             $template,
-            new TemplateResolver($templates, $paths, $files, $sources)->resolve(new ReleaseOptions(
+            (new TemplateResolver($templates, $paths, $files, $sources))->resolve(new ReleaseOptions(
                 '/consumer',
                 template: 'presentation.php',
             )),
@@ -77,7 +77,7 @@ final class TemplateResolverTest extends TestCase
         $sources = $this->createMock(ConfigSourceFactoryInterface::class);
         $sources->expects(self::never())->method('create');
         $this->expectExceptionMessage('The selected PHP template does not exist: missing.php');
-        new TemplateResolver($templates, $paths, $files, $sources)->resolve(
+        (new TemplateResolver($templates, $paths, $files, $sources))->resolve(
             new ReleaseOptions('/consumer', template: 'missing.php'),
         );
     }

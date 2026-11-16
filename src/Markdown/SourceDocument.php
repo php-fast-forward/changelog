@@ -182,7 +182,7 @@ final class SourceDocument
         $environment->addBlockStartParser(new TrackedFencedCodeStartParser(), 51);
         $environment->addInlineParser(new UnclosedCommentInlineParser(), 39);
 
-        return new self($source, new MarkdownParser($environment)->parse($source));
+        return new self($source, (new MarkdownParser($environment))->parse($source));
     }
 
     /**
@@ -409,7 +409,7 @@ final class SourceDocument
         $environment->addInlineParser(new HtmlInlineParser(), 40);
         $environment->addInlineParser(new UnclosedCommentInlineParser(), 39);
         $source = strtr($block->getLiteral(), ["\r\n" => ' ', "\r" => ' ', "\n" => ' ']);
-        $document = new MarkdownParser($environment)->parse($source);
+        $document = (new MarkdownParser($environment))->parse($source);
 
         return $document->firstChild()->data->get(UnclosedCommentInlineParser::UNCLOSED_COMMENT, false);
     }
@@ -519,5 +519,4 @@ final class SourceDocument
 
         return null;
     }
-
 }

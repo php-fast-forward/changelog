@@ -124,7 +124,7 @@ final class IntegrationDiagnosticsFixture
             use RecordsIntegrationProgress;
 
             /** Interrupt the isolated child after its durable identity has been written. */
-            #[TestWith([true])]
+            #[TestWith([true], name: 'interrupted')]
             public function testInterrupted(bool $interrupt): void
             {
                 if ($interrupt) {
@@ -145,7 +145,7 @@ final class IntegrationDiagnosticsFixture
         verifyWorkflow(0 !== $process->run() && str_contains($process->getOutput(), 'Child Process Started'),
             'An interrupted isolated child must retain a failing parent result.');
         $progress = file_get_contents($directory . '/.build/integration-progress.log');
-        verifyWorkflow(str_contains($progress, 'IsolatedDiagnosticsTest::testInterrupted with data set #0'),
+        verifyWorkflow(str_contains($progress, 'IsolatedDiagnosticsTest::testInterrupted with data set "interrupted"'),
             'The active isolated test and dataset must survive even when child events cannot be forwarded.');
     }
 }

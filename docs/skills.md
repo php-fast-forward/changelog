@@ -3,8 +3,8 @@
 The `fast-forward-changelog` skill teaches contribution and release review while
 consulting the selected runtime's help and documentation. Instructions are text:
 installing them does not install the Changelog CLI or activate an agent session.
-Use [CPX for the CLI](adoption.md) and Composer only when you need the
-[PHP services](adoption.md) in the application.
+Use the [Composer-installed compiled CLI](adoption.md) for commands and the
+package's autoloader when you need its [PHP services](adoption.md) in the application.
 
 ## Manage project instructions with Composer
 
@@ -105,8 +105,8 @@ Changelog CLI's native receipt. Select the reviewed runtime in
 `CHANGELOG_VERSION` and inspect its help:
 
 ```sh
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" help skill:install
-cpx --skip-local "fast-forward/changelog:$CHANGELOG_VERSION" skill:install --check --json
+vendor/bin/changelog help skill:install
+vendor/bin/changelog skill:install --check --json
 ```
 
 The native check compares local bytes and ownership with that CLI's bundled
@@ -130,7 +130,7 @@ Native management does not adopt llm/skills or NPX copies.
 including its license, references and executable example. Run
 `composer test:packaging` after payload/archive changes: it compares every skill
 file and executes the PHP example and contribution arguments through an isolated
-installed CLI. It does not prove CPX, llm/skills synchronization or host activation;
+installed CLI. It does not prove llm/skills synchronization or host activation;
 exercise those routes separately in disposable consumers. Validate the final
 package with the official [Agent Skills validator](https://agentskills.io/specification#validation).
 

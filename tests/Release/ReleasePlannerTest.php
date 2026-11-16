@@ -306,7 +306,7 @@ final class ReleasePlannerTest extends TestCase
         self::assertStringNotContainsString('[1.7.1]:', $plan->changelogContents);
 
         $following = $this->markdownPlanner($plan->changelogContents, $tags)->plan($options);
-        $next = new NextVersionResolver(new VersionImpactResolver())->resolve($expected, [
+        $next = (new NextVersionResolver(new VersionImpactResolver()))->resolve($expected, [
             new Changeset('next.md', Category::Fixed, null, null, null, 'Fresh fix.'),
         ])->nextVersion;
 
@@ -957,7 +957,7 @@ final class ReleasePlannerTest extends TestCase
         $documents = new HistoryDocumentFactory();
         $releases = new HistoryReleaseFactory(new ReleaseDateValidator());
         $history = new HistoryCodec($documents, $releases);
-        $template = new TemplateFactory()->create();
+        $template = (new TemplateFactory())->create();
         $templates = $this->createStub(TemplateResolverInterface::class);
         $templates->method('resolve')->willReturn($template);
         $validator = $this->createStub(ChangesetValidatorInterface::class);

@@ -1,0 +1,22 @@
+{
+    "main": false,
+    "stub": "scripts/phar/stub.php",
+    "output": "dist/changelog",
+    "alias": "fast-forward-changelog.phar",
+    "chmod": "0755",
+    "directories": [
+        "bin",
+        "src",
+        "resources",
+        "vendor"
+    ],
+    "files": [
+        "LICENSE",
+        "composer.json",
+        "composer.lock"
+    ],
+    "exclude-composer-files": false,
+    "compression": "GZ",
+    "algorithm": "SHA512",
+    "timestamp": "2020-01-01T00:00:00+00:00"
+}

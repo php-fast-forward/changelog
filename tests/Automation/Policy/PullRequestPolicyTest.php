@@ -510,6 +510,42 @@ final class PullRequestPolicyTest extends TestCase
         self::assertTrue($this->policy($responses, [], $data)->inspectHead($this->options(), str_repeat('a', 40)));
     }
 
+    /** Legacy reconstruction preserves identity/scope proof and cannot validate current-policy publication. */
+    #[TestWith(['valid', true, 'auto'])]
+    #[TestWith(['valid', true, 'tags'])]
+    #[TestWith(['signature', false, 'tags'])]
+    #[TestWith(['author', false, 'tags'])]
+    #[TestWith(['scope', false, 'tags'])]
+    #[TestWith(['options', false, 'tags'])]
+    public function testHistoryOnlyMigrationEvidenceRemainsPolicyBound(
+        string $case,
+        bool $accepted,
+        string $source,
+    ): void {
+        [$responses, $data] = $this->managed();
+        $head = str_repeat('a', 40);
+        $base = str_repeat('b', 40);
+        $commit = '/repos/owner/project/commits/' . $head;
+        if ('signature' === $case) {
+            $responses[$commit]['commit']['verification']['verified'] = false;
+        } elseif ('author' === $case) {
+            $responses[$commit]['author']['id'] = 666;
+        } elseif ('scope' === $case) {
+            $responses['/repos/owner/project/compare/' . $base . '...' . $head]['files'][] = [
+                'filename' => 'src/foreign.php', 'status' => 'modified',
+            ];
+        } elseif ('options' === $case) {
+            $data['locale'] = 'pt-BR';
+        }
+        $policy = $this->policy($responses, [], $data);
+        self::assertSame($accepted, $policy->inspectHead($this->options(), $head, baseSha: $base));
+        $current = new ReleaseOptions('/consumer', repository: 'owner/project', source: $source, generatedFiles: [
+            'dist/tool',
+        ]);
+        self::assertFalse($policy->inspectHead($current, $head, baseSha: $base));
+        self::assertFalse($policy->inspect($current, 7)->centralChangeAuthorized);
+    }
+
     /** Only explicitly selected generated modifications join the owned scope; removals remain forbidden. */
     #[TestWith(['modified', true])]
     #[TestWith(['removed', false])]

@@ -58,7 +58,7 @@ final class HistoryCodecTest extends TestCase
     public function testContainedHtmlWithoutMetadataPreservesTheFollowingRelease(): void
     {
         $template = $this->template('en');
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('html.md', Category::Added, null, null, null, "- <pre>\n  Example"),
         ], $template);
         $codec = $this->codec();
@@ -144,7 +144,7 @@ final class HistoryCodecTest extends TestCase
     {
         $template = $this->template('en');
         $composer = "Update reviewed Composer dependencies.\n\n{$fence}markdown\n## [9.9.9]\n{$fence}\n\nKeep compatible constraints.";
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('composer-dependencies.md', Category::Changed, null, null, null, $composer),
             new Changeset(
                 'fenced-example.md',
@@ -185,7 +185,7 @@ final class HistoryCodecTest extends TestCase
     ): void {
         $template = $this->template('en');
         $description = $marker . $fence . "md\n" . $padding . '## [9.9.9]' . "\n" . $padding . $fence;
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('example.md', Category::Fixed, null, 7, null, $description),
         ], $template, 'example/project');
         $codec = $this->codec();
@@ -271,7 +271,7 @@ final class HistoryCodecTest extends TestCase
     public function testAcceptedCommentFenceExampleCanBeFormatted(string $description): void
     {
         $template = $this->template('en');
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset('comment.md', Category::Fixed, null, 7, null, $description),
         ], $template);
         $document = new HistoryDocument([new HistoryRelease('1.1.0', body: $notes)]);
@@ -290,7 +290,7 @@ final class HistoryCodecTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('explicit closing delimiter');
 
-        new ReleaseNotesRenderer()->render([
+        (new ReleaseNotesRenderer())->render([
             new Changeset('comment.md', Category::Fixed, null, 7, null, "- Visible <!-- hidden\n  ~~~\n  --> Visible."),
         ], $template);
     }
@@ -299,7 +299,7 @@ final class HistoryCodecTest extends TestCase
     public function testAuthoredListDefinitionWithoutMetadataRemainsRenderable(): void
     {
         $template = $this->template('en');
-        $notes = new ReleaseNotesRenderer()->render([
+        $notes = (new ReleaseNotesRenderer())->render([
             new Changeset(
                 'guide.md',
                 Category::Fixed,
@@ -778,7 +778,7 @@ final class HistoryCodecTest extends TestCase
     #[TestWith(['custom'])]
     public function refusesChangingTemplatesBeforeMigratingExistingCustomHistory(?string $locale): void
     {
-        $previous = new TemplateFactory()->create(
+        $previous = (new TemplateFactory())->create(
             'en',
             ['introduction' => '# Project history', 'release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}'],
         );
@@ -805,7 +805,7 @@ final class HistoryCodecTest extends TestCase
     #[Test]
     public function recognizesReviewedHeadingMigrationWithoutDuplicatingCustomHistory(): void
     {
-        $previous = new TemplateFactory()->create(
+        $previous = (new TemplateFactory())->create(
             'en',
             ['release_heading' => '## Release {version}', 'release_heading_dated' => '## Release {version} on {date}'],
         );
@@ -855,7 +855,7 @@ final class HistoryCodecTest extends TestCase
     #[TestWith(['## {version}{version}'])]
     public function refusesHidingCompactHistoryCreatedByAnAcceptedPreviousTemplate(string $heading): void
     {
-        $previous = new TemplateFactory()->create('en', ['release_heading' => $heading]);
+        $previous = (new TemplateFactory())->create('en', ['release_heading' => $heading]);
         $codec = $this->codec();
         $markdown = $codec->render(
             new HistoryDocument([new HistoryRelease('1.2.3', body: "Exact compact release notes.\n")]),
@@ -874,7 +874,7 @@ final class HistoryCodecTest extends TestCase
         $releases->expects(self::never())->method('create');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('keep the matching release template or migrate historical release headings');
-        $this->codec($releases)->parse($markdown, new TemplateFactory()->create());
+        $this->codec($releases)->parse($markdown, (new TemplateFactory())->create());
     }
 
     #[Test]

@@ -22,7 +22,7 @@ final class HistoryDocumentFactoryTest extends TestCase
     public function createsAUniqueHistoryWithRawPresentation(): void
     {
         $release = new HistoryRelease('1.0.0');
-        $document = new HistoryDocumentFactory()->create([$release], 'prefix', 'footer');
+        $document = (new HistoryDocumentFactory())->create([$release], 'prefix', 'footer');
         self::assertSame([$release], $document->getReleases());
         self::assertSame('prefix', $document->getPrefix());
         self::assertSame('footer', $document->getReferences());
@@ -33,13 +33,13 @@ final class HistoryDocumentFactoryTest extends TestCase
     {
         $release = new HistoryRelease('1.0.0');
         $this->expectException(InvalidArgumentException::class);
-        new HistoryDocumentFactory()->create([$release, $release]);
+        (new HistoryDocumentFactory())->create([$release, $release]);
     }
 
     #[Test]
     public function rejectsNonReleaseValues(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new HistoryDocumentFactory()->create(['unsupported']);
+        (new HistoryDocumentFactory())->create(['unsupported']);
     }
 }

@@ -42,22 +42,22 @@ copies it into its own `.github/workflows` and selects a published version or re
 
 Internal files use the `repository-` prefix; public reusable paths retain their
 `changelog` names. Display names use `Repository: ...` for internal event
-workflows and the image helper, and `Reusable: ...` for public
+workflows, and `Reusable: ...` for public
 contracts. These names distinguish ownership without changing consumer paths.
 
 | Repository workflow | Trigger and purpose |
 | --- | --- |
 | [`repository-ci.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-ci.yml) | PR, push and manual checks for this package: quality, tests, coverage and installed-runtime fixtures. |
+| [`repository-action.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-action.yml) | PR-only smoke of the tracked PHAR through the actual composite Action, with read-only permissions and PR cache scope. The compiled parity gate must also pass on that same head. |
 | [`repository-documentation.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-documentation.yml) | Read-only PR, push and manual builds of Markdown guides and the phpDocumentor API; uploads a site artifact without publishing Pages or Wiki. |
 | [`repository-impact.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-impact.yml) | Internal read-only helper for tests and documentation: classifies the complete immutable PR diff without hiding required checks. |
+| [`repository-phar-refresh.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-phar-refresh.yml) | Data-only refresh of an outdated compiled CLI on the same still-open source PR, after source/runtime/packaging qualification; it never merges or publishes a release. |
 | [`repository-changelog.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-changelog.yml) | One caller for this package's contribution checks, trusted PR feedback, Dependabot fragments, version preparation and approved-merge publication. |
 | [`repository-release-channels.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-release-channels.yml) | Select and promote the matching major branch with actions-tagger pinned to the reviewed v2.0.3 commit on published/edited stable releases; latest uses the upstream tag. The repository opt-in gates access to the configured environment. |
 
-[`repository-image.yml`](https://github.com/php-fast-forward/changelog/blob/main/.github/workflows/repository-image.yml) also uses `workflow_call`,
-but is an internal release step for this product's GHCR image. Its inputs bind
-an existing release tag to the approved source SHA. It is not an additional
-consumer changelog operation. See [this repository's flow](self-changelog.md)
-and [the Docker runtime](docker.md).
+The repository validates and refreshes the compiled CLI directly. It does not
+build or publish a Docker image; see [this repository's flow](self-changelog.md)
+and [compiled distribution](phar.md).
 
 On a PR, changelog-only and editorial changes keep the required test contexts
 visible with a short explanation instead of reinstalling dependencies and running
@@ -156,12 +156,10 @@ the reusable workflows:
 | [`publish`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/publish/action.yml) | Publish verified approved consolidation evidence. |
 | [`history`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/history/action.yml) | Prepare reviewed history maintenance. |
 
-These Docker actions share the root `Dockerfile` and call the packaged PHP CLI.
+These composite Actions provision PHP and execute the same packaged PHAR.
 Advanced callers can compose them directly with the required trusted checkout,
 permissions and event evidence. The lifecycle supplies that orchestration for
-ordinary adoption. [`setup-docker`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/setup-docker/action.yml)
-is an internal optional cache helper; it does not implement a changelog operation
-and skips persistent self-hosted daemons.
+ordinary adoption.
 [`github-auth`](https://github.com/php-fast-forward/changelog/blob/main/.github/actions/github-auth/action.yml) is the internal
 authentication helper used only from the trusted runtime. It selects the
 default/custom token or creates a repository-scoped App token inside the job;
@@ -171,9 +169,9 @@ Runtime code and action implementations stay in their current paths. Resources
 hold consumer examples and the [published skill](https://github.com/php-fast-forward/changelog/blob/main/resources/skills/fast-forward-changelog/SKILL.md),
 so packaged instructions remain distinct from GitHub's executable entrypoints.
 
-Public Action paths retain their shared Docker build context. GitHub Action
-downloads and Composer dist can use the same source archive; see
-[archive contents and runtime verification](docker.md) for the inclusion rules.
+Public Action paths and the ready PHAR remain in the archive. GitHub Action
+downloads and Composer dist use the same compiled payload; see
+[archive contents and runtime verification](phar.md) for the inclusion rules.
 
 ---
 

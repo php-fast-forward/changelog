@@ -174,7 +174,7 @@ existing authorized self-hosted runner can select its labels explicitly:
       runs-on: '["self-hosted", "Linux", "X64"]'
 ```
 
-The selected Linux runner must have Docker, Bash and Git available and be allowed
+The selected Linux runner must have Bash and Git available and be allowed
 to run the called public workflows.
 PR metadata queries use the official GitHub Script action and the Actions runner's
 bundled JavaScript runtime; installing GitHub CLI or jq on a self-hosted runner is
@@ -186,14 +186,12 @@ GitHub documents self-hosted access for called workflows owned by the same user
 or organization as the caller. Passing labels alone does not establish access
 to a runner across owners; verify the actual scheduling and runner-group policy
 before relying on that topology. See [GitHub's runner rules](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#self-hosted-runners).
-The optional Docker cache setup skips self-hosted runners without modifying or
-restarting their persistent daemon.
+The composite Actions provision the supported PHP runtime and extensions.
 
 Outputs expose the version PR number/head and published version/tag/SHA. They
-allow a consumer to attach its own post-publication tasks. Docker image
-publication is product-specific and remains separate. The packaged runtime is
-still built from its pinned Dockerfile; publishing an image does not implicitly
-switch the actions to consuming GHCR.
+allow a consumer to attach its own post-publication tasks. Actions execute the
+compiled PHAR from the selected trusted revision; no image build or registry
+publication is part of this lifecycle.
 
 The individual reusable workflows remain supported for advanced composition;
 the lifecycle does not replace their business services. See [the complete operation

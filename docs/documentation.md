@@ -11,7 +11,7 @@ build does not read it.
 
 ## Local Build
 
-Use PHP 8.5, Composer and GnuPG. Install the locked development dependencies
+Use PHP 8.3, Composer and GnuPG. Install the locked development dependencies
 from the repository root:
 
 ```sh
@@ -96,7 +96,7 @@ publication route.
 | `src/Release/`, `src/Publication/` and their tests | `release-receipts.md`, `publication.md`, `version-pull-request.md` |
 | `src/Version/` and versioning tests | `specification/versioning.md` |
 | `src/History/`, `src/Template/` | `history.md` |
-| `src/Container/`, `composer.json`, `Dockerfile` | `dependencies.md`, `docker.md`, `source-layout.md` |
+| `src/Container/`, `composer.json`, `box.json` | `dependencies.md`, `phar.md`, `source-layout.md` |
 | `resources/skills/fast-forward-changelog/`, including its executable contribution recipe | `adoption.md`, `skills.md`, `composer-skills.md` |
 | All `src/` declarations and PHPDoc | Generated namespace, class and method reference |
 

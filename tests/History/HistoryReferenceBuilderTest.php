@@ -42,7 +42,7 @@ final class HistoryReferenceBuilderTest extends TestCase
 
         self::assertSame('', $document->getReferences());
         self::assertStringContainsString('[1.0.0]:', $document->getRelease('1.0.0')->getEnding());
-        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project'));
+        self::assertSame($document, (new HistoryReferenceBuilder())->complete($document, 'owner/project'));
     }
 
     /** Missing links follow semantic predecessors and section order while retaining custom definition bytes. */
@@ -74,7 +74,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.1.0', body: $body),
             new HistoryRelease('1.0.0', body: "\nEarlier release.\n"),
         ]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project');
 
         self::assertSame($body, $completed->getReleases()[0]->getBody());
         self::assertStringContainsString(
@@ -93,7 +93,7 @@ final class HistoryReferenceBuilderTest extends TestCase
         $document = new HistoryDocument([
             new HistoryRelease('1.2.0', body: $body), new HistoryRelease('1.1.0'),
         ]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project');
 
         self::assertSame($body, $completed->getRelease('1.2.0')->getBody());
         self::assertStringContainsString('[1.2.0]: https://github.com/', $completed->getReferences());
@@ -107,7 +107,7 @@ final class HistoryReferenceBuilderTest extends TestCase
 
         self::assertSame("\n[1.0.1+linux]: https://github.com/owner/project/compare/pkg%2F1.0.0...pkg%2F1.0.1%2Blinux\n"
             . "[1.0.0]: https://github.com/owner/project/releases/tag/pkg%2F1.0.0\n",
-            new HistoryReferenceBuilder()->complete($document, 'owner/project', 'pkg/')->getReferences());
+            (new HistoryReferenceBuilder())->complete($document, 'owner/project', 'pkg/')->getReferences());
     }
 
     /** A consolidated but unpublished version cannot become a new definition or the next release's comparison base. */
@@ -151,7 +151,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     public function testComparisonCanUseATagAbsentFromTheDocument(): void
     {
         $document = new HistoryDocument([new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1')]);
-        $completed = new HistoryReferenceBuilder()->complete(
+        $completed = (new HistoryReferenceBuilder())->complete(
             $document,
             'owner/project',
             'v',
@@ -171,7 +171,7 @@ final class HistoryReferenceBuilderTest extends TestCase
         $document = new HistoryDocument([
             new HistoryRelease('1.1.0+build.2'), new HistoryRelease('1.0.1'), new HistoryRelease('1.0.0+linux'),
         ]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'pkg/', [
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project', 'pkg/', [
             'v1.0.1', 'Pkg/1.0.1', 'pkg/1.0.0+linux', 'pkg/1.0.1-rc.1', 'pkg/1.0.1+broken..',
         ], '1.1.0+build.2');
 
@@ -188,7 +188,7 @@ final class HistoryReferenceBuilderTest extends TestCase
         $document = new HistoryDocument([
             new HistoryRelease('1.7.2'), new HistoryRelease('1.7.1'), new HistoryRelease('1.7.0'),
         ]);
-        $references = new HistoryReferenceBuilder()->complete(
+        $references = (new HistoryReferenceBuilder())->complete(
             $document,
             'owner/project',
             '',
@@ -206,7 +206,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     public function testReachableBuildTagsHaveDeterministicPrecedence(array $tags): void
     {
         $document = new HistoryDocument([new HistoryRelease('1.0.1')]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', $tags, '1.0.1');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project', 'v', $tags, '1.0.1');
 
         self::assertSame("\n[1.0.1]: https://github.com/owner/project/compare/v1.0.0%2Bb...v1.0.1\n",
             $completed->getReferences());
@@ -218,7 +218,7 @@ final class HistoryReferenceBuilderTest extends TestCase
         $document = new HistoryDocument([
             new HistoryRelease('2.0.0-rc.1'), new HistoryRelease('1.7.2'), new HistoryRelease('1.7.0'),
         ]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', [
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project', 'v', [
             'v2.0.0-rc.1', 'v1.7.2-rc.1', 'v01.7.2', 'v1.7.2+broken..', 'v1.7.2junk', 'other/1.7.2', 'v1.7.0',
         ]);
 
@@ -237,7 +237,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.7.1'), new HistoryRelease('1.7.1-rc.1'), new HistoryRelease('0.0.0'),
         ], references: "[support]: https://custom.test/help\n");
 
-        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', $tags));
+        self::assertSame($document, (new HistoryReferenceBuilder())->complete($document, 'owner/project', 'v', $tags));
     }
 
     /** Tag evidence and a prospective identity cannot add orphaned definitions when no corresponding section exists. */
@@ -247,7 +247,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     {
         $document = new HistoryDocument(prefix: '# Maintained introduction', references: '[help]: https://custom.test');
 
-        self::assertSame($document, new HistoryReferenceBuilder()->complete(
+        self::assertSame($document, (new HistoryReferenceBuilder())->complete(
             $document,
             'owner/project',
             'v',
@@ -262,7 +262,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     public function testInitialPlannedVersionDoesNotInventAZeroTag(array $tags, string $target, bool $zeroTagged): void
     {
         $document = new HistoryDocument([new HistoryRelease('0.0.1'), new HistoryRelease('0.0.0')]);
-        $references = new HistoryReferenceBuilder()->complete($document, 'owner/project', 'v', $tags, '0.0.1')
+        $references = (new HistoryReferenceBuilder())->complete($document, 'owner/project', 'v', $tags, '0.0.1')
             ->getReferences();
 
         self::assertStringContainsString('[0.0.1]: https://github.com/owner/project' . $target, $references);
@@ -289,7 +289,7 @@ final class HistoryReferenceBuilderTest extends TestCase
 
         self::assertSame("[v1.2.0]: https://github.com/owner/project/compare/v1.1.0...v1.2.0\n"
             . "[ v1.1.0 ]: https://example.test/retained\n",
-            new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences());
+            (new HistoryReferenceBuilder())->complete($document, 'owner/project')->getReferences());
     }
 
     /** Existing global definitions remain authoritative even before trailing prose, while code examples are ignored. */
@@ -303,7 +303,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.3.0'), new HistoryRelease('1.2.0'),
             new HistoryRelease('1.1.0'), new HistoryRelease('1.0.0', body: $body),
         ]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project');
 
         self::assertSame($body, $completed->getRelease('1.0.0')->getBody());
         self::assertStringNotContainsString('[1.0.0]:', $completed->getReferences());
@@ -323,7 +323,7 @@ final class HistoryReferenceBuilderTest extends TestCase
         $document = $document->withReleases([
             new HistoryRelease('1.2.0'), new HistoryRelease('1.1.0'), ...$document->getReleases(),
         ]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project');
 
         self::assertSame($document->getReleases(), $completed->getReleases());
         self::assertStringNotContainsString('[v1.0.0]:', $completed->getReferences());
@@ -342,7 +342,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     {
         $body = "```invalid`info\n[1.0.0]: https://example.test/literal\n\nFollowing prose.\n";
         $document = new HistoryDocument([new HistoryRelease('1.0.0', body: $body)]);
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project');
 
         self::assertSame($body, $completed->getRelease('1.0.0')->getBody());
         self::assertStringContainsString(
@@ -358,7 +358,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.1.0', body: 'Fresh prose without a final newline'),
             new HistoryRelease('1.0.0', body: "[1.0.0]: https://custom.test/maintained\n\nMaintained prose."),
         ], '# Introduction without a final newline');
-        $completed = new HistoryReferenceBuilder()->complete($document, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($document, 'owner/project');
         $template = $this->createStub(TemplateInterface::class);
         $template->method('unreleasedHeading')->willReturn('## [Unreleased]');
         $template->method('releaseHeading')->willReturnCallback(
@@ -379,7 +379,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             static fn(string $version): HistoryRelease => new HistoryRelease($version),
             $versions,
         ));
-        $references = new HistoryReferenceBuilder()->complete($document, 'owner/project', '')->getReferences();
+        $references = (new HistoryReferenceBuilder())->complete($document, 'owner/project', '')->getReferences();
 
         foreach (array_slice($versions, 0, -1) as $index => $version) {
             self::assertStringContainsString('[' . $version . ']: https://github.com/owner/project/compare/'
@@ -399,7 +399,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.0.0+a'),
             new HistoryRelease('1.0.0'),
         ]);
-        $references = new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences();
+        $references = (new HistoryReferenceBuilder())->complete($document, 'owner/project')->getReferences();
 
         self::assertStringContainsString('/compare/v1.0.0%2Ba...v1.0.0%2Bb', $references);
         self::assertStringContainsString('/compare/v1.0.0...v1.0.0%2Ba', $references);
@@ -414,7 +414,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             static fn(string $version): HistoryRelease => new HistoryRelease($version),
             $versions,
         ));
-        $references = new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences();
+        $references = (new HistoryReferenceBuilder())->complete($document, 'owner/project')->getReferences();
 
         self::assertStringContainsString(
             '[1.0.0-1]: https://github.com/owner/project/releases/tag/v1.0.0-1',
@@ -433,7 +433,7 @@ final class HistoryReferenceBuilderTest extends TestCase
     public function testUnknownRepositoryPreservesTheDocument(?string $repository): void
     {
         $document = new HistoryDocument([new HistoryRelease('1.0.0')], references: 'Retained');
-        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, $repository));
+        self::assertSame($document, (new HistoryReferenceBuilder())->complete($document, $repository));
     }
 
     /** Reserved and malformed identities never become reference labels or tag paths. */
@@ -444,7 +444,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('01.0.0'),
             new HistoryRelease('1.0.0-01'),
         ]);
-        self::assertSame($document, new HistoryReferenceBuilder()->complete($document, 'owner/project'));
+        self::assertSame($document, (new HistoryReferenceBuilder())->complete($document, 'owner/project'));
     }
 
     /** A new latest reference precedes the old footer without adding a newline to its untouched final definition. */
@@ -456,7 +456,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             new HistoryRelease('1.0.0'),
         ], references: $footer);
         self::assertSame("[1.1.0]: https://github.com/owner/project/compare/v1.0.0...v1.1.0\n" . $footer,
-            new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences());
+            (new HistoryReferenceBuilder())->complete($document, 'owner/project')->getReferences());
     }
 
     /** New latest, missing middle and oldest references enter the corresponding positions without moving custom links. */
@@ -494,7 +494,7 @@ final class HistoryReferenceBuilderTest extends TestCase
 
         self::assertSame("[help]: https://example.test\n"
             . "[0.1.0]: https://github.com/owner/project/releases/tag/v0.1.0\n",
-            new HistoryReferenceBuilder()->complete($document, 'owner/project')->getReferences());
+            (new HistoryReferenceBuilder())->complete($document, 'owner/project')->getReferences());
     }
 
     /** Repeated real-codec round trips retain historical bytes and exclude footer links from release notes. */
@@ -519,7 +519,7 @@ final class HistoryReferenceBuilderTest extends TestCase
             [new HistoryRelease('1.1.0', '2026-10-17', body: "### Added\n\n- New feature.\n"),
                 ...$document->getReleases()],
         );
-        $completed = new HistoryReferenceBuilder()->complete($promoted, 'owner/project');
+        $completed = (new HistoryReferenceBuilder())->complete($promoted, 'owner/project');
         $rendered = $codec->render($completed, $template, true);
         $parsed = $codec->parse($rendered);
 

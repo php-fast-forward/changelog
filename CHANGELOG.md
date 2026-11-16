@@ -5,7 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.1] - 2026-11-13
+## [0.7.1] - 2026-11-16
+
+### Fixed
+
+- Keep PR status head input metadata valid so exact-head feedback can load the composite action. ([#99](https://github.com/php-fast-forward/changelog/pull/99))
+- Preserve the existing managed version branch when adopting qualified generated release outputs. Preparation can migrate an otherwise identical, independently verified history-only Bot transaction without replacing its PR or rewriting history; publication still requires the current policy. ([#98](https://github.com/php-fast-forward/changelog/pull/98))
+- Allow preparation to replace an independently verified, signed history-only Bot transaction from auto history when migrating to tags with generated release outputs. Preserve all ownership, scope and replacement checks; publication still requires the current policy. ([#100](https://github.com/php-fast-forward/changelog/pull/100))
+
+## [0.7.0] - 2026-11-15
+
+### Added
+
+- Distributes the ready-built Changelog PHAR through local and global Composer installations, embedding all execution libraries and complete resources. Consumers require PHP 8.3 and the declared extensions, without resolving library dependencies or compiling the CLI.
+
+  Replaces the Composer PHP-library contract with a compiled CLI: runtime libraries move to development dependencies and service namespaces are no longer autoloaded for consumers. Source development remains available through autoload-dev; resources and skills remain exported for orchestration.
+
+  Updates runtime and contributor dependencies to current stable PHP 8.3-compatible releases, including patched Symfony 7.4 and official PHP 8.4/8.5 polyfills. Consolidates the superseded standalone dependency-update fragment into this delivery.
+
+  Replaces Docker-backed Actions with PHP-provisioned composite Actions preserving inputs, outputs, quoted arguments and trusted runtime revisions. Retires image builds and publication without changing existing remote images or credentials. CI builds and qualifies one executable before its guarded refresh or native version transaction; the minimal extraction stub lives beside build preparation.
+
+  ([#91](https://github.com/php-fast-forward/changelog/pull/91))
+
+### Changed
+
+- build(deps-dev): bump symfony/polyfill-php85 from 1.43.0 to 1.44.0 in the composer-development group across 1 directory
+
+  Update dependencies: `symfony/polyfill-php85`.
+
+  ([#96](https://github.com/php-fast-forward/changelog/pull/96), @dependabot[bot])
 
 ### Fixed
 
@@ -177,7 +205,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable fast-forward-changelog agent skill, consumer examples, focused guides and browsable phpDocumentor API documentation. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 - One managed version PR with configurable titles, deterministic consolidation and recoverable transactions, updating readable history and removing consumed fragments without adding tracked plan files. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 
-[0.6.1]: https://github.com/php-fast-forward/changelog/compare/v0.6.0...v0.6.1
+[0.7.1]: https://github.com/php-fast-forward/changelog/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/php-fast-forward/changelog/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/php-fast-forward/changelog/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/php-fast-forward/changelog/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/php-fast-forward/changelog/compare/v0.4.0...v0.4.1

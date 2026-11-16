@@ -69,7 +69,7 @@ final class FilteredCommitPackTest extends TestCase
             return new MockResponse("001e# service=git-upload-pack\n0000" . $capabilities, ['response_headers' => ['content-type' => 'application/x-git-upload-pack-advertisement']]);
         });
         try {
-            new GitHubClient($http)->filteredCommitPack('owner/project', str_repeat('a', 40));
+            (new GitHubClient($http))->filteredCommitPack('owner/project', str_repeat('a', 40));
             self::fail('An unsupported filter must be refused.');
         } catch (RuntimeException $failure) {
             self::assertStringContainsString('did not advertise native pack filtering', $failure->getMessage());

@@ -24,7 +24,7 @@ to permit the trusted `pull_request_target` route for this caller.
 
 Jobs use `ubuntu-latest` by default; no repository variable is required.
 Optionally pass `runs-on` as a JSON array of Linux runner labels, for example
-`runs-on: '["self-hosted", "Linux", "X64"]'`. Docker, Bash and Git are required.
+`runs-on: '["self-hosted", "Linux", "X64"]'`. Bash and Git are required; the Actions provision PHP and required extensions.
 Runner selection and access belong to the consumer's infrastructure.
 
 The caller grants the maximum token permissions needed by the lifecycle; the

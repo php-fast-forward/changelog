@@ -53,7 +53,7 @@ final class ChangelogCommandLoader implements CommandLoaderInterface
         private readonly ContainerInterface $container,
     ) {
         foreach (self::SERVICES as $service) {
-            $metadata = new ReflectionClass($service)->getAttributes(AsCommand::class)[0]->newInstance();
+            $metadata = (new ReflectionClass($service))->getAttributes(AsCommand::class)[0]->newInstance();
             $this->definitions[$metadata->name] = ['service' => $service, 'metadata' => $metadata];
         }
     }
