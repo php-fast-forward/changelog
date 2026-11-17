@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-16
+
+### Fixed
+
+- Keep PR status head input metadata valid so exact-head feedback can load the composite action. ([#99](https://github.com/php-fast-forward/changelog/pull/99))
+- Preserve the existing managed version branch when adopting qualified generated release outputs. Preparation can migrate an otherwise identical, independently verified history-only Bot transaction without replacing its PR or rewriting history; publication still requires the current policy. ([#98](https://github.com/php-fast-forward/changelog/pull/98))
+- Allow preparation to replace an independently verified, signed history-only Bot transaction from auto history when migrating to tags with generated release outputs. Preserve all ownership, scope and replacement checks; publication still requires the current policy. ([#100](https://github.com/php-fast-forward/changelog/pull/100))
+
 ## [0.7.0] - 2026-11-15
 
 ### Added
@@ -197,6 +205,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable fast-forward-changelog agent skill, consumer examples, focused guides and browsable phpDocumentor API documentation. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 - One managed version PR with configurable titles, deterministic consolidation and recoverable transactions, updating readable history and removing consumed fragments without adding tracked plan files. ([#42](https://github.com/php-fast-forward/changelog/pull/42))
 
+[0.7.1]: https://github.com/php-fast-forward/changelog/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/php-fast-forward/changelog/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/php-fast-forward/changelog/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/php-fast-forward/changelog/compare/v0.4.1...v0.5.0
