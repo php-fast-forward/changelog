@@ -51,7 +51,7 @@ jobs:
       - name: Create The Channel App Token
         id: channel-app
         if: steps.release.outputs.promote == 'true'
-        uses: actions/create-github-app-token@v3.3.0
+        uses: actions/create-github-app-token@v3.4.0
         with:
           client-id: ${{ vars.RELEASE_CHANNEL_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_CHANNEL_APP_PRIVATE_KEY }}
