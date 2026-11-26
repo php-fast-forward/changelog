@@ -367,7 +367,7 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubFilter
      * @param string                      $relativePath  Scoped GitHub API endpoint.
      * @param array<string,mixed>|null     $body          Optional JSON payload.
      * @param ?iterable<string>            $bodyStream    Optional encoded streaming body.
-     * @return array{0:?array,1:array<string,list<string>>}
+     * @return array{0:?array,1:array<string,list<string>>} Decoded payload and normalized HTTP response headers.
      */
     private function exchangeOnce(string $method, string $relativePath, ?array $body, ?iterable $bodyStream): array
     {
