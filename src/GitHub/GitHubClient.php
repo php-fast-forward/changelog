@@ -18,6 +18,7 @@ namespace FastForward\Changelog\GitHub;
 use RuntimeException;
 use Symfony\Component\HttpClient\NativeHttpClient;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /** Sends explicit GitHub API requests with bounded pagination and redacted failures. */
@@ -33,6 +34,7 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubFilter
      *                                      requests.
      * @param string              $apiUrl   Trusted HTTPS REST API base, including an Enterprise Server /api/v3 prefix when applicable.
      * @param int                 $maxPages Positive pagination ceiling beyond which incomplete API history must be rejected.
+     * @param ?GitHubRetryPolicy  $retries  Optional delay policy for transient read failures.
      * @see https://docs.github.com/en/rest/about-the-rest-api/api-versions
      */
     public function __construct(
@@ -40,6 +42,7 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubFilter
         private string $token = '',
         private string $apiUrl = 'https://api.github.com',
         private int $maxPages = 100,
+        private ?GitHubRetryPolicy $retries = null,
     ) {}
 
     /**
@@ -342,6 +345,32 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubFilter
         ?array $body = null,
         ?iterable $bodyStream = null,
     ): array {
+        $read = 'GET' === $method || ('POST' === $method && '/graphql' === $relativePath
+            && is_string($body['query'] ?? null)
+            && 1 === preg_match('/\A\s*query(?:\s+[A-Za-z_][A-Za-z0-9_]*)?\s*(?:\(|\{)/', $body['query'])
+            && 0 === preg_match('/\b(?:mutation|subscription)\b/', $body['query']));
+        for ($attempt = 1; ; ++$attempt) {
+            try {
+                return $this->exchangeOnce($method, $relativePath, $body, $bodyStream);
+            } catch (GitHubTransientException $error) {
+                if (! $read || ! $this->retries?->retry($error, $attempt)) {
+                    throw $error;
+                }
+            }
+        }
+    }
+
+    /**
+     * Performs one request and classifies transient failures without retaining response details.
+     *
+     * @param string                      $method        Explicit HTTP method.
+     * @param string                      $relativePath  Scoped GitHub API endpoint.
+     * @param array<string,mixed>|null     $body          Optional JSON payload.
+     * @param ?iterable<string>            $bodyStream    Optional encoded streaming body.
+     * @return array{0:?array,1:array<string,list<string>>} Decoded payload and normalized HTTP response headers.
+     */
+    private function exchangeOnce(string $method, string $relativePath, ?array $body, ?iterable $bodyStream): array
+    {
         try {
             $response = $this->send($method, $relativePath, $body, $bodyStream);
             $status = $response->getStatusCode();
@@ -349,10 +378,19 @@ final readonly class GitHubClient implements GitHubClientInterface, GitHubFilter
                 return [null, []];
             }
             if ($status < 200 || $status >= 300) {
+                if (429 === $status || ($status >= 500 && $status <= 599)) {
+                    $after = $response->getHeaders(false)['retry-after'][0] ?? (429 === $status ? null : '0');
+                    $seconds = null !== $after && 1 === preg_match('/\A[0-9]+\z/', $after)
+                        ? (strlen($after) > 2 ? 31 : (int) $after)
+                        : null;
+                    throw new GitHubTransientException('GitHub API request failed with HTTP ' . $status . '.', $seconds);
+                }
                 throw new RuntimeException('GitHub API request failed with HTTP ' . $status . '.');
             }
 
             return [$response->toArray(false), $response->getHeaders(false)];
+        } catch (TransportExceptionInterface) {
+            throw new GitHubTransientException('GitHub transport or JSON decoding failed; response details were withheld.');
         } catch (ExceptionInterface) {
             throw new RuntimeException('GitHub transport or JSON decoding failed; response details were withheld.');
         }

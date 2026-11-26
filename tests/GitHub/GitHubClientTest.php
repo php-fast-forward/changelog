@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace FastForward\Changelog\Tests\GitHub;
 
 use FastForward\Changelog\GitHub\GitHubClient;
+use FastForward\Changelog\GitHub\GitHubRetryPolicy;
+use FastForward\Changelog\GitHub\GitHubTransientException;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpClient\Exception\JsonException;
@@ -18,8 +21,35 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 #[CoversClass(GitHubClient::class)]
+#[UsesClass(GitHubRetryPolicy::class)]
+#[UsesClass(GitHubTransientException::class)]
 final class GitHubClientTest extends TestCase
 {
+    /** A bounded retry is limited to safe reads after a transient response. */
+    public function testTransientGitHubReadIsRetriedWithoutReplayingWrites(): void
+    {
+        $delays = [];
+        $policy = new GitHubRetryPolicy(static function (int $delay) use (&$delays): void {
+            $delays[] = $delay;
+        });
+        $http = new MockHttpClient([
+            new MockResponse('', ['http_code' => 503]),
+            new MockResponse('{"id":1}', ['http_code' => 200]),
+            new MockResponse('', ['http_code' => 503]),
+        ]);
+        $client = new GitHubClient($http, retries: $policy);
+        self::assertSame(['id' => 1], $client->request('GET', '/repos/owner/project'));
+        self::assertSame([1_000_000], $delays);
+
+        try {
+            $client->request('POST', '/repos/owner/project/issues', ['title' => 'Fixture']);
+            self::fail('Expected the transient write failure to be surfaced.');
+        } catch (GitHubTransientException) {
+            self::assertSame([1_000_000], $delays);
+            self::assertSame(3, $http->getRequestsCount());
+        }
+    }
+
     /** Private acquisition authenticates canonical HTTPS only; no token enters the Git protocol body. */
     public function testCommitPackKeepsAuthenticationInHttpHeaders(): void
     {

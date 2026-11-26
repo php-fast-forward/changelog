@@ -502,6 +502,9 @@ final readonly class ChangelogServiceProvider implements ServiceProviderInterfac
                     $container->get(HttpClientInterface::class),
                     $container->get(self::CONFIG)->get('token'),
                     $container->get(self::CONFIG)->get('api_url'),
+                    retries: new GitHub\GitHubRetryPolicy(static function (int $delay): void {
+                        usleep($delay);
+                    }),
                 ),
             PersistingStoreInterface::class => new AliasFactory(FlockStore::class),
             ClockInterface::class => new AliasFactory(SystemClock::class),
