@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5d94560966da8d94844cd3fd80d38ae7",
+    "content-hash": "4d06d9e4e793ca5b214aee6313230cb0",
     "packages": [],
     "packages-dev": [
         {
@@ -503,16 +503,16 @@
         },
         {
             "name": "fast-forward/phpdoc-bootstrap-template",
-            "version": "v2.2.4",
+            "version": "v2.2.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fast-forward/phpdoc-bootstrap-template.git",
-                "reference": "3773b4f4a051b9966349ec02a4ab68001b51c198"
+                "reference": "ff98c8fd89e7cf54daea12b6580b39c1ce581e52"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fast-forward/phpdoc-bootstrap-template/zipball/3773b4f4a051b9966349ec02a4ab68001b51c198",
-                "reference": "3773b4f4a051b9966349ec02a4ab68001b51c198",
+                "url": "https://api.github.com/repos/php-fast-forward/phpdoc-bootstrap-template/zipball/ff98c8fd89e7cf54daea12b6580b39c1ce581e52",
+                "reference": "ff98c8fd89e7cf54daea12b6580b39c1ce581e52",
                 "shasum": ""
             },
             "require": {
@@ -567,7 +567,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-11T07:22:41+00:00"
+            "time": "2026-11-25T02:45:34+00:00"
         },
         {
             "name": "internal/path",
@@ -953,22 +953,22 @@
         },
         {
             "name": "llm/skills",
-            "version": "1.19.0",
+            "version": "1.23.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/roxblnfk/skills.git",
-                "reference": "ff1f3c124b8278bcceb5aee987b4cfab7f20c461"
+                "reference": "3913e7682055f27b0f376ae61f03949772b46aa2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/roxblnfk/skills/zipball/ff1f3c124b8278bcceb5aee987b4cfab7f20c461",
-                "reference": "ff1f3c124b8278bcceb5aee987b4cfab7f20c461",
+                "url": "https://api.github.com/repos/roxblnfk/skills/zipball/3913e7682055f27b0f376ae61f03949772b46aa2",
+                "reference": "3913e7682055f27b0f376ae61f03949772b46aa2",
                 "shasum": ""
             },
             "require": {
                 "composer-plugin-api": "^2.0",
                 "internal/path": "^1.4",
-                "php": ">=8.2"
+                "php": ">=8.1"
             },
             "require-dev": {
                 "bamarni/composer-bin-plugin": "^1.8",
@@ -985,6 +985,9 @@
             "type": "composer-plugin",
             "extra": {
                 "class": "LLM\\Skills\\Composer\\SkillsPlugin",
+                "skills": {
+                    "source": "resources/skills"
+                },
                 "bamarni-bin": {
                     "bin-links": true,
                     "forward-command": false,
@@ -1028,7 +1031,7 @@
                     "type": "boosty"
                 }
             ],
-            "time": "2026-11-15T14:10:03+00:00"
+            "time": "2026-11-24T15:16:34+00:00"
         },
         {
             "name": "myclabs/deep-copy",
@@ -1982,16 +1985,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.4.1",
+            "version": "2.4.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "af8e840551031d254cfdb3a18a62c3470a309c10"
+                "reference": "f80e753caa465ab4f93cb265ae32e2e8cb02c3f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/af8e840551031d254cfdb3a18a62c3470a309c10",
-                "reference": "af8e840551031d254cfdb3a18a62c3470a309c10",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/f80e753caa465ab4f93cb265ae32e2e8cb02c3f3",
+                "reference": "f80e753caa465ab4f93cb265ae32e2e8cb02c3f3",
                 "shasum": ""
             },
             "require": {
@@ -2023,9 +2026,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.4.1"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.4.2"
             },
-            "time": "2026-10-30T19:36:28+00:00"
+            "time": "2026-11-25T13:45:51+00:00"
         },
         {
             "name": "phpstan/phpstan",
@@ -2792,16 +2795,16 @@
         },
         {
             "name": "rector/rector",
-            "version": "2.8.5",
+            "version": "2.9.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/rectorphp/rector.git",
-                "reference": "bf2982e3e2b8dfbcb43e5589fa301431cb1e479e"
+                "reference": "8a06053cae42915224f9357566162ccb1076001a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/rectorphp/rector/zipball/bf2982e3e2b8dfbcb43e5589fa301431cb1e479e",
-                "reference": "bf2982e3e2b8dfbcb43e5589fa301431cb1e479e",
+                "url": "https://api.github.com/repos/rectorphp/rector/zipball/8a06053cae42915224f9357566162ccb1076001a",
+                "reference": "8a06053cae42915224f9357566162ccb1076001a",
                 "shasum": ""
             },
             "require": {
@@ -2837,7 +2840,7 @@
             ],
             "support": {
                 "issues": "https://github.com/rectorphp/rector/issues",
-                "source": "https://github.com/rectorphp/rector/tree/2.8.5"
+                "source": "https://github.com/rectorphp/rector/tree/2.9.2"
             },
             "funding": [
                 {
@@ -2845,7 +2848,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-14T23:24:35+00:00"
+            "time": "2026-11-24T23:34:02+00:00"
         },
         {
             "name": "sebastian/cli-parser",
@@ -5571,16 +5574,16 @@
         },
         {
             "name": "symplify/easy-coding-standard",
-            "version": "13.3.21",
+            "version": "13.3.25",
             "source": {
                 "type": "git",
                 "url": "https://github.com/ecsphp/ecs.git",
-                "reference": "0d1f0259bca495a724c27b55a8555c1bfaf16caf"
+                "reference": "ce1e98bedbc2d21923c421b33b4109c528c2a56d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ecsphp/ecs/zipball/0d1f0259bca495a724c27b55a8555c1bfaf16caf",
-                "reference": "0d1f0259bca495a724c27b55a8555c1bfaf16caf",
+                "url": "https://api.github.com/repos/ecsphp/ecs/zipball/ce1e98bedbc2d21923c421b33b4109c528c2a56d",
+                "reference": "ce1e98bedbc2d21923c421b33b4109c528c2a56d",
                 "shasum": ""
             },
             "require": {
@@ -5613,9 +5616,9 @@
             ],
             "support": {
                 "issues": "https://github.com/ecsphp/ecs/issues",
-                "source": "https://github.com/ecsphp/ecs/tree/13.3.21"
+                "source": "https://github.com/ecsphp/ecs/tree/13.3.25"
             },
-            "time": "2026-11-18T16:11:11+00:00"
+            "time": "2026-11-23T12:59:34+00:00"
         },
         {
             "name": "thecodingmachine/safe",
